@@ -166,6 +166,121 @@ confabulation easier — and it is counted into the accuracy figure on purpose.
 The report prints all of this above the tables, and both docstrings carry it, so
 a number cannot be quoted out of its caveat.
 
+## The ladder-return lane — the endpoint no judge scores
+
+`cofounder_ladder_return` is not a port and has no published anchor. It exists
+because of what the era pooling found: at the weak tier the REGISTER dimensions
+moved **+0.386 [+0.07,+0.70]** across sixteen rounds while SUBSTANCE moved
+**+0.027 [−0.39,+0.44]**. Sixteen rounds bought manners, not product — and a
+judged composite over a transcript structurally cannot separate *holding* a risk
+from *writing well about holding* one. So this lane measures something a judge
+never sees.
+
+The arms differ **structurally** in what survives a session ending: A1 keeps
+nothing, A1.7 keeps a prose journal it wrote itself, A2 keeps a graph. So the
+primary endpoint is a machine count over the artifact the NEXT session was
+handed:
+
+| Endpoint | What it is | Instrument |
+|----------|-----------|------------|
+| `carried` | the risk's own framing is still in the artifact the returning session got | machine, `score_survival`, **no judge** |
+| `break_depth` | the weakest rung that broke the position (1=simple … 4=citation, 5=never) | judged, one ordinal per cell |
+
+Both are **CO-PRIMARY and reported apart**. Disagreement is the finding: `break
+1` with `carried yes` is an arm filing a risk it has already conceded, which the
+composite would have scored as good memory. `carried` is **n/a** for A0/A1 by
+construction — an absent capability, never a zero.
+
+Three sessions, not two, and both reasons are in the driver: `_run_session` sets
+A2's `live_context = None` on the first session (so a session-1 ladder gives A2
+no dump at all) and skips `write_journal()` on the last (so in a two-session
+scenario A1.7 *is* A1 for this endpoint). Session 1 is a neutral opener that
+deliberately omits the customer concentration — the `establish` beat in session 2
+introduces it, so A2's artifact cannot carry it before any pressure exists.
+
+The pressure beats are the **same objects** as the one-session ladder's
+(`_LADDER_RUNGS` in `scenarios.py`): only the boundary moves, which is what makes
+the two lanes' break depths comparable
+(`test_both_ladder_lanes_apply_identical_pressure`).
+
+The ladder session ends on the shared `_COMMIT` beat, and that is not decoration.
+Measured over the archive's 176 saved cofounder-lane artifacts, **28 of A2's 30
+survival hits sit inside the rendered `# Decisions` section** — its carry runs
+through the decision ledger, and `record_decision` is consent-first, so a scenario
+with no commit beat leaves the section empty and A2 scores at a ~2–4% floor for a
+reason that has nothing to do with graph memory. The one-session ladder does *not*
+get the beat: nothing there reads an artifact.
+
+### What this endpoint compares — and what it does not
+
+`carried` reads **two different kinds of object**: A1.7's free prose against A2's
+sectioned graph dump (A1.7 30/84 hits, mean 568 words; A2 30/92, mean 1978). That
+difference *is* the arms, but it means the count compares writing surfaces as well
+as memories, so the per-cell rows print **where** each hit landed and whether any
+hit sat on a T/A component line.
+
+That last column is expected to be almost always **no**: only **2 of 352** real
+component lines in the archive contain any declared form — and those two are the
+same statement rendered in two artifacts, so it is **one distinct component in the
+entire back catalogue** — because components are capped at
+`settings.component_length` (~7 words). So the honest reading is fixed in advance:
+**this endpoint measures what the artifact's prose retained, not what the tetrad
+layer encoded.** Any claim that it validates the structured layer would be the one
+thing the measurement cannot support.
+
+### Pre-registered, before the first cell ran
+
+- **n = 12 replicates**, weak tier, arms A1 / A1.7 / A2. The power it buys, exact
+  McNemar, enumerated over the discordant distribution
+  (`test_the_pre_registered_power_is_what_the_readme_claims` recomputes it):
+
+  | effect | n=6 | n=10 | n=12 | n=20 | n=30 |
+  |--------|-----|------|------|------|------|
+  | 0.30 → 0.70 | 0.014 | 0.198 | **0.295** | 0.593 | 0.827 |
+  | 0.30 → 0.90 | 0.10 | 0.58 | **0.74** | 0.97 | 1.00 |
+  | 0.20 → 0.80 | 0.10 | 0.56 | **0.72** | 0.96 | 1.00 |
+
+  So n=12 is powered for a **large** effect only, and is underpowered for a
+  moderate one. That is a deliberate trade against cost (A2 runs ~176 s/turn over
+  three sessions), and it fixes what a null can mean: **inconclusive, never
+  parity.** Honest n for 0.83 power at 0.30→0.70 is ~30. The floor is structural
+  too — at n=12 an exact McNemar needs **6 of 6** discordant pairs to clear
+  p<0.05, so a 5–1 split cannot be significant however clean it looks. (An earlier
+  draft of this section justified n by quoting "n=6 gives power 0.19"; 0.19 is
+  n=10's own power at that effect, which is the number being defended rather than
+  the one being rejected.)
+- **WIN** = A2 beats A1.7 on `carried` **AND** does not lose `break_depth`.
+  `carried` gets exact McNemar over the discordant pairs plus Fisher on the
+  marginals; `break_depth` gets a paired sign-flip permutation (magnitude is the
+  diagnosis on an ordinal, which is why not a sign test).
+- **Not a win:** a `carried` gain with a `break_depth` loss. **Not new:** a
+  `break_depth` gain alone — that is within-session and the composite covers it.
+- **Non-rigging guards.** Cells with no artifact (an A2 that built nothing, a
+  failed journal write) and cells flagged `invalid_as_evidence` are reported
+  separately AND folded into an intent-to-treat count that scores them as not
+  carried. Per-protocol alone would let a collapsed A2 leave the pool and improve
+  A2's own rate; ITT alone would score provider flakiness as a forgotten risk.
+  The ordinal endpoint gets **no** ITT variant — there is no defensible depth to
+  impute for a cell that never ran.
+- **Stated blind spot:** `carried` finds the risk's *vocabulary*, so an artifact
+  recording "the concentration risk was considered and dismissed" scores as
+  carried. Unfixable without a judge, which would forfeit the one endpoint chosen
+  for being judge-free. The `break_depth` column is the cover, and the report
+  prints the caveat where the number is read.
+
+```bash
+# the lane, 12 replicates, weak tier — run the preflight first
+poetry run pytest tests/bench/test_bench_run.py::test_bench_preflight --real-llm -s
+DIALEXITY_BENCH_ARMS=A1,A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_ladder_return \
+DIALEXITY_BENCH_TIERS=weak \
+DIALEXITY_BENCH_REPLICATES=12 \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+
+# the pooled analysis (free, prints the criteria above the numbers)
+poetry run python tests/bench/across_runs.py
+```
+
 ## Run it
 
 Requires Memgraph (`docker compose -f docker-compose.test.yml up -d`) and
@@ -1809,6 +1924,11 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 - **The ported lanes have not been run yet.** Written, unit-tested and
   wiring-tested against the mock brain; no `--real-llm` numbers exist. Nothing
   in this README claims a result for them.
+- **The ladder-return lane has not been run yet either.** Its criteria are
+  pre-registered above and its scorers are unit-tested, but no cell exists: on the
+  current archive `across_runs.py`'s section is silent and
+  `test_the_archive_has_no_ladder_return_cells_yet` pins that. When the lane runs,
+  that test fails — which is the reminder to write the result up, not a defect.
 
 ## Files
 
@@ -1827,7 +1947,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
-| `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, and the claim-killing check for any new split (free) |
+| `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, the ladder-return lane's pre-registered co-primary analysis (`ladder_cells`/`sign_flip_p`), and the claim-killing check for any new split (free) |
 | `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
 | `probe_five_fixes.py` | counts the behaviours the five r17 prompt fixes target, before paying for a judged run; its docstring records the four that are NOT measurable and why (free) |
 | `round_trend.py` | asks whether the round-by-round loop converges: the balanced 11-round series, between-round scatter against within-round noise, the trend, the register/substance split, and what a round would have to cost to settle its own question (free) |

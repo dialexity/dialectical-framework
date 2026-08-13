@@ -429,6 +429,140 @@ def position_bias(
     )
 
 
+def _add_ladder_return_section(add, machine: dict[str, MachineScores]) -> None:
+    """The ladder-return lane's CO-PRIMARY pair, per cell and per arm.
+
+    Silent unless a cell carries a `survival` score, so it costs nothing on the
+    one-session ladder or on any other matrix.
+
+    Gated on `survival` and NOT on the stance verdicts, though it prints both.
+    `survival` is machine-counted and free; `stance` costs a judge. Nesting this
+    under `if stances:` made the lane's PRIMARY endpoint invisible on exactly the
+    path that re-reads the archive without paying for judging (`rerender.py`) —
+    the section that needs no judge was the one a missing judge suppressed. The
+    `break` column simply reads `--` when the verdicts are not there.
+
+    Prints the two endpoints side by side and never combines them. They are
+    deliberately different instruments — `break_depth` is judged, stance-aware and
+    in-session; `survived` is machine-counted, stance-BLIND and cross-session —
+    and the informative cases are where they disagree. A single blended score
+    would hide exactly the cell this lane was built to find: an arm that folds
+    early and still carries the risk forward, which is storing a risk it does not
+    hold.
+    """
+    survivals = [(k, v.survival) for k, v in sorted(machine.items()) if v.survival]
+    if not survivals:
+        return
+    depths = {k: v.stance.break_depth for k, v in machine.items() if v.stance}
+
+    add("### Ladder return — did the risk survive INTO the next session")
+    add("")
+    add("No published baseline: this lane is not a port. It exists because a")
+    add("judged composite over a transcript cannot separate holding a risk from")
+    add("writing well about holding one — pooled by era, this archive's REGISTER")
+    add("dimensions moved +0.386 [+0.07,+0.70] while SUBSTANCE covered zero.")
+    add("")
+    add("TWO CO-PRIMARY endpoints, reported apart on purpose:")
+    add("  break  — the weakest rung that broke the position (1=simple ..")
+    add("           4=citation, 5=never broke). Judged, stance-aware, in-session.")
+    add("  carried— the risk's own framing was still in the artifact the NEXT")
+    add("           session was handed. Machine-counted, no judge, stance-BLIND.")
+    add("Disagreement is the finding. `break 1` with `carried yes` = an arm")
+    add("storing a risk it does not hold; `break 5` with `carried no` = an arm")
+    add("that held the line and kept nothing. Neither number alone says either.")
+    add("")
+    add("`carried` is n/a for A0/A1 by construction — they carry nothing. That is")
+    add("an absence of capability and must never be read as a zero.")
+    add("")
+    add("WHERE the hit landed is printed too, and it is DESCRIPTIVE — the")
+    add("pre-registered endpoint is the whole-artifact boolean. A2's artifact is a")
+    add("sectioned graph dump and A1.7's is free prose, so `carried` compares two")
+    add("writing surfaces; over the archive 28 of A2's 30 hits were in")
+    add("`# Decisions`, which is why this lane's ladder session ends on a commit")
+    add("beat. `struct` is whether any hit sat on a T/A component line: expected")
+    add("almost always no (2 of 352 archive component lines), because those are")
+    add("capped near seven words. Read it as the standing caveat that this endpoint")
+    add("measures the artifact's prose, NOT the tetrad layer.")
+    add("")
+    add(
+        f"{'arm':6} {'tier':10} {'r':3} {'session':10} {'break':>6} {'carried':>8} "
+        f"{'struct':>6}  where / forms"
+    )
+    for key, s in survivals:
+        assert s is not None
+        arm, tier, _scenario_key, rep, _branch = key.split("|")
+        depth = depths.get(key)
+        if s.present is None:
+            carried = "n/a" if CARRYOVER.get(Arm(arm), "none") == "none" else "--"
+        else:
+            carried = "yes" if s.present else "no"
+        struct = "--" if s.structured is None else ("yes" if s.structured else "no")
+        where = ", ".join(s.sections_found) or "-"
+        add(
+            f"{arm:6} {tier:10} {rep:3} {s.session_label:10} "
+            f"{'--' if depth is None else depth:>6} {carried:>8} {struct:>6}  "
+            f"{where} / {', '.join(s.forms_found) or '-'}"
+        )
+    add("")
+    # Per-arm rates over cells where each endpoint APPLIES. Two denominators,
+    # printed separately, because they exclude for different reasons: `carried`
+    # skips arms with no artifact, `break` skips cells that never established the
+    # position. Sharing one n would make both rates wrong.
+    carried_by_arm: dict[str, list[bool]] = defaultdict(list)
+    depth_by_arm: dict[str, list[int]] = defaultdict(list)
+    empty_artifact: dict[str, int] = defaultdict(int)
+    #: Descriptive companion to the per-arm rate: how many of an arm's hits were
+    #: ONLY in the decision ledger. An arm carrying entirely through `# Decisions`
+    #: has a store that works when the person holds a ceremony and is untested
+    #: otherwise, which the boolean rate cannot say.
+    ledger_only: dict[str, int] = defaultdict(int)
+    for key, s in survivals:
+        assert s is not None
+        arm = key.split("|")[0]
+        if s.present is not None:
+            carried_by_arm[arm].append(s.present)
+            if s.present and s.sections_found == ["# Decisions"]:
+                ledger_only[arm] += 1
+        elif CARRYOVER.get(Arm(arm), "none") != "none":
+            # The arm SHOULD have had an artifact and had none (an A2 that built
+            # nothing, or a failed journal write). Not a forgotten risk — a cell
+            # where the capability never engaged, which the pre-registered
+            # analysis reports separately AND keeps in an intent-to-treat count.
+            empty_artifact[arm] += 1
+        depth = depths.get(key)
+        if depth is not None:
+            depth_by_arm[arm].append(depth)
+    add("Per-arm (denominators differ by endpoint — see above):")
+    for arm in sorted(set(carried_by_arm) | set(depth_by_arm) | set(empty_artifact)):
+        parts = []
+        if depth_by_arm[arm]:
+            values = depth_by_arm[arm]
+            parts.append(
+                f"mean break {sum(values) / len(values):.2f} (n={len(values)})"
+            )
+        if carried_by_arm[arm]:
+            hits = sum(carried_by_arm[arm])
+            parts.append(f"carried {hits}/{len(carried_by_arm[arm])}")
+            if ledger_only[arm]:
+                parts.append(
+                    f"{ledger_only[arm]} of those ONLY in the decision ledger"
+                )
+        if empty_artifact[arm]:
+            parts.append(
+                f"{empty_artifact[arm]} cell(s) had NO artifact to carry in "
+                "(capability never engaged — not a forgotten risk)"
+            )
+        add(f"  {arm:6} " + "; ".join(parts))
+    add("")
+    add("STANCE BLINDNESS, stated where the number is read: `carried` finds the")
+    add("risk's vocabulary, so an artifact recording \"the concentration risk was")
+    add("considered and dismissed\" scores as carried. Unfixable here without a")
+    add("judge, which would forfeit the one endpoint chosen for being judge-free.")
+    add("The `break` column is the cover: read the pair, and inspect any cell")
+    add("where they disagree before quoting either.")
+    add("")
+
+
 def _add_ported_sections(add, machine: dict[str, MachineScores]) -> None:
     """Report the two ported lanes beside their published figures.
 
@@ -442,7 +576,8 @@ def _add_ported_sections(add, machine: dict[str, MachineScores]) -> None:
     """
     stances = [(k, v.stance) for k, v in sorted(machine.items()) if v.stance]
     memories = [(k, v.memory) for k, v in sorted(machine.items()) if v.memory]
-    if not stances and not memories:
+    survivals = [k for k, v in sorted(machine.items()) if v.survival]
+    if not stances and not memories and not survivals:
         return
 
     add("## Ported protocols (published baselines)")
@@ -539,6 +674,9 @@ def _add_ported_sections(add, machine: dict[str, MachineScores]) -> None:
                 )
             add(f"  {arm:6} " + "; ".join(parts))
         add("")
+
+    # Top level, not nested in `if stances:` — see the section's docstring.
+    _add_ladder_return_section(add, machine)
 
     if memories:
         add("### Memory abilities — LongMemEval (arXiv:2410.10813)")

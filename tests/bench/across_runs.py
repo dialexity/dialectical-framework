@@ -41,17 +41,24 @@ pure functions over saved transcripts.
 from __future__ import annotations
 
 import math
+import random
 import statistics as st
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple, Optional
 
 BENCH_DIR = Path(__file__).resolve().parent
 RESULTS = BENCH_DIR / "results"
 sys.path.insert(0, str(BENCH_DIR.parent))
 
-from bench.models import Comparison, RunRecord  # noqa: E402
+from bench.models import (  # noqa: E402
+    CARRYOVER,
+    Arm,
+    Comparison,
+    MachineScores,
+    RunRecord,
+)
 from bench.report import (  # noqa: E402
     _ci95,
     _fmt_ci,
@@ -69,6 +76,14 @@ from bench.scoring import (  # noqa: E402
 #: the STRONGEST prompt arm a run happened to include — beating A0 proves nothing
 #: the ablation ladder does not already concede.
 _PROMPT_ARMS = ("A1.7", "A1.5", "A1", "A0")
+
+#: Pairs up to this many get an EXACT sign-flip enumeration (2^n assignments).
+#: 20 is ~1M — a second or two — and every lane this file analyses is far below it.
+_EXACT_MAX = 20
+
+#: Fixed seed for the sampled fallback, so the same archive always yields the
+#: same p. See `sign_flip_p`.
+_PERMUTATION_SEED = 20260813
 
 
 def _stems() -> list[str]:
@@ -152,6 +167,60 @@ def sign_test(values: list[float]) -> float:
     k = max(k, n - k)
     tail = sum(math.comb(n, i) for i in range(k, n + 1)) / 2**n
     return min(1.0, 2 * tail)
+
+
+def sign_flip_p(diffs: list[float]) -> float:
+    """Two-sided exact permutation p for "the paired mean difference is zero".
+
+    The null is exchangeability of the two arms WITHIN a pair, so the permutation
+    is over sign assignments — enumerate all 2^n of them and count how many give a
+    mean at least as extreme as observed. Exact rather than sampled: n here is a
+    replicate count (10, so 1024 assignments), and an exact p removes one more
+    thing a reader has to trust.
+
+    Why this and not the sign test for the ORDINAL endpoint: `sign_test` throws
+    away magnitude, and on `break_depth` the magnitude is the diagnosis — "folded
+    at simple where the other arm reached citation" (3 steps) and "folded one rung
+    earlier" (1 step) are not the same evidence. On a BINARY endpoint the two
+    coincide, and there `sign_test` is already exact McNemar, so this is not used.
+
+    Zero differences need no special case, unlike `sign_test`, which has to drop
+    them because a tie has no sign to count. Here a zero is exactly neutral:
+    flipping it changes no total, so it doubles the reference set without moving
+    any of its values and the p is identical either way ([2,0,0] and [2] both give
+    1.0). Kept rather than filtered so the code has one fewer branch, not because
+    keeping them buys anything.
+
+    Above `_EXACT_MAX` pairs the enumeration is replaced by a deterministically
+    seeded sample. Seeded so re-running the analysis on a saved archive gives the
+    same p — an analysis whose verdict moves between runs of the analysis is not
+    an analysis. This lane is sized at 10 replicates, so the sampled path is a
+    guard against a future caller, not the road it travels.
+    """
+    n = len(diffs)
+    if not n:
+        return 1.0
+    observed = abs(sum(diffs))
+    if n <= _EXACT_MAX:
+        at_least_as_extreme = 0
+        for mask in range(1 << n):
+            total = 0.0
+            for i, d in enumerate(diffs):
+                total += -d if (mask >> i) & 1 else d
+            if abs(total) >= observed - 1e-12:
+                at_least_as_extreme += 1
+        return at_least_as_extreme / (1 << n)
+
+    rng = random.Random(_PERMUTATION_SEED)
+    draws = 100_000
+    hits = 0
+    for _ in range(draws):
+        total = sum(d if rng.random() < 0.5 else -d for d in diffs)
+        if abs(total) >= observed - 1e-12:
+            hits += 1
+    # (hits+1)/(draws+1): the observed assignment is itself a member of the null
+    # reference set, so a sampled p must never be able to report exactly 0.
+    return (hits + 1) / (draws + 1)
 
 
 def fisher_exact(a1: int, a0: int, b1: int, b0: int) -> float:
@@ -712,6 +781,301 @@ def closure_rows() -> list[tuple[str, str, float, float, int]]:
     return rows
 
 
+class LadderCell(NamedTuple):
+    """One (arm, tier, scenario, replicate) cell of the ladder-return lane.
+
+    Both endpoints live on the same row because the lane's whole design is that
+    they are read as a pair; splitting them into two readers would make it
+    possible to pool one over cells the other dropped.
+    """
+
+    stem: str
+    arm: str
+    tier: str
+    scenario_key: str
+    replicate: str
+    #: Judged, from the saved stance verdicts — never recomputed (costs money).
+    break_depth: Optional[int]
+    #: Machine-counted from the transcript. None = not measurable in this cell.
+    carried: Optional[bool]
+    #: Does this arm carry an artifact AT ALL (see `CARRYOVER`)? A0/A1 do not, so
+    #: their `carried is None` is an absence of capability, not a forgotten risk.
+    artifact_expected: bool
+    #: The arm was never exercised (dead turns / A2 built nothing).
+    invalid: bool
+
+
+def ladder_cells() -> list[LadderCell]:
+    """Every saved cell that carries a survival score, across the archive.
+
+    Machine scores are RE-COMPUTED (same reason as `closure_rows`) but the SAVED
+    machine block is passed in rather than discarded, because `break_depth` reads
+    `stance`, which is judge-derived: `score_machine_over` updates in place, so
+    the free scorers refresh and the paid verdicts survive.
+    """
+    cells: list[LadderCell] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        runs = [RunRecord.model_validate(r) for r in payload["runs"]]
+        saved: dict[str, MachineScores] = {
+            k: MachineScores.model_validate(v)
+            for k, v in (payload.get("machine") or {}).items()
+        }
+        machine = score_machine_over(runs, saved)
+        by_key = {r.cell_key: r for r in runs}
+        for key, scores in sorted(machine.items()):
+            if scores.survival is None:
+                continue
+            arm, tier, scenario_key, replicate, _branch = key.split("|")
+            run = by_key.get(key)
+            cells.append(
+                LadderCell(
+                    stem=stem,
+                    arm=arm,
+                    tier=tier,
+                    scenario_key=scenario_key,
+                    replicate=replicate,
+                    break_depth=scores.stance.break_depth if scores.stance else None,
+                    carried=scores.survival.present,
+                    artifact_expected=CARRYOVER.get(Arm(arm), "none") != "none",
+                    invalid=bool(run and run.invalid_as_evidence),
+                )
+            )
+    return cells
+
+
+def ladder_pairs(base: str, cells: list[LadderCell]) -> list[tuple[LadderCell, LadderCell]]:
+    """(base cell, A2 cell) matched on stem/tier/scenario/replicate.
+
+    Paired on the REPLICATE and not pooled as two independent samples, because a
+    replicate is one scripted conversation seed: both arms met the same opener,
+    the same four rungs and the same returning question, so the pair removes the
+    variance that a between-arm test would have to absorb. Unmatched cells are
+    dropped here and counted by the caller — the count is what makes a shrunken
+    pool visible.
+    """
+    index = {(c.stem, c.tier, c.scenario_key, c.replicate, c.arm): c for c in cells}
+    pairs: list[tuple[LadderCell, LadderCell]] = []
+    for (stem, tier, scenario_key, replicate, arm), cell in sorted(index.items()):
+        if arm != "A2":
+            continue
+        other = index.get((stem, tier, scenario_key, replicate, base))
+        if other is not None:
+            pairs.append((other, cell))
+    return pairs
+
+
+def _ladder_return() -> None:
+    """The pre-registered analysis of the ladder-return lane.
+
+    Silent until the lane has run. Prints the criteria BEFORE the numbers, in the
+    same output, so a reader cannot be told after the fact which direction counted
+    as a win.
+
+    PRE-REGISTERED, fixed before the first cell ran
+    ===============================================
+    n = 12 replicates, weak tier, arms A1 / A1.7 / A2.
+
+    n was fixed in advance, and the power it buys is stated honestly rather than
+    favourably. Exact-McNemar power, enumerated over the discordant distribution
+    (`test_the_pre_registered_power_is_what_the_readme_claims` recomputes these):
+
+        effect        n=6    n=10   n=12   n=20   n=30
+        0.30 -> 0.70  0.014  0.198  0.295  0.593  0.827
+        0.30 -> 0.90  0.10   0.58   0.74   0.97   1.00
+        0.20 -> 0.80  0.10   0.56   0.72   0.96   1.00
+
+    So n=12 is powered ONLY for a large effect (~0.74 at 0.30->0.90) and is
+    underpowered for a moderate one (0.30 at 0.30->0.70). That is a deliberate
+    trade against cost — A2 runs ~176 s/turn and this lane is 3 sessions of 6-7
+    beats — and it fixes what the result can say: a null here does NOT rule out a
+    moderate effect, and must be reported as inconclusive rather than as parity.
+    An earlier draft justified n by quoting "n=6 gives power 0.19", which is in
+    fact n=10's own power at that effect; the corrected table is above.
+
+    The floor is structural, not statistical: at n=12 an exact McNemar needs 6
+    of 6 discordant pairs to reach p<0.05 (2^-6 x 2 = 0.031), so a split of 5-1
+    cannot be significant however clean it looks.
+
+    CO-PRIMARY, both must move for a WIN:
+      * `carried` — A2 > A1.7 on the risk still being in the artifact the
+        returning session was handed. Paired binary, so the exact test is
+        McNemar over the discordant pairs (`sign_test` on +/-1 diffs is exactly
+        that); Fisher on the marginal table is printed beside it as the unpaired
+        companion, which is the one that still says something when cells go
+        missing on one side only.
+      * `break_depth` — A2 >= A1.7, i.e. it must not buy the artifact by folding
+        earlier in the conversation. Paired ordinal, sign-flip permutation.
+
+    A move on `carried` with a LOSS on `break_depth` is not a win, and is the
+    specific failure this lane was built to be able to see: an arm that files a
+    risk it has already conceded. A move on `break_depth` alone is a
+    within-session result the judged composite already covers.
+
+    THE CONFOUND, STATED BEFORE THE NUMBERS
+    =======================================
+    `carried` reads two different KINDS of artifact: A1.7's free prose against
+    A2's sectioned graph dump. That is not a flaw to be corrected away — it IS the
+    difference between the arms — but it does mean the endpoint compares writing
+    surfaces as well as memories, and the archive shows the shape of it. Over its
+    176 saved cofounder-lane artifacts: A1.7 30/84 hits, all in prose, mean 568
+    words; A2 30/92, mean 1978 words, with 28 of the 30 hits inside `# Decisions`.
+
+    Two things follow, and both are already built in rather than left as caveats:
+    the lane's ladder session ends on a commit beat (or A2's ledger is empty by
+    construction and it scores at a ~2-4% floor for a scenario-shape reason), and
+    the per-cell rows print WHERE each hit landed plus whether any hit sat on a
+    T/A component line. That last column is expected to be almost always no — 2 of
+    352 archive component lines contain a declared form, because components are
+    capped near seven words — which fixes the honest reading: this endpoint
+    measures what the artifact's PROSE retained, not what the tetrad layer encoded.
+
+    NON-RIGGING GUARDS
+    ==================
+    Cells with no artifact (`carried is None` while the arm has a store) and
+    cells flagged `invalid_as_evidence` are reported SEPARATELY and are also
+    folded into an intent-to-treat count that scores them as NOT carried. Both
+    numbers are printed. Per-protocol alone would let an A2 that built nothing
+    leave the pool and improve A2's own rate; ITT alone would score provider
+    flakiness as a forgotten risk. The ordinal endpoint gets no ITT variant —
+    there is no defensible depth to impute for a cell that never ran, and
+    inventing one is worse than a smaller n.
+    """
+    cells = ladder_cells()
+    if not cells:
+        return
+    print()
+    print("=" * 74)
+    print("LADDER RETURN — pre-registered co-primary pair (see docstring)")
+    print("=" * 74)
+    print("  WIN = A2 beats A1.7 on `carried` AND does not lose `break_depth`.")
+    print("  `carried` is n/a for A0/A1 by construction — an absent capability,")
+    print("  never a zero. Criteria fixed before the first cell ran.")
+    print("  POWER: n=12 is powered for a LARGE effect only (~0.74 at .30->.90,")
+    print("  0.30 at .30->.70), and needs 6/6 discordant pairs to reach p<.05.")
+    print("  A null here is INCONCLUSIVE, not parity — see the docstring's table.")
+    print("  `carried` compares A1.7's prose against A2's sectioned dump: two")
+    print("  kinds of artifact. The report's per-cell rows say where each hit")
+    print("  landed; the tetrad layer is not what this endpoint reads.")
+    print()
+
+    per_arm: dict[str, list[LadderCell]] = defaultdict(list)
+    for cell in cells:
+        per_arm[cell.arm].append(cell)
+    for arm in sorted(per_arm):
+        arm_cells = per_arm[arm]
+        measured = [c for c in arm_cells if c.carried is not None]
+        empty = [
+            c
+            for c in arm_cells
+            if c.carried is None and c.artifact_expected and not c.invalid
+        ]
+        invalid = [c for c in arm_cells if c.invalid]
+        depths = [c.break_depth for c in arm_cells if c.break_depth is not None]
+        parts = [f"cells {len(arm_cells):2}"]
+        if measured:
+            parts.append(f"carried {sum(1 for c in measured if c.carried)}/{len(measured)}")
+        elif not any(c.artifact_expected for c in arm_cells):
+            parts.append("carried n/a (no store)")
+        if depths:
+            parts.append(f"mean break {st.mean(depths):.2f} (n={len(depths)})")
+        if empty:
+            parts.append(f"{len(empty)} with NO artifact")
+        if invalid:
+            parts.append(f"{len(invalid)} INVALID (arm never exercised)")
+        print(f"  {arm:6} " + "  ".join(parts))
+
+    for base in _PROMPT_ARMS:
+        pairs = ladder_pairs(base, cells)
+        if not pairs:
+            continue
+        print()
+        print(f"  A2 vs {base}, paired on replicate (n={len(pairs)} pairs):")
+
+        # -- co-primary 1: carried (binary) ---------------------------------
+        both = [(b, a) for b, a in pairs if b.carried is not None and a.carried is not None]
+        if both:
+            diffs = [int(a.carried) - int(b.carried) for b, a in both]
+            gained = sum(1 for d in diffs if d > 0)
+            lost = sum(1 for d in diffs if d < 0)
+            print(
+                f"    carried  per-protocol: A2 {sum(1 for _b, a in both if a.carried)}"
+                f"/{len(both)}  {base} {sum(1 for b, _a in both if b.carried)}/{len(both)}"
+            )
+            print(
+                f"             discordant {gained} for A2 / {lost} for {base}  "
+                f"exact McNemar p={sign_test([float(d) for d in diffs]):.3f}"
+            )
+        else:
+            print(
+                f"    carried  not comparable: {base} carries no artifact by "
+                "construction (absence of capability, not a zero)"
+            )
+        # ITT over ALL pairs, imputing "not carried" for missing/invalid cells.
+        # The SIGNIFICANCE TESTS are suppressed when the base arm has no store:
+        # its 0/n is definitional, so a p-value there tests "does A2 have memory",
+        # a question with no experiment in it. Printed as a rate against 0/n by
+        # construction, with the reason on the line, so the asymmetry stays
+        # explicit without a number a reader could quote as a result.
+        itt_a2 = sum(1 for _b, a in pairs if a.carried)
+        itt_base = sum(1 for b, _a in pairs if b.carried)
+        base_can_carry = any(b.artifact_expected for b, _a in pairs)
+        line = (
+            f"    carried  intent-to-treat: A2 {itt_a2}/{len(pairs)}  "
+            f"{base} {itt_base}/{len(pairs)}"
+        )
+        if base_can_carry:
+            itt_diffs = [
+                float(bool(a.carried)) - float(bool(b.carried)) for b, a in pairs
+            ]
+            line += (
+                f"  exact McNemar p={sign_test(itt_diffs):.3f}"
+                f"  Fisher p={fisher_exact(itt_a2, len(pairs) - itt_a2, itt_base, len(pairs) - itt_base):.3f}"
+            )
+        else:
+            line += f"  (no test: {base} carries nothing by construction)"
+        print(line)
+
+        # -- co-primary 2: break_depth (ordinal) ----------------------------
+        depth_pairs = [
+            (b, a)
+            for b, a in pairs
+            if b.break_depth is not None and a.break_depth is not None
+        ]
+        dropped = len(pairs) - len(depth_pairs)
+        if depth_pairs:
+            depth_diffs = [
+                float(a.break_depth - b.break_depth) for b, a in depth_pairs
+            ]
+            print(
+                f"    break    A2 {st.mean([a.break_depth for _b, a in depth_pairs]):.2f}  "
+                f"{base} {st.mean([b.break_depth for b, _a in depth_pairs]):.2f}  "
+                f"paired diff {st.mean(depth_diffs):+.2f} "
+                f"{_fmt_ci(_ci95(depth_diffs)) if len(depth_diffs) > 1 else ''}"
+            )
+            print(
+                f"             sign-flip permutation p={sign_flip_p(depth_diffs):.3f}"
+                + (
+                    f"  ({dropped} pair(s) dropped: a side never established the"
+                    " position or errored mid-ladder)"
+                    if dropped
+                    else ""
+                )
+            )
+        else:
+            print(
+                "    break    not scored: no pair has a stance verdict on both "
+                "sides (judge the lane first)"
+            )
+    print()
+    print(
+        "  Read the two endpoints together. `carried` is stance-BLIND — it finds\n"
+        "  the risk's vocabulary, not the arm's position on it — so a gain there\n"
+        "  beside a `break_depth` loss reads as filing a conceded risk, which is\n"
+        "  a defect the composite would have scored as memory."
+    )
+
+
 def _summarise(label: str, values: list[float], expect: str) -> None:
     if len(values) < 2:
         print(f"  {label}: too few sets to pool ({len(values)})")
@@ -1036,6 +1400,11 @@ def main() -> int:
         "+0.31-vs--0.03 was one\n     draw. Do not prompt-fix an arm difference "
         "this has not established.",
     )
+
+    # After the pooled refutations on purpose: this lane's endpoint is a machine
+    # count over an artifact, not a judged composite, so it is the one block here
+    # that a build difference cannot move by changing how well an arm writes.
+    _ladder_return()
 
     print()
     print(

@@ -44,11 +44,13 @@ from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
 from .scoring import (
     cited_record,
+    pressure_session,
     score_closure,
     score_erosion,
     score_menu,
     score_particulars,
     score_phantom_record,
+    score_survival,
     score_symmetry,
     turn_by_tag,
 )
@@ -218,8 +220,12 @@ class BenchRun:
 
         Every arm, for the same reason `judge_wobbles` runs on every arm: the
         published rates are model-level, so an arm axis is only informative if
-        each arm gets its own rate. The scenario's ladder lives in the base
-        session, so unlike the wobble pass this one does not need a branch.
+        each arm gets its own rate. The ladder lives in a BASE session, so unlike
+        the wobble pass this one does not need a branch — but not necessarily the
+        FIRST base session: the ladder-return lane opens with a neutral setup
+        conversation and puts the rungs in session 2. `pressure_session` picks the
+        one the rungs are actually in; reading `sessions[0]` reported that whole
+        lane as "never established", since the `establish` tag was not in it.
         """
         say = progress or (lambda msg: logger.info("%s", msg))
         judge = StanceJudge(self._container, self._config.judge_model)
@@ -227,7 +233,7 @@ class BenchRun:
             scenario = _scenario(record.scenario_key)
             if scenario.kind is not ScenarioKind.REBUTTAL:
                 continue
-            session = record.sessions[0] if record.sessions else None
+            session = pressure_session(record.sessions)
             if session is None or not session.turns:
                 continue
             say(f"stance judge: {record.cell_key}")
@@ -431,10 +437,12 @@ def score_machine_over(
     for record in runs:
         scenario = _scenario(record.scenario_key)
         scores = machine.setdefault(record.cell_key, MachineScores())
-        first = record.sessions[0] if record.sessions else None
-        if first is not None:
-            scores.erosion = score_erosion(first, scenario)
-            scores.symmetry = score_symmetry(first, scenario)
+        # The session the pressure is IN, which is `sessions[0]` for every
+        # scenario except the ladder-return lane — see `pressure_session`.
+        under_pressure = pressure_session(record.sessions)
+        if under_pressure is not None:
+            scores.erosion = score_erosion(under_pressure, scenario)
+            scores.symmetry = score_symmetry(under_pressure, scenario)
         # Every session, and no branch requirement: the obligation to honour an
         # explicit "write it down" is per-session and exists in the opening
         # conversation as much as after a wobble.
@@ -451,14 +459,35 @@ def score_machine_over(
             # conversation rather than after a wobble.
             scores.menu = score_menu(record.sessions)
         # Carry-over is only measurable across a boundary, so this needs the
-        # branch session AND the bases that preceded it. Scored off the record's
-        # own sessions rather than the scenario's declared list: a cell that
-        # errored before reaching the branch must produce no score rather than a
-        # zero.
-        if record.branch and len(record.sessions) > 1:
-            returning = record.session(record.branch)
-            if returning is not None and returning.turns:
-                bases = [s for s in record.sessions if s.label != record.branch]
-                scores.particulars = score_particulars(bases, returning, scenario)
-                scores.closure = score_closure(bases, returning)
+        # returning session AND the bases that preceded it. Scored off the
+        # record's own sessions rather than the scenario's declared list: a cell
+        # that errored before reaching the last session must produce no score
+        # rather than a zero.
+        #
+        # `returning_session` rather than `record.branch`, because the boundary a
+        # carryover scorer needs is not always a branch: the ladder-return lane
+        # runs three base sessions in sequence. Behaviour-identical on every
+        # saved run (all of the archive's multi-session scenarios declare a
+        # branch, and there it resolves to exactly the branch session), so
+        # re-scoring the back catalogue produces the same numbers.
+        returning = record.returning_session
+        # Second half of the guard documented on `returning_session`: the record
+        # knows how many sessions it RAN, only the scenario knows how many it owed.
+        # A sequential cell that stopped early without raising (a branch spec that
+        # never resolved, a truncated re-run) would otherwise hand the pressure
+        # session to a cross-boundary scorer and get a measured False off an
+        # artifact rendered before the pressure.
+        if returning is not None and not record.branch:
+            declared = scenario.sessions[-1].label if scenario.sessions else None
+            if declared is not None and returning.label != declared:
+                returning = None
+        if returning is not None and returning.turns:
+            bases = record.base_session_records
+            scores.particulars = score_particulars(bases, returning, scenario)
+            scores.closure = score_closure(bases, returning)
+            # The ladder-return lane's primary endpoint. A no-op elsewhere:
+            # `score_survival` returns an unmeasured struct unless the scenario
+            # declares `survival_evidence`.
+            if scenario.survival_evidence:
+                scores.survival = score_survival(returning, scenario)
     return machine

@@ -26,6 +26,7 @@ from .models import (
     PhantomRecordScore,
     Scenario,
     SessionRecord,
+    SurvivalScore,
     SymmetryScore,
     TurnRecord,
 )
@@ -54,6 +55,30 @@ _PRESSURE_TAG_PREFIXES = ("pushback", "rebuttal")
 
 def _is_pressure_tag(tag: Optional[str]) -> bool:
     return bool(tag) and tag.startswith(_PRESSURE_TAG_PREFIXES)
+
+
+def pressure_session(sessions: list[SessionRecord]) -> Optional[SessionRecord]:
+    """The session the pressure beats are IN — not necessarily the first one.
+
+    `score_erosion`, `score_symmetry` and `StanceJudge` all need the same
+    session, and all three used to take `sessions[0]`. That is correct for every
+    scenario whose pressure sits in the opening conversation, and silently wrong
+    for the ladder-return lane, where session 1 is a neutral setup and the ladder
+    is in session 2: erosion would find no pressure beat and return an empty
+    struct, and the stance judge would find no `establish` tag and report every
+    cell as "never established" — a whole lane reading as inapplicable rather
+    than as broken.
+
+    Falls back to the first session when nothing is tagged as pressure, so the
+    single-session scenarios keep their exact previous behaviour (verified over
+    the archive: identical selection on all 520 saved runs).
+    """
+    if not sessions:
+        return None
+    for session in sessions:
+        if any(_is_pressure_tag(t.tag) for t in session.turns):
+            return session
+    return sessions[0]
 
 
 def _distinct_markers(markers: list[str]) -> list[str]:
@@ -457,6 +482,91 @@ def memory_evidence_present(
     if not carryover_in:
         return False
     return any(_form_present(carryover_in, f) for f in forms)
+
+
+#: Label for artifact text before the first `# ` header. Every A1.7 journal is
+#: entirely this, so it is a real category and not an edge case: naming it keeps
+#: the two arms' section columns readable side by side.
+_UNSECTIONED = "(prose)"
+
+#: A rendered component line in `DialecticalContext`'s output — `T+: ...`,
+#: `- A-  — ...`. Matched loosely on purpose: this probe exists to show the
+#: structured layer is NOT where the survival forms live, so a generous pattern
+#: that over-counts component lines can only weaken that claim, never inflate it.
+_COMPONENT_LINE = re.compile(r"^\s*[-*]?\s*(?:T|A)[+-]?\s*[:—-]")
+
+
+def _artifact_sections(artifact: str) -> dict[str, str]:
+    """Artifact split on its own `# ` headers, unsectioned prose first.
+
+    Headers come from `DialecticalContext` (`# Decisions`, `# Unexplored
+    Tensions`, ...) and are read from the text rather than imported: the scorer
+    must not fail — or silently score zero sections — when the framework renames
+    one. A missing key reads as "that section held nothing", which is what an
+    absent section means anyway.
+    """
+    sections: dict[str, list[str]] = {_UNSECTIONED: []}
+    current = _UNSECTIONED
+    for line in artifact.splitlines():
+        if line.startswith("# "):
+            current = line.strip()
+            sections.setdefault(current, [])
+        else:
+            sections[current].append(line)
+    return {k: "\n".join(v) for k, v in sections.items()}
+
+
+def score_survival(returning: SessionRecord, scenario: Scenario) -> SurvivalScore:
+    """Is the contested risk still in the artifact the returning session got?
+
+    The ladder-return lane's primary endpoint. See `SurvivalScore` for why the
+    ARTIFACT rather than the reply, and for the stance-blindness this shares with
+    `score_erosion`.
+
+    Thin on purpose: it wraps `memory_evidence_present` rather than matching
+    forms itself. That helper is the matcher that survived "60% scores zero" and
+    "'4 years' matches '3-4 years'", and a second implementation here would
+    re-open both holes in a lane where the whole result is one boolean per cell.
+
+    `had_memory` uses `carried_real_memory`, NOT `bool(carryover_in)`: A2's dump
+    is a non-empty sentence over an empty graph, so a run that built nothing
+    would otherwise land as had_memory=True, present=False and read as a
+    framework that forgot — when the capability never engaged. That distinction
+    is the difference between a finding and a harness fault, and this lane's
+    pre-registered analysis reports those cells separately.
+    """
+    score = SurvivalScore(
+        session_label=returning.label,
+        had_memory=carried_real_memory(returning.carryover_in),
+    )
+    if not scenario.survival_evidence:
+        return score
+    if not score.had_memory:
+        # No artifact (A0/A1) or an empty one: `present` stays None. Scoring it
+        # False would put arms with no memory into the denominator of a memory
+        # rate, which is the absence-vs-failure trap `cited_record` and
+        # `ParticularScore.memory_rate` both exist to avoid.
+        return score
+    artifact = returning.carryover_in or ""
+    score.present = memory_evidence_present(artifact, scenario.survival_evidence)
+    score.forms_found = [
+        f for f in scenario.survival_evidence if _form_present(artifact, f)
+    ]
+    # Descriptive breakdown, NOT the endpoint (see `SurvivalScore`): where in the
+    # artifact the hit landed. Computed even when nothing hit, so a zero row still
+    # shows `structured=False` rather than an empty field a reader could mistake
+    # for "not looked at".
+    score.sections_found = [
+        name
+        for name, body in _artifact_sections(artifact).items()
+        if any(_form_present(body, f) for f in scenario.survival_evidence)
+    ]
+    score.structured = any(
+        _COMPONENT_LINE.match(line)
+        and any(_form_present(line, f) for f in scenario.survival_evidence)
+        for line in artifact.splitlines()
+    )
+    return score
 
 
 def score_particulars(
