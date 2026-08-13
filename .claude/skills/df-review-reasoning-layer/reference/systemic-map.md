@@ -156,6 +156,30 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   otherwise. Also record `Comparison.session_label`: a delta pooled over sessions cannot be attributed, and the
   `decide`-vs-`wobble` split is what localised A2's `earned_confidence` loss (−1.50 vs −0.50) to the commitment turn.
   Locked by `test_bench.py::TestJudgeSetup`, `TestPositionBias`, `TestReportedBiasAndSessions`.
+- **A judged delta printed without its interval is not a measurement, and this report printed 48 of them**
+  (fixed 2026-08-13). Reviewing anything at the third altitude means reading a bench report, so the report's own
+  honesty is part of this map. `report.py` rendered every judged gap as a bare two-decimal mean with neither n nor
+  spread — *the same defect the 2026-08-11 audit already fixed for RATES* ("Rates printed to two decimals with no
+  n"), never carried across to the rows the product claim rests on. The floor is now measured rather than assumed:
+  `tests/bench/noise_floor.py` pools the 300 saved (run, arm-pair, dimension) delta rows and finds the
+  within-dimension sd of a delta has median **1.11 rubric steps** → 95% half-width ~0.63 at n=12, ~1.25 at n=3;
+  MDE(80%) 0.89 / 0.63 / 0.45 at n=12 / 24 / 48. It is a committed script, not a pasted constant, because the floor
+  is a property of THIS judge and THIS rubric and drifts whenever either is re-worded. Applied to r16: **of 48
+  printed judged numbers, 6 have an interval excluding zero** — the rest were never measured, in either direction.
+  Four standing rules follow. (a) **Read the CI, not the mean** — a row covering zero is compatible with no effect
+  AND with an effect either way, so it is not evidence of parity; comparing its mean against a previous run's mean
+  is exactly how r15 and r16 were read as a movement when they overlap heavily. (b) **Use t, not 1.96** — at n=3 the
+  normal approximation understates the interval by ~2x against t=4.30, which is the error the intervals exist to
+  prevent (no scipy in the bench, so `_T95` is a hardcoded table). (c) **Per-column n on `by session:`** — the
+  columns do NOT share one, because a branched scenario re-runs session 1 (r16: 6/3/3), and one blanket figure was
+  wrong by 2x on two of three columns. (d) **Pre-register the run size** — the report prints the largest unresolved
+  gap, its sd, and the n that would resolve it, because a replicate count inherited from the previous run is how
+  three consecutive rounds produced unreadable means. `MEANINGFUL_GAP = 0.34` survives only for the cross-tier
+  depreciating/durable trend and is documented as roughly HALF the real floor. Reviewing a prompt change against
+  this bench: **the noisiest dimensions are the ones the fixes target** (median sd: actionability 1.48, convergence
+  1.38, paired_recipe 1.31, decision_closure 1.30; warmth 0.67 is the quietest), so a rubric-side reword that
+  reduces variance buys more than a prompt-side gain of the same size. Locked by
+  `test_bench.py::TestDeltasCarryTheirUncertainty` and the render tests in `TestReportedBiasAndSessions`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

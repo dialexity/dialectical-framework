@@ -14,6 +14,7 @@ can be regenerated from saved JSON without re-spending a cent.
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Optional
@@ -33,15 +34,65 @@ from .scoring import score_internal_prompt_echo, score_machinery_leak
 #: A per-dimension mean gap below this is noise at realistic replicate counts,
 #: not a finding. Stated explicitly so the report never dresses 0.1 of a
 #: 5-point scale as a win.
+#:
+#: This is a FIXED FLOOR and it is roughly half the real one. Measured over the
+#: 300 (run, arm-pair, dimension) delta rows in `results/`, the within-dimension
+#: sd of a delta has median **1.11** rubric steps, so the 95% half-width is
+#: ~0.63 at n=12 and ~1.25 at n=3 (the `by session:` granularity). A gap of 0.4
+#: clears this constant and is still inside noise. Kept only because
+#: `classify_delta`'s cross-tier trend needs a threshold that does not depend on
+#: n; every row now ALSO prints its own interval, which is the number to read.
 MEANINGFUL_GAP = 0.34
 
 #: How much a delta must shrink across tiers before it is called depreciating.
 DEPRECIATION_MARGIN = 0.5
 
+#: t (two-sided 95%) by n, for the small samples this bench actually produces.
+#: Hardcoded rather than pulled from scipy: the bench has no scipy dependency,
+#: and a normal approximation at n=3 understates the interval by 2x — which is
+#: precisely the error this table exists to stop making.
+_T95 = {2: 12.71, 3: 4.30, 4: 3.18, 5: 2.78, 6: 2.57, 7: 2.45, 8: 2.36,
+        9: 2.31, 10: 2.26, 11: 2.23, 12: 2.20, 13: 2.18, 14: 2.16, 15: 2.14,
+        16: 2.13, 17: 2.12, 18: 2.11, 19: 2.10, 20: 2.09}
+
+
+def _t95(n: int) -> float:
+    """Two-sided 95% t multiplier for n observations (n-1 df)."""
+    if n < 2:
+        return float("inf")
+    return _T95.get(n, 2.0 if n > 40 else 2.09)
+
 
 def _mean(values: Iterable[float]) -> Optional[float]:
     values = list(values)
     return sum(values) / len(values) if values else None
+
+
+def _stdev(values: list[float]) -> Optional[float]:
+    n = len(values)
+    if n < 2:
+        return None
+    m = sum(values) / n
+    return (sum((v - m) ** 2 for v in values) / (n - 1)) ** 0.5
+
+
+def _ci95(values: list[float]) -> Optional[tuple[float, float]]:
+    """95% CI for the mean of a delta list, or None below n=2.
+
+    The bench's own history is the argument for printing this. r15 read -0.13
+    and r16 read -0.37 on the same arm pair, and the difference was taken as a
+    regression caused by the intervening fix; both intervals cover both values
+    and cover zero. Of the 48 judged numbers r16 printed, **6** were
+    distinguishable from zero, and nothing in the report said which 6.
+    """
+    n = len(values)
+    if n < 2:
+        return None
+    m = sum(values) / n
+    var = sum((v - m) ** 2 for v in values) / (n - 1)
+    se = (var / n) ** 0.5
+    half = _t95(n) * se
+    return (m - half, m + half)
 
 
 class Deltas:
@@ -90,6 +141,42 @@ class Deltas:
 
     def n(self, tier: str, dimension: str) -> int:
         return len(self._gaps.get(tier, {}).get(dimension, []))
+
+    def gap_ci(self, tier: str, dimension: str) -> Optional[tuple[float, float]]:
+        return _ci95(self._gaps.get(tier, {}).get(dimension, []))
+
+    def gap_sd(self, tier: str, dimension: str) -> Optional[float]:
+        """Spread of this row's deltas — what the NEXT run must be sized against.
+
+        Public rather than a reach into `_gaps` because the renderer's planning
+        line is the one consumer that needs the sd itself and not an interval
+        derived from it.
+        """
+        return _stdev(self._gaps.get(tier, {}).get(dimension, []))
+
+    def session_ci(
+        self, session: str, dimension: str
+    ) -> Optional[tuple[float, float]]:
+        return _ci95(self._by_session.get(session, {}).get(dimension, []))
+
+    def session_n(self, session: str, dimension: str) -> int:
+        return len(self._by_session.get(session, {}).get(dimension, []))
+
+    def resolved(self, tier: str, dimension: str) -> Optional[bool]:
+        """Does this row's interval exclude zero? None when n is too small.
+
+        The one question a reader of the table is actually asking, and until
+        2026-08-13 the report answered it nowhere: it printed a mean to two
+        decimals with neither n nor spread, so every row read as equally solid.
+        That is the same defect the audit table already fixed for RATES ("Rates
+        printed to two decimals with no n") — it was simply never applied to the
+        judged rows, which are the ones the product claim rests on.
+        """
+        ci = self.gap_ci(tier, dimension)
+        if ci is None:
+            return None
+        lo, hi = ci
+        return lo > 0 or hi < 0
 
     def classify_delta(self, dimension: str, tier_order: list[str]) -> str:
         """depreciating / durable / absent / unknown.
@@ -149,6 +236,13 @@ def save_records(
 
 def load_records(path: Path) -> dict:
     return json.loads(path.read_text())
+
+
+def _fmt_ci(ci: Optional[tuple[float, float]]) -> str:
+    if ci is None:
+        return "n/a"
+    lo, hi = ci
+    return f"[{lo:+.2f},{hi:+.2f}]"
 
 
 def _fmt(value: Optional[float], width: int = 6) -> str:
@@ -1084,16 +1178,77 @@ def render_report(
                 add("      step or more. Deltas are only trustworthy insofar as the")
                 add("      X/Y split above is even — check it before reading rows.")
             add("")
-        header = f"{'dimension':24}" + "".join(f"{t:>12}" for t in tier_order)
+        header = f"{'dimension':24}" + "".join(
+            f"{t:>12}{'  n':>4}{'  95% CI':>17}" for t in tier_order
+        )
         add(header + f"{'  trend':>26}")
+        resolved_rows: list[str] = []
         for dimension in d.dimensions():
             row = f"{dimension:24}"
             for tier in tier_order:
-                row += f"{_fmt(d.gap(tier, dimension)):>12}"
+                n = d.n(tier, dimension)
+                ci = d.gap_ci(tier, dimension)
+                row += f"{_fmt(d.gap(tier, dimension)):>12}{n:>4}"
+                # The interval, not the mean, is the readable number: a ±1-step
+                # rubric over 3-12 samples puts most gaps inside noise, and the
+                # table said nothing about which ones until 2026-08-13.
+                row += f"{'  ' + _fmt_ci(ci):>17}"
+                if d.resolved(tier, dimension):
+                    resolved_rows.append(dimension)
             tag = " [NI]" if dimension in NON_INFERIORITY_DIMENSIONS else ""
             row += f"   {d.classify_delta(dimension, tier_order)}{tag}"
             add(row)
         add("")
+        total_rows = sum(
+            1 for dim in d.dimensions() for t in tier_order if d.n(t, dim)
+        )
+        if total_rows:
+            add(
+                f"   {len(resolved_rows)} of {total_rows} row(s) have an interval "
+                "excluding zero"
+                + (": " + ", ".join(sorted(set(resolved_rows))) if resolved_rows else "")
+            )
+            if not resolved_rows:
+                add("   !! NOTHING in this table is distinguishable from noise. Do")
+                add("      not read a movement against a previous run off these")
+                add("      means — raise DIALEXITY_BENCH_REPLICATES instead.")
+            add("   Rows whose CI covers zero are compatible with no effect AND")
+            add("   with an effect either way; they are not evidence of parity.")
+            # What the NEXT run would have to be to resolve this one's largest
+            # gap. Printed because a run size inherited from the previous run is
+            # how three consecutive rounds arrived at unresolvable numbers: r16
+            # spent 6 A2 runs to measure -0.37 with a +-0.63 half-width. This is
+            # the pre-registered n, computed from THIS table's own spread rather
+            # than from the pooled historical floor.
+            # Sized on |gap| (a -0.67 loss costs the same n as a +0.67 win) but
+            # PRINTED signed — an unsigned figure next to the signed table read
+            # as a win on the first render.
+            widest = max(
+                (
+                    (abs(d.gap(t, dim) or 0.0), dim, t)
+                    for dim in d.dimensions()
+                    for t in tier_order
+                    if d.n(t, dim) >= 2 and not d.resolved(t, dim)
+                ),
+                default=None,
+            )
+            if widest and widest[0] > 0:
+                magnitude, dim, tier = widest
+                sd = d.gap_sd(tier, dim)
+                if sd:
+                    needed = math.ceil((2.8 * sd / magnitude) ** 2)
+                    add(
+                        f"   Largest unresolved gap: {dim} "
+                        f"{d.gap(tier, dim):+.2f} (sd {sd:.2f}, n={d.n(tier, dim)})."
+                    )
+                    add(
+                        f"   Resolving it at 80% power needs n≈{needed} pairs. Set"
+                    )
+                    add(
+                        "   DIALEXITY_BENCH_REPLICATES accordingly BEFORE the run,"
+                    )
+                    add("   or the result will be another unreadable mean.")
+            add("")
         # Where the delta lives. A gap concentrated in one session is a targeted
         # defect (r3: A2's earned_confidence was -1.50 in `decide` against
         # -0.50 in the wobble follow-up, pointing at the commitment turn); a gap
@@ -1101,12 +1256,46 @@ def render_report(
         sessions = d.sessions()
         if len(sessions) > 1:
             add("by session:")
-            add(f"  {'dimension':24}" + "".join(f"{s:>12}" for s in sessions))
+            # n in the header, per column: the columns do NOT share one n
+            # (a branched scenario re-runs session 1, so `decide` carries every
+            # branch's copy while each `wobble_*` carries only its own), and one
+            # blanket "n≈" for the block was wrong by 2x on the first render.
+            add(
+                f"  {'dimension':24}"
+                + "".join(
+                    f"{s + f' (n={d.session_n(s, d.dimensions()[0])})':>16}"
+                    for s in sessions
+                )
+            )
+            session_resolved = 0
+            session_total = 0
             for dimension in d.dimensions():
                 row = f"  {dimension:24}"
                 for session in sessions:
-                    row += f"{_fmt(d.session_gap(session, dimension)):>12}"
+                    gap = d.session_gap(session, dimension)
+                    ci = d.session_ci(session, dimension)
+                    # A bare `*` rather than a full interval: these cells are
+                    # n=3-4, so printing four numbers per cell would be a wall
+                    # nobody reads. The mark carries the only bit that matters.
+                    mark = " *" if ci and (ci[0] > 0 or ci[1] < 0) else "  "
+                    if gap is not None:
+                        session_total += 1
+                        session_resolved += mark == " *"
+                    row += f"{_fmt(gap):>14}{mark}"
                 add(row)
+            add("")
+            # These cells are where the localised-defect diagnoses come from, so
+            # their n is the number most worth being honest about. At n=3 the 95%
+            # half-width is ~1.25 rubric steps against a median cell of ~0.5:
+            # nearly every cell here is noise, and the r16 read that sent me
+            # looking for a context-flooding cause was one of them.
+            add(
+                f"  * = interval excludes zero ({session_resolved} of "
+                f"{session_total} cell(s)). At n=3 the 95% half-width is ~1.25"
+            )
+            add("    rubric steps, so an unmarked cell localises NOTHING.")
+            add("    Diagnose from the marked cells and from the transcripts,")
+            add("    never from an unmarked mean.")
             add("")
 
     add("=" * 78)
@@ -1115,8 +1304,14 @@ def render_report(
     add("")
     add("1. Check the validity section FIRST. A collapsed A2 arm or a")
     add("   single-tier run bounds what any number below can mean.")
-    add("2. Check n before believing a row. One replicate cannot distinguish a")
-    add("   delta from judge variance — see the n=1 warning above the table.")
+    add("2. Read the CI, not the mean. A row whose interval covers zero is not")
+    add("   a small effect — it is an unmeasured one, and it is compatible with")
+    add("   an effect in EITHER direction. Measured over the 300 saved delta")
+    add("   rows: within-dimension sd is ~1.1 rubric steps, so the 95%")
+    add("   half-width is ~0.63 at n=12 and ~1.25 at n=3. Most gaps this bench")
+    add("   prints are inside that. Do NOT read a run-to-run movement off two")
+    add("   means whose intervals overlap; that mistake was made between r15")
+    add("   and r16 and cost a round of chasing a cause that was not there.")
     add("3. A delta only counts if the machine scores agree with the judge.")
     add("   Where they disagree, trust the machine score — it cannot be")
     add("   flattered by eloquence.")

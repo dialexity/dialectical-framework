@@ -1771,6 +1771,120 @@ class TestDeltas:
         assert d.gap("strong", "entanglement") == -1
 
 
+class TestDeltasCarryTheirUncertainty:
+    """A mean with no interval is not a measurement, and this bench proved it.
+
+    Every judged row printed as a bare two-decimal mean until 2026-08-13 — the
+    exact defect the harness audit already fixed for RATES ("Rates printed to
+    two decimals with no n"), never applied to the rows the product claim rests
+    on. Consequence, measured: of the **48** judged numbers `claim2-weak-r16`
+    printed, **6** have an interval excluding zero, and the report said nothing
+    about which. I read the r15 (-0.13) → r16 (-0.37) movement as a regression
+    caused by the intervening fix and went looking for a context-flooding cause;
+    both intervals cover both values and cover zero, so there was no movement to
+    explain.
+
+    The floor is measured, not assumed: over the 300 (run, arm-pair, dimension)
+    delta rows in `results/`, within-dimension sd is ~1.11 rubric steps, giving a
+    95% half-width of ~0.63 at n=12 and ~1.25 at n=3 — the `by session:`
+    granularity that localised-defect diagnoses are drawn from.
+    """
+
+    @staticmethod
+    def _c(gap: int, session: str = "decide", replicate: int = 1) -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier="weak",
+            replicate=replicate,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1,
+            x_arm=Arm.A2,
+            session_label=session,
+            scores={"entanglement": (3 + gap, 3)},
+        )
+
+    def test_a_consistent_gap_resolves(self):
+        d = Deltas(Arm.A2, Arm.A1)
+        for i in range(6):
+            d.add(self._c(2, replicate=i))
+        lo, hi = d.gap_ci("weak", "entanglement")
+        assert lo > 0, "six identical +2 gaps must not read as unmeasured"
+        assert d.resolved("weak", "entanglement") is True
+
+    def test_a_gap_smaller_than_its_spread_does_not(self):
+        """The r16 shape: a real-looking mean that noise fully explains."""
+        d = Deltas(Arm.A2, Arm.A1)
+        for i, gap in enumerate([-2, 2, -1, 1, -2, 1]):
+            d.add(self._c(gap, replicate=i))
+        lo, hi = d.gap_ci("weak", "entanglement")
+        assert lo < 0 < hi
+        assert d.resolved("weak", "entanglement") is False
+
+    def test_n_of_one_admits_no_interval(self):
+        """Not a zero-width interval — no interval. n=1 has no spread to read."""
+        d = Deltas(Arm.A2, Arm.A1)
+        d.add(self._c(3))
+        assert d.gap_ci("weak", "entanglement") is None
+        assert d.resolved("weak", "entanglement") is None
+
+    def test_small_n_uses_t_not_a_normal_approximation(self):
+        """At n=3 a normal approximation understates the interval by ~2x.
+
+        Which is exactly the error the intervals exist to stop making: 1.96
+        against t=4.30 would mark noise cells as resolved and re-create the
+        over-read this whole change corrects.
+        """
+        import statistics as st
+
+        from bench.report import _ci95, _t95
+
+        vals = [-3.0, -1.0, -2.0]
+        lo, hi = _ci95(vals)
+        se = st.stdev(vals) / (len(vals) ** 0.5)
+        assert _t95(3) > 4.0
+        assert abs((st.mean(vals) - lo) - _t95(3) * se) < 1e-9
+        # The normal-approx version of this cell would exclude zero; the honest
+        # one does not.
+        assert st.mean(vals) + 1.96 * se < 0
+        assert hi > 0
+
+    def test_session_cells_get_their_own_interval_and_n(self):
+        """The `by session:` columns do NOT share one n.
+
+        A branched scenario re-runs session 1, so `decide` carries every
+        branch's copy while each `wobble_*` carries only its own — r16 was 6/3/3.
+        A single blanket "n≈" for the block was wrong by 2x on the first render
+        of this table.
+        """
+        d = Deltas(Arm.A2, Arm.A1)
+        for i in range(4):
+            d.add(self._c(1, session="decide", replicate=i))
+        for i in range(2):
+            d.add(self._c(-2, session="wobble_a", replicate=i))
+
+        assert d.session_n("decide", "entanglement") == 4
+        assert d.session_n("wobble_a", "entanglement") == 2
+        assert d.session_ci("decide", "entanglement") is not None
+
+    def test_the_fixed_threshold_is_documented_as_below_the_real_floor(self):
+        """`MEANINGFUL_GAP` survives for `classify_delta` only, and says so.
+
+        It is 0.34 against a measured ~0.63 half-width at n=12, so a gap can
+        clear the constant and still be noise. Kept because the cross-tier trend
+        needs an n-independent threshold — but a reader who finds it must not
+        take it for the noise floor.
+        """
+        from bench import report
+
+        assert report.MEANINGFUL_GAP < 0.63
+        doc = report.__dict__ and open(report.__file__).read()
+        marker = doc.split("MEANINGFUL_GAP = ")[0][-1400:]
+        assert "1.11" in marker, (
+            "the constant must carry the measured sd that makes it a half-floor"
+        )
+        assert "FIXED FLOOR" in marker
+
+
 class TestPositionBias:
     """The judge scores the Y slot higher regardless of content.
 
@@ -2432,6 +2546,105 @@ class TestReportedBiasAndSessions:
             session_label=session,
             scores={"entanglement": (3 + gap, 3)},
         )
+
+    def test_every_judged_row_prints_its_n_and_interval(self):
+        """The rendered table, not just the model, must carry the uncertainty.
+
+        `Deltas.gap_ci` being correct is worthless if the report keeps printing
+        bare means — that was the actual failure: the arithmetic to compute a
+        spread was always available and the table just did not show one.
+        """
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, gap)
+            for i, gap in enumerate([2, -1, 1, -2, 1, 0])
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        row = next(l for l in text.split("\n") if l.startswith("entanglement"))
+        assert "[" in row and "," in row, f"no interval on the row: {row!r}"
+        assert " 6" in row, f"no n on the row: {row!r}"
+
+    def test_a_table_of_pure_noise_says_so_loudly(self):
+        """The r16 case: 12 rows, nothing resolvable, and no warning at all.
+
+        Without this line a reader compares two runs' means and infers a
+        movement, which is what happened between r15 and r16.
+        """
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, gap)
+            for i, gap in enumerate([2, -2, 1, -1, 2, -2])
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "NOTHING in this table is distinguishable from noise" in text
+        assert "0 of 1 row(s) have an interval excluding zero" in text
+
+    def test_a_resolvable_row_is_named(self):
+        """Naming them is the actionable half — those are the rows to work on."""
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, -2)
+            for i in range(6)
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "1 of 1 row(s) have an interval excluding zero: entanglement" in text
+        assert "NOTHING in this table" not in text
+
+    def test_a_covering_interval_is_not_called_parity(self):
+        """"No significant difference" is the classic misread of a wide CI.
+
+        The rubric arms differ by construction, so a row covering zero means the
+        bench did not measure the difference — never that the arms match.
+        """
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, gap)
+            for i, gap in enumerate([2, -2, 1, -1])
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "they are not evidence of parity" in text
+
+    def test_session_columns_print_their_own_n(self):
+        """Branched scenarios give the columns different n (r16: 6/3/3)."""
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, 1)
+            for i in range(4)
+        ] + [
+            self._comparison("wobble_a", Arm.A2 if i % 2 else Arm.A1, -1)
+            for i in range(2)
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "decide (n=4)" in text
+        assert "wobble_a (n=2)" in text
+
+    def test_an_unresolved_gap_prints_the_n_the_next_run_needs(self):
+        """The one number that changes what happens next.
+
+        Three consecutive rounds inherited their replicate count from the
+        previous round and each produced a mean nobody could read. The planning
+        line closes that loop inside the report itself, sized from THIS table's
+        own spread rather than the pooled historical floor.
+        """
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, gap)
+            for i, gap in enumerate([-2, 1, -1, -2, -1, 0])
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        line = next(l for l in text.split("\n") if "Largest unresolved gap" in l)
+        assert "entanglement" in line
+        # Signed, not |gap|: the first render sized on the magnitude and printed
+        # it too, so a -0.83 loss appeared as "+0.83" beside a signed table.
+        assert "-0.83" in line, f"gap not printed signed: {line!r}"
+        assert "n≈" in text, "no target n"
+        assert "DIALEXITY_BENCH_REPLICATES" in text
+
+    def test_a_fully_resolved_table_needs_no_plan(self):
+        """Nothing left unresolved means nothing to size — the line must go away.
+
+        Otherwise it reads as "this run failed" on a run that succeeded.
+        """
+        comparisons = [
+            self._comparison("decide", Arm.A2 if i % 2 else Arm.A1, -2)
+            for i in range(6)
+        ]
+        text = render_report([], comparisons, {}, ["strong"])
+        assert "Largest unresolved gap" not in text
 
     def test_position_bias_is_stated_before_the_rows(self):
         """It contaminates every row, so a reader must meet it first.

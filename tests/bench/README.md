@@ -1081,6 +1081,57 @@ with no constructible hash; r16 found the hash constructible, the storage
 willing, and the caller declining on a false invariant. When a seam's comment
 says "cannot", check the relationship class before believing it.
 
+### The judged table now carries its own uncertainty (2026-08-13)
+
+r16's "read the delta as underpowered" paragraph above was written by hand, for
+one number, after the fact. The report itself printed **48 judged figures as bare
+two-decimal means with neither n nor spread**, so every row read as equally solid
+— which is the *same defect the 2026-08-11 audit already fixed for rates*
+("Rates printed to two decimals with no n"), never applied to the judged rows the
+product claim actually rests on.
+
+**The floor, measured rather than assumed.** `noise_floor.py` pools the 300
+(run, arm-pair, dimension) delta rows in `results/`: the within-dimension sd of a
+delta has median **1.11 rubric steps**. That puts the 95% half-width at ~**0.63
+at n=12** and ~**1.25 at n=3**, and the 80%-power MDE at 0.89 (n=12), 0.63 (n=24),
+0.45 (n=48). It is a committed script, not a pasted constant, because the floor
+is a property of the judge and the rubric and drifts whenever either changes.
+
+Applying it to r16: of the **48 judged numbers that run printed, 6 have an
+interval excluding zero** — 2 of 12 tier rows (`entanglement` [−1.36,−0.14],
+`decision_closure` [−1.42,−0.08]) and 4 of 36 `by session` cells. The rest were
+never measured, in either direction.
+
+What the report does now, all covered by `TestDeltasCarryTheirUncertainty` and
+the render tests:
+
+- every tier row prints `gap · n · 95% CI`, with **t multipliers, not 1.96** — at
+  n=3 the normal approximation understates the interval by ~2x against t=4.30,
+  the exact error the intervals exist to prevent
+- a count of resolvable rows, naming them, and a loud `!! NOTHING in this table
+  is distinguishable from noise` when none resolve
+- "rows whose CI covers zero are compatible with no effect AND with an effect
+  either way; **they are not evidence of parity**"
+- `by session:` prints **per-column n**, because the columns do not share one: a
+  branched scenario re-runs session 1, so r16 was 6/3/3, and my first render
+  showed a blanket "n≈6" — wrong by 2x on two of three columns
+- a **pre-registration line**: the largest unresolved gap, its sd, and the n that
+  would resolve it. A run size inherited from the previous run is how three
+  consecutive rounds produced unreadable means; r16 spent 6 A2 runs to measure
+  −0.37 against a ±0.63 half-width. For r16 the line reads *convergence −0.67
+  (sd 1.07, n=12) → n≈21*.
+
+`MEANINGFUL_GAP = 0.34` is kept for the cross-tier depreciating/durable trend and
+is now documented as **roughly half the real floor** — the per-row intervals are
+the number to read.
+
+**Sizing r17 before running it.** The dimensions the r16 fixes target are the
+noisiest in the rubric (per-dimension median sd: actionability 1.48, convergence
+1.38, paired_recipe 1.31, decision_closure 1.30, entanglement 1.29; warmth 0.67
+and conversational_fit 0.79 are the quietest). Resolving a 0.5-step effect on
+`paired_recipe` needs ~54 pairs. 3 replicates (~12 pairs) resolves 0.94 and would
+reproduce r16's unreadability; 6 (~24) resolves 0.66; 12 (~48) resolves 0.47.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -1202,7 +1253,9 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `runner.py` | sequences the matrix, scores, judges |
 | `scoring.py` | machine scorers (pure functions) |
 | `judge.py` | blind paired LLM judge + wobble classifier + the two ported judges |
-| `report.py` | deltas, depreciating/durable classification, validity flags |
+| `report.py` | deltas + their intervals, depreciating/durable classification, validity flags |
+| `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
+| `rerender.py` | regenerates a saved run's `.txt` with current report code (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_bench_run.py` | the `--real-llm` entry points |
@@ -1211,8 +1264,12 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 
 1. **Validity section first.** A collapsed A2 arm or a single-tier run bounds
    what every number below can mean.
-2. A delta counts when the machine scores agree with the judge.
-3. `depreciating` deltas shrink to zero as models improve — do not build the
+2. **Read the CI, not the mean.** A row whose interval covers zero was not
+   measured — comparing its mean against a previous run's mean is how r15 and
+   r16 were read as a movement when they overlap heavily. `noise_floor.py`
+   prints what this bench can resolve at a given n.
+3. A delta counts when the machine scores agree with the judge.
+4. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the
    framework added nothing measurable.
-4. Check the poor-fit control before believing anything else.
+5. Check the poor-fit control before believing anything else.
