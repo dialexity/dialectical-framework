@@ -568,9 +568,9 @@ Two findings, both acted on:
    "already recorded" early return skips every turn where the model records the
    decision itself — and that is the LARGER population: across every saved A2
    cell, `record_decision` ran WITHOUT `explore` **50** times against 48 with
-   both. It now also fires on the recorded branch (weaker there: the written
-   record can no longer take an `adopted_pathway`, but the returning session
-   gets a recipe). Pinned by
+   both. It now also fires on the recorded branch. *(Called "weaker there: the
+   written record can no longer take an `adopted_pathway`" until 2026-08-13 —
+   that was false, and it cost r16 its grounds. See the r16 section.)* Pinned by
    `test_a_model_recorded_decision_still_gets_pathways`.
 2. **Weaving does NOT cost the record** — the obvious suspicion, since the seam
    now sits between the confirmation verdict and `RecordDecision`. Tested
@@ -1004,6 +1004,82 @@ map, and it became the thing that stopped it building at one. Also:
 because the weak tier anchored one tension and the floor silenced the seam. That
 skip was the defect announcing itself, and it was filed as a test-instrument
 problem for two runs.
+
+#### `claim2-weak-r16-floor` — the floor fix built the product and the record ignored it
+
+The structural goal was met completely, and it did not show up in the judged
+rows.
+
+| | r15 | r16 |
+|---|---|---|
+| A2 cells that WOVE | 3/6 | **6/6** |
+| transformations per cell | 0 in half the cells | **12–42** |
+| X/Y judge split | 7/5 (the wiring defect) | **6/6** |
+| runs recording ≥1 decision | 6/6 | 6/6 |
+| risk-grounded `accepted_cost` | 6/6 | 6/6 |
+| **`adopted_pathway` ground** | **0/6** | **0/6** |
+| COMPLETE records | 0/6 | 0/6 |
+| dims where A2 ≥ A1.7 | 4/12 | 2/12 |
+| bias-corrected all-dim delta | −0.204 | **−0.368** |
+
+**Read the delta as underpowered, not as a regression.** The bench has **n=12
+paired transcripts**, not n=144 — the 12 rubric dimensions are repeated measures
+on the same transcript pair, so they cannot be pooled as independent
+observations. Per pair: mean −0.368, sd 0.679, SE 0.196, **95% CI [−0.80,
++0.06]**, minimum detectable effect ≈ **0.60 rubric steps at 80% power**. r15 and
+r16 overlap heavily. Nothing in the 0.2–0.4 range that this bench keeps producing
+is resolvable at this n, which is now the standing methodological problem: more
+replicates, or a paired-by-transcript analysis, before any run's delta is read as
+signal. The slot effect illustrates it — it flipped sign between runs (r15 −0.43,
+r16 +0.41), which is what a nuisance parameter estimated from 12 pairs does.
+
+**A hypothesis of mine that the data refuted.** I proposed that r16 regressed
+because weaving flooded the carryover context (17–39k chars, 12–42 rendered
+transformations) and buried the person's own particulars. Splitting the wobble
+sessions by flooding: flooded cells **−0.528**, unflooded **−0.694** — flooded
+scored *better*. The apparent gap was entirely the `decide` (+0.069) vs `wobble`
+(−0.569) split. Recorded here so it is not re-proposed.
+
+**The one hard signal: `adopted_pathway` 0/6 with up to 42 pathways in hand.**
+This survived the fix that was supposed to enable it, so the defect is not in
+building the product — it is downstream, in the closing ceremony's ability to
+*name* what was built. The decisive cell is rep2/`wobble_b`: the model called
+`explore` itself at t2 and `record_decision` at t5 with **30 pathways on the
+graph**, and passed no `adopted_pathway`. Three causes, all in code (fixed
+2026-08-13, unmeasured until r17):
+
+1. **`run_exploration` threw the hashes away.** `ExplorationResult.
+   transformation_hashes` existed with a docstring saying "an `adopted_pathway`
+   ground IS a Transformation hash, so a caller that reports only a count hands
+   the model a pathway it cannot name" — and the shared body returned only
+   `str(report)`. Split into `run_exploration_detailed` returning
+   `(report, hashes)`; the `@llm.tool` path is unchanged, since prose is all an
+   LLM can consume.
+2. **The recorded-decision branch built pathways and deliberately did nothing
+   with them**, on the premise that a committed Decision cannot take a new
+   ground. **That premise was false**: GROUNDED_IN is an ANALYTICAL edge
+   ("connects to already-committed nodes and does not affect hashes"), and
+   `Decision`'s own docstring shows `commit()` *then* `grounds.connect(...)`.
+   This branch is the larger one (50 saved cells recorded without exploring vs
+   48 with both), and it was calling itself "the weaker half" over an invariant
+   that never existed.
+3. **`if not unwoven: return` skipped the cell that most deserved a ground.**
+   Nothing to BUILD is not nothing to GROUND — rep2/`wobble_b` is exactly that
+   shape. It now falls back to the pathways already on the graph.
+
+One pathway is grounded, not all of them: the role names "the pathway adopted as
+the ongoing recipe", singular, and grounding six makes the re-audit's "here is
+your recipe" a menu again. The seam still omits the role rather than substituting
+when it holds no pathway. Locked by `TestTheClosingGroundsOnThePathwayItBuilt`
+(`tests/test_decision_confirmation_repair.py`), revert-verified 4/45 failing on
+the three call sites alone.
+
+**The lesson, and it generalises r10's a level up:** the structural/analytical
+layer distinction is a **capability**, and a seam that forgets which layer it
+writes to will refuse work it is allowed to do. r10 found a documented ground
+with no constructible hash; r16 found the hash constructible, the storage
+willing, and the caller declining on a false invariant. When a seam's comment
+says "cannot", check the relationship class before believing it.
 
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 

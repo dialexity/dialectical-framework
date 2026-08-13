@@ -67,6 +67,10 @@ class _StubAdvisor:
     _repair_unrecorded_decision = Advisor._repair_unrecorded_decision
     _recorded_decision_this_turn = Advisor._recorded_decision_this_turn
     _ensure_pathways_before_closing = Advisor._ensure_pathways_before_closing
+    _existing_pathway_hashes = Advisor._existing_pathway_hashes
+    _adopted_pathway_grounds = Advisor._adopted_pathway_grounds
+    _attach_adopted_pathway = Advisor._attach_adopted_pathway
+    _decision_recorded_this_turn = Advisor._decision_recorded_this_turn
     _accepted_cost_ground = Advisor.__dict__["_accepted_cost_ground"]
 
 
@@ -202,9 +206,18 @@ class TestRepairFires:
         assert recorded.get("grounds") in (None, [])
 
     @pytest.mark.asyncio
-    async def test_adopted_pathway_is_never_guessed(self, monkeypatch):
-        """The pathway half needs a transformation the wheel may not have —
-        that one stays entirely the model's own path, even when a side matched."""
+    async def test_no_pathway_exists_so_none_is_grounded(self, monkeypatch):
+        """A pathway is grounded only when the seam actually has one.
+
+        This test was `test_adopted_pathway_is_never_guessed` and asserted the
+        stronger rule that the repair never adds the role at all, "because it
+        needs a transformation the wheel may not have". The seam now BUILDS the
+        wheel before recording, so it often does have one, and withholding it was
+        r16's 0/6 defect. What survives from the old rule is the part that was
+        actually about honesty: with no pathway in hand, the record is written
+        without one rather than pointed at a guess. The grounded case is
+        `TestTheClosingGroundsOnThePathwayItBuilt`.
+        """
         recorded = {}
 
         async def fake_check(self, *, user_message, assistant_message):
@@ -230,6 +243,15 @@ class TestRepairFires:
         from dialectical_framework.concerns.record_decision import RecordDecision
 
         monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+
+        # Explicitly: the weave found nothing. Left to the DB this would raise
+        # and be swallowed, so the test would pass without exercising the branch.
+        async def no_pathways(self):
+            return []
+
+        monkeypatch.setattr(
+            _StubAdvisor, "_ensure_pathways_before_closing", no_pathways
+        )
 
         advisor = _StubAdvisor([])
         # Instance attribute: the resolution itself needs a graph, and what is
@@ -431,25 +453,12 @@ class TestTurnWiring:
         assert "ResponseComplete" in src
 
 
-class TestPathwaysBeforeClosing:
-    """A decision must not close over tensions that were never woven.
+class _SeamFixtures:
+    """Setup shared by the two closing-seam classes.
 
-    The engine prompt has always said so — "A decision closes on pathways, not
-    on tensions alone... Without pathways there is no paired recipe to adopt, no
-    trap version of the choice to name, and the counsel at the closing turn is a
-    single tension restated with more emphasis." The model does not obey it, in
-    exactly the tier-shaped way `record_decision` did not: `explore` fires in
-    6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all 6 cells of
-    `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
-    tensions each. Those runs closed decisions over a graph holding no nexus, no
-    cycle, no wheel, no transformation and no synthesis — the framework's
-    differentiator never ran, so the arm was a prompted model with tetrads
-    bolted on, which is what the judged rows then measured.
-
-    A direct probe (`tests/bench/probe_explore_reachability.py`) confirmed the
-    weak tier CAN call `explore` unprompted when a turn asks for a causal map.
-    So this is election, not capability — same diagnosis, same remedy as the
-    decision repair above.
+    Deliberately not `Test*`-prefixed: pytest collects by name, so a fixture
+    class the grounding tests inherit must not be one, or every weaving test
+    would run twice.
     """
 
     @staticmethod
@@ -476,7 +485,13 @@ class TestPathwaysBeforeClosing:
             lambda self, pp: pp.in_cycle,
         )
 
-    def _capture_exploration(self, monkeypatch):
+    def _capture_exploration(self, monkeypatch, built: list[str] | None = None):
+        """Patch the weave call and record what it was asked to build.
+
+        `built` is what the fake exploration reports back as the transformation
+        hashes now on the deepened wheel — the seam grounds on these, so tests
+        about grounding set them and tests about weaving ignore them.
+        """
         calls = []
 
         async def fake_run(*, perspective_hashes, intent, nexus_hash):
@@ -487,12 +502,39 @@ class TestPathwaysBeforeClosing:
                     "nexus_hash": nexus_hash,
                 }
             )
-            return "{}"
+            return "{}", list(built or [])
 
         import dialectical_framework.agents.advisor.tools.explore as explore_mod
 
-        monkeypatch.setattr(explore_mod, "run_exploration", fake_run)
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        # No pathways on the graph unless a test says so: the fallback lookup
+        # runs a real query otherwise, and these are DB-free tests.
+        monkeypatch.setattr(
+            _StubAdvisor, "_existing_pathway_hashes", lambda self: []
+        )
         return calls
+
+
+class TestPathwaysBeforeClosing(_SeamFixtures):
+    """A decision must not close over tensions that were never woven.
+
+    The engine prompt has always said so — "A decision closes on pathways, not
+    on tensions alone... Without pathways there is no paired recipe to adopt, no
+    trap version of the choice to name, and the counsel at the closing turn is a
+    single tension restated with more emphasis." The model does not obey it, in
+    exactly the tier-shaped way `record_decision` did not: `explore` fires in
+    6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all 6 cells of
+    `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
+    tensions each. Those runs closed decisions over a graph holding no nexus, no
+    cycle, no wheel, no transformation and no synthesis — the framework's
+    differentiator never ran, so the arm was a prompted model with tetrads
+    bolted on, which is what the judged rows then measured.
+
+    A direct probe (`tests/bench/probe_explore_reachability.py`) confirmed the
+    weak tier CAN call `explore` unprompted when a turn asks for a causal map.
+    So this is election, not capability — same diagnosis, same remedy as the
+    decision repair above.
+    """
 
     @pytest.mark.asyncio
     async def test_unwoven_tensions_get_pathways(self, monkeypatch):
@@ -618,11 +660,11 @@ class TestPathwaysBeforeClosing:
 
         async def fake_run(*, perspective_hashes, intent, nexus_hash):
             order.append("explore")
-            return "{}"
+            return "{}", ["tr0001"]
 
         import dialectical_framework.agents.advisor.tools.explore as explore_mod
 
-        monkeypatch.setattr(explore_mod, "run_exploration", fake_run)
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
 
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
@@ -636,8 +678,8 @@ class TestPathwaysBeforeClosing:
         recorded the decision itself — and that is the larger population:
         `record_decision` ran without `explore` in **50** saved A2 cells against
         48 with both. Recording is stronger evidence of closing than any
-        classifier verdict, so it must trigger pathways too, even though the
-        already-written record can no longer take an `adopted_pathway`.
+        classifier verdict, so it must trigger pathways too — and then ground
+        the record on one (`TestTheClosingGroundsOnThePathwayItBuilt`).
         """
         self._patch_repo(monkeypatch, self._perspectives(4))
         calls = self._capture_exploration(monkeypatch)
@@ -713,10 +755,253 @@ class TestPathwaysBeforeClosing:
 
         import dialectical_framework.agents.advisor.tools.explore as explore_mod
 
-        monkeypatch.setattr(explore_mod, "run_exploration", boom)
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", boom)
 
         # Must not raise, and must still write the record — losing it here would
         # reintroduce exactly the defect the repair exists to prevent.
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
         assert recorded["stance"] == "s"
+
+
+class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
+    """Building the pathway is not the deliverable — grounding the record on it is.
+
+    `claim2-weak-r16-floor` is the measurement that made this a defect rather
+    than a nicety. The floor fix landed and worked structurally: 6/6 A2 cells
+    wove, 12-42 transformations each. And `adopted_pathway_grounds` was **0/6**
+    — including the cell that called `explore` itself at t2 and
+    `record_decision` at t5 with 30 pathways on the graph. So the framework
+    built the artefact that distinguishes it from a prompted model and then
+    recorded a decision that does not point at it: the returning session's
+    re-audit has no recipe to reassure from, and `accepted_cost_condition` has
+    no pathway to render.
+
+    Three co-located causes, all in code and none in the model: `run_exploration`
+    discarded the `transformation_hashes` that `ExplorationResult` publishes
+    for exactly this caller; the recorded-decision branch deliberately did
+    nothing with the pathways it built, on the false premise that a committed
+    Decision cannot take a new ground (GROUNDED_IN is ANALYTICAL — it can);
+    and `if not unwoven: return` skipped the one cell that most deserved a
+    ground. This class covers all three.
+    """
+
+    @staticmethod
+    def _confirming(monkeypatch):
+        """Make the confirmation check say "the person closed"."""
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="s", rationale="r"
+            )
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+
+    @staticmethod
+    def _capture_record(monkeypatch) -> dict:
+        recorded: dict = {}
+
+        async def fake_record(self, **kwargs):
+            recorded.update(kwargs)
+            return "dec00001"
+
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+        return recorded
+
+    @pytest.mark.asyncio
+    async def test_the_repair_branch_grounds_on_the_pathway_it_built(
+        self, monkeypatch
+    ):
+        """The hashes the weave returned must reach `RecordDecision` as a ground."""
+        self._confirming(monkeypatch)
+        recorded = self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch, built=["tr0001", "tr0002"])
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        grounds = recorded["grounds"] or []
+        pathways = [g for g in grounds if g.role == "adopted_pathway"]
+        assert len(pathways) == 1, (
+            "the closing wove pathways and recorded a decision that names none "
+            "— r16's 0/6 defect"
+        )
+        assert pathways[0].hash == "tr0001"
+
+    @pytest.mark.asyncio
+    async def test_only_one_pathway_is_adopted(self, monkeypatch):
+        """The role is singular: "the pathway adopted as the ongoing recipe".
+
+        Grounding all six would turn the re-audit's "here is the recipe you
+        adopted" back into a menu, which is the thing a decision closes.
+        """
+        self._confirming(monkeypatch)
+        recorded = self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(
+            monkeypatch, built=[f"tr{i:04d}" for i in range(6)]
+        )
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        roles = [g.role for g in (recorded["grounds"] or [])]
+        assert roles.count("adopted_pathway") == 1
+
+    @pytest.mark.asyncio
+    async def test_a_closing_with_no_pathway_records_without_one(self, monkeypatch):
+        """No pathway is a non-event, never a lost record.
+
+        A wrong or absent ground both leave the record standing; only failing to
+        write it is unrecoverable.
+        """
+        self._confirming(monkeypatch)
+        recorded = self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch, built=[])
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        assert recorded["stance"] == "s"
+        roles = [g.role for g in (recorded["grounds"] or [])]
+        assert "adopted_pathway" not in roles
+
+    @pytest.mark.asyncio
+    async def test_nothing_to_weave_still_grounds_on_what_is_there(
+        self, monkeypatch
+    ):
+        """The r16 rep2-wobble_b cell: the model wove, so the seam must not.
+
+        It called `explore` at t2 and `record_decision` at t5 with 30 pathways
+        in hand. Every perspective was already in a cycle, so `unwoven` was
+        empty — and the old `return` handed back nothing to ground on. Nothing
+        to BUILD is not nothing to GROUND.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(3, woven=3))
+        calls = self._capture_exploration(monkeypatch)
+        monkeypatch.setattr(
+            _StubAdvisor, "_existing_pathway_hashes", lambda self: ["tr0009"]
+        )
+
+        pathways = await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert calls == [], "re-wove a graph that was already woven"
+        assert pathways == ["tr0009"]
+
+    @pytest.mark.asyncio
+    async def test_an_already_recorded_decision_is_grounded_after_the_fact(
+        self, monkeypatch
+    ):
+        """GROUNDED_IN is analytical, so the committed record can still take one.
+
+        This branch is the LARGER one — `record_decision` ran without `explore`
+        in 50 saved A2 cells against 48 with both — and it used to end at the
+        weave, calling itself "the weaker half" on the belief that a written
+        record was closed to new grounds. `Decision`'s own docstring shows
+        `commit()` then `grounds.connect(...)`.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch, built=["tr0007"])
+        connected = _StubDecision()
+        monkeypatch.setattr(
+            _StubAdvisor, "_decision_recorded_this_turn", lambda self: connected
+        )
+        target = object()
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: target if h == "tr0007" else None,
+        )
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert len(connected.connected) == 1
+        node, rel = connected.connected[0]
+        assert node is target
+        assert rel.role == "adopted_pathway"
+
+    @pytest.mark.asyncio
+    async def test_a_second_closing_does_not_double_ground(self, monkeypatch):
+        """`connect` dedups only direction="any" edges, so check before adding.
+
+        Two closings in one session would otherwise leave the record with two
+        identical GROUNDED_IN edges and the re-audit naming the same recipe
+        twice.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch, built=["tr0007"])
+        decision = _StubDecision(existing_roles=["adopted_pathway"])
+        monkeypatch.setattr(
+            _StubAdvisor, "_decision_recorded_this_turn", lambda self: decision
+        )
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert decision.connected == []
+
+    @pytest.mark.asyncio
+    async def test_the_decision_is_found_by_the_report_not_by_recency(
+        self, monkeypatch
+    ):
+        """Which record gets grounded is a fact in the tool report, not a guess.
+
+        A session can record more than one decision, so "the newest Decision in
+        the DB" would ground the wrong one whenever a turn closes a second
+        question.
+        """
+        looked_up = []
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: looked_up.append(h),
+        )
+        report = _ok_report()
+        report.artifacts["decision_hash"] = "dec4242"
+
+        advisor = _StubAdvisor([_tool_result("record_decision", report)])
+        advisor._decision_recorded_this_turn()
+
+        assert looked_up == ["dec4242"]
+
+    @pytest.mark.asyncio
+    async def test_a_grounding_failure_never_breaks_the_turn(self, monkeypatch):
+        """The reply is already delivered; a missing edge is not the person's problem."""
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch, built=["tr0007"])
+
+        def boom(self):
+            raise RuntimeError("memgraph went away")
+
+        monkeypatch.setattr(_StubAdvisor, "_decision_recorded_this_turn", boom)
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+
+class _StubDecision:
+    """A committed Decision's `grounds` manager, and nothing else."""
+
+    def __init__(self, existing_roles: list[str] | None = None) -> None:
+        self.hash = "dec00001"
+        self.connected: list = []
+
+        class _Rel:
+            def __init__(self, role: str) -> None:
+                self.role = role
+
+        existing = [(object(), _Rel(r)) for r in (existing_roles or [])]
+        outer = self
+
+        class _Grounds:
+            @staticmethod
+            def all():
+                return existing
+
+            @staticmethod
+            def connect(target, relationship=None):
+                outer.connected.append((target, relationship))
+
+        self.grounds = _Grounds()

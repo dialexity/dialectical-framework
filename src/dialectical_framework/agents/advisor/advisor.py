@@ -260,9 +260,20 @@ class Advisor:
         obligation, i.e. something to do, never a price. No match means no
         ground: a wrong `accepted_cost` is worse than none, since it makes the
         record claim the person accepted a price they never faced and sends the
-        later re-audit to reassure them with the wrong risk. `adopted_pathway`
-        is never guessed here at all — it needs a transformation the wheel may
-        not have, so it stays the model's own path.
+        later re-audit to reassure them with the wrong risk.
+
+        `adopted_pathway` used to be excluded on the same reasoning — "it needs
+        a transformation the wheel may not have, so it stays the model's own
+        path". That was true only while the seam did not build wheels. It now
+        does (`_ensure_pathways_before_closing`), so the transformation it needs
+        is one it just created and holds the hash of. Measured in
+        `claim2-weak-r16-floor`: 6/6 A2 cells closed with 12-42 pathways on the
+        graph and 0/6 named one, because the seam wove the artefact and then
+        recorded a decision that pointed at nothing. It grounds ONE pathway (the
+        role is singular) and stays honest about what it knows: that a pathway
+        exists for this closing, not which one the person would pick. The
+        model's own `record_decision` names its own with the conversation in
+        view; this is the floor under that, not a replacement for it.
 
         Fail-soft in every direction: no exception here may affect the reply
         the person already received.
@@ -275,16 +286,24 @@ class Advisor:
             # ran WITHOUT `explore` in 50 of them (against 48 with both): gating
             # pathways on the repair firing would have skipped the single
             # largest population of decisions closed on tensions alone.
-            # `adopted_pathway` cannot be attached to a record already written,
-            # so this is the weaker half of the seam — it still gives the
-            # returning session a recipe to be reassured from.
             try:
-                await self._ensure_pathways_before_closing()
+                pathways = await self._ensure_pathways_before_closing()
             except Exception:
                 logger.exception(
                     "Pathway construction after a recorded decision failed "
                     "(fail-soft)"
                 )
+                return
+            # This branch used to stop here, on the belief that
+            # "`adopted_pathway` cannot be attached to a record already
+            # written". That belief was wrong, and it was the whole reason this
+            # was called "the weaker half of the seam". GROUNDED_IN is an
+            # ANALYTICAL edge (`grounded_in_relationship.py`: "connects to
+            # already-committed nodes and does not affect hashes"), and
+            # `Decision`'s own docstring shows the order — `decision.commit()`
+            # THEN `decision.grounds.connect(...)`. Grounding a committed
+            # decision is the designed path, not a workaround.
+            self._attach_adopted_pathway(pathways)
             return
         try:
             from dialectical_framework.concerns.decision_confirmation_check import \
@@ -305,20 +324,26 @@ class Advisor:
             # guard: a richer grounding is worth attempting, never worth losing
             # the record over — that failure mode is the one this whole method
             # exists to prevent.
+            pathways: list[str] = []
             try:
-                await self._ensure_pathways_before_closing()
+                pathways = await self._ensure_pathways_before_closing()
             except Exception:
                 logger.exception(
                     "Pathway construction before closing failed (fail-soft); "
                     "recording the decision on tensions alone"
                 )
 
+            # This branch writes the record itself, so the pathway it just
+            # built goes in as a ground at commit time — the strong half.
+            grounds = self._accepted_cost_ground(verdict) or []
+            grounds += self._adopted_pathway_grounds(pathways)
+
             recorder = RecordDecision()
             decision_hash = await recorder.resolve(
                 question=verdict.question,
                 stance=verdict.stance,
                 rationale=verdict.rationale,
-                grounds=self._accepted_cost_ground(verdict),
+                grounds=grounds or None,
                 principal=self._principal,
             )
             if decision_hash:
@@ -330,8 +355,12 @@ class Advisor:
         except Exception:
             logger.exception("Decision confirmation repair failed (fail-soft)")
 
-    async def _ensure_pathways_before_closing(self) -> None:
+    async def _ensure_pathways_before_closing(self) -> list[str]:
         """Build pathways for unwoven perspectives when a decision is closing.
+
+        Returns the Transformation hashes now on the deepened wheel — the
+        pathways this closing is entitled to ground on. Empty when there was
+        nothing to weave or the exploration produced none.
 
         The engine prompt already states the rule: "A decision closes on
         pathways, not on tensions alone... Without pathways there is no paired
@@ -358,9 +387,10 @@ class Advisor:
 
         BOTH closings need it, and the model-recorded branch is the larger one:
         across every saved A2 cell, `record_decision` ran without `explore` 50
-        times against 48 with both. That branch is the weaker half of the seam —
-        the record is already written, so `adopted_pathway` cannot be attached to
-        it — but the pathway still exists for the returning session's re-audit.
+        times against 48 with both. Both branches now ground the pathway they
+        build — the already-recorded one by connecting a GROUNDED_IN edge to the
+        committed Decision (an analytical edge; hashes are unaffected), the
+        repair branch by passing it to `RecordDecision` at commit time.
 
         Fail-soft and silent to the person: their reply has already been
         delivered, and a pathway they never asked about must not surface as an
@@ -369,7 +399,7 @@ class Advisor:
         exists.
         """
         from dialectical_framework.agents.advisor.tools.explore import \
-            run_exploration
+            run_exploration_detailed
         from dialectical_framework.graph.repositories.perspective_repository import \
             PerspectiveRepository
 
@@ -400,14 +430,22 @@ class Advisor:
         # single largest identified component of A2's remaining loss, and it was
         # this `return`, not the model.
         if not unwoven:
-            return
+            # Nothing to weave is NOT nothing to ground. The model may have
+            # called `explore` itself — that is the cell this seam wants to see
+            # — and then the pathways already exist and the closing is still
+            # entitled to one. Measured in `claim2-weak-r16-floor`: 6/6 A2 cells
+            # closed with 12-42 transformations on the graph and 0/6 carried an
+            # `adopted_pathway` ground, INCLUDING the cell that called `explore`
+            # at t2 and `record_decision` at t5 with 30 pathways in hand. An
+            # early `return` here would keep that exact cell ungrounded.
+            return self._existing_pathway_hashes()
 
         logger.info(
             "Decision closing over %d unwoven perspective(s) — building "
             "pathways the engine prompt requires and the model skipped",
             len(unwoven),
         )
-        await run_exploration(
+        _report, built = await run_exploration_detailed(
             perspective_hashes=[p.hash for p in unwoven],
             intent=(
                 "The person is closing a decision on these tensions. Build the "
@@ -415,6 +453,151 @@ class Advisor:
             ),
             nexus_hash=self._nexus_hash,
         )
+        # The per-call perspective cap can defer some of `unwoven`, and a wheel
+        # that reuses every transformation reports them as existing rather than
+        # new — either way `transformation_hashes` is "what is now on the
+        # deepened wheel", which is what a ground needs. Falling back to the
+        # graph covers an exploration that built nothing new on a graph that
+        # already had pathways.
+        return built or self._existing_pathway_hashes()
+
+    def _existing_pathway_hashes(self) -> list[str]:
+        """Transformation hashes already on this session's graph, if any.
+
+        Read-only and fail-soft: a closing that cannot see a pathway is
+        recorded without one, exactly as before. Scoped to the pinned nexus in
+        counsel mode; unscoped sessions have a single Case's worth of graph, so
+        every transformation in scope belongs to the conversation that built it.
+        """
+        try:
+            from dialectical_framework.graph.repositories.nexus_repository import \
+                NexusRepository
+            from dialectical_framework.graph.repositories.transformation_repository import \
+                TransformationRepository
+
+            tr_repo = TransformationRepository()
+            nexus_repo = NexusRepository()
+            nexuses: list = []
+            if self._nexus_hash:
+                # Prefix-tolerant: the pinned hash may be a short hash.
+                pinned = nexus_repo.find_by_hash_prefix(self._nexus_hash)
+                nexuses = [pinned] if pinned else []
+            else:
+                nexuses = nexus_repo.find_all()
+            hashes: list[str] = []
+            for nexus in nexuses:
+                hashes += [
+                    tr.hash for tr in tr_repo.find_by_nexus(nexus) if tr.hash
+                ]
+            # Sorted for the same reason the explore report sorts: a ground
+            # picked from an arbitrary DB order is not reproducible.
+            return sorted(set(hashes))
+        except Exception:
+            logger.exception("Pathway lookup for grounding failed (fail-soft)")
+            return []
+
+    def _adopted_pathway_grounds(self, pathway_hashes: list[str]) -> list:
+        """One `adopted_pathway` ground, or none.
+
+        ONE, deliberately: the role names "the pathway adopted as their ongoing
+        recipe", singular — a decision has one recipe, and grounding six would
+        make the re-audit's "here is the recipe you adopted" a menu again.
+        The first by sorted hash is an arbitrary-but-stable pick, and it is
+        honest about what it is: the seam knows a pathway exists for this
+        closing, not which one the person would choose. The model's own
+        `record_decision` path still names its own, and that one is chosen with
+        the conversation in view — this is the floor, not the ceiling.
+        """
+        if not pathway_hashes:
+            return []
+        try:
+            from dialectical_framework.concerns.record_decision import GroundLink
+
+            return [
+                GroundLink(hash=pathway_hashes[0], role="adopted_pathway")
+            ]
+        except Exception:
+            logger.exception("Adopted-pathway ground construction failed")
+            return []
+
+    def _attach_adopted_pathway(self, pathway_hashes: list[str]) -> None:
+        """Ground an ALREADY-recorded decision on a pathway built after it.
+
+        The record is committed by the time this runs, which the seam long
+        treated as fatal. It is not: GROUNDED_IN is analytical
+        (`grounded_in_relationship.py` — "connects to already-committed nodes
+        and does not affect hashes"), and `Decision`'s docstring shows
+        `commit()` preceding `grounds.connect(...)` as the normal lifecycle.
+
+        Targets the decision recorded THIS TURN — the one whose closing built
+        these pathways. Fail-soft and silent: the person's reply is already
+        delivered, and a decision grounded on a cost but not a recipe is still
+        a decision.
+        """
+        if not pathway_hashes:
+            return
+        try:
+            from dialectical_framework.graph.nodes.transformation import \
+                Transformation
+            from dialectical_framework.graph.relationships.grounded_in_relationship import \
+                GroundedInRelationship
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            decision = self._decision_recorded_this_turn()
+            if decision is None:
+                return
+            # `connect` deduplicates only direction="any" edges, so a repeated
+            # closing in one session would otherwise add a second identical
+            # GROUNDED_IN. Check first (CLAUDE.md, Idempotent connect).
+            for existing, rel in decision.grounds.all():
+                if getattr(rel, "role", None) == "adopted_pathway":
+                    return
+            repo = NodeRepository()
+            target = repo.find_by_hash(pathway_hashes[0], node_type=Transformation)
+            if target is None:
+                return
+            decision.grounds.connect(
+                target,
+                relationship=GroundedInRelationship(role="adopted_pathway"),
+            )
+            logger.info(
+                "Grounded already-recorded decision [[%s]] on the pathway its "
+                "closing built: [[%s]]",
+                (decision.hash or "")[:7],
+                pathway_hashes[0][:7],
+            )
+        except Exception:
+            logger.exception(
+                "Attaching an adopted_pathway to a recorded decision failed "
+                "(fail-soft)"
+            )
+
+    def _decision_recorded_this_turn(self):
+        """The Decision node `record_decision` committed on this turn, if any.
+
+        Read from the tool's own report artifact (`decision_hash`) rather than
+        by querying for the newest Decision: a session can record more than one
+        decision, and "most recent in the DB" is a guess where the report is a
+        fact.
+        """
+        from dialectical_framework.graph.nodes.decision import Decision
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
+        for result in self._conversation.last_tool_results:
+            if result.tool_name != "record_decision":
+                continue
+            report = result.report
+            if report is None or not report.ok:
+                continue
+            decision_hash = (report.artifacts or {}).get("decision_hash")
+            if not decision_hash:
+                continue
+            return NodeRepository().find_by_hash(
+                str(decision_hash), node_type=Decision
+            )
+        return None
 
     @staticmethod
     def _accepted_cost_ground(verdict) -> list | None:

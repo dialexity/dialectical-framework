@@ -2427,7 +2427,7 @@ class TestPathwayHashReachesTheModel:
     Both halves are asserted, and they are not redundant: the artifact without
     the doc is data the model never looks for, and the doc without the artifact
     sends it to invent a hash — which the confirmation-repair seam deliberately
-    refuses to do for exactly this reason (`test_adopted_pathway_is_never_guessed`).
+    refuses to do for exactly this reason (`test_no_pathway_exists_so_none_is_grounded`).
     """
 
     def test_explore_docs_name_the_pathways_artifact(self):

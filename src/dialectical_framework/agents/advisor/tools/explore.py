@@ -4,9 +4,12 @@ explore tool: Group perspectives into nexus + build pathways + synthesis.
 Handles the full exploration lifecycle: nexus creation/expansion,
 wheel building, transformation generation, and synthesis.
 
-The shared body lives in `run_exploration` so the nexus-scoped advisor
+The shared body lives in `run_exploration_detailed` so the nexus-scoped advisor
 variant (tools/scoped.py) can pin the nexus hash in code and reuse the
-exact same pipeline without drift.
+exact same pipeline without drift. `run_exploration` is the prose-only face of
+it for the two `@llm.tool` wrappers; programmatic callers that need to USE what
+was built (the Advisor's closing seam, grounding a decision on a pathway) take
+the detailed one.
 """
 
 from __future__ import annotations
@@ -56,6 +59,33 @@ async def run_exploration(
     Shared explore body: expand (or create) a nexus, build wheels, deepen
     the top-plausibility wheel with transformations + synthesis, all within
     the silent-explore depth budget. Returns str(report).
+
+    The transformation hashes this built are ALSO published on the report's
+    `transformation_hashes` artifact, so a programmatic caller (the Advisor's
+    closing seam) can ground a decision on a pathway it just built instead of
+    having to re-query for it. See `run_exploration_detailed`.
+    """
+    report, _ = await run_exploration_detailed(
+        perspective_hashes=perspective_hashes,
+        intent=intent,
+        nexus_hash=nexus_hash,
+    )
+    return report
+
+
+async def run_exploration_detailed(
+    perspective_hashes: list[str],
+    intent: str,
+    nexus_hash: str | None,
+) -> tuple[str, list[str]]:
+    """Same body, returning `(str(report), transformation_hashes)`.
+
+    The hashes exist so a caller that builds pathways on the person's behalf
+    can then USE one. `run_exploration` returns only prose because that is all
+    an LLM tool call can consume; the seam is not an LLM and re-deriving the
+    hashes from the graph would be a second query for something already in
+    hand — and one that cannot tell "the pathway I just built for this
+    closing" from "some pathway on some wheel".
     """
     from dialectical_framework.agents.explorer.explorer import \
         ExplorationPipeline
@@ -114,6 +144,10 @@ async def run_exploration(
     combined_report = nexus_report.merge(exploration.report)
     combined_report.artifacts["nexus_hash"] = effective_nexus_hash
     combined_report.artifacts["synthesis_generated"] = synthesis_count
+    # Full hashes, not the short ones on the `pathways` lines: a ground is
+    # resolved by hash and `RecordDecision` fails closed on anything it cannot
+    # resolve, so the caller needs the identifier the repository will match.
+    transformation_hashes = list(exp_result.transformation_hashes)
     shallow = [
         wh
         for wh in exp_result.wheel_hashes
@@ -130,7 +164,7 @@ async def run_exploration(
             f"the deferred hashes to weave them in."
         ).strip(" |")
 
-    return str(combined_report)
+    return str(combined_report), transformation_hashes
 
 
 @llm.tool

@@ -688,7 +688,10 @@ annotation) → **GenerateSynthesis**
   BY DEFINITION, chose T → `t_minus`, chose A → `a_minus`, because a plus is a goal or an obligation (something to
   DO, i.e. a remedy) and never a price. No match → no ground: a wrong `accepted_cost` is worse than none, since it
   makes the record claim a price the person never faced and sends the re-audit to reassure them with the wrong
-  risk. `adopted_pathway` is still never guessed (it needs a Transformation the wheel may not have).
+  risk. **`adopted_pathway` is derived too, since 2026-08-13** — one ground, from the pathway the seam itself just
+  built (see "The record never pointed at the pathway" below). It was withheld until then on the reasoning that it
+  "needs a Transformation the wheel may not have", which stopped being true the moment the seam started building
+  wheels before recording.
   **The prompt is deliberately silent about the backstop** — telling the model it exists would
   license the laziness it compensates for. Reviewing prompts here: the three prose/tool-doc rules stay exactly as
   they are (the model calling the tool itself is still the path that produces good grounds); the seam is a
@@ -771,8 +774,9 @@ annotation) → **GenerateSynthesis**
   framework's own behaviour is worth diagnosing before it is worked around). Measured: `0 → 2` woven perspectives,
   and weaving does NOT cost the record (both on the same turn), which was the live suspicion once the seam moved
   between the verdict and `RecordDecision`. It fires on BOTH closing branches — the model-recorded one is larger
-  (50 saved cells recorded without exploring vs 48 with both) and weaker (an already-written record cannot take an
-  `adopted_pathway`; the pathway still serves the returning session's re-audit).
+  (50 saved cells recorded without exploring vs 48 with both), and **both now ground** (this map called the
+  recorded branch "weaker … an already-written record cannot take an `adopted_pathway`" until 2026-08-13; that was
+  simply false — see the next entry).
   **The pathway existed and was still unnameable** (fixed 2026-08-12, from `claim2-weak-r10`) — and this one is
   NOT the election failure the two above were, which is why three rounds of prompt work never touched it. r10's
   seam worked: 6/6 decisions recorded, 6/6 with risk-grounded costs, 5/6 cells with woven pathways. And
@@ -795,8 +799,9 @@ annotation) → **GenerateSynthesis**
   same ledger-injection reason as `_dump_decisions`. Tool docs updated on all five surfaces that decide whether
   the ground gets passed (`explore`, `explore_scoped`, `deepen`, `deepen_scoped`, `record_decision`) — the
   `record_decision` doc now also rules out the two near-miss hashes BY NAME (a wheel names the arrangement, a
-  perspective names the tension) and says to omit the role rather than substitute, matching the repair seam's own
-  refusal to guess it (`test_adopted_pathway_is_never_guessed`). Locked by
+  perspective names the tension) and says to omit the role rather than substitute — the seam still omits it rather
+  than substituting when it holds no pathway (`test_no_pathway_exists_so_none_is_grounded`, renamed 2026-08-13 from
+  `test_adopted_pathway_is_never_guessed`; the "never" was the stale half). Locked by
   `TestPipelineNamesThePathwaysItBuilt` (`tests/test_exploration_failure_visibility.py`),
   `TestDeepenNamesThePathways` (`tests/test_advisor_deepen.py`), and `TestPathwayHashReachesTheModel` +
   `TestPathwayLineIsPickable` (`tests/test_prompt_review_regressions.py`). Two pre-existing tests had hand-rolled
@@ -804,6 +809,32 @@ annotation) → **GenerateSynthesis**
   which is the durable lesson: **a hand-shaped stub covers only the fields the caller read the day it was
   written**, and goes stale silently. NOT yet verified at the behaviour layer: whether the model actually passes
   the role needs a bench re-measure of `adopted_pathway` per record.
+  **The record never pointed at the pathway, even once both existed** (fixed 2026-08-13, from
+  `claim2-weak-r16-floor`). r16 is the answer to the re-measure the entry above asked for, and the answer was no:
+  the floor fix worked structurally — **6/6 A2 cells wove, 12-42 transformations each — and
+  `adopted_pathway_grounds` was still 0/6**, including the cell that called `explore` itself at t2 and
+  `record_decision` at t5 with 30 pathways on the graph. Three causes, all in code, none in the model, and none
+  visible from any prompt surface: (1) `run_exploration` returned only `str(report)`, discarding the
+  `transformation_hashes` that `ExplorationResult` publishes for precisely this caller — split into
+  `run_exploration_detailed` returning `(report, hashes)`, with the `@llm.tool` path unchanged (an LLM can only
+  consume the prose); (2) the recorded-decision branch deliberately did nothing with the pathways it built, on the
+  belief that a committed Decision cannot take a new ground — **false, and the load-bearing correction: GROUNDED_IN
+  is an ANALYTICAL edge** (`grounded_in_relationship.py`, "connects to already-committed nodes and does not affect
+  hashes") and `Decision`'s own docstring shows `commit()` then `grounds.connect(...)`; (3) `if not unwoven: return`
+  skipped the exact cell that most deserved a ground — nothing to BUILD is not nothing to GROUND, so it now falls
+  back to `_existing_pathway_hashes()`. ONE pathway is grounded, not six: the role names "the pathway adopted as
+  the ongoing recipe", singular, and grounding all of them makes the re-audit's "here is your recipe" a menu again.
+  Idempotence matters on the attach path because `connect` dedups only `direction="any"` edges — scan
+  `decision.grounds.all()` for the role first. The general lesson generalises the r10 one a level up: **the layer
+  distinction is a CAPABILITY, and a seam that forgets which layer it is writing to will refuse work it is allowed
+  to do.** r10 found a documented ground with no constructible hash; r16 found the hash constructible, the storage
+  willing, and the caller declining on a false invariant — so when a seam says "cannot", check the relationship
+  class before believing it. Locked by `TestTheClosingGroundsOnThePathwayItBuilt`
+  (`tests/test_decision_confirmation_repair.py`: the repair branch grounds, only one is adopted, no pathway → no
+  role, an already-recorded decision gets its edge, a second closing does not double-ground, the target comes from
+  the tool report's `decision_hash` rather than "newest Decision", and a grounding fault never breaks the turn) —
+  revert-verified 4/45 failing on the three call sites alone. Still NOT verified at the behaviour layer: whether
+  grounding the pathway moves `paired_recipe` (-0.58) or `decision_closure` (-0.75) needs r17.
   **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
   iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
   Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same
