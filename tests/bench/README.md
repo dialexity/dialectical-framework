@@ -1482,6 +1482,52 @@ forbade it.
 None of this is verified as an improvement yet: these are fixes to causes the judge
 named, and the next weak-tier run is what tests them.
 
+#### Before paying for r17: four of the five fixes cannot be measured (2026-08-13)
+
+Each fix is a claim about a **countable behaviour**, so `probe_five_fixes.py` runs the
+counts over the 22 saved runs first — free, and it decides r17's design. A judged run
+cannot tell "the fix did not help" from "the fix did not fire", and this archive has
+already spent two rounds on that ambiguity (r15 and r16 both met their structural goal
+completely and moved no judged row).
+
+| Fix | Machine count, weak tier | Verdict |
+|---|---|---|
+| 1 concede in the first clause | explicit corrections **12/704** A2 turns vs **6/736** prose (p=0.14) | **no room to move** — and the regex undercounts the concessions that are there |
+| 2 the reply amends a dropped frame | — | **semantic**, judge-only |
+| 3a never re-ask an answered question | **~1% in every arm** (A2 6/1467) | **method limit** — content overlap cannot see a rephrased question |
+| 3b build on their newest words | — | **semantic**, judge-only |
+| 4 a choice needs prices | **14 menus vs 4**, unpriced 43% vs 100% | **measurable** → `score_menu` |
+| 5a a request to close is not answered with homework | **6/67** requests vs prose **13/68** | A2 already does it **less** |
+| 5b say the record landed | **36/53** requests silent | measured judged-side by `visibility_rows` |
+
+Three of those rows are traps a later reader would otherwise re-enter, so they are in
+the probe's docstring rather than deleted:
+
+- **The repetition complaint is the scenario, not the arm.** The person says "we're
+  going in circles" in 51 of 88 A2 cells — and 60 of 92 prose cells, and **4 of 4 A0
+  cells**. 94 of the 118 hits sit on the `pushback_2` beat, whose instruction *tells the
+  simulator to say the advice is generic*. The archive cannot baseline fix 3 at all: a
+  run comparing arms on it compares two responses to one script.
+- **Fix 5's judged mass is not where its wording points.** The 15-of-90 closure finding
+  passes the `--all-cells` selectivity check (1 of 51 won cells), but reading the notes,
+  the judge is describing the *closing turn leaving the person owing work* — broader than
+  a gate on recording. Measured that way A2 is still cleaner (9/176 closing turns vs
+  A1.7's 14/144). The rule is right and rare; the mass is elsewhere.
+- **Fix 4's diagnosis was backwards, and the first scorer would have inverted it.**
+  Matching bare enumeration reported A2 handing back **158** menus against 21 — almost
+  all of them **recipes and question lists**, i.e. the `paired_recipe` output the arm is
+  supposed to win. Requiring an option label *and* a hand-back narrows 158 → 14. On that
+  honest count A2 offers a choice **3.5× more often** (the structure surfacing: a wheel
+  ranks N pathways and the reply passes the ranking on) but **prices them 57% of the time
+  while the prose arm never does**. So "unpriced menu" was the wrong noun — frequency is
+  the endpoint, and "lead with one and its price" is a frequency instruction. `MenuScore`
+  keeps `unpriced` as the guard against fixing frequency by dropping prices.
+
+**Net for r17:** one machine endpoint. r17 is therefore a **judged** run sized on the
+composite (~19 pairs for 0.5 steps), with the menu rate riding along as a tripwire — and
+a null on the other four will be **uninterpretable**, which is worth saying before the
+run rather than after it.
+
 #### What this does and does not license
 
 It licenses no claim in either direction about the **strong** tier — which is the
@@ -1688,6 +1734,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
 | `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, and the claim-killing check for any new split (free) |
 | `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
+| `probe_five_fixes.py` | counts the behaviours the five r17 prompt fixes target, before paying for a judged run; its docstring records the four that are NOT measurable and why (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |

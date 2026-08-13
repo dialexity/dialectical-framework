@@ -353,6 +353,36 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   examples must be rewritten with the rule** — the regression test caught both examples still teaching
   person-as-blind three paragraphs after the new rule forbade it, which is exactly how a rewritten rule loses
   to the illustration beside it.
+- **Four of those five fixes cannot be measured, and finding that out was free.** `tests/bench/probe_five_fixes.py`
+  counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
+  judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their
+  structural goal completely and moved no judged row). Results: fix 1 has **no room to move** (the person
+  explicitly corrects the assistant in 12 of 704 A2 turns, 6 of 736 prose, p=0.14) and the concession regex
+  undercounts what is there; fixes 2 and 3b are **semantic** — whether a dropped frame was AMENDED, whether a
+  turn builds on the newest phrasing — so they print `unmeasurable` rather than 0, since a scorer that reports 0
+  for "I cannot see this" gets averaged in; fix 3a's pattern finds ~1% in **every** arm (content-word overlap
+  cannot see a rephrased question); fix 5a's behaviour runs **against** A2 (6 of 67 requests vs the prose arm's
+  13 of 68, and the broader "closing turn leaves work owing" reading 9/176 vs 14/144). Two traps worth carrying
+  forward. **A simulator instruction can manufacture a user complaint**: the person says "we're going in circles"
+  in 51 of 88 A2 cells — and 60 of 92 prose cells and **4 of 4 A0 cells** — because 94 of the 118 hits sit on the
+  `pushback_2` beat, whose instruction tells the simulator to say the advice is generic. Before reading any
+  user-utterance rate as an arm property, check which beat it lands on. And **a judged frequency can pass the
+  selectivity check while its wording points at the wrong behaviour**: fix 5's 15-of-90 closure finding is
+  genuinely selective (1 of 51 won cells) but the notes describe the closing turn leaving the person owing work,
+  which is broader than a gate on recording — the rule is right and rare, the judged mass is elsewhere.
+- **The one measurable fix had its diagnosis inverted by its own scorer's first version — a recipe is not a
+  menu.** `scoring.score_menu` / `models.MenuScore`. Matching bare enumeration reported A2 handing back **158**
+  menus against a prose arm's 21, a 7x "finding" that was almost entirely **recipes and question lists** — i.e.
+  the `paired_recipe` output the framework arm is supposed to WIN, so that scorer would have charged the framework
+  for its own product. Requiring an option LABEL (`option/path/route/approach`) *and* a hand-back ("which of
+  these", "your call") narrows 158 → 14. On the honest count A2 offers a choice **3.5x more often** (14 cells vs
+  4 — the structure surfacing: a wheel ranks N pathways internally and the reply passes the ranking on) but
+  **prices them 57% of the time while the prose arm prices none**. So "unpriced menu" was the wrong noun:
+  frequency is the endpoint and "lead with one and its price" is a frequency instruction. `unpriced` is retained
+  as the guard against fixing frequency by dropping prices. Standing lesson, now the third instance (r4's
+  position bias, the election-vs-record scorer, this): **a new scorer's first version tends to point the
+  flattering-or-damning way its author already expected — validate it by SAMPLING the strings it matched**, not
+  by reading its regex. Locked by `test_bench.py::TestAMenuIsNotANumberedList`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

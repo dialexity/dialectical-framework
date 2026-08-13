@@ -158,8 +158,18 @@ anchors.
 - [ ] **Accumulation and concession are register-independent, so verify the SCOPED render too.** Counsel mode
       swaps `_ROLE`/`_HOW_YOU_SPEAK`/`_REJECTION_HANDLING` for scoped variants; a conversational rule that only
       lands unscoped silently exempts the toggle (`TestWhatTheJudgeSaidWasWrong` asserts both).
-- [ ] **A plural structure must not surface as a plural question.** Wheels/pathways rank internally; an unpriced
-      menu of N options hands the work back (26 of 85 judged convergence cells). Lead with one and its price.
+- [ ] **A plural structure must not surface as a plural question.** Wheels/pathways rank internally; a menu of N
+      options hands the work back (26 of 85 judged convergence cells). Lead with one and its price. Measured
+      afterwards (`scoring.score_menu`), the defect is the **frequency**, not the costing: A2 offers a choice 3.5×
+      more often than the journal arm and prices it 57% of the time against the journal's 0%.
+- [ ] **Before writing a prompt rule from a judged frequency, count the behaviour it targets.**
+      `tests/bench/probe_five_fixes.py` is free and it disqualified four of five fixes: one had 12 events in 704
+      turns, two are semantic (no regex reaches "did the reply AMEND the frame"), and one runs *against* A2 in the
+      archive. Two traps it caught, both general: a **simulator instruction can manufacture the user's complaint**
+      (94 of 118 "you're going in circles" turns sit on one beat that tells the simulator to say it — it appears in
+      4 of 4 A0 cells too), and a judged frequency can pass the won-vs-lost selectivity check while its wording
+      points at a **narrower behaviour than the notes describe**. A rule whose behaviour cannot be counted is still
+      worth writing — but say so, because a null result on it will be uninterpretable.
 
 ---
 

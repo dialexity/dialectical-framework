@@ -46,6 +46,7 @@ from .scoring import (
     cited_record,
     score_closure,
     score_erosion,
+    score_menu,
     score_particulars,
     score_phantom_record,
     score_symmetry,
@@ -445,6 +446,10 @@ def score_machine_over(
             scores.phantom_record = score_phantom_record(
                 record.sessions, record_exists=bool(record.decision_hashes)
             )
+            # Also every session, and for the same reason: handing back a menu is
+            # a per-turn behaviour, and most of them happen in the `decide`
+            # conversation rather than after a wobble.
+            scores.menu = score_menu(record.sessions)
         # Carry-over is only measurable across a boundary, so this needs the
         # branch session AND the bases that preceded it. Scored off the record's
         # own sessions rather than the scenario's declared list: a cell that

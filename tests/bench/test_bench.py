@@ -27,7 +27,7 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
-from bench.across_runs import (_a2_deltas, _corr, fisher_exact,
+from bench.across_runs import (RESULTS, _a2_deltas, _corr, _stems, fisher_exact,
                                rung_rows, sign_test, visibility_rows)
 from bench.judge_notes import _derandomise
 from bench.judge_variance import se_of_mean, split_variance
@@ -56,7 +56,7 @@ from bench.models import (
     TurnRecord,
     WobbleScore,
 )
-from bench.report import Deltas, position_bias, render_report
+from bench.report import Deltas, load_records, position_bias, render_report
 from bench.runner import BenchRun, JUDGED_PAIRS, score_machine_over
 from bench.scenarios import ALL_SCENARIOS, scenarios_for
 
@@ -4593,3 +4593,196 @@ class TestTheOpponentChangesWhichDimensionsLose:
         assert len(counts) == 1, "every dimension must draw on the same cells"
         (n_yes, n_no) = counts.pop()
         assert n_yes % 12 == 0 and n_no % 12 == 0
+
+
+class TestAMenuIsNotANumberedList:
+    """The one fix of the five with a machine endpoint, and its inversion trap.
+
+    `_CONVERSATION_USE` gained "a choice needs prices, not a list" because 26 of
+    85 losing `convergence` cells were the judge describing an uncosted menu.
+    `score_menu` is the tripwire — and the FIRST version of it was wrong in the
+    most dangerous available direction: matching bare enumeration, it reported A2
+    handing back 158 menus against a prose arm's 21, a 7x "finding" that was
+    almost entirely RECIPES and question lists. A recipe is the `paired_recipe`
+    dimension the framework arm is supposed to WIN, so that scorer would have
+    charged the framework for its own product. Requiring an option label AND a
+    hand-back narrows 158 to 14, which is the honest count.
+
+    These tests pin the distinction rather than the counts, per the standing rule
+    that a frozen archive number is a maintenance burden and an invariant is not.
+    """
+
+    @staticmethod
+    def _reply(text: str) -> list[SessionRecord]:
+        return [
+            SessionRecord(
+                label="decide",
+                turns=[TurnRecord(index=0, user="u", assistant=text, tag="decide")],
+            )
+        ]
+
+    def test_a_numbered_recipe_is_not_a_menu(self):
+        """The inversion, pinned. This is the modal shape of an A2 reply and the
+        thing the arm is supposed to produce — if it ever scores as a menu, the
+        scorer is charging the framework for winning `paired_recipe`."""
+        recipe = (
+            "Here's the sequence.\n\n"
+            "1. **Weeks 1-2:** You intro yourself to both CEOs as operating lead.\n"
+            "2. **Week 3:** Price the buyout at a discounted valuation.\n"
+            "3. **Week 4:** Sign, with vesting held back against the handoff.\n"
+        )
+        score = scoring.score_menu(self._reply(recipe))
+        assert score.menus == 0
+
+    def test_a_list_of_questions_is_not_a_menu(self):
+        """Also common, also not a choice between alternatives."""
+        questions = (
+            "1. **What's his actual state of mind?** Is he checked out?\n"
+            "2. **Do those CEOs know they're your anchors?**\n"
+        )
+        assert scoring.score_menu(self._reply(questions)).menus == 0
+
+    def test_options_the_reply_chooses_between_are_not_a_menu(self):
+        """The fix's own instruction is "lead with one and its price". A reply
+        that lays out two paths and then says which it would take has complied,
+        so counting it would make the scorer disagree with the prompt it guards."""
+        counsel = (
+            "**Option A.** Buy him out now and absorb the revenue loss.\n"
+            "**Option B.** Restructure his role first.\n\n"
+            "Take A. The cost is the two anchor accounts, and you can price that; "
+            "B's cost is another year of the same ambiguity, and you cannot."
+        )
+        assert scoring.score_menu(self._reply(counsel)).menus == 0
+
+    def test_labelled_alternatives_handed_back_are_a_menu(self):
+        """Both signals present: an option set, and the choosing given away."""
+        menu = (
+            "**Option A.** Buy him out now.\n"
+            "**Option B.** Restructure his role.\n"
+            "**Option C.** Wait a quarter.\n\n"
+            "Which of these feels closest to where you already are?"
+        )
+        score = scoring.score_menu(self._reply(menu))
+        assert score.menus == 1
+        assert score.unpriced == 1, "no cost named anywhere in it"
+
+    def test_a_priced_menu_is_still_a_menu(self):
+        """Frequency is the endpoint, not pricing — the archive shows A2 prices
+        57% of its menus while the prose arm prices none, so "unpriced" was the
+        wrong noun for the defect. `unpriced` stays as the guard against fixing
+        frequency by dropping prices."""
+        menu = (
+            "**Option A.** Buy him out now. The price is both anchor accounts.\n"
+            "**Option B.** Restructure. What you give up is another year.\n\n"
+            "Your call."
+        )
+        score = scoring.score_menu(self._reply(menu))
+        assert (score.menus, score.unpriced) == (1, 0)
+
+    def test_blank_replies_are_excluded_from_the_denominator(self):
+        """Same rule as `score_erosion` and `score_closure`: a failed generation
+        is not a turn that declined to hand back a menu."""
+        sessions = [
+            SessionRecord(
+                label="decide",
+                turns=[
+                    TurnRecord(index=0, user="u", assistant="", tag="decide"),
+                    TurnRecord(index=1, user="u", assistant="Real reply.", tag="x"),
+                ],
+            )
+        ]
+        assert scoring.score_menu(sessions).turns == 1
+
+    def test_every_session_counts_not_just_the_returning_one(self):
+        """Most menus land in the opening conversation, so restricting to the
+        branch session (as `score_closure` must) would drop the majority."""
+        sessions = [
+            SessionRecord(
+                label="decide",
+                turns=[
+                    TurnRecord(
+                        index=0,
+                        user="u",
+                        assistant="**Option A.** Go.\n**Option B.** Wait.\nUp to you.",
+                        tag="decide",
+                    )
+                ],
+            ),
+            SessionRecord(
+                label="wobble_a",
+                turns=[
+                    TurnRecord(
+                        index=0,
+                        user="u",
+                        assistant="**Path 1.** Hold.\n**Path 2.** Move.\nYour call.",
+                        tag="wobble",
+                    )
+                ],
+            ),
+        ]
+        assert scoring.score_menu(sessions).menus == 2
+
+    def test_the_archive_says_a2_offers_more_menus_and_prices_them_better(self):
+        """The direction that reframed the fix, asserted as an ordering rather
+        than as the counts (14 vs 4 menus, 43% vs 100% unpriced).
+
+        Both halves matter and they point opposite ways: A2 hands back a choice
+        far more often (the structure surfacing — a wheel ranks N pathways and the
+        reply passes the ranking on), and when it does it names a price more often
+        than the prose arm ever does. If the first ordering ever inverts, the
+        frequency fix worked; if the second does, it worked by dropping prices,
+        which is the failure this pairing exists to catch.
+        """
+        totals: dict[str, list[int]] = {}
+        for stem in _stems():
+            payload = load_records(RESULTS / f"{stem}.json")
+            for raw in payload.get("runs") or []:
+                run = RunRecord.model_validate(raw)
+                if run.tier != "weak" or run.error:
+                    continue
+                score = scoring.score_menu(run.sessions)
+                bucket = totals.setdefault(run.arm.value, [0, 0, 0])
+                bucket[0] += score.menus
+                bucket[1] += score.unpriced
+                bucket[2] += score.turns
+        a2, prose = totals["A2"], totals["A1.7"]
+        assert a2[0] / a2[2] > prose[0] / prose[2], "A2 offers menus more often"
+        assert a2[1] / a2[0] < prose[1] / prose[0], "and prices them more often"
+
+    def test_the_report_prints_the_rate_and_not_only_the_pricing(self):
+        """A number nobody sees is the defect this whole round diagnosed.
+
+        The block must lead with FREQUENCY, because the archive's pricing column
+        favours A2 — a report showing only `unpriced` would read as a framework
+        win off the same data that says the arm hands back too many choices.
+        """
+        run = _run(Arm.A2, "weak")
+        run.sessions = [
+            SessionRecord(
+                label="decide",
+                turns=[
+                    TurnRecord(
+                        index=0,
+                        user="u",
+                        assistant=(
+                            "**Option A.** Go now.\n**Option B.** Wait.\n\nYour call."
+                        ),
+                        tag="decide",
+                    ),
+                    TurnRecord(index=1, user="u", assistant="Plain reply.", tag="x"),
+                ],
+            )
+        ]
+        scores = MachineScores(menu=scoring.score_menu(run.sessions))
+        text = render_report([run], [], {run.cell_key: scores}, ["weak"])
+        assert "Choices handed back to the person" in text
+        assert "menus   1 /   2 turns" in text
+        assert "A numbered recipe is not one" in text, "the trap must be stated"
+
+    def test_a_run_with_no_menus_prints_no_block(self):
+        """An all-zero table invites reading absence as a measured result. The
+        block appears only when some arm handed back at least one choice."""
+        run = _run(Arm.A2, "weak")
+        scores = MachineScores(menu=scoring.score_menu(run.sessions))
+        text = render_report([run], [], {run.cell_key: scores}, ["weak"])
+        assert "Choices handed back to the person" not in text

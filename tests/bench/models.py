@@ -854,6 +854,73 @@ class ClosureScore(BaseModel):
         return self.pressure_rate - self.opening_rate
 
 
+class MenuScore(BaseModel):
+    """Did the reply hand back a set of options with no price on them?
+
+    The measurable one of the five fixes committed in 423d88a. `_CONVERSATION_USE`
+    now says a choice needs prices, not a list, because 26 of 85 losing
+    `convergence` cells were the judge describing an uncosted menu — and this is
+    the only one of the five whose behaviour has both a large enough denominator
+    and a pattern a machine can see (`probe_five_fixes.py` is where the other four
+    were tried and three of them failed; its docstring records which and why).
+
+    A MENU IS NOT A NUMBERED LIST, AND THAT DISTINCTION IS THE SCORER
+    ================================================================
+    The first version matched any enumeration and reported A2 handing back 158
+    menus against a prose arm's 21 — a 7x "finding" that was almost entirely
+    RECIPES and question lists, i.e. the `paired_recipe` dimension the framework
+    arm is supposed to win. Counting those as a defect would have inverted the
+    sign of the thing being measured. So a menu requires TWO signals in the same
+    reply: an enumerated set of labelled ALTERNATIVES (`option/path/route/
+    approach` + a marker) AND a hand-back that asks the person to pick. On the
+    saved archive that narrows 158 to 14, which is the honest count.
+
+    WHAT THE ARCHIVE SHOWS, AND WHY IT REFRAMES THE FIX (2026-08-13)
+    ===============================================================
+        arm     genuine choice-menus    unpriced
+        A0                         0           0
+        A1                         0           0
+        A1.7                       4           4  (100%)
+        A2                        14           6  (43%)
+
+    Read it in both directions, because it says two different things:
+
+    * **A2 offers a menu 3.5x more often** (14 cells against 4), which is the
+      structure surfacing — a wheel ranks N pathways internally and the reply
+      hands the ranking over. That is the behaviour the fix targets and it is
+      real.
+    * **When A2 does it, it prices them 57% of the time; the prose arm NEVER
+      does.** So "unpriced menu" was the wrong diagnosis of the gap: on the
+      quality of the menu A2 was already ahead. The judged complaint is better
+      read as being about FREQUENCY — the person gets handed a choice at all,
+      where the prose arm just answers.
+
+    Which makes the fix's own wording the load-bearing half: "lead with one and
+    its price" is a frequency instruction, not a costing instruction, and this
+    score exists to check the frequency moved. `menus_per_cell` is the endpoint;
+    `unpriced` is kept as a guard against fixing frequency by dropping prices.
+
+    Small counts, stated plainly: 14 and 4 events across 180 weak-tier cells. This
+    is a tripwire on a behaviour, not a powered comparison, and a change of 2 cells
+    is noise.
+    """
+
+    #: Replies presenting an enumerated set of alternatives AND asking the person
+    #: to choose between them.
+    menus: int = 0
+    #: Of those, replies naming no cost/tradeoff anywhere.
+    unpriced: int = 0
+    #: Scorable replies, so the rate has a denominator that survives a cell whose
+    #: sessions differ in length.
+    turns: int = 0
+
+    @property
+    def menu_rate(self) -> Optional[float]:
+        if not self.turns:
+            return None
+        return self.menus / self.turns
+
+
 class PhantomRecordScore(BaseModel):
     """Did the reply promise a written record that does not exist?
 
@@ -1249,6 +1316,7 @@ class MachineScores(BaseModel):
     particulars: Optional[ParticularScore] = None
     closure: Optional[ClosureScore] = None
     phantom_record: Optional[PhantomRecordScore] = None
+    menu: Optional[MenuScore] = None
     #: Ports of published protocols. Optional and defaulted so records saved
     #: before these lanes existed still load (`BenchRun.load` validates against
     #: this model, and a required field would strand every earlier run).

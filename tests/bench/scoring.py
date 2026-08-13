@@ -20,6 +20,7 @@ from typing import Optional
 from .models import (
     ClosureScore,
     ErosionScore,
+    MenuScore,
     Particular,
     ParticularScore,
     PhantomRecordScore,
@@ -672,6 +673,66 @@ def score_phantom_record(
                 score.phantom_claims += 1
             elif _RECORD_TYPED.search(reply):
                 score.typed_only += 1
+    return score
+
+
+#: An enumerated set of labelled ALTERNATIVES. The label words are required: a
+#: bare "1." is a recipe step or a question in a list far more often than it is a
+#: choice, and matching bare enumeration turned 14 real menus into 158 (see
+#: `MenuScore` — that version reported the framework arm's own `paired_recipe`
+#: output as a defect).
+_MENU_OPTIONS = re.compile(r"^\W*(\*\*)?(option|path|route|approach)\s*[a-z0-9]", re.I | re.M)
+
+#: The reply handing the choice back. Required IN ADDITION to the option set,
+#: because a reply that lists two paths and then says which one it would take is
+#: counsel, not a menu — the fix is about who does the choosing.
+_MENU_HANDBACK = re.compile(
+    r"which (of (these|those)|one|option|path|feels|do you)"
+    r"|(your|it'?s your) call"
+    r"|(pick|choose|decide) (one|which|between)"
+    r"|up to you"
+    r"|(what|which) do you want to"
+    r"|(where|which) do you (land|lean)",
+    re.I,
+)
+
+#: A cost named anywhere in the reply. About COST specifically, not about any
+#: mention of a downside: "faster" is a comparison, "you'd give up" is a price.
+_MENU_PRICE = re.compile(
+    r"the (cost|price|trade-?off)"
+    r"|costs? you"
+    r"|you'?d (give up|lose|be giving up|trade|forfeit)"
+    r"|at the (cost|price) of"
+    r"|in exchange for"
+    r"|what (you|this) (gives? up|sacrifices?)"
+    r"|the downside is"
+    r"|you pay",
+    re.I,
+)
+
+
+def score_menu(sessions: list[SessionRecord]) -> MenuScore:
+    """Replies that hand back a set of options, and whether they carry prices.
+
+    The measurement behind `MenuScore` — see that docstring for what the archive
+    shows and for why the frequency, not the pricing, is the endpoint.
+
+    Every session of a cell, like `score_phantom_record`: handing back a menu is a
+    per-turn behaviour with no phase structure, and restricting it to the returning
+    session would drop the `decide` cells where most of them happen.
+    """
+    score = MenuScore()
+    for session in sessions:
+        for turn in session.turns:
+            reply = (turn.assistant or "").strip()
+            if not reply:
+                continue
+            score.turns += 1
+            if not (_MENU_OPTIONS.search(reply) and _MENU_HANDBACK.search(reply)):
+                continue
+            score.menus += 1
+            if not _MENU_PRICE.search(reply):
+                score.unpriced += 1
     return score
 
 

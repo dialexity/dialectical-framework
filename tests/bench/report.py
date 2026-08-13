@@ -25,6 +25,7 @@ from .models import (
     Comparison,
     MachineScores,
     MemoryAbility,
+    MenuScore,
     NON_INFERIORITY_DIMENSIONS,
     PUBLISHED_BASELINES,
     PhantomRecordScore,
@@ -1211,6 +1212,45 @@ def render_report(
             add("   record exists to remove, and belongs in the Claim-2 argument.")
         else:
             add("   No phantom claims: every promise made has a record behind it.")
+        add("")
+
+    # -- choices handed back ------------------------------------------------
+    # The tripwire on the one r17 prompt fix with a machine endpoint. Printed by
+    # ARM and as a rate, because the finding is a frequency: the archive says A2
+    # prices its menus BETTER than the prose arm and offers them 3.5x more often,
+    # so a report showing only `unpriced` would read as a framework win.
+    menus = [(k, v.menu) for k, v in sorted(machine.items()) if v.menu and v.menu.turns]
+    if menus and any(m.menus for _k, m in menus):
+        add("### Choices handed back to the person")
+        add("")
+        add("A menu here is an enumerated set of labelled ALTERNATIVES plus a")
+        add("hand-back that asks the person to pick. A numbered recipe is not one,")
+        add("and neither is a list of questions — an earlier version of this")
+        add("scorer counted those and reported 158 A2 'menus' against 21, nearly")
+        add("all of them the `paired_recipe` output this arm is supposed to win.")
+        add("")
+        add("The endpoint is the RATE, not the pricing: across the archive A2")
+        add("offers a choice 3.5x more often than the journal arm and prices it")
+        add("57% of the time against the journal's 0%. So `unpriced` is here only")
+        add("as the guard against improving the rate by dropping prices.")
+        add("")
+        by_arm_menu: dict[str, list[MenuScore]] = defaultdict(list)
+        for key, score in menus:
+            by_arm_menu[key.split("|")[0]].append(score)
+        for arm in sorted(by_arm_menu):
+            scores = by_arm_menu[arm]
+            handed = sum(s.menus for s in scores)
+            turns = sum(s.turns for s in scores)
+            unpriced = sum(s.unpriced for s in scores)
+            priced = (
+                f"{unpriced}/{handed} unpriced" if handed else "no menus to price"
+            )
+            add(
+                f"  {arm:6} menus {handed:3} / {turns:3} turns "
+                f"({handed / turns:5.1%})  {priced}"
+            )
+        add("")
+        add("   Small counts: a change of 1-2 cells is noise, not movement.")
         add("")
 
     # -- question-ending rate across the boundary ---------------------------
