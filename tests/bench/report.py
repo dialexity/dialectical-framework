@@ -1162,6 +1162,85 @@ def render_report(
             )
             add("")
 
+    # -- question-ending rate across the boundary ---------------------------
+    # The behavioural companion to the durability block near the top of this
+    # report. That block says A2 loses composite points on return; this one says
+    # what it DOES differently, in a number no judge produced.
+    closures = [(k, v.closure) for k, v in sorted(machine.items()) if v.closure]
+    closures = [(k, c) for k, c in closures if c.rate_change is not None]
+    if closures:
+        add("### Turns that end on a question, opening vs returning session")
+        add("")
+        add("Ending on a question is not a defect — most good counsel turns do,")
+        add("in every arm, so the absolute rate says nothing. The CHANGE does:")
+        add("near zero means the arm keeps its balance on return, strongly")
+        add("positive means it flips from advising to interrogating exactly when")
+        add("the person came back wobbling and needed ground to stand on.")
+        add("")
+        add("Why the session split and not the `pushback_*` beats: widening")
+        add("`pressure` to include the in-session pushback turns erases the")
+        add("separation entirely (r16: A1.7 +0.21 vs A2 +0.29). A2 holds its")
+        add("footing while being argued WITH and loses it on RETURN — which is")
+        add("where it has something no prompt arm can have, a recorded decision")
+        add("and a re-audit rule that fires on one.")
+        add("")
+        add(
+            f"{'arm':6} {'tier':8} {'scenario':20} {'r':3} {'branch':10} "
+            f"{'open':>7} {'return':>7} {'change':>8}"
+        )
+        for key, c in closures:
+            arm, tier, scenario_key, rep, branch = key.split("|")
+            add(
+                f"{arm:6} {tier:8} {scenario_key:20} {rep:3} {branch:10} "
+                f"{f'{c.opening_questions}/{c.opening_turns}':>7} "
+                f"{f'{c.pressure_questions}/{c.pressure_turns}':>7} "
+                f"{c.rate_change:>+8.2f}"
+            )
+        add("")
+        per_arm_change: dict[str, list[float]] = defaultdict(list)
+        for key, c in closures:
+            per_arm_change[key.split("|")[0]].append(c.rate_change)
+        add("Per-arm mean change (with its 95% CI over cells — the interval is")
+        add("the point, a rate difference over 6 cells is easy to over-read):")
+        intervals: dict[str, tuple[float, float]] = {}
+        for arm in sorted(per_arm_change):
+            changes = per_arm_change[arm]
+            ci = _ci95(changes)
+            if ci is not None:
+                intervals[arm] = ci
+            add(
+                f"  {arm:6} {_mean(changes):+.2f} {_fmt_ci(ci)}"
+                f"  over {len(changes)} cell(s)"
+            )
+        # Two intervals that overlap are not a difference, however cleanly the
+        # means separate. r16 prints A1.7 [-0.49,+0.43] against A2 [+0.00,+0.61]:
+        # they overlap across a third of their width, so the flip is a LEAD to
+        # power, not a measured arm effect — and the cells are not independent
+        # anyway (both branches of a replicate share one opening session, so 6
+        # rows carry 3 openings). Said here because the means alone read as
+        # settled, which is the exact mistake the CI columns exist to prevent.
+        if len(intervals) > 1:
+            pairs = sorted(intervals.items())
+            overlapping = [
+                (a, b)
+                for i, (a, ci_a) in enumerate(pairs)
+                for b, ci_b in pairs[i + 1 :]
+                if ci_a[0] <= ci_b[1] and ci_b[0] <= ci_a[1]
+            ]
+            add("")
+            if overlapping:
+                add(
+                    "!! Overlapping intervals: "
+                    + ", ".join(f"{a} vs {b}" for a, b in overlapping)
+                )
+                add("   The means may separate cleanly; the arms do not. Treat this as")
+                add("   a lead to power, never as a measured arm difference. Note also")
+                add("   that a replicate's two branches SHARE one opening session, so")
+                add("   the cell count above overstates the independent n by ~2x.")
+            else:
+                add("RESOLVED: no two arms' intervals overlap.")
+        add("")
+
     # -- ported protocols --------------------------------------------------
     _add_ported_sections(add, machine)
 
@@ -1288,11 +1367,20 @@ def render_report(
             add("   Every dimension row below is a SUBSCALE of this: 12 repeated")
             add("   measures on the same pairs, so they cannot be pooled as 12x")
             add("   the evidence, and each is individually noisier than this row.")
-            # Opening vs under-pressure, within replicate. On r16 this is the
-            # largest effect in the whole run and no table showed it: level in
-            # `decide`, the entire deficit appearing only after pushback. A
-            # pooled row cannot distinguish "worse throughout" from "as good
-            # until challenged", and those call for opposite fixes.
+            # Opening vs under-pressure, within replicate. A pooled row cannot
+            # distinguish "worse throughout" from "as good until challenged", and
+            # those call for opposite fixes — which is why the split is printed
+            # even though, across the archive, it has never resolved.
+            #
+            # HISTORY, kept because this row invited exactly one wrong reading and
+            # got it: r16 printed -1.22 here, the largest single effect in that
+            # run, and it was taken as "A2 is level at the opening and loses it
+            # under pushback". Across all 14 (run, pair, tier) sets that carry a
+            # change, the mean is +0.006 with sd 0.68 (CI [-0.39,+0.40]), negative
+            # in 6 of 14, sign test p=1.0. r16's -1.22 is the most extreme value
+            # in the archive, in both directions. The durability split is a real
+            # DECOMPOSITION and was not a real finding; `n=3` is why. Re-derive
+            # from `results/` before quoting any single run's number.
             for tier in tier_order:
                 changes = d.pressure_changes(tier)
                 if len(changes) < 2:

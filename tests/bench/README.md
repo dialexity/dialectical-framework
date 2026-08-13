@@ -1230,11 +1230,8 @@ than the mean. Note the unit: **replicates, not branches** — `wobble_a` and
 one number twice and turns an honest n=3 into a confident-looking n=6 (interval
 narrower by ~√2 for free). The report averages branches within a replicate.
 
-This is now the sharpest r17 target on the board: a pooled −0.37 pointed at
-nothing in particular, while "as good until challenged, then worse" points at the
-pushback turns specifically. Powering *this* comparison is cheaper than powering
-the pooled one — the change is −1.22 against sd 0.83, so ~5 replicates would
-resolve it, against ~19 pairs for a 0.5-step pooled effect.
+This looked like the sharpest r17 target on the board. **It was not an effect —
+see the refutation below, which is the more important half of this section.**
 
 **Two hypotheses of mine that my own data refuted, recorded so they are not
 re-proposed.** (1) *Context flooding* — that weaving buried the person's
@@ -1244,9 +1241,56 @@ read the `entanglement` judge notes as prose and saw "drops the mechanism",
 "concedes it quickly", "restates the risk as a price" and inferred A2 was losing
 the control-statement ("T+ without A+ yields T−") that the rubric's 4–5 band
 describes. Decoding X/Y properly — X is A2 in only half the cells by design — the
-weakness phrases attribute **8 to A1.7 and 6 to A2**. The prompt has no
-hold-your-ground guidance at all, which is still a real gap worth closing, but
-r16 does not evidence it. Read judge notes through `x_arm`, never as prose.
+weakness phrases attribute **8 to A1.7 and 6 to A2**. Read judge notes through
+`x_arm`, never as prose.
+
+**Correction (3): "the prompt has no hold-your-ground guidance at all" was
+wrong.** I wrote that here and said it in a report. `_DECISION_READINESS` carries
+two sections that are exactly that guidance — **"After recording — the re-audit"**
+(reassure FROM the record when the wobble is the accepted cost resurfacing) and
+**"A risk that has MATERIALISED is not that risk resurfacing"** (its sharpest
+distinction, written against the failure mode of steadying someone about a world
+that no longer exists). Both are in the arms' shared `method_prompt`; the only
+A2-only paragraph in that whole section is "Writing the record out is not
+recording it", which is about calling the tool. There was no missing-guidance gap
+to close.
+
+#### Refuted (4): the durability split itself, and the mechanism I found for it
+
+Chasing the question "what would it take to fix the pushback loss", I found a
+clean-looking mechanism: **A2 ended its turn with a question in 11 of 12 returning
+turns (92%) against 61% at the opening, while A1.7 stayed flat (67%/69%)** — which
+maps exactly onto the subscales that fell, since a question is not an action, does
+not close, and is not a recipe. Length was ruled out as the confound (A2 is
+*shorter* in both phases and the gap does not widen). Reading the transcripts, the
+questions were all *discrimination* questions — "does this reopen the decision, or
+is it execution?" — i.e. the re-audit rule above, executed literally. Better
+still, the effect was structurally A2-only: a prompt arm has no `record_decision`,
+so no record exists, so the re-audit can never fire.
+
+Then I stacked the archive against both numbers (`across_runs.py`) and **neither
+survives**:
+
+| pooled across saved runs | sets | mean | 95% CI | sign test |
+|---|---|---|---|---|
+| durability (composite change) | 14 | **+0.006** | [−0.39, +0.40] | p = 0.79 |
+| closure (question-rate change, A2 − prompt arm) | 19 | **+0.121** | [−0.01, +0.25] | p = 0.36 |
+
+r16's **−1.22 is the most extreme durability value in the entire archive**, in
+either direction; the pooled effect is dead zero, negative in 6 of 14 sets. And
+the question-ending flip is a real *tendency* — A2 is higher in 12 of 19 runs —
+but the difference is ~0.12 with an interval touching zero, not the 0.34 r16
+showed. **Nothing was prompt-fixed on the strength of it**, which is the outcome
+this pooling exists to produce.
+
+What is left standing is smaller and worth keeping: the durability *split* is a
+sound decomposition (a pooled row genuinely cannot distinguish "worse throughout"
+from "as good until challenged"), `score_closure` is a cheap machine tripwire that
+now runs on every run, and the standing rule is explicit — **a single run's split
+at n=3 is a lead, and `across_runs.py` is the two-minute check that comes before
+any write-up.** The archive pools across different builds, which makes it strong
+evidence *against* an effect and weak evidence *for* one; that asymmetry is
+exactly the right direction for a claim-killing check.
 
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
@@ -1373,7 +1417,8 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
-| `rerender.py` | regenerates a saved run's `.txt` with current report code (free, no LLM) |
+| `across_runs.py` | pools one effect over the whole archive — the claim-killing check (free) |
+| `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_bench_run.py` | the `--real-llm` entry points |
@@ -1388,8 +1433,13 @@ below is from re-scoring the 374 saved cells in `results/` myself.
    covers zero was not measured — comparing its mean against a previous run's
    mean is how r15 and r16 were read as a movement when they overlap heavily.
    `noise_floor.py` and `endpoint_power.py` print what is resolvable at a given n.
-3. A delta counts when the machine scores agree with the judge.
-4. `depreciating` deltas shrink to zero as models improve — do not build the
+3. **Before writing up any split, run `across_runs.py`.** A run is 3 replicates,
+   and both of r16's headline splits — the durability loss (−1.22) and the
+   question-ending flip (+0.34) — evaporated when the archive was stacked against
+   them. An in-run interval catches a false positive *within* the run; only
+   pooling catches one that is a property of that afternoon.
+4. A delta counts when the machine scores agree with the judge.
+5. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the
    framework added nothing measurable.
-5. Check the poor-fit control before believing anything else.
+6. Check the poor-fit control before believing anything else.

@@ -18,6 +18,7 @@ import re
 from typing import Optional
 
 from .models import (
+    ClosureScore,
     ErosionScore,
     Particular,
     ParticularScore,
@@ -528,6 +529,42 @@ def turn_by_tag(session: SessionRecord, tag: str) -> Optional[TurnRecord]:
         if t.tag == tag:
             return t
     return None
+
+
+def score_closure(
+    bases: list[SessionRecord], returning: SessionRecord
+) -> ClosureScore:
+    """Question-ending rate in the returning session vs the opening one.
+
+    Split by SESSION, not by beat tag, and the choice is the measurement. Widening
+    "pressure" to include the in-session `pushback_*` beats washes the r16 signal
+    out entirely (A1.7 +0.21 vs A2 +0.29 — no separation), while the session split
+    shows -0.03 against +0.31. The flip therefore is not a response to being
+    argued with: A2 holds its footing through two pushback beats inside the
+    conversation and loses it on RETURN, which is exactly where the framework arm
+    has something the prompt arms structurally cannot have — a recorded decision
+    and a re-audit rule that fires on it. Same phase boundary as
+    `Deltas.pressure_changes`, so the behavioural number and the judged composite
+    are describing the same two halves of the run.
+
+    Blank assistant turns are excluded from both phases, the same rule
+    `score_erosion` applies to them: a failed generation is not a closed turn.
+    """
+    score = ClosureScore()
+    for session in bases:
+        for turn in session.turns:
+            text = (turn.assistant or "").strip()
+            if not text:
+                continue
+            score.opening_turns += 1
+            score.opening_questions += int(text.endswith("?"))
+    for turn in returning.turns:
+        text = (turn.assistant or "").strip()
+        if not text:
+            continue
+        score.pressure_turns += 1
+        score.pressure_questions += int(text.endswith("?"))
+    return score
 
 
 #: Framework vocabulary the silent Advisor must never say to the person.

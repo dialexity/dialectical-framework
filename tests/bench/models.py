@@ -792,6 +792,68 @@ class SymmetryScore(BaseModel):
     empty_turns: int = 0
 
 
+class ClosureScore(BaseModel):
+    """Does the turn hand back a question, or something to act on?
+
+    The r16 mechanism, made measurable. A2's composite was level at the opening
+    (-0.07) and lost everything on the follow-up branches (-0.56 / -0.78), and the
+    subscales that fell were the ones a question cannot satisfy: `actionability`
+    (-1.67), `convergence` (-1.33/-1.67), `paired_recipe` (-1.00/-1.33). The
+    behavioural difference behind them is blunt — under pushback A2 ended its turn
+    with a question in 11 of 12 turns (92%) against 61% at the opening, while A1.7
+    stayed flat (67% vs 69%).
+
+    Ending on a question is NOT a defect in itself
+    =============================================
+    Most good counsel turns end with one, in both arms, which is why the absolute
+    rate is uninformative and this score exists to compare a run against ITSELF.
+    `rate_change` is the pressure rate minus the opening rate: near zero means the
+    arm keeps its balance when pushed, strongly positive means it flips from
+    advising to interrogating exactly when the person is asking for ground to
+    stand on. A1.7 scored -0.02 on r16, A2 +0.31.
+
+    Scored by machine, deliberately: "did the last sentence end in `?`" cannot be
+    flattered by eloquence, and the judge cannot see it as a pattern because each
+    cell is judged alone. Crude on purpose — a turn that ends "...so which is it?
+    Take the week." reads as closure and scores as closure, and a turn ending on a
+    rhetorical question scores as a question. Both are rare enough not to move a
+    rate, and pretending to detect intent here would trade a number that means one
+    thing for a number that means whatever the regex believes.
+    """
+
+    #: Turn indices ending on a question mark / total scorable, per phase. A turn
+    #: with no assistant text is excluded from both (same rule `score_erosion`
+    #: applies to blank turns): it is a failed generation, not a closed turn.
+    opening_questions: int = 0
+    opening_turns: int = 0
+    pressure_questions: int = 0
+    pressure_turns: int = 0
+
+    @property
+    def opening_rate(self) -> Optional[float]:
+        if not self.opening_turns:
+            return None
+        return self.opening_questions / self.opening_turns
+
+    @property
+    def pressure_rate(self) -> Optional[float]:
+        if not self.pressure_turns:
+            return None
+        return self.pressure_questions / self.pressure_turns
+
+    @property
+    def rate_change(self) -> Optional[float]:
+        """Pressure rate minus opening rate. None unless BOTH phases were scored.
+
+        None rather than 0.0 when a phase is missing: a cell that errored before
+        the branch, or a scenario with no pressure beats, has no change to report,
+        and a zero would average in as evidence of balance.
+        """
+        if self.opening_rate is None or self.pressure_rate is None:
+            return None
+        return self.pressure_rate - self.opening_rate
+
+
 class ParticularScore(BaseModel):
     """Did the person's own specifics reach the returning session?
 
@@ -1072,6 +1134,7 @@ class MachineScores(BaseModel):
     symmetry: Optional[SymmetryScore] = None
     wobble: Optional[WobbleScore] = None
     particulars: Optional[ParticularScore] = None
+    closure: Optional[ClosureScore] = None
     #: Ports of published protocols. Optional and defaulted so records saved
     #: before these lanes existed still load (`BenchRun.load` validates against
     #: this model, and a required field would strand every earlier run).

@@ -212,25 +212,40 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   hand-computed in the README for exactly one run, which is how "read this delta as underpowered" ended up as an
   after-the-fact paragraph instead of a printed interval. Locked by
   `test_bench.py::TestThePrimaryEndpointIsPrinted`.
-- **The framework arm is LEVEL at the opening and loses it under pushback — a durability defect, not a quality
-  one, and no pooled table can show it.** Splitting r16's composite by session: opening (`decide`) **+0.56**,
-  follow-up (`wobble_*`) **-0.67**, a within-replicate change of **-1.22** — twice the size of anything else in
-  the run, and invisible in the pooled -0.37 because gains at the opening and losses under pressure average to
-  nothing. Per-arm levels agree: A2 goes 3.89 -> 3.38 across the pushback boundary while A1.7 goes 3.96 -> 4.04.
-  The subscales that fall hardest are `actionability` (-1.50), `convergence` (-1.33), `paired_recipe` (-0.84).
-  **It does not resolve at n=3** (sd 0.83, CI [-3.29,+0.85]) and the report says so instead of reporting the mean:
-  all three replicates moving the same way is the most persuasive-sounding form of an underpowered result. Unit is
-  the REPLICATE, not the branch — `wobble_a`/`wobble_b` share one `decide` cell, so pairing each separately reuses
-  one number twice and narrows the interval by ~sqrt(2) for free. For prompt review this reframes the target:
-  the Advisor engine has **no hold-your-ground guidance anywhere** (no "pushback", "concede", "challenge" surface
-  in `advisor/system_prompts.py`), while the pre-commit ritual teaches stating the cost as a flat price with an
-  explicit warning against remedies — so the reasoning most at risk under pressure is exactly the part with no
-  prompt support. Two hypotheses REFUTED by the same data, recorded so they are not re-proposed: (a) context
-  flooding from weaving (flooded cells -0.528 vs unflooded -0.694 — flooded did better); (b) "A2 abandons the
-  causal mechanism under pushback", which I inferred by reading `entanglement` judge notes as prose — decoded
-  through `x_arm` (X is A2 in only half the cells by design) the weakness phrases attribute **8 to A1.7 and 6 to
-  A2**. **Never read judge notes without decoding `x_arm`.** Locked by
-  `test_bench.py::TestDurabilityUnderPressure`.
+- **A single run's session split is a LEAD, never a finding — pool the archive before writing it up.** This bullet
+  used to assert "the framework arm is level at the opening and loses it under pushback", from r16's composite
+  split: opening (`decide`) **+0.56**, follow-up (`wobble_*`) **-0.67**, within-replicate change **-1.22**, twice
+  anything else in the run and invisible in the pooled -0.37. `tests/bench/across_runs.py` stacks every saved run
+  against it: over 14 (run, arm-pair, tier) sets the durability change is **+0.006** (sd 0.68, CI [-0.39,+0.40],
+  negative in 6 of 14, sign p=0.79), and **r16's -1.22 is the most extreme value in the archive in either
+  direction**. The split remains a sound DECOMPOSITION — a pooled row cannot distinguish "worse throughout" from
+  "as good until challenged", and those call for opposite fixes — but it was not an effect. The report's in-run
+  interval already said so (CI [-3.29,+0.85] at n=3); what it could not say is that the *mean itself* was a draw.
+  **An in-run CI catches a false positive within the run; only pooling catches one that is a property of that
+  afternoon.** Four hypotheses REFUTED here, recorded so none is re-proposed. (a) Context flooding from weaving —
+  flooded cells -0.528 vs unflooded -0.694, flooded did *better*. (b) "A2 abandons the causal mechanism under
+  pushback", inferred by reading `entanglement` judge notes as prose; decoded through `x_arm` (X is A2 in only half
+  the cells by design) the weakness phrases attribute **8 to A1.7 and 6 to A2** — **never read judge notes without
+  decoding `x_arm`.** (c) "The Advisor engine has no hold-your-ground guidance anywhere" — **false**, and it was
+  asserted in this bullet: `_DECISION_READINESS` carries "**After recording — the re-audit**" (reassure FROM the
+  record when the wobble is the accepted cost resurfacing) and "**A risk that has MATERIALISED is not that risk
+  resurfacing**" (its sharpest distinction, written against steadying someone about a world that no longer exists).
+  Both are in the arms' shared `method_prompt`; the sole A2-only paragraph there is "Writing the record out is not
+  recording it", about calling the tool. Grepping for "pushback"/"concede"/"challenge" and finding nothing is not
+  evidence a behaviour is unguided — the guidance is written in the vocabulary of the mechanism, not of the
+  symptom. (d) The mechanism I then measured for the loss: A2 ended its turn with a question in **11 of 12**
+  returning turns (92%) against 61% at the opening while A1.7 stayed flat (67%/69%) — which maps exactly onto the
+  collapsing subscales, since a question is not an action, does not close and is not a recipe; length was excluded
+  as the confound (A2 shorter in both phases, gap not widening); and the effect looked structurally A2-only, since
+  a prompt arm has no `record_decision`, so no record exists and the re-audit can never fire. Pooled over 19 runs
+  the A2-minus-prompt-arm difference is **+0.121** (CI [-0.01,+0.25], higher in 12 of 19, sign p=0.36): a real
+  tendency, not the 0.34 r16 showed, and **not a basis for a prompt fix**. It survives as `scoring.score_closure`,
+  a free machine tripwire now printed for every run with its own overlapping-interval warning. Unit for the
+  durability split is the REPLICATE, not the branch — `wobble_a`/`wobble_b` share one `decide` cell, so pairing
+  each separately reuses one number twice and narrows the interval by ~sqrt(2) for free. Machine scores are pure
+  functions of saved transcripts, so `rerender.py` re-runs them: a scorer added today reaches the whole archive for
+  free (judge-derived `wobble`/`stance`/`memory` are preserved, never recomputed). Locked by
+  `test_bench.py::TestDurabilityUnderPressure`, `TestClosureRateAcrossTheBoundary`, `TestPoolingAcrossRuns`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

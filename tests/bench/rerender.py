@@ -13,6 +13,12 @@ Never touches `.json`. The records are the measurement; the `.txt` is a view of
 them, and only the view is regenerated. Re-rendering does NOT re-judge — a
 scoring change needs `DIALEXITY_BENCH_REJUDGE`, which costs money.
 
+MACHINE scores are re-computed, though, and that is the difference between the
+two kinds of scoring. A machine scorer is a pure function of the saved transcript,
+so a new one applies to the whole archive for free: `closure` was measured across
+r16 without paying for a single generation. Judge-derived scores on the same
+record (`wobble`, `stance`, `memory`) are preserved, never recomputed.
+
 Standing caveat, and the reason `--write` prints a reminder: a re-rendered
 report carries today's ANALYSIS of an older run, so a prose claim inside it
 ("the fix landed", "this is the largest component") was written against
@@ -31,6 +37,7 @@ sys.path.insert(0, str(BENCH_DIR.parent))
 
 from bench.models import Comparison, MachineScores, RunRecord  # noqa: E402
 from bench.report import load_records, render_report  # noqa: E402
+from bench.runner import score_machine_over  # noqa: E402
 
 
 def rerender(stem: str) -> str:
@@ -40,6 +47,14 @@ def rerender(stem: str) -> str:
     machine = {
         k: MachineScores.model_validate(v) for k, v in (d.get("machine") or {}).items()
     }
+    # Re-run the free scorers over the saved transcripts. `score_machine` updates
+    # each entry in place, so the judge-derived fields survive; a scorer added
+    # today therefore reaches every run ever saved. Fail-soft per stem: a record
+    # from before a scenario was renamed must still re-render its other sections.
+    try:
+        score_machine_over(runs, machine)
+    except Exception as exc:  # noqa: BLE001
+        print(f"   (machine re-score skipped for {stem}: {type(exc).__name__}: {exc})")
     # Tier order is weakest -> strongest, which for this bench's two tiers is
     # alphabetical ("strong" < "weak" is wrong, so reverse-sort puts weak first).
     tiers = sorted({r.tier for r in runs}, reverse=True)

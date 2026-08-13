@@ -44,6 +44,7 @@ from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
 from .scoring import (
     cited_record,
+    score_closure,
     score_erosion,
     score_particulars,
     score_symmetry,
@@ -169,25 +170,7 @@ class BenchRun:
 
     def score_machine(self) -> dict[str, MachineScores]:
         """Marker-based scores for every run. Free, deterministic, re-runnable."""
-        for record in self.runs:
-            scenario = _scenario(record.scenario_key)
-            scores = MachineScores()
-            first = record.sessions[0] if record.sessions else None
-            if first is not None:
-                scores.erosion = score_erosion(first, scenario)
-                scores.symmetry = score_symmetry(first, scenario)
-            # Carry-over is only measurable across a boundary, so this needs the
-            # branch session AND the bases that preceded it. Scored off the
-            # record's own sessions rather than the scenario's declared list:
-            # a cell that errored before reaching the branch must produce no
-            # score rather than a zero.
-            if record.branch and len(record.sessions) > 1:
-                returning = record.session(record.branch)
-                if returning is not None and returning.turns:
-                    bases = [s for s in record.sessions if s.label != record.branch]
-                    scores.particulars = score_particulars(bases, returning, scenario)
-            self.machine[record.cell_key] = scores
-        return self.machine
+        return score_machine_over(self.runs, self.machine)
 
     # -- judging (LLM, cheap, re-runnable from saved records) --------------
 
@@ -427,3 +410,38 @@ class BenchRun:
 
 def _scenario(key: str) -> Scenario:
     return scenarios_for([key])[0]
+
+
+def score_machine_over(
+    runs: list[RunRecord], machine: dict[str, MachineScores]
+) -> dict[str, MachineScores]:
+    """Machine scores for `runs`, UPDATING `machine` in place.
+
+    Module-level rather than only a `BenchRun` method so it can run over a loaded
+    archive without a `BenchConfig` — re-scoring saved transcripts needs no models,
+    no tiers and no API keys, and requiring a config to express that was the one
+    thing standing between a new scorer and the whole back catalogue.
+
+    Updates each entry instead of replacing it: `wobble`/`stance`/`memory` are
+    judge-derived and cost money, so a fresh `MachineScores()` here would discard
+    them the moment this ran on an already-judged record.
+    """
+    for record in runs:
+        scenario = _scenario(record.scenario_key)
+        scores = machine.setdefault(record.cell_key, MachineScores())
+        first = record.sessions[0] if record.sessions else None
+        if first is not None:
+            scores.erosion = score_erosion(first, scenario)
+            scores.symmetry = score_symmetry(first, scenario)
+        # Carry-over is only measurable across a boundary, so this needs the
+        # branch session AND the bases that preceded it. Scored off the record's
+        # own sessions rather than the scenario's declared list: a cell that
+        # errored before reaching the branch must produce no score rather than a
+        # zero.
+        if record.branch and len(record.sessions) > 1:
+            returning = record.session(record.branch)
+            if returning is not None and returning.turns:
+                bases = [s for s in record.sessions if s.label != record.branch]
+                scores.particulars = score_particulars(bases, returning, scenario)
+                scores.closure = score_closure(bases, returning)
+    return machine

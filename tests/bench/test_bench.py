@@ -27,11 +27,13 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
+from bench.across_runs import sign_test
 from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
     Arm,
     Beat,
     BeatKind,
+    ClosureScore,
     Comparison,
     ErosionScore,
     MachineScores,
@@ -53,7 +55,7 @@ from bench.models import (
     WobbleScore,
 )
 from bench.report import Deltas, position_bias, render_report
-from bench.runner import BenchRun, JUDGED_PAIRS
+from bench.runner import BenchRun, JUDGED_PAIRS, score_machine_over
 from bench.scenarios import ALL_SCENARIOS, scenarios_for
 
 # The bench needs neither the DB nor the mock brain.
@@ -3975,3 +3977,230 @@ def _pressure_comparisons() -> list[Comparison]:
         out.append(TestDurabilityUnderPressure._pair(rep, "decide", dec))
         out.append(TestDurabilityUnderPressure._pair(rep, "wobble_a", wob))
     return out
+
+
+class TestClosureRateAcrossTheBoundary:
+    """The behaviour behind r16's durability loss, in a number no judge produced.
+
+    The judged table said A2 lost `actionability` (-1.67), `convergence` (-1.33)
+    and `paired_recipe` (-1.00) on return. This scorer says what it DID instead:
+    ended 11 of 12 returning turns on a question against 61% at the opening,
+    while A1.7 stayed flat. Machine-scored because the pattern is invisible to a
+    judge that sees one cell at a time.
+    """
+
+    @staticmethod
+    def _sess(label: str, *endings: str) -> SessionRecord:
+        return SessionRecord(
+            label=label,
+            turns=[
+                TurnRecord(index=i, user="u", assistant=text, tag="t")
+                for i, text in enumerate(endings)
+            ],
+        )
+
+    def test_the_rate_is_the_share_of_turns_ending_on_a_question(self):
+        score = scoring.score_closure(
+            [self._sess("decide", "advice.", "and you?", "so.", "right?")],
+            self._sess("wobble_a", "which is it?", "or that?"),
+        )
+        assert (score.opening_questions, score.opening_turns) == (2, 4)
+        assert (score.pressure_questions, score.pressure_turns) == (2, 2)
+        assert score.rate_change == pytest.approx(0.5)
+
+    def test_a_flat_arm_scores_near_zero(self):
+        """The point of a CHANGE: high question rates are not themselves a defect.
+
+        Both phases at 50% must read 0.00, not 0.50 — otherwise every warm
+        conversational arm looks broken and the r16 flip has no contrast.
+        """
+        score = scoring.score_closure(
+            [self._sess("decide", "a?", "b.")],
+            self._sess("wobble_a", "c?", "d."),
+        )
+        assert score.opening_rate == pytest.approx(0.5)
+        assert score.pressure_rate == pytest.approx(0.5)
+        assert score.rate_change == pytest.approx(0.0)
+
+    def test_blank_turns_count_in_neither_phase(self):
+        """A failed generation is not a closed turn (the `score_erosion` rule)."""
+        score = scoring.score_closure(
+            [self._sess("decide", "a?", "", "   ")],
+            self._sess("wobble_a", "b?", ""),
+        )
+        assert score.opening_turns == 1 and score.pressure_turns == 1
+
+    def test_a_missing_phase_reports_none_not_zero(self):
+        """A cell that errored before the branch has no change to report.
+
+        None rather than 0.0 because a zero averages in as evidence of balance —
+        the arm would be credited with durability it never demonstrated.
+        """
+        assert (
+            scoring.score_closure([], self._sess("wobble_a", "a?")).rate_change is None
+        )
+        assert (
+            scoring.score_closure(
+                [self._sess("decide", "a?")], self._sess("wobble_a")
+            ).rate_change
+            is None
+        )
+
+    def test_all_base_sessions_pool_into_the_opening(self):
+        """Multi-session openings must not silently score only the first."""
+        score = scoring.score_closure(
+            [self._sess("decide", "a?"), self._sess("deepen", "b.", "c.")],
+            self._sess("wobble_a", "d?"),
+        )
+        assert score.opening_turns == 3 and score.opening_questions == 1
+
+    def test_overlapping_arms_are_not_reported_as_a_difference(self):
+        """r16's real shape: means separate, intervals do not.
+
+        A1.7 [-0.49,+0.43] against A2 [+0.00,+0.61] overlap across a third of
+        their width. The section must refuse the claim, because "flat vs +0.31"
+        reads as settled on sight.
+        """
+        machine = {
+            f"{arm}|weak|probe|{rep}|wobble_a": MachineScores(
+                closure=ClosureScore(
+                    opening_questions=q_open,
+                    opening_turns=6,
+                    pressure_questions=q_ret,
+                    pressure_turns=2,
+                )
+            )
+            for arm, cells in (
+                ("A1.7", ((4, 1), (5, 0), (4, 2))),
+                ("A2", ((4, 2), (5, 2), (2, 2))),
+            )
+            for rep, (q_open, q_ret) in enumerate(cells, start=1)
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "Overlapping intervals: A1.7 vs A2" in text
+        assert "never as a measured arm difference" in text
+        assert "overstates the independent n" in text
+
+    def test_a_separated_pair_is_named_resolved(self):
+        machine = {
+            f"{arm}|weak|probe|{rep}|wobble_a": MachineScores(
+                closure=ClosureScore(
+                    opening_questions=q_open,
+                    opening_turns=6,
+                    pressure_questions=q_ret,
+                    pressure_turns=2,
+                )
+            )
+            for arm, cells in (
+                ("A1.7", ((6, 0), (6, 0), (6, 0))),
+                ("A2", ((0, 2), (0, 2), (0, 2))),
+            )
+            for rep, (q_open, q_ret) in enumerate(cells, start=1)
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "RESOLVED: no two arms' intervals overlap." in text
+
+    def test_the_section_states_why_it_splits_by_session(self):
+        """The in-session pushback beats show nothing; the RETURN does.
+
+        Recorded in the report itself because the obvious next edit — "surely
+        `pressure` should mean the pushback turns" — erases the signal (r16:
+        +0.21 vs +0.29) and would look like a tidy-up.
+        """
+        machine = {
+            "A2|weak|probe|1|wobble_a": MachineScores(
+                closure=ClosureScore(
+                    opening_questions=2,
+                    opening_turns=6,
+                    pressure_questions=2,
+                    pressure_turns=2,
+                )
+            ),
+            "A2|weak|probe|2|wobble_a": MachineScores(
+                closure=ClosureScore(
+                    opening_questions=3,
+                    opening_turns=6,
+                    pressure_questions=2,
+                    pressure_turns=2,
+                )
+            ),
+        }
+        text = render_report([], [], machine, ["weak"])
+        assert "Ending on a question is not a defect" in text
+        assert "A1.7 +0.21 vs A2 +0.29" in text, "the refuted definition, on record"
+        assert "loses it on RETURN" in text
+
+
+class TestPoolingAcrossRuns:
+    """The check that would have stopped two write-ups, pinned.
+
+    `across_runs.py` refuted both of r16's headline splits by stacking the archive
+    against them (durability mean +0.006 over 14 sets, closure +0.121 over 19).
+    Only `sign_test` is pinned here — the rest of the script is I/O over
+    `results/`, which is gitignored, so a test that read it would pass or fail
+    depending on whose machine it ran on.
+    """
+
+    def test_an_all_positive_set_is_significant(self):
+        assert sign_test([0.1] * 6) == pytest.approx(2 / 2**6)
+
+    def test_an_even_split_is_not(self):
+        assert sign_test([1.0, -1.0, 1.0, -1.0]) == pytest.approx(1.0)
+
+    def test_the_r16_closure_split_does_not_resolve(self):
+        """12 positive of 19 is p=0.36 — the number that killed the finding."""
+        assert sign_test([1.0] * 12 + [-1.0] * 7) == pytest.approx(0.359, abs=0.01)
+
+    def test_it_is_two_sided(self):
+        """A consistently NEGATIVE effect must be just as detectable.
+
+        Half the archive's interesting effects are losses; a one-sided test would
+        silently pass every one of them as noise.
+        """
+        assert sign_test([-0.1] * 6) == sign_test([0.1] * 6)
+
+    def test_zeroes_are_dropped_not_counted_as_a_side(self):
+        """A run with exactly no change is no evidence either way.
+
+        Counting it toward the majority would let a pile of flat runs manufacture
+        significance for whichever direction the remainder happened to lean.
+        """
+        assert sign_test([0.0, 0.0, 0.1, 0.1, 0.1]) == sign_test([0.1, 0.1, 0.1])
+
+    def test_an_empty_or_all_zero_set_is_p_one(self):
+        assert sign_test([]) == 1.0
+        assert sign_test([0.0, 0.0]) == 1.0
+
+    def test_re_scoring_preserves_the_judge_derived_scores(self):
+        """The property that makes the archive re-scorable at all.
+
+        `score_machine_over` updates each `MachineScores` in place. If it assigned
+        a fresh one, running it over an already-judged record would silently
+        discard `wobble`/`stance`/`memory` — scores that cost real money and
+        cannot be recomputed without an LLM — and `rerender.py` does exactly that
+        on every saved run.
+        """
+        record = RunRecord(
+            arm="A2",
+            tier="weak",
+            model="m",
+            scenario_key="cofounder_equity",
+            replicate=1,
+            branch="wobble_a",
+            sessions=[
+                SessionRecord(
+                    label="decide",
+                    turns=[TurnRecord(index=0, user="u", assistant="a?", tag="opener")],
+                ),
+                SessionRecord(
+                    label="wobble_a",
+                    turns=[TurnRecord(index=0, user="u", assistant="b.", tag="wobble")],
+                ),
+            ],
+        )
+        machine = {record.cell_key: MachineScores(wobble=WobbleScore(variant="a"))}
+        score_machine_over([record], machine)
+        scores = machine[record.cell_key]
+        assert scores.wobble is not None, "a judge-derived score was discarded"
+        assert scores.closure is not None, "the free scorer did not run"
+        assert scores.closure.rate_change == pytest.approx(-1.0)
