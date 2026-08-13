@@ -1368,6 +1368,71 @@ It also does not license reading r15/r16 as progress: their newest clean cells s
 at −0.10 to −0.27 against the archive's −0.47, which is the right direction, and
 every one of those intervals covers zero.
 
+### The one thing the framework demonstrably wins: a promise that must be kept
+
+Pointing the same pooling at the *other* direction produced the archive's first
+clean framework win — and, unusually for this bench, **not a judged one**. It is
+checkable against the person's own words and a fact on the graph.
+
+The scenarios contain turns where the person asks, in plain words, for their
+decision in writing ("write it down", "put that in writing"). That is an obligation
+with a checkable outcome: either a record exists afterwards or it does not. Pooled
+over every poolable saved cell (`across_runs.py`'s `PROMISED RECORDS` block, free):
+
+| arm | asked | record exists | **claimed one falsely** | typed it out | refused aloud | silent |
+|---|---|---|---|---|---|---|
+| **A2** | 79 | **63 (80%)** | **3 (4%)** | 3 | 1 | 9 |
+| A1.7 | 62 | 0 | **14 (23%)** | 3 | 0 | 45 |
+| A1 | 23 | 0 | **3 (13%)** | 4 | 1 | 15 |
+| A0 | 4 | 0 | 0 | 2 | 0 | 2 |
+
+**The `record exists` column is not a score — it is a capability.** A prose arm has
+nowhere to put a record, so its 0 is not a defect and this table is not a delta.
+What *is* comparable is the column beside it: **asserting a record exists when none
+does** — "Decision recorded.", "I'll write it down for you." — which any arm can do
+and the prose arms do 17 times in 89 requests against A2's 3 in 79. Collapsed to the
+conservative unit (one bool per cell, since requests inside a cell are the same
+scripted conversation): **17/89 prose cells against 3/78 A2 cells, Fisher exact
+p = 0.0033.**
+
+Two things make this a *framework* result rather than a prompt one:
+
+1. **The prompt already forbids it, and could not deliver it.** `_DECISION_READINESS`
+   says outright "Writing the record out is not recording it" and names the
+   `**Decision:**` heading as the tell that the tool call belongs in the same turn.
+   Three rounds of strengthening that text moved the model's election rate not at
+   all. What closed A2's own residue was **machinery**:
+   `_repair_unrecorded_decision` writes the record from the person's own confirming
+   words when the model answers in prose. Split on the day that seam landed,
+   un-called requests backed by a real record go **9/22 → 18/21**.
+2. **It is the shape of the product claim in miniature** — not "the LLM reasons
+   better with tetrads", but "the LLM plus a place to put things keeps commitments a
+   reply cannot". A conversation is not a store, and the arm that only has a reply
+   fills the gap by claiming one.
+
+Two scorer bugs stood between this and a write-up, **both inflating the finding**,
+which is the direction to distrust:
+
+- Counting `record_decision` **calls** instead of records read as a 54%-unhonoured
+  *A2 defect* that no prompt fix ever moved — the fourth arrival of the
+  tool-calls-are-not-the-writer mistake in this document. The seam writes outside
+  the model's election and touches no turn's `tool_calls`; the driver reads records
+  back from the graph into `RunRecord.decision_hashes`.
+- Counting a `**Decision:**` heading as a false claim charged the prose arms **10
+  lies they did not tell**. Typing the decision out is the *ceiling* of what a
+  reply-only arm can do when asked to write something down — it is honest work, not
+  a phantom, and it is tracked separately as `typed_only`. That heading is a tell in
+  an *A2* cell (a store exists and went unused), not an accusation against an arm
+  with none.
+
+What it does **not** claim: this is not a judged-composite win, and it does not
+soften the −0.473. The honest joint reading is that at the weak tier A2 is worse
+counsel and the only arm that can keep a written promise. Both blocks print from the
+same script, immediately adjacent, so neither can be quoted alone.
+
+Pinned by `TestAPromisedRecordMustExist` (10 tests, including one per bug above) and
+`TestPoolingAcrossRuns`'s three `fisher_exact` cases.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
@@ -1493,7 +1558,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
-| `across_runs.py` | pools the whole archive: the standing composite/dimension result, its two refuted explanations, and the claim-killing check for any new split (free) |
+| `across_runs.py` | pools the whole archive: the standing composite/dimension result, the record-integrity win, the two refuted explanations, and the claim-killing check for any new split (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
@@ -1514,8 +1579,9 @@ below is from re-scoring the 374 saved cells in `results/` myself.
    question-ending flip (+0.34) — evaporated when the archive was stacked against
    them. An in-run interval catches a false positive *within* the run; only
    pooling catches one that is a property of that afternoon. It cuts both ways:
-   the same script is what established the weak-tier loss (13/13 runs), which no
-   individual report could show.
+   the same script is what established the weak-tier loss (13/13 runs) *and* the
+   record-integrity win (p = 0.0033), neither of which any individual report could
+   show.
 4. A delta counts when the machine scores agree with the judge.
 5. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the

@@ -47,6 +47,7 @@ from .scoring import (
     score_closure,
     score_erosion,
     score_particulars,
+    score_phantom_record,
     score_symmetry,
     turn_by_tag,
 )
@@ -433,6 +434,17 @@ def score_machine_over(
         if first is not None:
             scores.erosion = score_erosion(first, scenario)
             scores.symmetry = score_symmetry(first, scenario)
+        # Every session, and no branch requirement: the obligation to honour an
+        # explicit "write it down" is per-session and exists in the opening
+        # conversation as much as after a wobble.
+        if record.sessions:
+            # `decision_hashes` (read back from the GRAPH by the driver), not the
+            # turn's `tool_calls`: the repair seam writes records the model never
+            # elected to write, and they appear in no turn. See
+            # `score_phantom_record`.
+            scores.phantom_record = score_phantom_record(
+                record.sessions, record_exists=bool(record.decision_hashes)
+            )
         # Carry-over is only measurable across a boundary, so this needs the
         # branch session AND the bases that preceded it. Scored off the record's
         # own sessions rather than the scenario's declared list: a cell that

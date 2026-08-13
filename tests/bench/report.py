@@ -27,6 +27,7 @@ from .models import (
     MemoryAbility,
     NON_INFERIORITY_DIMENSIONS,
     PUBLISHED_BASELINES,
+    PhantomRecordScore,
     RunRecord,
 )
 from .scoring import score_internal_prompt_echo, score_machinery_leak
@@ -1161,6 +1162,56 @@ def render_report(
                 " it — a prompt finding, not a storage one."
             )
             add("")
+
+    # -- promised records that must exist -----------------------------------
+    # A pass/fail integrity check, not a delta: one phantom is a finding, and it
+    # is reported per CELL rather than as a rate so it cannot average away.
+    phantoms = [(k, v.phantom_record) for k, v in sorted(machine.items())
+                if v.phantom_record and v.phantom_record.requests]
+    if phantoms:
+        add("### Promised records that must exist")
+        add("")
+        add("The person asked, in their own words, for the decision in writing.")
+        add("A record counts when one EXISTS — whether the model called the tool")
+        add("or the repair seam wrote it from their confirming words.")
+        add("")
+        add("Split by ARM, because `record` is not comparable across the split:")
+        add("only A2 has anywhere to put one, so a prompt arm's 0 is a capability")
+        add("bound, not a failure. The comparable column is PHANTOM — asserting a")
+        add("record exists when none does, which any arm can do and the prose arms")
+        add("do most. `typed` is the honest alternative (the decision written out")
+        add("under a heading, no claim of storage) and is NOT counted against an")
+        add("arm; `silent` dropped the request without answering it either way.")
+        add("")
+        by_arm: dict[str, list[tuple[str, PhantomRecordScore]]] = defaultdict(list)
+        for key, score in phantoms:
+            by_arm[key.split("|")[0]].append((key, score))
+        offenders: list[str] = []
+        for arm in sorted(by_arm):
+            cells = by_arm[arm]
+            asked = sum(s.requests for _k, s in cells)
+            kept = sum(s.honoured for _k, s in cells)
+            refused = sum(s.withheld_openly for _k, s in cells)
+            phantom = sum(s.phantom_claims for _k, s in cells)
+            typed = sum(s.typed_only for _k, s in cells)
+            add(
+                f"  {arm:6} asked {asked:3}  record {kept:3} ({kept / asked:4.0%})"
+                f"  PHANTOM {phantom:3}  typed {typed:3}  refused {refused:3}"
+                f"  silent {asked - kept - refused - phantom - typed:3}"
+            )
+            offenders.extend(k for k, s in cells if s.phantom_claims)
+        add("")
+        if offenders:
+            add(f"!! PHANTOM record claim(s) in: {', '.join(offenders)}")
+            add("   The person was told their decision was written down and it was")
+            add("   not. In an A2 cell this is the one failure where the framework")
+            add("   arm is worse than honest, and it means the cell is not evidence")
+            add("   about records at all — check the repair seam before reading any")
+            add("   Claim-2 row. In a prompt-arm cell it is the defect a typed")
+            add("   record exists to remove, and belongs in the Claim-2 argument.")
+        else:
+            add("   No phantom claims: every promise made has a record behind it.")
+        add("")
 
     # -- question-ending rate across the boundary ---------------------------
     # The behavioural companion to the durability block near the top of this

@@ -272,6 +272,29 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   Printed by `tests/bench/across_runs.py` (free, no LLM); pooling helpers locked by
   `test_bench.py::TestPoolingAcrossRuns` (baseline choice is the strongest prompt arm PRESENT, so pre-A1.7 runs
   still pool and no easy A0 win enters the average).
+- **The one archive-wide result the framework WINS, and it is not judged: a promise that must be kept.**
+  Prints from the same script, immediately below the loss above, so neither can be quoted alone. Scenario turns
+  where the person asks in plain words for their decision in writing ("write it down") carry a checkable outcome:
+  a record exists afterwards or it does not. Pooled over every poolable saved cell — **A2: 79 asked, 63 have a
+  real record (80%), 3 falsely claimed one (4%); A1.7: 62 asked, 0 records, 14 falsely claimed (23%); A1: 23
+  asked, 0 records, 3 falsely claimed (13%)**. Collapsed to the conservative unit (one bool per cell, since
+  requests inside a cell are the same scripted conversation): **prose 17/89 cells vs A2 3/78, Fisher exact
+  p=0.0033**. Read it with two constraints. (1) *The `record exists` column is a CAPABILITY, not a score* — a
+  reply-only arm has nowhere to put one, so its 0 is not a defect and the table is not a delta; the comparable
+  column is the false claim, which any arm can make. (2) *This is machinery beating its own prompt, which is the
+  reason it belongs in a prompt-review map*: `_DECISION_READINESS` already says outright "Writing the record out
+  is not recording it" and names the `**Decision:**` heading as the tell that the call belongs in the same turn,
+  and three rounds of strengthening that text moved the election rate not at all. What closed A2's residue was
+  `Advisor._repair_unrecorded_decision` writing the record from the person's own confirming words — un-called
+  requests backed by a real record went **9/22 before that seam to 18/21 after**. The standing lesson for prompt
+  work: when a prompt has forbidden a failure three times and the number has not moved, the next fix is a seam,
+  not a fourth paragraph. Two scorer bugs preceded this, both INFLATING it: counting `record_decision` calls
+  instead of graph records (the fourth arrival of tool-calls-are-not-the-writer, and it read as a 54%-unhonoured
+  *A2* defect), and counting a `**Decision:**` heading as a lie (charged the prose arms 10 lies they did not tell
+  — typing the decision out is the honest ceiling of a reply-only arm, tracked as `typed_only`, and is a tell only
+  in an A2 cell where a store exists and went unused). Locked by
+  `test_bench.py::TestAPromisedRecordMustExist` (one test per bug) and `TestPoolingAcrossRuns`'s `fisher_exact`
+  cases.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

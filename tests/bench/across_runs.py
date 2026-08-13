@@ -98,6 +98,39 @@ def sign_test(values: list[float]) -> float:
     return min(1.0, 2 * tail)
 
 
+def fisher_exact(a1: int, a0: int, b1: int, b0: int) -> float:
+    """Two-sided Fisher exact p for a 2x2 count table.
+
+    Used for the record-integrity block, where the measurement is a COUNT of
+    events and not a mean of judged scores, so the sign test and the t-interval
+    both have nothing to work on. Exact rather than chi-square because the cells
+    are small (3 events in one arm) — that is the regime where the approximation
+    is worst and the answer matters most.
+    """
+    n = a1 + a0 + b1 + b0
+    if not n or not (a1 + b1) or not (a0 + b0):
+        return 1.0
+
+    def probability(x: int) -> float:
+        return (
+            math.comb(a1 + b1, x)
+            * math.comb(a0 + b0, a1 + a0 - x)
+            / math.comb(n, a1 + a0)
+        )
+
+    observed = probability(a1)
+    low = max(0, a1 + a0 - (a0 + b0))
+    high = min(a1 + b1, a1 + a0)
+    return min(
+        1.0,
+        sum(
+            probability(x)
+            for x in range(low, high + 1)
+            if probability(x) <= observed + 1e-12
+        ),
+    )
+
+
 def _a2_deltas(comparisons: list[Comparison]):
     """(strongest prompt arm's name, its `Deltas` against A2) or None.
 
@@ -300,6 +333,78 @@ def _corr(xs: list[float], ys: list[float]) -> Optional[float]:
     return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / denominator
 
 
+def record_cells() -> dict[str, list[bool]]:
+    """Per arm, one bool per CELL: did it falsely claim a record at least once?
+
+    The significance companion to `record_rows`, and collapsed to cell level on
+    purpose. Requests inside one cell are not independent — they are the same
+    scripted conversation, and an arm that lies once in it tends to lie again — so
+    a test over 168 requests would overstate its own n. One bool per cell is the
+    conservative unit, and `phantom_claims > 0` is the event.
+
+    Arms are pooled to A2-vs-prose because the prose arms are one capability class
+    here (no store, so nothing but their own words to offer) and splitting them
+    three ways only shrinks cells the exact test is already straining on.
+    """
+    from bench.scoring import score_phantom_record
+
+    cells: dict[str, list[bool]] = defaultdict(list)
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for run in (RunRecord.model_validate(r) for r in payload["runs"]):
+            if not run.sessions:
+                continue
+            score = score_phantom_record(
+                run.sessions, record_exists=bool(run.decision_hashes)
+            )
+            if not score.requests:
+                continue
+            arm = "A2" if run.arm.value == "A2" else "prose"
+            cells[arm].append(score.phantom_claims > 0)
+    return cells
+
+
+def record_rows() -> dict[str, dict[str, int]]:
+    """Per arm, pooled over the whole archive: what happened when the person asked
+    for their decision in writing.
+
+    The one block here that pools CELLS rather than runs, and the exception is
+    principled: this is not a judged score with a per-run build/judge effect, it
+    is a count of an obligation the person stated in their own words against a
+    fact on the graph. There is nothing for an afternoon to shift. Every saved set
+    contributes, `smoke*` included via `_stems()`'s filter only — a 2-cell harness
+    check still holds a real request and a real record.
+
+    Not a delta, either, and it must not be read as one: `record` is a capability
+    the prose arms do not have, so their 0 is not a defect. PHANTOM is the
+    comparable column — asserting a record exists when none does — and it is where
+    the arms genuinely part company.
+    """
+    from bench.scoring import score_phantom_record
+
+    totals: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for run in (RunRecord.model_validate(r) for r in payload["runs"]):
+            if not run.sessions:
+                continue
+            score = score_phantom_record(
+                run.sessions, record_exists=bool(run.decision_hashes)
+            )
+            if not score.requests:
+                continue
+            bucket = totals[run.arm.value]
+            for field in (
+                "requests",
+                "honoured",
+                "phantom_claims",
+                "typed_only",
+                "withheld_openly",
+            ):
+                bucket[field] += getattr(score, field)
+    return totals
+
+
 def durability_rows() -> list[tuple[str, str, str, float, int]]:
     """(stem, arm pair, tier, mean composite change, replicates) per saved set."""
     rows: list[tuple[str, str, str, float, int]] = []
@@ -430,6 +535,76 @@ def _dimensions() -> None:
     )
 
 
+def _records() -> None:
+    """The other direction: the archive's one clean framework win.
+
+    Placed immediately after the loss it does not cancel. The composite says the
+    framework arm is worse counsel at the weak tier; this says it is the only arm
+    that can keep a promise the person states out loud. Both are true, and a
+    write-up that carries one without the other is advocacy.
+    """
+    print()
+    print("=" * 74)
+    print("PROMISED RECORDS — pooled over every saved cell, by arm")
+    print("=" * 74)
+    totals = record_rows()
+    for arm in sorted(totals, key=lambda a: (a != "A2", a)):
+        counts = totals[arm]
+        asked = counts["requests"]
+        silent = (
+            asked
+            - counts["honoured"]
+            - counts["phantom_claims"]
+            - counts["typed_only"]
+            - counts["withheld_openly"]
+        )
+        print(
+            f"  {arm:5} asked {asked:3}  record {counts['honoured']:3}"
+            f" ({counts['honoured'] / asked:4.0%})"
+            f"  PHANTOM {counts['phantom_claims']:3}"
+            f" ({counts['phantom_claims'] / asked:4.0%})"
+            f"  typed {counts['typed_only']:3}  refused {counts['withheld_openly']:2}"
+            f"  silent {silent:3}"
+        )
+    prose = [a for a in totals if a != "A2"]
+    prose_asked = sum(totals[a]["requests"] for a in prose)
+    prose_phantom = sum(totals[a]["phantom_claims"] for a in prose)
+    a2 = totals.get("A2", {})
+    cells = record_cells()
+    a2_cells, prose_cells = cells.get("A2", []), cells.get("prose", [])
+    p_value = fisher_exact(
+        sum(a2_cells),
+        len(a2_cells) - sum(a2_cells),
+        sum(prose_cells),
+        len(prose_cells) - sum(prose_cells),
+    )
+    print()
+    print(
+        f"  cells telling at least one lie: A2 {sum(a2_cells)}/{len(a2_cells)}"
+        f" ({sum(a2_cells) / len(a2_cells):.0%})  vs  prose"
+        f" {sum(prose_cells)}/{len(prose_cells)}"
+        f" ({sum(prose_cells) / len(prose_cells):.0%})   Fisher exact p={p_value:.4f}"
+    )
+    print(
+        "  -> The `record` column is a CAPABILITY, not a score: a reply-only arm has\n"
+        "     nowhere to put one, so its 0 is not a defect and this is not a delta.\n"
+        f"     PHANTOM is the comparable column — prose arms {prose_phantom}/{prose_asked}"
+        f" ({prose_phantom / prose_asked:.0%}) against\n"
+        f"     A2 {a2.get('phantom_claims', 0)}/{a2.get('requests', 0)}"
+        f" ({a2.get('phantom_claims', 0) / max(1, a2.get('requests', 0)):.0%}):"
+        " told the person their decision was written\n"
+        "     down when nothing was. `typed` is the honest ceiling of a reply-only arm\n"
+        "     and is charged to nobody.\n"
+        "     Unusually for this bench the result is not judged — it is checkable\n"
+        "     against the person's own words and the graph — and it is machinery, not\n"
+        "     prompt: `_DECISION_READINESS` already forbids exactly this failure, three\n"
+        "     rounds of strengthening it moved nothing, and what fixed A2's own residue\n"
+        "     was `_repair_unrecorded_decision` writing the record when the model would\n"
+        "     not elect the call (un-called requests with a real record: 9/22 before the\n"
+        "     seam, 18/21 after)."
+    )
+
+
 def _explanations() -> None:
     print()
     print("=" * 74)
@@ -485,6 +660,7 @@ def _explanations() -> None:
 def main() -> int:
     _headline()
     _dimensions()
+    _records()
     _explanations()
 
     print()
