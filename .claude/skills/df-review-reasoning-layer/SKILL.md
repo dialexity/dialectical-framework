@@ -139,6 +139,28 @@ anchors.
 - [ ] **Internal-only strings** (`nexus_intent` is "do not surface to user") must keep that classification when interpolated into another agent's prompt.
 - [ ] **Structural/direction conventions match `docs/graph.md` and `GRAPH_SCHEMA`** — update `GRAPH_SCHEMA` in lockstep (per CLAUDE.md).
 
+### Conversational rules the bench found missing (Advisor engine)
+- [ ] **A graph-hygiene instruction is not a conversational instruction.** `_REJECTION_HANDLING`'s "silently
+      `discard`, don't announce it" is right for the graph and, read as speech guidance, made 37 of 105 judged
+      cells drop a frame with no bridge. Any rule about what the machinery does must say what the REPLY does:
+      *the graph discards; the reply amends.* Same shape as the `record_decision` pair — prose without a call
+      and a call without prose are both failures, so state both halves.
+- [ ] **The internal model describes positions, never the person.** A+ is "the obligation that falls on the
+      T-sayer" (`docs/theory/generative-rules.md` Rule 3.1) — an obligation, not an incapacity. "Structurally
+      blind" appears nowhere in `docs/theory/`; it was an application gloss, and it converted straight into
+      "here's what you're not seeing" in 54–56 of 120 judged warmth cells. Never re-introduce person-as-blind
+      phrasing, and **rewrite the worked examples with the rule** — the regression caught them still teaching the
+      old register three paragraphs after the new rule.
+- [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
+      confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
+      decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
+      the person has already supplied it.
+- [ ] **Accumulation and concession are register-independent, so verify the SCOPED render too.** Counsel mode
+      swaps `_ROLE`/`_HOW_YOU_SPEAK`/`_REJECTION_HANDLING` for scoped variants; a conversational rule that only
+      lands unscoped silently exempts the toggle (`TestWhatTheJudgeSaidWasWrong` asserts both).
+- [ ] **A plural structure must not surface as a plural question.** Wheels/pathways rank internally; an unpriced
+      menu of N options hands the work back (26 of 85 judged convergence cells). Lead with one and its price.
+
 ---
 
 ## Verify

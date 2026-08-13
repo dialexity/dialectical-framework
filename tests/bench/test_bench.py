@@ -27,7 +27,8 @@ from bench.arms import (
 from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
-from bench.across_runs import _a2_deltas, _corr, fisher_exact, sign_test
+from bench.across_runs import (_a2_deltas, _corr, fisher_exact,
+                               rung_rows, sign_test, visibility_rows)
 from bench.judge_notes import _derandomise
 from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
@@ -4529,3 +4530,66 @@ class TestPoolingAcrossRuns:
         assert fisher_exact(0, 10, 0, 10) == 1.0
         assert fisher_exact(0, 0, 0, 0) == 1.0
         assert fisher_exact(10, 0, 10, 0) == 1.0
+
+
+class TestTheOpponentChangesWhichDimensionsLose:
+    """`rung_rows` / `visibility_rows` — the two measurements that drove the
+    weak-tier prompt fixes in `TestWhatTheJudgeSaidWasWrong`.
+
+    Both read the real archive, so they assert INVARIANTS and orderings rather
+    than frozen numbers: a new run must be free to move a mean without breaking
+    a test, but must not be free to silently invert the reading the fixes were
+    built on.
+    """
+
+    def test_the_uniform_tax_does_not_care_which_arm_it_faces(self):
+        """conversational_fit and warmth are the two dimensions where A2 almost
+        never wins (76%/70% of cells lost), and they are also the two where the
+        rung gap is ~0. That coincidence is the whole argument for calling them a
+        property of every A2 reply — and therefore prompt-fixable — rather than a
+        deficit against a specific opponent."""
+        rows = rung_rows("weak")
+        for dimension in ("conversational_fit", "warmth"):
+            rung, _n, journal, _m = rows[dimension]
+            assert rung < 0 and journal < 0, f"{dimension} should lose to both"
+            assert abs(rung - journal) < 0.5, f"{dimension} gap should be small"
+
+    def test_closure_beats_a_bare_prompt_and_loses_to_the_journal(self):
+        """The asymmetry the fixes target: A2's closure deficit is not general
+        incapacity. Against A0/A1 it is POSITIVE; the loss appears only against
+        the prose journal, which is Claim 2's territory (verbatim retention and
+        amend-in-prose against ~7-word headlines and discard)."""
+        rows = rung_rows("weak")
+        for dimension in ("decision_closure", "convergence"):
+            rung, _n, journal, _m = rows[dimension]
+            assert rung > 0, f"{dimension} vs a bare prompt should be a win"
+            assert journal < 0, f"{dimension} vs the journal should be a loss"
+
+    def test_only_dimensions_with_both_opponents_are_reported(self):
+        """A dimension judged against only one rung would render as a gap of
+        `mean - 0`, which reads as a huge effect and is nothing at all."""
+        rows = rung_rows("weak")
+        assert rows, "archive should have both rungs somewhere"
+        for _rung, n_rung, _journal, n_journal in rows.values():
+            assert n_rung > 0 and n_journal > 0
+
+    def test_saying_the_record_landed_helps_where_closure_lives(self):
+        """The measured reason the record-integrity win did not convert. Spoken
+        vs silent must favour SPOKEN in the closure family — if this inverts, the
+        `_DECISION_READINESS` visibility rule lost its evidence."""
+        rows = visibility_rows()
+        for dimension in ("decision_closure", "convergence"):
+            spoken, _n, silent, _m = rows[dimension]
+            assert spoken > silent, f"{dimension}: speaking it should help"
+
+    def test_visibility_holds_the_opponent_fixed(self):
+        """Not a stylistic choice. Unpaired, the unmet-request cells are 50%
+        weak-rung against 15% for the honoured ones, so the rung effect leaks
+        straight into this contrast and the whole table becomes uninterpretable.
+        Every cell counted here faces A1.7; the counts prove it — 60 spoken and
+        72 silent, both multiples of 12 dimensions x whole cells."""
+        rows = visibility_rows()
+        counts = {(n_yes, n_no) for _y, n_yes, _n, n_no in rows.values()}
+        assert len(counts) == 1, "every dimension must draw on the same cells"
+        (n_yes, n_no) = counts.pop()
+        assert n_yes % 12 == 0 and n_no % 12 == 0

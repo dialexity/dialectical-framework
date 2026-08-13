@@ -295,6 +295,64 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   in an A2 cell where a store exists and went unused). Locked by
   `test_bench.py::TestAPromisedRecordMustExist` (one test per bug) and `TestPoolingAcrossRuns`'s `fisher_exact`
   cases.
+- **…and it bought nothing judged, because the record was never SPOKEN.** The follow-up to the win above, and
+  the more useful half for prompt work. Holding the opponent fixed at A1.7 and restricting to cells where a
+  record was requested (`across_runs.py::visibility_rows`): whether the record EXISTS on the graph moves
+  `decision_closure` **+0.08** with an incoherent dimension ordering (`earned_confidence` −0.41 the wrong way);
+  whether A2 SAID SO in the transcript moves `decision_closure` **+0.27**, `convergence` **+0.22**,
+  `cross_turn_coherence` **+0.20** — exactly the bimodal family. Mechanism is in the counts: of 19 weak-tier A2
+  cells with a request, **8 wrote a real record and never mentioned it**, 4 claimed one with nothing on the
+  graph, 5 both, 2 neither. From the person's seat the silent-record turn and a refusal are the same turn. The
+  prompt gap was one-sided in a way that is easy to reproduce elsewhere: `_DECISION_READINESS` forbade
+  prose-without-a-call ("Writing the record out is not recording it") and said **nothing** about a call without
+  prose. Both halves now render, and the closing turn may only consolidate — no new either/or, no fresh caveat
+  after it. Holding the opponent constant is mandatory here, not stylistic: unpaired, half the unmet-request
+  cells face a weak rung against 15% of the honoured ones, and the rung effect swamps the contrast. Locked by
+  `test_bench.py::TestTheOpponentChangesWhichDimensionsLose`.
+- **Which arm A2 faces changes WHICH dimensions it loses — the uniform tax is opponent-independent, the
+  closure loss is journal-specific.** `across_runs.py::rung_rows`. Weak tier, cell level: `conversational_fit`
+  −1.05 vs A0/A1 and −0.74 vs A1.7 (gap −0.31), `warmth` −0.62/−0.73 (+0.11) — the opponent barely matters, so
+  the cause is in every reply A2 writes, which is what makes those two prompt-fixable. Against that,
+  `decision_closure` **+0.25** vs a bare prompt and −0.68 vs the journal (+0.93), `convergence` +0.30/−0.65,
+  `actionability` **+1.05**/−0.33 (+1.38). Reading (a LEAD, not a result): the closure loss may not be "the
+  framework can't close" but "**the prose journal closes better than the typed graph**" — Claim 2's exact
+  territory, since the journal keeps the person's verbatim phrasing and amends in prose while the graph stores
+  ~7-word headlines and *discards* rather than amends. Confound stated: the columns are different builds (1 run
+  supplies A0, 3 A1, 12 A1.7), so pooled, rung and build date are one column; only `claim2` holds both rungs on
+  one build, where the ordering survives (mean gap +0.94, closure +1.31, fit +0.25) on 8–16 cells per side.
+  Settling it needs one run judging both rungs on the same build.
+- **Five weak-tier prompt gaps found by READING the judge's 531 rationales, not by guessing.**
+  `tests/bench/judge_notes.py` extracts per-dimension rationale for lost cells with X/Y de-randomised; every fix
+  below was verified ABSENT first, and the key negative result is that the engine had **no accumulation rule at
+  all** (`already answered`, `asked before`, `re-ask`, `previous turn`, `accumulat`, `carry forward` = 0 matches
+  across every section constant) and `_HOW_YOU_SPEAK` had no rule about conceding. All five sit in the
+  opponent-independent family above. (1) `_HOW_YOU_SPEAK` — **a correction is conceded in the first clause**;
+  the base arm is *praised* for this in 62–67 of 120 warmth cells against A2's 3–6, and A2 "keeps lecturing
+  after being asked to stop". (2) `_REJECTION_HANDLING` — **the graph discards; the reply amends**. Its "silently
+  discard / don't announce it" is correct graph hygiene and, read as conversational instruction, produces the
+  archive's most frequent coherence fault (37 of 105 cells: a frame A2 argued for vanishing with no bridge). The
+  prose arms have no discard affordance, so they are FORCED to amend aloud — which is the move the judge rewards.
+  (3) `_CONVERSATION_USE` — the accumulation rule (23 of 105 cells re-pose an answered or declined question, 10
+  with the user complaining). (4) `_INTERNAL_MODEL` — see the theory note below (54–56 of 120 warmth cells).
+  (5) `_DECISION_READINESS` — **"write this down" IS the confirmation**; 12 of 90 closure cells hand a person who
+  asked for the record a precondition instead. Plus the uncosted terminal menu (26 of 85 convergence cells vs
+  the prose arms' 7, of which 6 are costed-then-narrowed), seeded by `_CONVERSATION_USE`'s own "Let them choose.
+  Present pathways as options" — wheel plurality leaking to the surface as a question. Locked by
+  `test_prompt_review_regressions.py::TestWhatTheJudgeSaidWasWrong`.
+- **`_INTERNAL_MODEL`'s blindspot register was an application gloss, and the theory says obligation.** The
+  highest-leverage of the five, and the one that required checking `docs/theory/` rather than trusting the
+  prompt: **"structurally blind" appears nowhere in `docs/theory/`**. The theory's own dialogical reading
+  (`generative-rules.md` Rule 3.1) calls A+ "the *obligation* that falls on the T-sayer" — something you OWE,
+  not something you CANNOT SEE. The old text taught the blindspot as a property of the person ("they are
+  structurally blind", "they cannot see that the resolution lies in…") and the weak model converted it straight
+  into second-person address: "here's what you're not seeing", "I'm seeing something you can't see" — while all
+  15 base-arm mentions of lecturing in the same corpus are PRAISE for not doing it. Rewritten to the theory's
+  framing (every position carries an unpriced obligation) plus an explicit "this model describes positions, not
+  people, and it never becomes second person", banning the quoted openers and third-person psychology verdicts
+  ("that's a tell", "that's what people do when they've already decided"). Standing lesson: **the worked
+  examples must be rewritten with the rule** — the regression test caught both examples still teaching
+  person-as-blind three paragraphs after the new rule forbade it, which is exactly how a rewritten rule loses
+  to the illustration beside it.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

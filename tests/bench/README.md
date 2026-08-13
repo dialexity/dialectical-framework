@@ -1370,6 +1370,57 @@ paired within run), `explore` election (+0.17, n=20), anchor count (−0.03). Th
 variance is in what the reply *says*, not in which machinery ran — which is why the
 next step is `judge_notes.py`, not another count.
 
+**The same split, from the other side: which arm A2 faces.** `rung_rows("weak")`
+pools cells by opponent, and the two families separate again — this time on whether
+the deficit depends on the opposition at all:
+
+| dimension | vs A0/A1 | vs A1.7 | gap |
+|---|---|---|---|
+| `conversational_fit` | −1.05 | −0.74 | **−0.31** |
+| `warmth` | −0.62 | −0.73 | **+0.11** |
+| `decision_closure` | **+0.25** | −0.68 | +0.93 |
+| `convergence` | **+0.30** | −0.65 | +0.95 |
+| `paired_recipe` | **+0.57** | −0.56 | +1.14 |
+| `actionability` | **+1.05** | −0.33 | +1.38 |
+
+Gap ≈ 0 means the opponent is irrelevant, so the cause is in *every reply A2 writes* —
+and those are exactly the two uniform-tax dimensions. Gap ≈ +1 means the deficit is
+**journal-specific**: A2 *beats* a bare prompt on closure and loses to the prose
+journal. The candidate reading — **a lead, not a result** — is that the closure loss
+is not "the framework can't close" but "**the prose journal closes better than the
+typed graph**", which is Claim 2's exact territory: the journal keeps the person's
+verbatim phrasing and amends in prose, while the graph stores ~7-word headlines and
+*discards* rather than amends.
+
+*The confound, plainly:* the columns are different builds (1 run supplies the A0
+cells, 3 the A1 cells, 12 the A1.7 cells), so pooled, "rung" and "build date" cannot
+be separated. Only `claim2` judges both a weak rung and A1.7 on **one build**, and
+there the ordering survives — mean gap +0.94, largest at `entanglement` +1.44 /
+`decision_closure` +1.31 / `convergence` +1.19, smallest at `conversational_fit`
++0.25 / `warmth` +0.56 — on 16 weak-rung and 8 A1.7 cells per dimension. Settling it
+needs one run judging both rungs on the same build.
+
+#### The record-integrity win did not convert, and the reason is sayable
+
+The framework arm really does write the record (80% of requests, p = 0.0033 — see
+below). Asking whether that *bought* anything judged, with the opponent held fixed at
+A1.7 and restricted to cells where a record was requested (`visibility_rows()`):
+
+| | `decision_closure` | `convergence` | `cross_turn_coherence` |
+|---|---|---|---|
+| record **exists on the graph** | +0.08 | +0.12 | −0.22 |
+| A2 **said so in the transcript** | **+0.27** | **+0.22** | **+0.20** |
+
+Existence buys nothing and its dimension ordering is incoherent (`earned_confidence`
+−0.41 the wrong way). Visibility tracks the loss cleanly, and in *exactly* the bimodal
+family. The mechanism is in the counts: of **19** weak-tier A2 cells with a record
+request, **8 wrote a real record and never mentioned it**, 4 claimed one with nothing
+on the graph, 5 did both, 2 neither. From where the person sits, a silent-record turn
+and a refusal are the same turn — so the framework's one demonstrable advantage was
+invisible in the dimension it should have won. `_DECISION_READINESS` already forbade
+the reverse error (prose with no call) and said nothing about a call with no prose;
+that is now fixed, pinned by `TestWhatTheJudgeSaidWasWrong`.
+
 #### Two explanations that do NOT overturn it
 
 Both were candidates I expected to carry the loss. Neither survives being measured
@@ -1385,6 +1436,51 @@ properly, and both now print with their own refutation attached:
    and **unusable**: every set where election clears 50% is a *strong-tier* run, so
    "elected `explore`" and "ran on the better model" are one column. Testing it needs
    a weak-tier run with election forced, not more pooling.
+
+#### What the judge's own rationales said, and the five fixes that came out
+
+531 losing-dimension rationales sit in `results/` and nothing had read them; that is
+what `judge_notes.py` exists for. Every fix below was **verified absent** from the
+engine prompt before it was written — the important negative result being that
+`already answered`, `asked before`, `re-ask`, `previous turn`, `accumulat` and
+`carry forward` matched **zero** times across every section constant, and
+`_HOW_YOU_SPEAK` had no rule about conceding at all. That matters because of the
+archive's own standing lesson: a rule the prompt already states and the weak model
+still breaks is a *compliance* problem, and more prose does not fix it. These five
+are gaps, not restatements.
+
+All five sit in the **uniform-tax** family — the dimensions the rung table just
+showed do not depend on which arm A2 faces — which is precisely what makes them
+prompt bugs rather than scoring artifacts.
+
+| # | The judge's finding | Frequency | Fix |
+|---|---|---|---|
+| 1 | The base arm is **praised for conceding** when corrected ("That's on me", "Fair — I was circling"); A2 "keeps lecturing after being asked to stop" | base credited **62–67 of 120** warmth cells, A2 **3–6** | `_HOW_YOU_SPEAK`: a correction is conceded **in the first clause**, and a declined framing is never re-posed |
+| 2 | A frame A2 argued for **vanishes with no bridge** — the reply inherits the graph's `discard` as an unacknowledged reversal | **37 of 105** coherence cells | `_REJECTION_HANDLING`: *the graph discards; the reply amends*. Silent bookkeeping, spoken correction |
+| 3 | A2 **re-poses questions already answered or declined**, in new wording | **23 of 105**, 10 with the user visibly complaining | `_CONVERSATION_USE`: the missing accumulation rule — build on the newest thing *they* said, in their phrasing |
+| 4 | "Here's what you're not seeing", "I'm seeing something you can't see" → read as lecturing | **54–56 of 120** warmth cells; all 15 base-arm mentions of lecturing are *praise for not doing it* | `_INTERNAL_MODEL` rewritten off the person and onto the position (see below) |
+| 5 | A person who **asked** for the write-up gets a precondition instead ("confirm and I'll record it") | **12 of 90** closure cells, all `decide` | `_DECISION_READINESS`: *"write this down" IS the confirmation* — a request to close is never answered with homework |
+
+Plus the uncosted terminal menu — 26 of 85 convergence cells end on one, against the
+prose arms' 7, and 6 of *those* 7 are costed-then-narrowed while only 3 of A2's 26 are.
+The seed was `_CONVERSATION_USE`'s own "Let them choose. Present pathways as options":
+wheel plurality leaking to the surface as a question. The choice stays with the person;
+the *pricing* is the part only the advisor can do.
+
+**#4 is the one worth reading the theory for.** `_INTERNAL_MODEL` taught the blindspot
+as a property of the *person* ("they are structurally blind", "they cannot see"), and
+the weak model converted that straight into second-person address. Checking `docs/theory/`:
+**"structurally blind" appears nowhere in it.** The theory's own dialogical reading
+(`generative-rules.md` Rule 3.1) calls A+ "the **obligation** that falls on the T-sayer"
+— something you *owe*, not something you *cannot see*. So the register was an
+application gloss, not a theory claim, and the rewrite is the theory's own framing:
+every position carries an unpriced obligation. It is also the framing that cannot be
+said *at* someone. The two worked examples had to be rewritten too — the regression
+test caught them still teaching person-as-blind three paragraphs after the new rule
+forbade it.
+
+None of this is verified as an improvement yet: these are fixes to causes the judge
+named, and the next weak-tier run is what tests them.
 
 #### What this does and does not license
 
@@ -1590,7 +1686,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
-| `across_runs.py` | pools the whole archive: the standing composite/dimension result, the record-integrity win, the two refuted explanations, and the claim-killing check for any new split (free) |
+| `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, and the claim-killing check for any new split (free) |
 | `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |

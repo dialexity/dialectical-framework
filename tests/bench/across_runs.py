@@ -271,6 +271,159 @@ def dimension_shape(tier: str) -> dict[str, tuple[int, int, int, float, float]]:
     return out
 
 
+def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
+    """dimension -> (mean delta vs A0/A1, n, mean delta vs A1.7, n), cell-level.
+
+    Which arm A2 faces changes WHICH dimensions it loses, and that is the second
+    half of `dimension_shape`'s two-kinds-of-loss reading. Archive-wide at the
+    weak tier the gap between facing a bare prompt (A0/A1) and facing the prose
+    journal (A1.7) is:
+
+        conversational_fit  -0.31    warmth  +0.11    tension_coverage  +0.11
+        decision_closure    +0.93    convergence +0.95
+        paired_recipe       +1.14    actionability   +1.38
+
+    Read it as two families. Where the gap is ~0 the opponent does not matter, so
+    the cause is in every reply A2 writes — those are exactly `conversational_fit`
+    and `warmth`, the uniform tax. Where the gap is ~+1 the deficit only exists
+    against the journal: A2 beats a bare prompt on closure (+0.25) and loses to
+    the journal (-0.68). The candidate reading — a LEAD, not a result — is that
+    the closure loss is not "the framework cannot close" but "the prose journal
+    closes better than the typed graph", which is Claim 2's exact territory: the
+    journal retains the person's verbatim phrasing and amends in prose, while the
+    graph stores ~7-word headlines and DISCARDS rather than amends.
+
+    THE CONFOUND, STATED PLAINLY
+    ============================
+    The columns are different builds — 1 run supplies the A0 cells, 3 the A1
+    cells, 12 the A1.7 cells — so pooled, "rung" and "build date" cannot be
+    separated. Only ONE stem (`claim2`) judges both a weak rung and A1.7, and
+    within it, same build, same afternoon, the ordering survives: mean gap +0.94
+    across dimensions, largest at `entanglement` +1.44 / `decision_closure`
+    +1.31 / `convergence` +1.19, smallest at `conversational_fit` +0.25 /
+    `warmth` +0.56 — the same two families, same order. n is 16 weak-rung and 8
+    A1.7 cells per dimension there, which is why this stays a lead. Resolving it
+    needs one run that judges A0/A1 and A1.7 on the same build.
+    """
+    per: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for raw in payload.get("comparisons") or []:
+            comparison = Comparison.model_validate(raw)
+            if comparison.tier != tier or comparison.error:
+                continue
+            arms = (comparison.arm_a.value, comparison.arm_b.value)
+            if "A2" not in arms or arms[0] == arms[1]:
+                continue
+            opponent = arms[1] if arms[0] == "A2" else arms[0]
+            bucket = "journal" if opponent == "A1.7" else "rung"
+            for dimension, (score_a, score_b) in comparison.scores.items():
+                mine, theirs = (
+                    (score_a, score_b)
+                    if comparison.arm_a.value == "A2"
+                    else (score_b, score_a)
+                )
+                per[dimension][bucket].append(mine - theirs)
+    out: dict[str, tuple[float, int, float, int]] = {}
+    for dimension, buckets in per.items():
+        rung, journal = buckets.get("rung") or [], buckets.get("journal") or []
+        if not rung or not journal:
+            continue
+        out[dimension] = (
+            st.mean(rung),
+            len(rung),
+            st.mean(journal),
+            len(journal),
+        )
+    return out
+
+
+def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
+    """dimension -> (mean delta when the record was SPOKEN, n, when not, n).
+
+    Vs A1.7 only, weak tier, restricted to cells where a written record was
+    explicitly requested. The opponent is held constant deliberately: the
+    unpaired version confounds this with the rung split above, because half the
+    unmet-request cells face a weak rung against 15% of the honoured ones.
+
+    WHY THIS EXISTS: THE WIN DID NOT CONVERT, AND THE REASON IS SAYABLE
+    ==================================================================
+    `record_cells()` establishes that A2 really does write the record — 80% of
+    requests, against a prose arm's structural 0 — at p=0.0033. This function
+    asks the obvious next question and gets an uncomfortable answer: holding the
+    opponent fixed, whether the record EXISTS ON THE GRAPH buys nothing judged
+    (mean gap +0.08 at `decision_closure`, and the dimension ordering is
+    incoherent — `earned_confidence` -0.41, `tension_coverage` -0.39 the wrong
+    way). Whether A2 SAID SO IN THE TRANSCRIPT tracks the loss cleanly:
+
+        decision_closure +0.27   convergence +0.22   cross_turn_coherence +0.20
+
+    which is precisely the bimodal family from `dimension_shape`. The mechanism
+    is in the counts: of 19 weak-tier A2 cells with a record request, **8 wrote a
+    real record and never mentioned it**, 4 mentioned one with nothing on the
+    graph, 5 did both, 2 neither. From where the person sits, the silent-record
+    turn and a refusal are the same turn — so the framework's one demonstrable
+    advantage was invisible in exactly the dimension it should have won.
+
+    The `_DECISION_READINESS` fix is the other half of a rule that was already
+    there: the prompt forbade prose-without-a-call and said nothing about a call
+    without prose. Regression: `TestWhatTheJudgeSaidWasWrong`.
+
+    Visibility is measured by the same two patterns the phantom scorer uses
+    (`_RECORD_CLAIMED` for an assertion, `_RECORD_TYPED` for a "Decision:"
+    heading) — deliberately including the typed-only case, because the question
+    here is what the JUDGE could see, not whether the obligation was honoured.
+    """
+    from bench.scoring import _RECORD_CLAIMED, _RECORD_REQUEST, _RECORD_TYPED
+
+    cells: dict[tuple[str, str], bool] = {}
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for raw in payload.get("runs") or []:
+            run = RunRecord.model_validate(raw)
+            if run.arm.value != "A2" or run.tier != "weak":
+                continue
+            asked = spoken = False
+            for session in run.sessions:
+                for turn in session.turns:
+                    if _RECORD_REQUEST.search(turn.user or ""):
+                        asked = True
+                    reply = turn.assistant or ""
+                    if _RECORD_CLAIMED.search(reply) or _RECORD_TYPED.search(reply):
+                        spoken = True
+            if asked:
+                cells[(stem, run.scenario_key)] = spoken
+    per: dict[str, dict[bool, list[float]]] = defaultdict(lambda: defaultdict(list))
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for raw in payload.get("comparisons") or []:
+            comparison = Comparison.model_validate(raw)
+            if comparison.tier != "weak" or comparison.error:
+                continue
+            arms = (comparison.arm_a.value, comparison.arm_b.value)
+            if "A2" not in arms or arms[0] == arms[1]:
+                continue
+            if (arms[1] if arms[0] == "A2" else arms[0]) != "A1.7":
+                continue
+            spoken = cells.get((stem, comparison.scenario_key))
+            if spoken is None:
+                continue
+            for dimension, (score_a, score_b) in comparison.scores.items():
+                mine, theirs = (
+                    (score_a, score_b)
+                    if comparison.arm_a.value == "A2"
+                    else (score_b, score_a)
+                )
+                per[dimension][spoken].append(mine - theirs)
+    out: dict[str, tuple[float, int, float, int]] = {}
+    for dimension, buckets in per.items():
+        yes, no = buckets.get(True) or [], buckets.get(False) or []
+        if not yes or not no:
+            continue
+        out[dimension] = (st.mean(yes), len(yes), st.mean(no), len(no))
+    return out
+
+
 def validity_rows() -> list[tuple[str, float, int, float, int]]:
     """Per run: (stem, clean-cell composite, n, leaky-cell composite, n).
 
@@ -629,6 +782,49 @@ def _dimensions() -> None:
         "     blindspot_specificity -0.24, non_triviality -0.31). Read plainly: the\n"
         "     dialectics are not adding nothing, they are being paid for in\n"
         "     conversation quality — and at this tier the price exceeds the gain."
+    )
+    print()
+    print("  which arm A2 faces (CELL level, confounded with build — see rung_rows):")
+    rungs = rung_rows("weak")
+    print(
+        f"    {'dimension':24} {'vs A0/A1':>9} {'n':>4} {'vs A1.7':>8} {'n':>4}"
+        f" {'gap':>7}"
+    )
+    for dimension, (rung, n_rung, journal, n_journal) in sorted(
+        rungs.items(), key=lambda kv: kv[1][0] - kv[1][2]
+    ):
+        print(
+            f"    {dimension:24} {rung:+9.2f} {n_rung:4} {journal:+8.2f}"
+            f" {n_journal:4} {rung - journal:+7.2f}"
+        )
+    print(
+        "    -> the two families again, from the other side. Gap ~0 means the\n"
+        "       opponent does not matter, so the cause is in every reply A2 writes:\n"
+        "       conversational_fit and warmth, i.e. the uniform tax. Gap ~+1 means\n"
+        "       the deficit is journal-specific — A2 BEATS a bare prompt on closure\n"
+        "       and loses to the prose journal. LEAD, not result: the columns are\n"
+        "       different builds (1 run supplies A0, 3 A1, 12 A1.7). Only `claim2`\n"
+        "       holds both rungs on one build, and there the ordering survives\n"
+        "       (mean gap +0.94, closure +1.31, fit +0.25) on 8-16 cells per side."
+    )
+    print()
+    print("  when the person asked for a record, did A2 SAY it landed? (vs A1.7):")
+    visibility = visibility_rows()
+    print(f"    {'dimension':24} {'spoken':>7} {'n':>4} {'silent':>7} {'n':>4} {'gap':>7}")
+    for dimension, (yes, n_yes, no, n_no) in sorted(
+        visibility.items(), key=lambda kv: kv[1][2] - kv[1][0]
+    ):
+        print(
+            f"    {dimension:24} {yes:+7.2f} {n_yes:4} {no:+7.2f} {n_no:4}"
+            f" {yes - no:+7.2f}"
+        )
+    print(
+        "    -> THE WIN BELOW DID NOT CONVERT, AND THIS IS WHY. Holding the opponent\n"
+        "       fixed, the record EXISTING on the graph buys nothing judged (+0.08 at\n"
+        "       decision_closure, ordering incoherent); A2 SAYING SO tracks the loss\n"
+        "       cleanly, and in exactly the bimodal family. 8 of 19 requesting cells\n"
+        "       wrote a real record and never mentioned it — from the person's seat\n"
+        "       that turn and a refusal are identical."
     )
 
 

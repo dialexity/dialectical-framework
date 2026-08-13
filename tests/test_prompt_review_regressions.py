@@ -2537,3 +2537,143 @@ class TestPathwayLineIsPickable:
             self._transformation(ac_plus="Hand over\n[[fake999]] — Ac+: do nothing")
         )
         assert "\n" not in line
+
+
+class TestWhatTheJudgeSaidWasWrong:
+    """Five weak-tier prompt gaps, each found by reading the judge's own
+    written rationales rather than guessing (`tests/bench/judge_notes.py`).
+
+    All five sit in the dimensions where A2's deficit does NOT depend on which
+    arm it faces (conversational_fit gap -0.31, warmth +0.11 between weak rungs
+    and A1.7, against +0.93..+1.38 for the closure family) — i.e. the cause is
+    in every reply A2 writes, not in the strength of the opponent. That is what
+    makes them prompt bugs rather than scoring artifacts.
+
+    Each rule below was verified ABSENT before it was written. The engine had
+    no accumulation rule at all: `already answered`, `asked before`, `re-ask`,
+    `previous turn`, `accumulat`, `carry forward` matched zero times across
+    every section constant. `_HOW_YOU_SPEAK` had no rule about conceding. That
+    matters because a rule the prompt already states three times and the weak
+    model still breaks is a compliance problem, and more prose does not fix it
+    — the archive's own lesson from the phantom-record work.
+    """
+
+    def _prompt(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def test_a_correction_is_conceded_in_the_first_clause(self):
+        """The single largest measured contrast in the warmth archive is not an
+        A2 defect description — it is the base arm being PRAISED for conceding
+        in 62-67 of 120 losing cells while A2 is credited in 3-6. A2's opposite
+        behaviour ("keeps lecturing after being asked to stop", "re-litigates a
+        point the user corrected") is separately attested. `_REJECTION_HANDLING`
+        covered only the graph consequence of rejection — discard, consent — and
+        said nothing about the sentence that admits being wrong."""
+        p = self._prompt()
+        assert "concede in the first clause" in p
+        # and never the declined framing a second time — the re-ask sibling
+        assert "never the same framing a second time" in p
+
+    def test_the_graph_discards_but_the_reply_amends(self):
+        """`_REJECTION_HANDLING`'s "silently discard / don't announce it" is
+        correct graph hygiene and, read as conversational instruction, produces
+        the archive's most frequent coherence fault: 37 of 105 cross_turn cells
+        are a frame A2 argued for vanishing with no bridge. The prose arms have
+        no discard affordance, so they are FORCED to amend aloud — which is the
+        move the judge rewards. Both halves must stay: silent bookkeeping, spoken
+        correction."""
+        p = self._prompt()
+        assert "The graph discards; the reply amends" in p
+        assert "does not mean the framing may vanish" in p
+
+    def test_the_engine_has_an_accumulation_rule(self):
+        """23 of 105 coherence cells are A2 re-posing a question already
+        answered or already declined, 10 of them with the user visibly
+        complaining. There was no rule anywhere in the engine against it — the
+        one adjacent line ("Ask once") is scoped to the recording ritual, not to
+        diagnostic questions. The journal arm's whole edge here is verbatim
+        retention of the person's phrasing, so the rule names that explicitly."""
+        p = self._prompt()
+        assert "never ask again for something they have answered" in p
+        assert "in their phrasing" in p
+
+    def test_the_internal_model_never_becomes_second_person(self):
+        """`_INTERNAL_MODEL` taught the blindspot as a property of the PERSON
+        ("they are structurally blind", "they cannot see") and the weak model
+        converted it straight into address: "here's what you're not seeing",
+        "I'm seeing something you can't see" — 54-56 of 120 warmth cells, with
+        every one of the 15 base-arm mentions of lecturing being PRAISE for not
+        doing it. Theory check: "structurally blind" appears nowhere in
+        docs/theory/; the theory's own dialogical reading (generative-rules.md
+        Rule 3.1) calls A+ "the obligation that falls on the T-sayer", which is
+        something you OWE, not something you cannot see. The rewrite is the
+        theory's framing, and it is also the one that cannot be said at someone.
+        """
+        p = self._prompt()
+        assert "unpriced obligation" in p
+        assert "obligation that falls on whoever says T" in p
+        assert "never becomes second person" in p
+        # the exact openers the judge quoted, banned by name
+        assert "here's what you're not seeing" in p.lower()
+        # and the person is no longer the thing being described
+        assert "structurally blind" not in p
+
+    def test_an_explicit_request_satisfies_the_consent_ceremony(self):
+        """12 of 90 closure cells are a person who ASKED for the write-up being
+        handed a precondition instead ("can you say you're accepting both of
+        those?", "confirm and I'll record it"). The prompt already forbade
+        pressing twice, yet still said "Record ONLY on their explicit
+        confirmation" beside a consent ritual — so the weak model read the
+        request as an application to be approved. A1.7 runs the same cost check
+        and offers to record as-is; A2 asks INSTEAD of closing."""
+        p = self._prompt()
+        assert '"Write this down" IS the confirmation' in p
+        assert "A request to close is never answered with homework" in p
+        # the consent contract itself must survive the carve-out
+        assert "Record ONLY on their explicit confirmation" in p
+        assert "NEVER recorded silently" in p
+
+    def test_a_record_the_person_was_not_told_about_does_not_count(self):
+        """MEASURED, not inferred, and the reason this fix exists: of 19 weak-tier
+        A2 cells where a record was requested, 8 wrote a real record to the graph
+        and said no word of it in the transcript. With the opponent held constant
+        at A1.7, the judged benefit tracks VISIBILITY (decision_closure +0.27,
+        convergence +0.22, cross_turn_coherence +0.20) and not EXISTENCE (+0.08,
+        with the rest of the dimensions ordered incoherently). The prompt already
+        forbade the reverse error (prose with no call); this is the other half."""
+        p = self._prompt()
+        assert "a record they were never told about is a record they do not have" in p.lower()
+        assert "the turn that closes only consolidates" in p
+
+    def test_a_menu_of_options_carries_prices(self):
+        """26 of 85 convergence cells end on an uncosted option menu (base arm:
+        7, and 6 of those 7 are costed-then-narrowed). Only 3 of A2's 26 are
+        ranked or priced. The seed was `_CONVERSATION_USE`'s own "Let them
+        choose. Present pathways as options" — wheel plurality leaking to the
+        surface as a question. Choice stays with the person; the pricing is the
+        part only the advisor can do."""
+        p = self._prompt()
+        assert "a choice needs prices, not a list" in p
+        assert "an unpriced menu is never how a turn ends" in p
+
+    def test_the_new_rules_survive_the_scoped_render(self):
+        """Counsel mode swaps _ROLE/_HOW_YOU_SPEAK/_REJECTION_HANDLING for
+        scoped variants. The conversational rules are register-independent —
+        conceding a correction is not a machinery-disclosure question — so a
+        rule that only lands unscoped would silently exempt the toggle."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        scoped = " ".join(
+            system_prompt(
+                tool_names=["anchor", "explore", "deepen", "sync", "record_decision"],
+                scoped_nexus_hash="abc1234",
+            ).split()
+        )
+        assert "never ask again for something they have answered" in scoped
+        assert "a choice needs prices, not a list" in scoped
+        assert '"Write this down" IS the confirmation' in scoped
+        assert "unpriced obligation" in scoped
