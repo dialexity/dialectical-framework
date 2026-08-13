@@ -1338,6 +1338,38 @@ lose least. Read plainly: the dialectics are not adding nothing, they are being
 That is a coherent, actionable diagnosis, and it is also precisely what
 "ceiling-not-floor" forbids.
 
+**The means hide two different losses.** Looking at the distribution behind them
+(cell level — shape only, not an interval) splits the list in a way −0.80-vs-−0.55
+does not suggest:
+
+| dimension | lost | tied | won | \|Δ\| when lost | when won |
+|---|---|---|---|---|---|
+| `conversational_fit` | **131 (76%)** | 22 | 19 (11%) | 1.21 | 1.00 |
+| `warmth` | **120 (70%)** | 40 | 12 (7%) | 1.12 | 1.00 |
+| `decision_closure` | 90 (52%) | 31 | **51 (30%)** | **1.66** | 1.35 |
+| `convergence` | 85 (49%) | 37 | **50 (29%)** | **1.72** | 1.44 |
+| `actionability` | 71 (41%) | 27 | **74 (43%)** | 1.62 | 1.54 |
+
+- **A uniform tax** on `conversational_fit` and `warmth` — the only two dimensions
+  where A2 almost never wins *at all*. It is slightly worse nearly everywhere, so
+  the cause is in every reply and no single cell can show it.
+- **Bimodal closure.** `decision_closure` and `convergence` lose half their cells
+  but A2 **wins 30% outright**, and both tails are bigger than the tax. A2 does not
+  close mildly badly — it either closes well or fails hard, about 2:1 against. That
+  is a much better target than a uniform tax, because winning cells exist to read
+  against losing ones.
+- **`actionability` −0.09 is not a small deficit, it is a coin flip** (71 lost, 74
+  won, both tails ~1.6). The framework's own home dimension is *high-variance*, not
+  neutral, which is a different problem from being level with the prompt.
+
+Every structural explanation for the bimodality is dead, measured: whether the cell
+holds a Decision record (+0.35 unpaired and **impossible to pair** — only one run in
+the archive has cells of both kinds, so the split is build date), whether it is a
+returning session (+0.33 unpaired, **+0.045 CI [−0.83,+0.92], 6/13 sets, p = 1.00**
+paired within run), `explore` election (+0.17, n=20), anchor count (−0.03). The
+variance is in what the reply *says*, not in which machinery ran — which is why the
+next step is `judge_notes.py`, not another count.
+
 #### Two explanations that do NOT overturn it
 
 Both were candidates I expected to carry the loss. Neither survives being measured
@@ -1559,6 +1591,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
 | `across_runs.py` | pools the whole archive: the standing composite/dimension result, the record-integrity win, the two refuted explanations, and the claim-killing check for any new split (free) |
+| `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |

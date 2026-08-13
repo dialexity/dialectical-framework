@@ -28,6 +28,7 @@ from bench.config import BenchConfig
 from bench.driver import BenchDriver
 from bench.judge import _x_is_a, dimensions_for
 from bench.across_runs import _a2_deltas, _corr, fisher_exact, sign_test
+from bench.judge_notes import _derandomise
 from bench.judge_variance import se_of_mean, split_variance
 from bench.models import (
     Arm,
@@ -4314,6 +4315,63 @@ class TestClosureRateAcrossTheBoundary:
         assert "Ending on a question is not a defect" in text
         assert "A1.7 +0.21 vs A2 +0.29" in text, "the refuted definition, on record"
         assert "loses it on RETURN" in text
+
+
+class TestReadingTheJudgesOwnReasons:
+    """De-randomising X/Y, the one thing `judge_notes.py` can get silently wrong.
+
+    The judge writes about two anonymous transcripts, X and Y, in a randomised
+    order. Mapping those to arms backwards produces a fully-quoted, confident
+    diagnosis of the WRONG arm — and nothing about the output would look off,
+    because roughly half the notes praise X either way. The rest of the script is
+    I/O over gitignored `results/`, so only this is pinned.
+    """
+
+    def test_the_subject_gets_its_own_note_when_it_was_shown_as_x(self):
+        assert (
+            _derandomise(
+                "X confronts the blindspot; Y drifts.",
+                subject="A2",
+                opponent="A1.7",
+                subject_is_x=True,
+            )
+            == "A2 confronts the blindspot; A1.7 drifts."
+        )
+
+    def test_and_the_opposite_when_it_was_shown_as_y(self):
+        """The failure that would invert every finding built on these notes."""
+        assert (
+            _derandomise(
+                "X confronts the blindspot; Y drifts.",
+                subject="A2",
+                opponent="A1.7",
+                subject_is_x=False,
+            )
+            == "A1.7 confronts the blindspot; A2 drifts."
+        )
+
+    def test_a_letter_inside_a_word_is_not_a_reference_to_a_transcript(self):
+        """Word-boundary anchored, or ordinary prose gets mangled.
+
+        The notes are English sentences, and an unanchored replace turns
+        "explicitly" into "e(A2)plicitly" — which reads as a corrupted note rather
+        than a wrong one, but still destroys the quote it appears in.
+        """
+        note = "Explicitly, the X-axis analysis by Y was proxy-like."
+        out = _derandomise(note, subject="A2", opponent="A1", subject_is_x=True)
+        assert "Explicitly" in out
+        assert "proxy-like" in out
+        assert "A1 was" in out, "a standalone Y should still be substituted"
+
+    def test_both_letters_map_in_one_pass(self):
+        """Sequential replaces would rewrite the second substitution's output.
+
+        Replacing X->"A2" and then Y->"A2" is fine, but replacing X->"Y" style
+        names (or any arm name containing the other letter) would cascade. One
+        pass makes the bug impossible rather than merely absent today.
+        """
+        out = _derandomise("X beat Y", subject="Y-arm", opponent="X-arm", subject_is_x=True)
+        assert out == "Y-arm beat X-arm"
 
 
 class TestPoolingAcrossRuns:

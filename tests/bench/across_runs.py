@@ -210,6 +210,67 @@ def dimension_rows(tier: str) -> dict[str, list[float]]:
     return dict(per_dimension)
 
 
+def dimension_shape(tier: str) -> dict[str, tuple[int, int, int, float, float]]:
+    """dimension -> (lost cells, tied, won, mean |delta| when lost, when won).
+
+    The distribution behind `dimension_rows`' means, and it splits the losing
+    dimensions into two kinds that need opposite fixes — which the means hide
+    completely, because -0.81 and -0.47 look like the same finding at different
+    strengths and are not:
+
+      * a UNIFORM TAX — `conversational_fit` loses 131 of 172 cells (76%) and wins
+        19, `warmth` 120 and wins 12, each by about 1.1 points. A2 is a bit worse
+        nearly everywhere. Whatever causes it is in every reply.
+      * BIMODAL — `decision_closure` loses 90 and WINS 51 (30%), `convergence`
+        loses 85 and wins 50, and both the losses and the wins are large
+        (1.66-1.72 against 1.35-1.44). A2 is not mildly worse at closing; it
+        either closes well or badly, roughly 2:1 against.
+
+    Cell-level on purpose, and NOT to be read as a significance claim — that is
+    what `dimension_rows` (one value per run) is for. The question here is the
+    shape of the distribution, and a run mean cannot have a shape. Deliberately
+    kept next to `dimension_rows` so nobody quotes an n=172 interval from it.
+
+    Ruling out the obvious structural causes of the bimodality, all measured and
+    all dead: whether the cell has a Decision record (+0.35 unpaired, and it CANNOT
+    be paired — only one run in the archive contains cells of both kinds, so the
+    split is build date and nothing else); whether it is a returning session
+    (+0.33 unpaired, +0.045 CI [-0.83,+0.92] paired within run, 6/13 sets, p=1.00);
+    whether it elected `explore` (+0.17, n=20); anchor count (-0.03). The variance
+    is in what the reply SAYS, not in which machinery ran — so the judge's own
+    notes are the evidence, which is what `judge_notes.py` exists to extract.
+    """
+    shape: dict[str, list[float]] = defaultdict(list)
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for raw in payload.get("comparisons") or []:
+            comparison = Comparison.model_validate(raw)
+            if comparison.tier != tier or comparison.error:
+                continue
+            arms = (comparison.arm_a.value, comparison.arm_b.value)
+            if "A2" not in arms or arms[0] == arms[1]:
+                continue
+            for dimension, (score_a, score_b) in comparison.scores.items():
+                mine, theirs = (
+                    (score_a, score_b)
+                    if comparison.arm_a.value == "A2"
+                    else (score_b, score_a)
+                )
+                shape[dimension].append(mine - theirs)
+    out: dict[str, tuple[int, int, int, float, float]] = {}
+    for dimension, values in shape.items():
+        lost = [v for v in values if v < 0]
+        won = [v for v in values if v > 0]
+        out[dimension] = (
+            len(lost),
+            len(values) - len(lost) - len(won),
+            len(won),
+            st.mean([abs(v) for v in lost]) if lost else 0.0,
+            st.mean(won) if won else 0.0,
+        )
+    return out
+
+
 def validity_rows() -> list[tuple[str, float, int, float, int]]:
     """Per run: (stem, clean-cell composite, n, leaky-cell composite, n).
 
@@ -523,6 +584,42 @@ def _dimensions() -> None:
             f"{_fmt_ci(ci)}{mark} sign p={sign_test(values):.3f}"
         )
     print(f"  * = interval excludes zero ({resolved} of {len(per_dimension)})")
+    print()
+    print("  distribution behind those means (CELL level — shape only, not a CI):")
+    shape = dimension_shape("weak")
+    print(
+        f"    {'dimension':24} {'lost':>5} {'tied':>5} {'won':>5}"
+        f" {'|delta| lost':>13} {'won':>6}"
+    )
+    for dimension, _values in sorted(
+        per_dimension.items(), key=lambda kv: st.mean(kv[1])
+    ):
+        if dimension not in shape:
+            continue
+        lost, tied, won, size_lost, size_won = shape[dimension]
+        print(
+            f"    {dimension:24} {lost:5} {tied:5} {won:5}"
+            f" {size_lost:13.2f} {size_won:6.2f}"
+        )
+    print(
+        "    -> TWO KINDS OF LOSS, needing opposite fixes, and the means hide the\n"
+        "       difference because -0.80 and -0.55 read as one finding at two\n"
+        "       strengths. (a) A UNIFORM TAX on conversational_fit (loses 76% of\n"
+        "       cells, wins 11%) and warmth (70%, wins 7%) — the only two dimensions\n"
+        "       where A2 almost never wins at all. A2 is slightly worse nearly\n"
+        "       everywhere, so the cause is in every reply, and no single cell will\n"
+        "       show it. (b) BIMODAL closure: decision_closure and convergence lose\n"
+        "       half their cells but A2 WINS 30% outright, and both tails are larger\n"
+        "       (1.66-1.72 lost against 1.35-1.44 won). It does not close mildly\n"
+        "       badly; it either closes well or fails hard, about 2:1 against — so\n"
+        "       there are winning cells to read against losing ones, which the\n"
+        "       uniform tax denies. Note also actionability's -0.09 is not a small\n"
+        "       deficit but a genuine COIN FLIP (71 lost, 74 won, both tails ~1.6):\n"
+        "       the framework's own home dimension is high-variance, not neutral.\n"
+        "       Every structural explanation for the bimodality is dead (see\n"
+        "       `dimension_shape`) — the variance is in what the reply SAYS, so read\n"
+        "       `judge_notes.py`, not more counts."
+    )
     print(
         "  -> 11 of 12 lose on a resolved interval, so this is not one bad subscale.\n"
         "     The ORDER is the diagnosis: the largest losses are the base model's own\n"
