@@ -3858,3 +3858,120 @@ class TestThePrimaryEndpointIsPrinted:
         ]
         text = render_report([], comparisons, {}, ["weak"])
         assert "On the primary endpoint instead" in text
+
+
+class TestDurabilityUnderPressure:
+    """Level at the opening, losing it all under pushback, and no row showed it.
+
+    r16's biggest effect by a factor of two: composite +0.56 in `decide` against
+    −0.67 in the follow-ups, a within-replicate change of −1.22. A table that
+    pools the sessions cannot distinguish "worse throughout" from "as good until
+    challenged" — and those call for opposite fixes, so the pooled −0.37 pointed
+    at neither.
+    """
+
+    @staticmethod
+    def _pair(replicate: int, session: str, gap: float) -> Comparison:
+        return Comparison(
+            scenario_key="probe",
+            tier="weak",
+            replicate=replicate,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1_7,
+            x_arm=Arm.A2 if replicate % 2 else Arm.A1_7,
+            session_label=session,
+            scores={"a": (3 + int(gap), 3), "b": (3 + int(gap), 3)},
+        )
+
+    def test_branches_do_not_double_count_their_shared_opening(self):
+        """The unit is the REPLICATE; branches share one `decide` cell.
+
+        Pairing each branch against it separately reuses one number twice — on
+        r16 that inflates an honest n=3 to a confident-looking n=6 and narrows
+        the interval by ~sqrt(2) for nothing.
+        """
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for rep in (1, 2, 3):
+            d.add(self._pair(rep, "decide", 1))
+            d.add(self._pair(rep, "wobble_a", -1))
+            d.add(self._pair(rep, "wobble_b", -1))
+        assert len(d.pressure_changes("weak")) == 3, "one change per replicate"
+        assert d.pressure_change("weak") == pytest.approx(-2.0)
+
+    def test_the_branches_are_averaged_not_dropped(self):
+        """Both branches inform the replicate's follow-up level."""
+        d = Deltas(Arm.A2, Arm.A1_7)
+        d.add(self._pair(1, "decide", 0))
+        d.add(self._pair(1, "wobble_a", -2))
+        d.add(self._pair(1, "wobble_b", 0))
+        assert d.pressure_changes("weak") == [pytest.approx(-1.0)]
+
+    def test_a_replicate_without_a_follow_up_contributes_nothing(self):
+        """No pushback, no durability claim — it must not read as zero change."""
+        d = Deltas(Arm.A2, Arm.A1_7)
+        d.add(self._pair(1, "decide", 1))
+        assert d.pressure_changes("weak") == []
+
+    def test_the_pooled_row_hides_it(self):
+        """The reason this row exists, asserted rather than described.
+
+        Gains at the opening and equal losses under pressure average to nothing:
+        the composite reads ~0 while the durability change is large.
+        """
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for rep in (1, 2, 3):
+            d.add(self._pair(rep, "decide", 2))
+            d.add(self._pair(rep, "wobble_a", -2))
+        assert d.composite("weak") == pytest.approx(0.0)
+        assert (d.pressure_change("weak") or 0) == pytest.approx(-4.0)
+
+    def test_a_consistent_but_unresolved_change_is_not_claimed(self):
+        """The r16 case exactly: same sign 3/3, interval still covering zero.
+
+        The report must say so instead of reporting the mean, because "every
+        replicate moved the same way" is the most persuasive-sounding version of
+        an underpowered result.
+        """
+        d = Deltas(Arm.A2, Arm.A1_7)
+        for c in _pressure_comparisons():
+            d.add(c)
+        changes = d.pressure_changes("weak")
+        assert all(c < 0 for c in changes), changes
+        ci = d.pressure_ci("weak")
+        assert ci is not None and ci[0] < 0 < ci[1], f"expected unresolved: {ci}"
+        text = render_report([], _pressure_comparisons(), {}, ["weak"])
+        assert "Consistent sign is a REASON to power it" in text
+
+    def test_a_resolved_change_is_named_as_a_separate_claim(self):
+        """Durability is not the same claim as the average, and must not merge."""
+        d = Deltas(Arm.A2, Arm.A1_7)
+        comparisons = []
+        for rep in (1, 2, 3, 4):
+            comparisons += [self._pair(rep, "decide", 2), self._pair(rep, "wobble_a", -2)]
+        for c in comparisons:
+            d.add(c)
+        ci = d.pressure_ci("weak")
+        assert ci is not None and ci[1] < 0
+        text = render_report([], comparisons, {}, ["weak"])
+        assert "RESOLVED: the arms are not equally durable" in text
+
+    def test_it_is_rendered_with_both_levels(self):
+        """Opening AND follow-up: the change alone cannot say who moved."""
+        text = render_report([], _pressure_comparisons(), {}, ["weak"])
+        assert "under pressure" in text
+        assert "opening" in text and "follow-up" in text
+        assert "replicates=3" in text
+
+
+def _pressure_comparisons() -> list[Comparison]:
+    """r16's shape: every replicate down, spread too wide to resolve at n=3.
+
+    Changes of -1/-1/-3 give mean -1.67 with sd 1.15, so t=4.30 at n=3 puts the
+    interval across zero — the r16 signature, where consistency reads as evidence
+    and is not.
+    """
+    out: list[Comparison] = []
+    for rep, (dec, wob) in enumerate(((1, 0), (1, 0), (1, -2)), start=1):
+        out.append(TestDurabilityUnderPressure._pair(rep, "decide", dec))
+        out.append(TestDurabilityUnderPressure._pair(rep, "wobble_a", wob))
+    return out

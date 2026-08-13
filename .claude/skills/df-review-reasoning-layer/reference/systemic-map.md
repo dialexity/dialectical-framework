@@ -212,6 +212,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   hand-computed in the README for exactly one run, which is how "read this delta as underpowered" ended up as an
   after-the-fact paragraph instead of a printed interval. Locked by
   `test_bench.py::TestThePrimaryEndpointIsPrinted`.
+- **The framework arm is LEVEL at the opening and loses it under pushback — a durability defect, not a quality
+  one, and no pooled table can show it.** Splitting r16's composite by session: opening (`decide`) **+0.56**,
+  follow-up (`wobble_*`) **-0.67**, a within-replicate change of **-1.22** — twice the size of anything else in
+  the run, and invisible in the pooled -0.37 because gains at the opening and losses under pressure average to
+  nothing. Per-arm levels agree: A2 goes 3.89 -> 3.38 across the pushback boundary while A1.7 goes 3.96 -> 4.04.
+  The subscales that fall hardest are `actionability` (-1.50), `convergence` (-1.33), `paired_recipe` (-0.84).
+  **It does not resolve at n=3** (sd 0.83, CI [-3.29,+0.85]) and the report says so instead of reporting the mean:
+  all three replicates moving the same way is the most persuasive-sounding form of an underpowered result. Unit is
+  the REPLICATE, not the branch — `wobble_a`/`wobble_b` share one `decide` cell, so pairing each separately reuses
+  one number twice and narrows the interval by ~sqrt(2) for free. For prompt review this reframes the target:
+  the Advisor engine has **no hold-your-ground guidance anywhere** (no "pushback", "concede", "challenge" surface
+  in `advisor/system_prompts.py`), while the pre-commit ritual teaches stating the cost as a flat price with an
+  explicit warning against remedies — so the reasoning most at risk under pressure is exactly the part with no
+  prompt support. Two hypotheses REFUTED by the same data, recorded so they are not re-proposed: (a) context
+  flooding from weaving (flooded cells -0.528 vs unflooded -0.694 — flooded did better); (b) "A2 abandons the
+  causal mechanism under pushback", which I inferred by reading `entanglement` judge notes as prose — decoded
+  through `x_arm` (X is A2 in only half the cells by design) the weakness phrases attribute **8 to A1.7 and 6 to
+  A2**. **Never read judge notes without decoding `x_arm`.** Locked by
+  `test_bench.py::TestDurabilityUnderPressure`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
   `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt

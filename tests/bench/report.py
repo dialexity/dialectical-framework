@@ -123,6 +123,17 @@ class Deltas:
         #: resolve at feasible cost — and until 2026-08-13 the report did not
         #: print it, so it was hand-computed in the README for exactly one run.
         self._composite: dict[str, list[float]] = defaultdict(list)
+        #: tier -> replicate -> session label -> that cell's composite. Kept
+        #: because the largest effect in r16 is not in any dimension row: the
+        #: arms are LEVEL in `decide` (composite +0.56) and the framework arm
+        #: loses the whole deficit under pushback (−0.67), a within-replicate
+        #: change of −1.22. That is a degradation-under-pressure effect, and it
+        #: is invisible in a table that pools the sessions. Replicate is the unit
+        #: because branches share their `decide` cell — treating each branch as
+        #: independent double-counts it and shrinks the interval by ~sqrt(2).
+        self._by_replicate: dict[str, dict[int, dict[str, float]]] = defaultdict(
+            lambda: defaultdict(dict)
+        )
 
     def add(self, comparison: Comparison) -> None:
         if comparison.error:
@@ -131,9 +142,11 @@ class Deltas:
             self._gaps[comparison.tier][dimension].append(a - b)
             self._by_session[comparison.session_label or "?"][dimension].append(a - b)
         if comparison.scores:
-            self._composite[comparison.tier].append(
-                _mean([a - b for a, b in comparison.scores.values()]) or 0.0
-            )
+            cell = _mean([a - b for a, b in comparison.scores.values()]) or 0.0
+            self._composite[comparison.tier].append(cell)
+            self._by_replicate[comparison.tier][comparison.replicate][
+                comparison.session_label or "?"
+            ] = cell
 
     def composite(self, tier: str) -> Optional[float]:
         """Mean over pairs of the pair's own across-dimension mean."""
@@ -148,6 +161,51 @@ class Deltas:
 
     def composite_sd(self, tier: str) -> Optional[float]:
         return _stdev(self._composite.get(tier, []))
+
+    #: The session label that is the baseline for the pressure comparison. Every
+    #: other label in a replicate is a follow-up applying pushback.
+    OPENING_SESSION = "decide"
+
+    def pressure_changes(self, tier: str) -> list[float]:
+        """Per replicate: (mean composite over follow-ups) − (opening composite).
+
+        One value per REPLICATE, not per branch. `wobble_a` and `wobble_b` share
+        the same `decide` cell, so pairing each branch against it separately
+        reuses one number twice: on r16 that turns an honest n=3 into a
+        confident-looking n=6 and narrows the interval by ~sqrt(2) for free.
+        Averaging the branches within a replicate keeps the unit independent.
+        """
+        out: list[float] = []
+        for _rep, by_session in sorted(self._by_replicate.get(tier, {}).items()):
+            opening = by_session.get(self.OPENING_SESSION)
+            follow = [v for k, v in by_session.items() if k != self.OPENING_SESSION]
+            if opening is None or not follow:
+                continue
+            out.append((_mean(follow) or 0.0) - opening)
+        return out
+
+    def pressure_change(self, tier: str) -> Optional[float]:
+        return _mean(self.pressure_changes(tier))
+
+    def pressure_ci(self, tier: str) -> Optional[tuple[float, float]]:
+        return _ci95(self.pressure_changes(tier))
+
+    def opening_composite(self, tier: str) -> Optional[float]:
+        return _mean(
+            [
+                by[self.OPENING_SESSION]
+                for by in self._by_replicate.get(tier, {}).values()
+                if self.OPENING_SESSION in by
+            ]
+        )
+
+    def followup_composite(self, tier: str) -> Optional[float]:
+        vals: list[float] = []
+        for by in self._by_replicate.get(tier, {}).values():
+            follow = [v for k, v in by.items() if k != self.OPENING_SESSION]
+            if follow:
+                vals.append(_mean(follow) or 0.0)
+        return _mean(vals)
 
     def sessions(self) -> list[str]:
         return sorted(self._by_session)
@@ -1230,6 +1288,32 @@ def render_report(
             add("   Every dimension row below is a SUBSCALE of this: 12 repeated")
             add("   measures on the same pairs, so they cannot be pooled as 12x")
             add("   the evidence, and each is individually noisier than this row.")
+            # Opening vs under-pressure, within replicate. On r16 this is the
+            # largest effect in the whole run and no table showed it: level in
+            # `decide`, the entire deficit appearing only after pushback. A
+            # pooled row cannot distinguish "worse throughout" from "as good
+            # until challenged", and those call for opposite fixes.
+            for tier in tier_order:
+                changes = d.pressure_changes(tier)
+                if len(changes) < 2:
+                    continue
+                ci = d.pressure_ci(tier)
+                op, fu = d.opening_composite(tier), d.followup_composite(tier)
+                add("")
+                add(f"  under pressure ({tier}) — opening vs follow-up sessions:")
+                add(
+                    f"    opening {_fmt(op)}   follow-up {_fmt(fu)}   "
+                    f"change {_fmt(d.pressure_change(tier))}  "
+                    f"replicates={len(changes)}  {_fmt_ci(ci)}"
+                )
+                if ci and (ci[0] > 0 or ci[1] < 0):
+                    add("    RESOLVED: the arms are not equally durable under")
+                    add("    pushback, which is a different claim from the row above.")
+                elif all(c < 0 for c in changes) and (d.pressure_change(tier) or 0) < 0:
+                    add("    Every replicate moved the same way and the interval")
+                    add("    still covers zero — the classic too-few-replicates")
+                    add("    signature. Consistent sign is a REASON to power it,")
+                    add("    never a substitute for having done so.")
             add("")
         header = f"{'dimension':24}" + "".join(
             f"{t:>12}{'  n':>4}{'  95% CI':>17}" for t in tier_order

@@ -1202,6 +1202,52 @@ reachable at any run size this bench has used. So either the run buys ~19+ pairs
 to be big enough to clear 0.5 steps. There is no third option, and no amount of
 re-judging creates one.
 
+#### The biggest effect in r16 was in no table: A2 is level, then loses it under pushback
+
+Once the composite existed, splitting it by session found an effect **twice the
+size of anything else in the run** — and the pooled table could not show it,
+because gains at the opening and losses under pressure average to nothing:
+
+| composite (A2 − A1.7) | value |
+|---|---|
+| opening (`decide`) session | **+0.56** |
+| follow-up (`wobble_*`) sessions | **−0.67** |
+| within-replicate change | **−1.22** (sd 0.83, n=3) |
+| 95% CI on the change | **[−3.29, +0.85]** — does *not* resolve |
+
+Read plainly: **the framework arm is not behind at the opening — it is slightly
+ahead — and the entire r16 deficit appears only after the person pushes back.**
+The per-arm levels say the same thing from the other side: A2 goes 3.89 → 3.38
+across the pushback boundary (−0.51) while A1.7 goes 3.96 → 4.04 (+0.08). The
+subscales that fall hardest are `actionability` (−1.50), `convergence` (−1.33) and
+`paired_recipe` (−0.84).
+
+**And it does not resolve at n=3.** All three replicates moved the same way, which
+is the most persuasive-sounding version of an underpowered result; with t=4.30 the
+interval still crosses zero. The report now prints exactly that sentence rather
+than the mean. Note the unit: **replicates, not branches** — `wobble_a` and
+`wobble_b` share one `decide` cell, so pairing each against it separately reuses
+one number twice and turns an honest n=3 into a confident-looking n=6 (interval
+narrower by ~√2 for free). The report averages branches within a replicate.
+
+This is now the sharpest r17 target on the board: a pooled −0.37 pointed at
+nothing in particular, while "as good until challenged, then worse" points at the
+pushback turns specifically. Powering *this* comparison is cheaper than powering
+the pooled one — the change is −1.22 against sd 0.83, so ~5 replicates would
+resolve it, against ~19 pairs for a 0.5-step pooled effect.
+
+**Two hypotheses of mine that my own data refuted, recorded so they are not
+re-proposed.** (1) *Context flooding* — that weaving buried the person's
+particulars: flooded cells scored **−0.528** against unflooded **−0.694**, so
+flooded did *better*. (2) *"A2 abandons the causal mechanism under pushback"* — I
+read the `entanglement` judge notes as prose and saw "drops the mechanism",
+"concedes it quickly", "restates the risk as a price" and inferred A2 was losing
+the control-statement ("T+ without A+ yields T−") that the rubric's 4–5 band
+describes. Decoding X/Y properly — X is A2 in only half the cells by design — the
+weakness phrases attribute **8 to A1.7 and 6 to A2**. The prompt has no
+hold-your-ground guidance at all, which is still a real gap worth closing, but
+r16 does not evidence it. Read judge notes through `x_arm`, never as prose.
+
 ### Harness defects found by audit (2026-08-11), and what they invalidate
 
 Three auditors read `scoring`/`models`, `judge`/`report`, and
