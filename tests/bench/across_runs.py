@@ -841,6 +841,16 @@ class LadderCell(NamedTuple):
     artifact_expected: bool
     #: The arm was never exercised (dead turns / A2 built nothing).
     invalid: bool
+    #: Decisions recorded on the graph, and how many the coherence audit FLAGGED.
+    #: A reported DIAGNOSTIC, never folded into either co-primary: it is a
+    #: product signal on a product fix, and letting it into a pre-registered
+    #: endpoint after the fact would be the framework grading its own homework.
+    #: `audited` is separate from `decisions` because the check is fail-soft —
+    #: a decision carrying no verdict is the check erroring, not clearing it, and
+    #: pooling the two would read a silent failure as a sound record.
+    decisions: int = 0
+    audited: int = 0
+    flagged: int = 0
 
 
 def ladder_cells() -> list[LadderCell]:
@@ -877,6 +887,13 @@ def ladder_cells() -> list[LadderCell]:
                     carried=scores.survival.present,
                     artifact_expected=CARRYOVER.get(Arm(arm), "none") != "none",
                     invalid=bool(run and run.invalid_as_evidence),
+                    decisions=len(run.decision_hashes) if run else 0,
+                    audited=(
+                        sum(1 for v in run.decision_verdicts if not v.endswith(":none"))
+                        if run
+                        else 0
+                    ),
+                    flagged=len(run.audit_flagged_decisions) if run else 0,
                 )
             )
     return cells
@@ -1132,6 +1149,39 @@ def _ladder_block(cells: list[LadderCell]) -> None:
             print(
                 "    break    not scored: no pair has a stance verdict on both "
                 "sides (judge the lane first)"
+            )
+
+    # -- DIAGNOSTIC, not an endpoint ---------------------------------------
+    # Only A2 can produce it (a prose arm has no graph to audit), so it is not a
+    # comparison and cannot be a co-primary. It answers the question `carried`
+    # is blind to from inside the product instead of from the transcript: was the
+    # risk written down as REFUTED rather than as carried? Printed last so it is
+    # never mistaken for the pre-registered pair, and printed at all because a
+    # flag beside `carried yes` is the same finding the pair exists to surface.
+    a2 = [c for c in cells if c.arm == "A2"]
+    decisions = sum(c.decisions for c in a2)
+    if decisions:
+        audited = sum(c.audited for c in a2)
+        flagged = sum(c.flagged for c in a2)
+        print()
+        print(f"    DIAGNOSTIC (A2 only, not an endpoint): {decisions} decision(s)")
+        if not audited:
+            # NOT "the check erred": a run saved before `decision_verdicts`
+            # existed has nothing to report, and calling that an error would
+            # invent a defect out of the archive's own age.
+            print(
+                "      no verdicts saved: this run predates verdict capture, so "
+                "the rationale-integrity rate cannot be read from it"
+            )
+        else:
+            if audited < decisions:
+                print(
+                    f"      {decisions - audited} carry NO audit verdict — the check "
+                    "is fail-soft, so that is it erroring, not clearing the record"
+                )
+            print(
+                f"      rationale FLAGGED by the audit: {flagged}/{audited} "
+                "(a risk recorded as refuted, a duplicate, or an ungrounded cost)"
             )
 
 

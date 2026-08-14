@@ -4983,6 +4983,75 @@ class TestTheLaddersPairedAnalysis:
         # The depths differ by tier; a pooled mean would show neither.
         assert "A2 1.00" in text and "A2 3.00" in text
 
+    def test_the_audit_diagnostic_is_printed_apart_from_the_endpoints(self):
+        """It answers what `carried` is blind to, and must not become a primary.
+
+        `carried` finds the risk's VOCABULARY, so an artifact recording "the
+        concentration risk was considered and dismissed" scores as carried. The
+        audit's verdict sees exactly that shape — but only A2 has a graph to
+        audit, so it is not a comparison and cannot be a co-primary without
+        letting the framework grade its own homework on a pre-registered
+        endpoint. Printed last, labelled, and with the pre-capture and
+        check-errored cases distinguished.
+        """
+        from bench.across_runs import LadderCell, _ladder_return
+
+        def cell(arm, rep, *, decisions=0, audited=0, flagged=0):
+            return LadderCell(
+                stem="probe",
+                arm=arm,
+                tier="weak",
+                scenario_key="cofounder_ladder_return",
+                replicate=rep,
+                break_depth=2,
+                carried=True,
+                artifact_expected=True,
+                invalid=False,
+                decisions=decisions,
+                audited=audited,
+                flagged=flagged,
+            )
+
+        def render(cells):
+            buf = io.StringIO()
+            with (
+                mock.patch("bench.across_runs.ladder_cells", return_value=cells),
+                contextlib.redirect_stdout(buf),
+            ):
+                _ladder_return()
+            return buf.getvalue()
+
+        # A flag, with the audited denominator — not the decision count.
+        text = render(
+            [
+                cell("A2", "1", decisions=1, audited=1, flagged=1),
+                cell("A2", "2", decisions=1, audited=1, flagged=0),
+                cell("A1.7", "1"),
+                cell("A1.7", "2"),
+            ]
+        )
+        assert "DIAGNOSTIC (A2 only, not an endpoint): 2 decision(s)" in text
+        assert "rationale FLAGGED by the audit: 1/2" in text
+        # It sits AFTER both co-primary blocks, so it cannot be read as one.
+        assert text.index("DIAGNOSTIC") > text.index("break    A2")
+
+        # A run predating capture says so rather than reading as zero flags.
+        text = render([cell("A2", "1", decisions=1), cell("A1.7", "1")])
+        assert "predates verdict capture" in text
+        assert "FLAGGED" not in text
+
+        # A fail-soft error is neither a pass nor a missing capture.
+        text = render(
+            [cell("A2", "1", decisions=2, audited=1, flagged=0), cell("A1.7", "1")]
+        )
+        assert "1 carry NO audit verdict" in text
+        assert "erroring, not clearing the record" in text
+        assert "rationale FLAGGED by the audit: 0/1" in text
+
+        # A prose-only lane prints no diagnostic at all — nothing to audit.
+        text = render([cell("A1.7", "1"), cell("A1.7", "2")])
+        assert "DIAGNOSTIC" not in text
+
     def test_pairs_match_on_the_replicate_and_drop_the_unmatched(self):
         """A shrunken pool must be visible, so unmatched cells are dropped here
         and counted by the caller rather than silently pooled as independent."""
