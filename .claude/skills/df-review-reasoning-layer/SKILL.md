@@ -180,6 +180,13 @@ anchors.
   **This is the primary net; add a case here when your edit touches a shared constant, a gate, a taxonomy, or cross-agent wording.**
 - **Behavioral vocabulary (real provider):** `poetry run pytest tests/test_prompt_vocabulary.py --real-llm`
   — thin (one Analyst "blindspot" check); extend it when reviewing user-facing vocabulary.
+- **Behavioral discrimination (real provider):** when a rule's whole value is telling two cases APART, a structural
+  assertion cannot show it and the mock brain cannot either (it auto-fills the verdict field, so a mocked run shows
+  neither firing nor declining to fire). Test it as a PAIR built from the same facts, at the WEAK tier, and assert
+  the contrast in one test — an auditor that flags everything passes half the bar and is useless; one that flags
+  nothing passes the other half and is the bug. Reference: `tests/test_decision_rationale_integrity_weak_tier.py`
+  (a risk recorded as refuted vs. the same risk recorded as carried). Watch the fixture, not just the prompt: the
+  first run of that test failed on a scope-wide `find_all_active()` duplicate rather than on the rule under test.
 - **Known coverage gaps** (see reference §6): no cross-agent consistency test, agent-prompt hand-typed scales
   untested for agreement, taxonomy dict-vs-table lockstep untested, no app/engine boundary test, personas
   untested. If your edit lands in one of these, add the missing regression rather than relying on manual review.

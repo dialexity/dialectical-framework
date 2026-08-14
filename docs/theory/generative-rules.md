@@ -94,6 +94,15 @@ coherence metric), neutral-T variant (2026-07-31, via `ASPECT_DEFINITIONS`, lock
 constraint (2026-07-31, locked by `TestBackfireConstraint`). The "S+ without lower-layer support
 yields S−" TODO in `synthesis_generation.py` is Rule 7 material (control-statement *style* at
 synthesis level, no paper 3.3 anchor), tracked there.
+Downstream application, NOT a further encoding of the rule (2026-08-14): `DecisionCoherenceCheck`'s
+fourth check flags a decision rationale that records a risk as *refuted* rather than as *carried*.
+The connection to this rule is real but one-directional — the minus is what the chosen side
+degenerates into when the opposing plus is absent, so it is structurally entailed and cannot be
+argued out of existence; a rationale asserting it is void contradicts the tetrad the decision was
+read from. What the check actually judges, though, is the record's own claims, not tetrad
+coherence, and it scores nothing. So it belongs in the prompt map (see the `df-review-reasoning-layer`
+reference, "A risk RECORDED AS REFUTED"), not in this rule's status: do not read it as a second
+site verifying Rule 3.3.
 
 ### Rule 3.4: Ontology profiling (MMI-driven tetrad selection)
 **Theory:** S± outcomes depend on worldview assumptions estimable via empirical indices; the same

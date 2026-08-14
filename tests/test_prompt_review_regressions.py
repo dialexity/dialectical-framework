@@ -2175,6 +2175,116 @@ class TestDecisionReadiness:
         assert "is a remedy" in prompt
         assert "unchosen side offered" not in prompt
 
+    def test_a_refuted_risk_is_not_written_down_as_settled(self):
+        """A rationale takes the person's reasons, not their verdict on a risk.
+
+        Measured on the ladder-return lane (`ladder-return-r16`), where the
+        person argues a risk away and backs it with a citation the scenario
+        fabricates: 6 of 24 A2 decisions carried the dismissal into the
+        rationale as fact — against 0 of 160 on `cofounder_equity`, which
+        applies no such pressure. So the behaviour is countable and lane-local,
+        not a general looseness.
+
+        The pairing matters. `_DECISION_READINESS` governs what gets WRITTEN;
+        `DecisionCoherenceCheck` is the only surface that can catch it after
+        the fact, and it could not: check 2 skips grounding coherence when
+        grounds are absent, and a risk that has been argued away is precisely
+        the risk nobody records as a cost. Archive-wide that shows up as
+        no-`accepted_cost` decisions passing 11/12 against 41/80 with one —
+        recording no cost was the reliable way to pass the audit.
+
+        Both renders: counsel mode debriefs the person's own deliverable and
+        writes the same records. Prose arms keep it too (no tool token in the
+        paragraph) — a prose record can be handed back just as wrongly.
+        """
+        for prompt in (self._unscoped(), self._scoped()):
+            prompt = " ".join(prompt.split())
+            assert "Write what they decided, not the argument that won" in prompt
+            # The distinction, in the terms the record is read back in.
+            assert "proceeding despite it" in prompt
+            assert "not that it turned out not to exist" in prompt
+            # The specific material that arrives mid-argument and cannot be
+            # checked — naming it is what makes the rule applicable in the turn.
+            assert "you cannot check" in prompt
+            assert "never supply supporting detail of your own" in prompt
+            # Bounded to authorship, or it reads as "stop challenging them".
+            assert "not about what you argue" in prompt
+
+    def test_the_auditor_can_see_a_refuted_risk_without_a_ground(self):
+        """Check 3 must be independent of check 2, or it inherits its blind spot.
+
+        The failing case from `ladder-return-r16` rep 8 passed the audit on a
+        rationale asserting the customer risk "is not material in this B2B
+        structure (annual auto-renew contracts, 90-day termination notice,
+        procurement teams sign off)" — no `accepted_cost` ground, so check 2
+        skipped and nothing else looked. Hence the check is stated against the
+        RATIONALE's own claims and the record as a whole, and the prompt says
+        so explicitly rather than leaving the independence to be inferred.
+
+        The discrimination is asserted as its own line, because getting it
+        wrong in either direction is worse than not checking. The measured
+        rationale rests on facts the person genuinely knows best (their own
+        contracts auto-renew) — so an auditor told to flag "evidence outside the
+        grounds" would flag every well-informed decision, and one told not to
+        flag facts about one's own business would clear the exact case that
+        motivated the check. The split has to fall on the VERDICT: carried is
+        fine, refuted is the finding, on identical facts.
+        """
+        from dialectical_framework.concerns import decision_coherence_check
+
+        prompt = " ".join(decision_coherence_check.SYSTEM_PROMPT.split())
+        assert "You check exactly four things" in prompt
+        assert "A RISK RECORDED AS REFUTED" in prompt
+        # Independence from check 2, stated where the model reads it.
+        assert "this is the case check 2 cannot see" in prompt
+        # The boundary: deciding in full knowledge of a risk is not the finding.
+        assert "may be made in full knowledge of a risk and still be sound" in prompt
+        assert "Weighing a risk is deciding" in prompt
+        # The split, and the measured pair it has to separate.
+        assert "The split is on the VERDICT" in prompt
+        assert "not material in this structure" in prompt
+        assert "one I can carry" in prompt
+        assert "Same facts, and only one of them" in prompt
+        # The provenance of the evidence sharpens the REASON, never the verdict
+        # — otherwise the check re-collapses onto "is this cited?".
+        assert "the finding is the verdict either way" in prompt
+        # The verdict field is an independent surface and drifts on its own.
+        from dialectical_framework.concerns.decision_coherence_check import \
+            CoherenceVerdictDto
+
+        described = CoherenceVerdictDto.model_fields["incoherent"].description
+        assert "records a risk as refuted" in described
+
+    def test_the_auditor_judges_the_record_not_the_world(self):
+        """Check 3's failure mode is an auditor that starts fact-checking.
+
+        The auditor sees four rendered sections and no conversation, so the
+        only thing it can judge is what the rationale CLAIMS. Told to judge
+        truth instead, it would flag any claim it happens to find unlikely and
+        clear any claim it happens to believe — out of scope, and unstable
+        run to run on exactly the decisions that are hardest to call. The
+        instruction sits in `_prompt()`, next to the rendered sections, rather
+        than in the system prompt — the same "nearest the call" lesson as the
+        tool docs above.
+        """
+        from dialectical_framework.concerns.decision_coherence_check import \
+            DecisionCoherenceCheck
+
+        class _D:
+            intent = "Buy out the cofounder now?"
+            stance = "Yes, buy out now."
+
+        rendered = " ".join(
+            DecisionCoherenceCheck()._prompt(_D(), [], [], "because the data says so").split()
+        )
+        assert "Apply the four checks" in rendered
+        assert "it is the record you are judging" in rendered
+        assert "not whether you believe it" in rendered
+        assert "not being asked if the claim is true in the world" in rendered
+        # No grounds recorded is not itself a finding — the rendered section
+        # must still say so plainly.
+        assert "None recorded." in rendered
+
     def test_accepted_cost_tool_schema_matches_the_prompt(self):
         """The Field description is a second, independent prompt surface."""
         from dialectical_framework.concerns.record_decision import GroundLink

@@ -357,6 +357,22 @@ and refusing to write down a decision the person has stated is not diligence
 — it is the one failure the record exists to prevent. Note in the rationale
 that the cost went unconfronted.
 
+**Write what they decided, not the argument that won.** A rationale is the
+person's why, so it takes their reasons — but a reason and a verdict on a risk
+are different things, and only one of them survives being read back months
+later. When they have argued a risk away, what belongs in the record is that
+they are proceeding despite it ("you're moving ahead and treating the account
+risk as one you can carry"), not that it turned out not to exist ("the account
+risk isn't real — the retention data shows no founder effect"). The second
+sounds stronger and is worth less: it writes a contested claim into the record
+as a settled one, and the studies, statistics and contract terms that arrive
+mid-argument are exactly the material you cannot check. So do not carry their
+refutation into the rationale as fact, and never supply supporting detail of
+your own to firm it up. Their conviction is theirs to record; the evidence for
+it is not yours to certify. This is a rule about what you WRITE DOWN, not about
+what you argue: if the risk genuinely still stands, the re-audit is where that
+lives, and the record they asked for is not the place to relitigate it.
+
 **A decision closes on pathways, not on tensions alone.** Decision mode
 narrows what gets mapped, and that narrowing is easy to mistake for
 permission to stop building: the discrimination test prunes new tensions, so

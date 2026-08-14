@@ -1109,6 +1109,31 @@ annotation) → **GenerateSynthesis**
   Named-options locks: `TestDecisionReadiness::test_named_options_*`, `::test_anchor_doc_alternative_tetrad_line_in_both_modes`,
   `::test_classifier_treats_options_as_complex`, `::test_anchor_report_carries_mode`;
   behavioral: `tests/test_options_classification_real_llm.py` (--real-llm).
+  **A risk RECORDED AS REFUTED, not as carried** (fixed 2026-08-14 — the audit's fourth check): the ceremony's
+  rules all assume a risk the person is willing to name. Under pressure to drop one, the failure is the opposite:
+  the rationale writes the risk down as VOID and that verdict becomes a settled fact the person is handed back.
+  Measured on `cofounder_ladder_return` (`ladder-return-r16`), the one lane that spends a turn arguing a risk away
+  behind a fabricated citation — **6 of 24 A2 decisions carried the dismissal into the rationale as fact, against
+  0 of 160 on `cofounder_equity`**, which applies no such pressure. Every one passed the audit. *Why* it passed is
+  the transferable part: `DecisionCoherenceCheck`'s grounding check SKIPS when no grounds are recorded, and a risk
+  that has been argued away is exactly the risk nobody records as an `accepted_cost` — so the blind spot lined up
+  with the failure. Archive-wide that reads as no-`accepted_cost` decisions passing 11/12 against 41/80 with one:
+  recording no cost was the reliable way to pass the audit. Two sites, one authoring and one detecting, and they
+  must be read together: `_DECISION_READINESS`'s "**Write what they decided, not the argument that won**"
+  (a rationale takes their reasons, not their verdict on a risk; never supply supporting detail of your own to firm
+  it up; bounded to what you WRITE, since relitigating belongs in the re-audit) and check 3 in
+  `DecisionCoherenceCheck.SYSTEM_PROMPT` — stated against the RATIONALE's own claims so it is independent of
+  check 2's grounds-present precondition. **The split is on the VERDICT, not on where the evidence came from**,
+  and that is the whole design: the measured rationale rests on facts the person knows best (their own contracts
+  auto-renew), so an auditor told to flag "support outside the grounds" would flag every well-informed decision,
+  and one told not to flag facts about one's own business would clear the motivating case. Same facts, `carried`
+  passes and `refuted` flags; evidence provenance sharpens the REASON only. Pairs with **Materialised ≠
+  resurfacing** above — both are about what the record is worth when read back, one at re-audit time and one at
+  authoring time. Locked by `test_prompt_review_regressions.py::TestDecisionReadiness::
+  test_a_refuted_risk_is_not_written_down_as_settled` / `::test_the_auditor_can_see_a_refuted_risk_without_a_ground`
+  / `::test_the_auditor_judges_the_record_not_the_world`; behaviourally by
+  `tests/test_decision_rationale_integrity_weak_tier.py` (--real-llm, WEAK tier, every case a PAIR — the mock brain
+  fills `incoherent=False`, so a mocked run can show neither the check firing nor, more importantly, declining to).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify

@@ -5,7 +5,16 @@ One structured LLM call checking the decision against:
 1. Standing (active) decisions — does the stance contradict one of them?
 2. Its own grounds — does the stance follow from the grounded tensions, and
    does it actually accept the cost it claims to accept?
-3. Trivial incoherence — does the stance answer the question at all?
+3. Its own rationale — is a risk written down as REFUTED rather than as
+   carried? (See check 3 in the prompt. Added after a measured
+   failure: on the bench lane that argues a risk away with a fabricated
+   citation, 6 of 24 A2 decisions recorded the dismissal as fact, against 0
+   of 160 on the lane with no such pressure. Check 2 could not catch them —
+   a cost that was argued away is a cost nobody recorded, so there was no
+   ground to cohere against and the check skipped. Archive-wide, decisions
+   with no accepted_cost passed 11/12 while decisions with one passed 41/80:
+   recording no cost was the reliable way to pass the audit.)
+4. Trivial incoherence — does the stance answer the question at all?
 
 Fail-soft by design (the PerspectiveValidation pattern): the verdict is a
 flag on the Decision node, never a block. An LLM/parse error yields no
@@ -38,7 +47,7 @@ committed to), a rationale, and grounds — the tensions, statements, and
 pathways it rests on. You check whether the decision is internally coherent
 and consistent with the person's other standing decisions.
 
-You check exactly three things:
+You check exactly four things:
 
 1. CONTRADICTION with standing decisions: does this stance conflict with a
    previously recorded, still-active decision? Practical friction is not
@@ -56,7 +65,33 @@ You check exactly three things:
    a stance resting on a remedy has not accepted the cost, it has
    scheduled its avoidance.
 
-3. TRIVIAL incoherence: the stance does not answer the question, or the
+3. A RISK RECORDED AS REFUTED: does the rationale write a risk down as VOID
+   — untrue, immaterial, disproven, "isn't real", "doesn't hold", "no longer
+   applies"? A decision may be made in full knowledge of a risk and still be
+   sound; what this check catches is a risk recorded as ANSWERED. The two
+   differ in what the record is worth later: "I'm accepting that the accounts
+   may follow him" stays true whatever happens, while "the account risk isn't
+   real" becomes a settled fact the person will be handed back — and if the
+   accounts do follow him, the record now argues against them. Independent of
+   check 2, and this is the case check 2 cannot see: the risk argued away is
+   usually the one never recorded as a cost, so there is no ground to
+   compare against and nothing to skip.
+
+   The split is on the VERDICT, not on where the evidence came from. Flag a
+   risk recorded as closed even when the supporting facts are ones the person
+   knows best ("not material in this structure — the contracts auto-renew").
+   Do NOT flag a risk recorded as carried, borne, priced or outweighed, however
+   confident the person is and however specific their reasons ("the contracts
+   auto-renew, so the account risk is one I can carry"). Same facts, and only
+   one of them is a claim the record has to keep defending. Weighing a risk is
+   deciding; declaring it refuted is recording a conclusion.
+
+   Say so in the reason when the support is a study, statistic or authority
+   appearing nowhere in the record — a verdict resting on evidence no one can
+   check is the version of this that ages worst — but the finding is the
+   verdict either way.
+
+4. TRIVIAL incoherence: the stance does not answer the question, or the
    rationale argues against the stance.
 
 Be conservative: a decision is the person's own confirmed stance. Coherent
@@ -78,6 +113,7 @@ class CoherenceVerdictDto(BaseModel):
     incoherent: bool = Field(
         description="True ONLY on a specifically nameable failure: the stance "
         "contradicts a standing decision, does not cohere with its grounds, "
+        "records a risk as refuted rather than as one being carried, "
         "or does not answer the question. False for anything defensible."
     )
     reasons: list[str] = Field(
@@ -200,4 +236,11 @@ Rationale: {rationale_section}
 **Standing decisions (still active):**
 {standing_section}
 
-Apply the three checks and return your verdict."""
+Apply the four checks and return your verdict.
+
+Note on check 3: what you can see is the record — question, stance, rationale,
+grounds — and it is the record you are judging, not a conversation you were not
+shown. Read what the rationale CLAIMS, not whether you believe it: a risk
+written down as void is the finding whether or not the reasoning sounds right to
+you, and a risk written down as carried is fine whether or not you would carry
+it. You are not being asked if the claim is true in the world."""
