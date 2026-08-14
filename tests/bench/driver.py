@@ -276,8 +276,10 @@ class BenchDriver:
         return "/".join(positions) if positions else "Statement"
 
     @classmethod
-    def _read_decisions(cls) -> tuple[list[str], list[str], list[str], list[str]]:
-        """Committed decisions + their accepted-cost and adopted-pathway grounds.
+    def _read_decisions(
+        cls,
+    ) -> tuple[list[str], list[str], list[str], list[str], list[str], list[str]]:
+        """Committed decisions + their grounds, rationales and audit verdicts.
 
         Requires an active scope. The typed ground is what the wobble scorer
         compares against — and the thing no prose journal has.
@@ -296,14 +298,34 @@ class BenchDriver:
         actually reads at wobble time takes the first line only. Comparing the
         model's citation against text it was never shown would understate
         citation and read as the record going unused.
+
+        The RATIONALE text and the audit VERDICT are read too (added 2026-08-14).
+        Neither was captured before, so the "a risk argued away is stored as
+        fact" rate had to be counted over assistant replies as a proxy — and a
+        proxy over the transcript cannot see what landed in the GRAPH, which is
+        the entire distinction that failure is about. The rationale is the one
+        field here stored as full text: it is a few sentences, it is the thing
+        under test, and a length flag would answer nothing.
         """
         hashes: list[str] = []
         costs: list[str] = []
         positions: list[str] = []
         pathways: list[str] = []
+        rationales: list[str] = []
+        verdicts: list[str] = []
         try:
             for decision in DecisionRepository().find_all_active():
                 hashes.append(decision.short_hash)
+                # "none" rather than omitting the row: a decision whose audit did
+                # not run (fail-soft LLM error) must not pool with one that passed.
+                verdicts.append(
+                    f"{decision.short_hash}:{decision.validation or 'none'}"
+                )
+                try:
+                    for why, _rel in decision.rationales.all():
+                        rationales.append(f"{decision.short_hash}: {why.text}")
+                except Exception:  # noqa: BLE001
+                    logger.exception("Reading rationales failed for %s", decision.hash)
                 try:
                     all_grounds = decision.grounds.all()
                     # Siblings disambiguate a shared minus's condition clause —
@@ -327,7 +349,7 @@ class BenchDriver:
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001
             logger.exception("Reading decisions failed")
-        return hashes, costs, positions, pathways
+        return hashes, costs, positions, pathways, rationales, verdicts
 
     @staticmethod
     def _graph_summary() -> str:
@@ -523,7 +545,14 @@ class BenchDriver:
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model
                 )
-                hashes, costs, positions, pathways = self._read_decisions()
+                (
+                    hashes,
+                    costs,
+                    positions,
+                    pathways,
+                    rationales,
+                    verdicts,
+                ) = self._read_decisions()
                 record.decision_hashes = sorted(
                     set(record.decision_hashes) | set(hashes)
                 )
@@ -535,6 +564,12 @@ class BenchDriver:
                 )
                 record.adopted_pathway_grounds = sorted(
                     set(record.adopted_pathway_grounds) | set(pathways)
+                )
+                record.decision_rationales = sorted(
+                    set(record.decision_rationales) | set(rationales)
+                )
+                record.decision_verdicts = sorted(
+                    set(record.decision_verdicts) | set(verdicts)
                 )
                 session.graph_summary = self._graph_summary()
             return session, journal

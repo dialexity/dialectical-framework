@@ -268,6 +268,24 @@ thing the measurement cannot support.
   for being judge-free. The `break_depth` column is the cover, and the report
   prints the caveat where the number is read.
 
+  **Partly covered from inside the product since 2026-08-14, and deliberately not
+  folded in.** `DecisionCoherenceCheck` gained a fourth check for exactly that
+  shape — a rationale recording a risk as *refuted* rather than as *carried* — and
+  `driver._read_decisions` now reads both the stored rationale text and
+  `Decision.validation` into `RunRecord.decision_rationales` /
+  `decision_verdicts` (reported under "Decision ceremony"). That is a **product**
+  signal, not a bench instrument: it costs an LLM call the product was already
+  making, but folding it into `carried` would (a) change a pre-registered endpoint
+  after the fact and (b) make the framework grade its own homework. It is reported
+  as a separate diagnostic, and a flag next to `carried yes` is the same finding
+  the co-primary pair exists to surface — an arm filing a risk it has conceded.
+
+  Before this, the "a risk argued away is stored as a fact" rate (6 of 24 vs 0 of
+  160 in the archive) had to be counted over **assistant replies**, which cannot
+  see what reached the graph — the entire distinction the failure is about. The
+  proxy is why the fix's endpoint is only measurable from this run forward; runs
+  predating the capture print "predates verdict capture" rather than a 0.
+
 ```bash
 # the lane, 12 replicates, weak tier — run the preflight first
 poetry run pytest tests/bench/test_bench_run.py::test_bench_preflight --real-llm -s
@@ -1616,10 +1634,10 @@ The framework arm really does write the record (80% of requests, p = 0.0033 — 
 below). Asking whether that *bought* anything judged, with the opponent held fixed at
 A1.7 and restricted to cells where a record was requested (`visibility_rows()`):
 
-| | `decision_closure` | `convergence` | `cross_turn_coherence` |
-|---|---|---|---|
-| record **exists on the graph** | +0.08 | +0.12 | −0.22 |
-| A2 **said so in the transcript** | **+0.27** | **+0.22** | **+0.20** |
+| | `earned_confidence` | `decision_closure` | `actionability` | `convergence` | `cross_turn_coherence` |
+|---|---|---|---|---|---|
+| record **exists on the graph** | −0.41 | +0.08 | — | +0.12 | −0.22 |
+| A2 **said so in the transcript** | **+0.70** | **+0.38** | **+0.22** | **+0.16** | **+0.11** |
 
 Existence buys nothing and its dimension ordering is incoherent (`earned_confidence`
 −0.41 the wrong way). Visibility tracks the loss cleanly, and in *exactly* the bimodal
@@ -1630,6 +1648,23 @@ and a refusal are the same turn — so the framework's one demonstrable advantag
 invisible in the dimension it should have won. `_DECISION_READINESS` already forbade
 the reverse error (prose with no call) and said nothing about a call with no prose;
 that is now fixed, pinned by `TestWhatTheJudgeSaidWasWrong`.
+
+The two dimensions where visibility reads the *wrong* way — `warmth` −0.16,
+`conversational_fit` −0.14 — are the uniform tax, which by construction does not care
+whether a record was mentioned. That they sit on the other side of zero is a small
+consistency check on the split, not a counter-finding.
+
+**These numbers are the corrected ones (2026-08-14).** `visibility_rows` keyed its
+spoken/silent label on `(stem, scenario)` until then, which let the last-iterated
+replicate's label stand for every replicate in the run — and **13 of the 20**
+request-carrying runs are mixed. The bug hid behind a counts-based invariant because
+the collapsed key still produced whole multiples of the dimension count; the key is now
+extracted as `visibility_cell_labels()` so it is testable on its own
+(`test_visibility_is_labelled_per_conversation`). The correction makes the reading
+STRONGER, not weaker — `earned_confidence` went +0.27 → +0.70 and `decision_closure`
++0.22 → +0.38 — so the `_DECISION_READINESS` visibility rule keeps its evidence. Worth
+saying because the direction was checked, not assumed: a defect found in a scorer that
+supports a live prompt rule is exactly where wishful arithmetic would go unnoticed.
 
 #### Two explanations that do NOT overturn it
 

@@ -1313,6 +1313,54 @@ class TestDecisionRecordCompleteness:
         assert "COMPLETE records (risk-grounded cost + pathway): 1/1" in text
 
 
+class TestAuditVerdictReporting:
+    """The audit's verdict is the endpoint of the rationale-integrity fix.
+
+    It is non-blocking by design (decisions are consent-first), so the report
+    must show it as a mark on the record with its reasons — and must never let
+    "the check errored" read as "the check cleared it".
+    """
+
+    def _audited(self, verdict: str):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor", "record_decision"])
+        run.decision_hashes = ["beef1"]
+        run.decision_rationales = ["beef1: Not material in this structure."]
+        run.decision_verdicts = [f"beef1:{verdict}"]
+        return run
+
+    def test_a_flag_is_reported_with_its_reason(self):
+        run = self._audited("failed: records a risk as refuted, not as carried")
+        assert run.audit_flagged_decisions == ["beef1"]
+
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "runs whose decisions carry an audit verdict: 1/1" in text
+        assert "runs with >=1 FLAGGED decision: 1/1" in text
+        assert "records a risk as refuted, not as carried" in text
+
+    def test_a_pass_is_not_a_flag(self):
+        run = self._audited("passed")
+        assert run.audit_flagged_decisions == []
+
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "runs with >=1 FLAGGED decision: 0/1" in text
+
+    def test_an_audit_that_never_ran_is_called_out_not_counted_as_a_pass(self):
+        run = self._audited("none")
+        assert run.audit_flagged_decisions == []
+
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "1 decision(s) carry NO verdict" in text
+        assert "not clearing the record" in text
+
+    def test_a_run_predating_capture_says_the_rate_cannot_be_read(self):
+        """The archive's existing runs. Silence here would read as 0 flags."""
+        run = _run(Arm.A2, "weak", tool_calls=["anchor", "record_decision"])
+        run.decision_hashes = ["beef1"]
+
+        text = render_report([run], [], {}, ["weak", "strong"])
+        assert "predates verdict capture" in text
+
+
 class TestRecordlessWobbleA:
     """Variant (a) without a record measures the CEREMONY, not the re-audit.
 
@@ -1596,13 +1644,22 @@ class TestReadDecisions:
         def all(self):
             return self._pairs
 
-    def _fake_repo(self, pairs):
+    class _Why:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    def _fake_repo(self, pairs, *, rationale: str | None = None, validation=None):
         outer = self
 
         class _Decision:
             short_hash = "dec1234"
             hash = "dec1234full"
             grounds = outer._Grounds(pairs)
+            rationales = outer._Grounds(
+                [] if rationale is None else [(outer._Why(rationale), None)]
+            )
+
+        _Decision.validation = validation
 
         class _Repo:
             def find_all_active(self):
@@ -1618,7 +1675,7 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "bench.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        hashes, costs, positions, pathways = BenchDriver._read_decisions()
+        hashes, costs, positions, pathways, _r, _v = BenchDriver._read_decisions()
 
         assert hashes == ["dec1234"]
         assert len(costs) == 1 and "Accounts may follow" in costs[0]
@@ -1635,7 +1692,7 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "bench.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        _hashes, costs, _positions, pathways = BenchDriver._read_decisions()
+        _h, costs, _p, pathways, _r, _v = BenchDriver._read_decisions()
         assert costs and pathways == []
 
     def test_unknown_roles_are_ignored(self, monkeypatch):
@@ -1644,8 +1701,45 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "bench.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        _hashes, costs, _positions, pathways = BenchDriver._read_decisions()
+        _h, costs, _p, pathways, _r, _v = BenchDriver._read_decisions()
         assert costs == [] and pathways == []
+
+    def test_the_rationale_text_and_the_verdict_are_read_off_the_graph(
+        self, monkeypatch
+    ):
+        """The endpoint the transcript cannot answer.
+
+        Whether a risk was written down as REFUTED is a property of the
+        rationale that landed on the Decision, not of anything the reply said —
+        so the rate was proxied over assistant text until this was captured.
+        """
+        monkeypatch.setattr(
+            "bench.driver.DecisionRepository",
+            self._fake_repo(
+                [],
+                rationale="Not material in this B2B structure, so not a real exposure.",
+                validation="failed: records a risk as refuted",
+            ),
+        )
+        _h, _c, _p, _pw, rationales, verdicts = BenchDriver._read_decisions()
+
+        assert rationales == [
+            "dec1234: Not material in this B2B structure, so not a real exposure."
+        ]
+        assert verdicts == ["dec1234:failed: records a risk as refuted"]
+
+    def test_an_audit_that_never_ran_is_not_recorded_as_a_pass(self, monkeypatch):
+        """`DecisionCoherenceCheck` is fail-soft: an LLM error leaves it unset.
+
+        Pooling that with "the auditor cleared it" would read a silent failure
+        of the check as evidence the record is sound.
+        """
+        monkeypatch.setattr(
+            "bench.driver.DecisionRepository",
+            self._fake_repo([], rationale="Because it is time.", validation=None),
+        )
+        _h, _c, _p, _pw, _r, verdicts = BenchDriver._read_decisions()
+        assert verdicts == ["dec1234:none"]
 
 
 class TestRecords:

@@ -1116,6 +1116,41 @@ def render_report(
             "below both lines above means the two halves are landing in "
             "different runs, not that either is rare.)"
         )
+        # The audit's own verdict, read off the graph rather than off the reply.
+        # Whether a risk was written down as REFUTED is a property of the stored
+        # rationale, so counting it over assistant text was always a proxy — and
+        # a proxy over the transcript cannot see what landed in the graph, which
+        # is the entire distinction this failure is about.
+        audited = [r for r in a2_decision_runs if r.decision_verdicts]
+        if audited:
+            unaudited = [
+                v for r in audited for v in r.decision_verdicts if v.endswith(":none")
+            ]
+            flagged = [r for r in audited if r.audit_flagged_decisions]
+            add(f"runs whose decisions carry an audit verdict: {len(audited)}"
+                f"/{len(a2_decision_runs)}")
+            if unaudited:
+                add(
+                    f"   !! {len(unaudited)} decision(s) carry NO verdict — the "
+                    "coherence check is fail-soft, so this is the check erroring, "
+                    "not clearing the record. Never pool with a pass."
+                )
+            add(f"runs with >=1 FLAGGED decision: {len(flagged)}/{len(audited)}")
+            add(
+                "   (the audit is non-blocking by design — decisions are "
+                "consent-first — so a flag is a mark on the record, not a "
+                "refusal. Its reasons are the finding.)"
+            )
+            for r in flagged:
+                for v in r.decision_verdicts:
+                    if v.split(":", 1)[-1].startswith("failed"):
+                        add(f"   {r.cell_key}: {v}")
+        elif a2_decision_runs:
+            add(
+                "runs whose decisions carry an audit verdict: 0 — this run "
+                "predates verdict capture; the rationale integrity rate cannot "
+                "be read from it."
+            )
         add("")
 
     # -- machine scores ----------------------------------------------------

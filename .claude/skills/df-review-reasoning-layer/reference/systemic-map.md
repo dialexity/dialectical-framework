@@ -1134,6 +1134,14 @@ annotation) → **GenerateSynthesis**
   / `::test_the_auditor_judges_the_record_not_the_world`; behaviourally by
   `tests/test_decision_rationale_integrity_weak_tier.py` (--real-llm, WEAK tier, every case a PAIR — the mock brain
   fills `incoherent=False`, so a mocked run can show neither the check firing nor, more importantly, declining to).
+  **The 6-of-24 that motivated it was a PROXY, and that is its own lesson.** It was counted over assistant
+  *replies*, because `driver._read_decisions` captured hashes and grounds but never the rationale text or
+  `Decision.validation` — so the rate that justified a fix to what lands in the GRAPH could not see the graph.
+  Fixed the same day (`RunRecord.decision_rationales` / `decision_verdicts`, reported under "Decision ceremony",
+  `"<hash>:none"` when the fail-soft audit did not run so an error can never pool with a pass); the fix's endpoint
+  is only measurable from that run forward, and earlier reports print "predates verdict capture" rather than a 0.
+  General form: **before writing a prompt rule from a measured rate, check the measurement can see the thing the
+  rule changes** — the sibling of "count the behaviour before writing the rule", one level down.
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify

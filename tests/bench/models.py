@@ -502,6 +502,32 @@ class RunRecord(BaseModel):
     #: without `explore` produces, since a recipe IS a pathway and an unexplored
     #: tension has none.
     adopted_pathway_grounds: list[str] = Field(default_factory=list)
+    #: The rationale text that actually landed on each Decision, prefixed with
+    #: the decision's short hash. Full text, not a length flag: it is a few
+    #: sentences and it IS the thing under test. Added because the "a risk
+    #: argued away is stored as a fact" rate had to be proxied over assistant
+    #: replies, and a proxy over the transcript cannot see what reached the
+    #: graph — which is the entire distinction that failure is about.
+    decision_rationales: list[str] = Field(default_factory=list)
+    #: `"<short_hash>:<Decision.validation>"` per decision, with `"none"` when
+    #: the audit did not run (it is fail-soft, so an LLM error leaves the field
+    #: unset). Kept distinct from a pass so a run cannot silently pool
+    #: "the auditor cleared it" with "the auditor never spoke".
+    decision_verdicts: list[str] = Field(default_factory=list)
+
+    @property
+    def audit_flagged_decisions(self) -> list[str]:
+        """Short hashes whose recorded verdict is a failure.
+
+        `Decision.validation` is free text ("passed" / "failed: <reasons>"), so
+        this reads the prefix rather than equality — the reasons are the useful
+        part of a flag and must not have to be stripped to count one.
+        """
+        return [
+            v.split(":", 1)[0]
+            for v in self.decision_verdicts
+            if v.split(":", 1)[-1].startswith("failed")
+        ]
 
     @property
     def decision_record_complete(self) -> bool:
