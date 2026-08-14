@@ -2180,10 +2180,14 @@ class TestDecisionReadiness:
 
         Measured on the ladder-return lane (`ladder-return-r16`), where the
         person argues a risk away and backs it with a citation the scenario
-        fabricates: 6 of 24 A2 decisions carried the dismissal into the
-        rationale as fact — against 0 of 160 on `cofounder_equity`, which
+        fabricates: 4 of 12 A2 decisions carried the dismissal into the
+        rationale as fact — against 0 of 80 on `cofounder_equity`, which
         applies no such pressure. So the behaviour is countable and lane-local,
-        not a general looseness.
+        not a general looseness. (First reported as 6 of 24 / 0 of 160: the
+        counting script double-counted the `-runs.json` duplicate sidecars, and
+        reading the hits later found one its regex had missed. Corrected in
+        `tests/bench/probe_rationale_integrity.py`, which is where the count
+        lives now.)
 
         The pairing matters. `_DECISION_READINESS` governs what gets WRITTEN;
         `DecisionCoherenceCheck` is the only surface that can catch it after

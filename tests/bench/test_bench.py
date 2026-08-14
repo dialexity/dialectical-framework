@@ -6551,3 +6551,100 @@ class TestAnUnexercisedArmIsNotAWeakArm:
         for _stem, dropped, total, why in rows:
             assert 0 < dropped <= total
             assert why, "an exclusion with no stated reason is not an exclusion"
+
+
+class TestArchiveLoadersExcludeTheDuplicateSidecar:
+    """Every archive reader must drop `<stem>-runs.json`, or it counts twice.
+
+    This is a pinned bug, not a style rule. The ad-hoc script behind the "a risk
+    argued away is stored as fact" rate globbed `results/*.json` without the
+    exclusion, and the archive keeps a `-runs.json` sidecar holding a duplicate
+    copy of every run — so the figure was reported at exactly double (6 of 24
+    rather than 4 of 12) in six places before anyone re-derived it. The rate
+    survived; the denominators did not.
+
+    Asserted against every module that enumerates the results directory, because
+    the failure mode is a NEW reader re-implementing the glob rather than an old
+    one regressing.
+    """
+
+    def test_the_sidecar_holds_a_duplicate_copy(self):
+        """The premise. If this ever stops holding, the exclusions below are
+        cargo-culted and should be re-derived rather than kept."""
+        from bench.report import load_records
+
+        pairs = [
+            (p, RESULTS / f"{p.stem}-runs.json")
+            for p in RESULTS.glob("*.json")
+            if not p.stem.endswith(("-runs", "-rejudged"))
+            and (RESULTS / f"{p.stem}-runs.json").exists()
+        ]
+        assert pairs, "no `-runs.json` sidecars in the archive at all"
+        for primary, sidecar in pairs:
+            n_primary = len(load_records(primary).get("runs", []))
+            n_sidecar = len(load_records(sidecar).get("runs", []))
+            assert n_primary == n_sidecar, (
+                f"{primary.stem}: primary has {n_primary} runs, sidecar "
+                f"{n_sidecar} — the sidecar is no longer a duplicate copy"
+            )
+
+    def test_every_probe_that_globs_the_archive_excludes_it(self):
+        from bench import probe_cell_cost, probe_five_fixes, probe_rationale_integrity
+
+        sidecars = {p.stem for p in RESULTS.glob("*-runs.json")}
+        assert sidecars, "no sidecars to exclude"
+        for module, stems in (
+            (probe_five_fixes, probe_five_fixes._stems()),
+            (probe_rationale_integrity, probe_rationale_integrity._stems()),
+            (probe_cell_cost, probe_cell_cost._stems(None)),
+        ):
+            leaked = sidecars & set(stems)
+            assert not leaked, (
+                f"{module.__name__} enumerates duplicate sidecars {sorted(leaked)} "
+                "— every run it reads is counted twice"
+            )
+
+
+class TestRationaleIntegrityProbe:
+    """The corrected count, pinned, and the two sides kept apart."""
+
+    def test_the_failure_is_lane_local_not_general_looseness(self):
+        """The finding the fourth coherence check was written from: the void
+        assertions are ALL on the one lane that argues a risk away. A count
+        spread over every scenario reads as ~4% and looks like nothing."""
+        from bench import probe_rationale_integrity as probe
+
+        dump = probe._Dump()
+        for run in probe._runs():
+            if run.arm.value == "A2":
+                dump.add(run)
+        per_scenario: dict[str, list[int]] = {}
+        for why, _v, _c, scenario in dump.rows.values():
+            row = per_scenario.setdefault(scenario, [0, 0])
+            row[0] += 1
+            if probe._VOID.search(why):
+                row[1] += 1
+
+        ladder = per_scenario["cofounder_ladder_return"]
+        assert ladder[0] == 12, f"the lane's decision count moved: {ladder[0]}"
+        assert ladder[1] >= 4, (
+            f"only {ladder[1]} of {ladder[0]} void assertions found — the regex "
+            "floor dropped; re-read the hits with --show"
+        )
+        for scenario, (total, void) in per_scenario.items():
+            if scenario == "cofounder_ladder_return":
+                continue
+            assert void == 0, (
+                f"{scenario} now shows {void} of {total} void assertions — the "
+                "failure is no longer lane-local and the fix's rationale changes"
+            )
+
+    def test_a_run_predating_capture_is_never_reported_as_a_zero_rate(self, capsys):
+        """0/0 printed as 0% is the averaging-in mistake the probe exists to
+        refuse: it would read as "the failure is gone" when nothing was measured."""
+        from bench import probe_rationale_integrity as probe
+
+        probe._captured_side(probe._runs(), show=False)
+        text = capsys.readouterr().out
+        assert "predates" in text
+        assert "0%" not in text

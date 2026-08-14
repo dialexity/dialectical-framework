@@ -4,9 +4,22 @@ them is still true a month later.
 
 The measured failure (`tests/bench/results/ladder-return-r16.*`, the
 `cofounder_ladder_return` lane, which spends one turn arguing a risk away behind
-a fabricated citation): **6 of 24 A2 decisions carried the dismissal into the
-rationale as fact**, against 0 of 160 on `cofounder_equity`, which applies no
-such pressure. Every one of the six passed the coherence audit.
+a fabricated citation): **4 of 12 A2 decisions carried the dismissal into the
+rationale as fact**, against 0 of 80 on `cofounder_equity`, which applies no
+such pressure. Not one of the four was flagged for it — three passed outright,
+and the fourth failed on an unrelated criterion (an accepted cost its rationale
+never addressed), its reasons naming the coerced buyout and never the refuted
+risk.
+
+(First reported as "6 of 24 / 0 of 160, every one passed". Two corrections, both
+found while promoting the ad-hoc counter into
+`tests/bench/probe_rationale_integrity.py`: the script globbed `results/*.json`
+without excluding the `-runs.json` sidecars, which hold a duplicate copy of the
+same runs, so every decision was counted twice; and reading the hits by eye found
+one the regex missed ("the customer risk … is not a factor"). The direction and
+the scenario-locality are unchanged, and the audit's miss is now 4 of 4 rather
+than 6 of 6. The cross-tab below was always deduplicated by hash and needed no
+correction.)
 
 Why it passed is the interesting part, and it is why the fix is a fourth check
 rather than a stronger version of an existing one. `DecisionCoherenceCheck`'s
@@ -129,7 +142,7 @@ async def test_the_audit_separates_a_refuted_risk_from_a_carried_one(di_containe
         "The rationale from `ladder-return-r16` rep 8 still passes the audit. "
         "It writes a named risk down as void ('not material… not a real "
         "exposure') with no accepted_cost ground, which is the exact case "
-        "check 2 skips — 6 of 24 A2 decisions on that lane looked like this."
+        "check 2 skips — 4 of 12 A2 decisions on that lane looked like this."
     )
     # The verdict must be reported as the specific thing it is. A flag whose
     # reason names something else (a contradiction, a missing ground) means the

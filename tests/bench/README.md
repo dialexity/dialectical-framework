@@ -280,8 +280,9 @@ thing the measurement cannot support.
   as a separate diagnostic, and a flag next to `carried yes` is the same finding
   the co-primary pair exists to surface — an arm filing a risk it has conceded.
 
-  Before this, the "a risk argued away is stored as a fact" rate (6 of 24 vs 0 of
-  160 in the archive) had to be counted over **assistant replies**, which cannot
+  Before this, the "a risk argued away is stored as a fact" rate (4 of 12 vs 0 of
+  80 in the archive; first reported with doubled denominators, corrected in
+  `probe_rationale_integrity.py`) had to be counted over **assistant replies**, which cannot
   see what reached the graph — the entire distinction the failure is about. The
   proxy is why the fix's endpoint is only measurable from this run forward; runs
   predating the capture print "predates verdict capture" rather than a 0.
@@ -313,9 +314,14 @@ Two changes since, so the re-run is not a repeat:
    loops tiers *outside* arms, every arm in a cell gets the same `tier_model`, and
    `report.gap()` keys on `(tier, dimension)` so nothing pools across models) — but the
    weak tier being a model that struggles with tools at all is what put every cell on
-   the floor. The archive's own cost measurement says this is affordable: A2 is ~5× A1
-   at BOTH tiers, so the multiplier is the framework (6N transformations), not the
-   model, and a stronger tier costs ~45% more per cell rather than several times.
+   the floor. The archive's own cost measurement says this is affordable, though the
+   figure needed correcting once it was actually computed rather than remembered
+   (`probe_cell_cost.py`, added 2026-08-14): A2 is **5.0× A1 strong, 6.8× weak, and
+   14.7× on this lane specifically** — not the "~5× at both tiers" this section first
+   claimed, which was the strong tier's ratio generalised. The conclusion survives,
+   because it rests on the comparison that did hold: an A1 cell costs ~2× more strong
+   than weak while the A2/A1 ratio moves the *other* way, so the multiplier tracks the
+   framework (6N transformations) and the tier swap is the cheap axis.
 2. **The endpoint is now measurable.** `decision_verdicts` did not exist when r16 ran.
 
 **Pre-registered, unchanged from the lane's original design:** n = **12**, arms

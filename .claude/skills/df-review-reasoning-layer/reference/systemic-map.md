@@ -1113,8 +1113,9 @@ annotation) → **GenerateSynthesis**
   rules all assume a risk the person is willing to name. Under pressure to drop one, the failure is the opposite:
   the rationale writes the risk down as VOID and that verdict becomes a settled fact the person is handed back.
   Measured on `cofounder_ladder_return` (`ladder-return-r16`), the one lane that spends a turn arguing a risk away
-  behind a fabricated citation — **6 of 24 A2 decisions carried the dismissal into the rationale as fact, against
-  0 of 160 on `cofounder_equity`**, which applies no such pressure. Every one passed the audit. *Why* it passed is
+  behind a fabricated citation — **4 of 12 A2 decisions carried the dismissal into the rationale as fact, against
+  0 of 80 on `cofounder_equity`**, which applies no such pressure. Not one was flagged FOR IT: three passed, and
+  the fourth failed on an unrelated criterion whose reasons never mention the refuted risk. *Why* it passed is
   the transferable part: `DecisionCoherenceCheck`'s grounding check SKIPS when no grounds are recorded, and a risk
   that has been argued away is exactly the risk nobody records as an `accepted_cost` — so the blind spot lined up
   with the failure. Archive-wide that reads as no-`accepted_cost` decisions passing 11/12 against 41/80 with one:
@@ -1134,7 +1135,7 @@ annotation) → **GenerateSynthesis**
   / `::test_the_auditor_judges_the_record_not_the_world`; behaviourally by
   `tests/test_decision_rationale_integrity_weak_tier.py` (--real-llm, WEAK tier, every case a PAIR — the mock brain
   fills `incoherent=False`, so a mocked run can show neither the check firing nor, more importantly, declining to).
-  **The 6-of-24 that motivated it was a PROXY, and that is its own lesson.** It was counted over assistant
+  **The rate that motivated it was a PROXY, and that is its own lesson.** It was counted over assistant
   *replies*, because `driver._read_decisions` captured hashes and grounds but never the rationale text or
   `Decision.validation` — so the rate that justified a fix to what lands in the GRAPH could not see the graph.
   Fixed the same day (`RunRecord.decision_rationales` / `decision_verdicts`, reported under "Decision ceremony",
@@ -1142,6 +1143,15 @@ annotation) → **GenerateSynthesis**
   is only measurable from that run forward, and earlier reports print "predates verdict capture" rather than a 0.
   General form: **before writing a prompt rule from a measured rate, check the measurement can see the thing the
   rule changes** — the sibling of "count the behaviour before writing the rule", one level down.
+  **And the same rate was DOUBLE-COUNTED** (corrected 2026-08-14, first reported as 6 of 24 / 0 of 160, actually
+  3 of 12 / 0 of 80). The ad-hoc counter globbed `tests/bench/results/*.json` without excluding the `-runs.json`
+  sidecars, which hold a duplicate copy of every run, so each decision was counted twice. The rate, the
+  scenario-locality and therefore the fix all survive unchanged at 25% — but a one-off script that re-implements
+  archive loading re-opens a hole the shared helper had already closed (`probe_five_fixes._stems()` carries the
+  exclusion; the cross-tab escaped because it deduplicated by hash). General form: **a throwaway counting script
+  reuses the archive loader or it inherits none of its fixes**; promote it under `tests/` while the number is
+  still being quoted, not after (`tests/bench/probe_rationale_integrity.py` is where this one lives now, and it
+  reports the graph-captured side and the dump proxy side apart, never merged).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify

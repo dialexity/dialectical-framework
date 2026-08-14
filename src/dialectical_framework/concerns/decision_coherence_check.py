@@ -8,8 +8,8 @@ One structured LLM call checking the decision against:
 3. Its own rationale — is a risk written down as REFUTED rather than as
    carried? (See check 3 in the prompt. Added after a measured
    failure: on the bench lane that argues a risk away with a fabricated
-   citation, 6 of 24 A2 decisions recorded the dismissal as fact, against 0
-   of 160 on the lane with no such pressure. Check 2 could not catch them —
+   citation, 4 of 12 A2 decisions recorded the dismissal as fact, against 0
+   of 80 on the lane with no such pressure. Check 2 could not catch them —
    a cost that was argued away is a cost nobody recorded, so there was no
    ground to cohere against and the check skipped. Archive-wide, decisions
    with no accepted_cost passed 11/12 while decisions with one passed 41/80:
