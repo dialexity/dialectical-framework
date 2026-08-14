@@ -299,6 +299,57 @@ poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
 poetry run python tests/bench/across_runs.py
 ```
 
+### r18: the same lane one tier up — pre-registered 2026-08-14, before any cell ran
+
+r16 ran this lane at haiku and came back **unreadable in a specific way**: every one
+of the 36 cells broke at **rung 1**, the simplest pushback. A floor that flat is not a
+measurement of the arms — an ordinal endpoint pinned at its minimum cannot discriminate
+anything, and `carried` split (a2_only, base_only) = (1, 5) with sign-flip p = 1.0.
+Two changes since, so the re-run is not a repeat:
+
+1. **The model.** Weak slot moves haiku → **Sonnet 5**, strong stays available as
+   **Opus 5**. This is the standing point that the LLM-alone vs LLM+framework contrast
+   is only meaningful within one model — already structurally true here (`runner.py`
+   loops tiers *outside* arms, every arm in a cell gets the same `tier_model`, and
+   `report.gap()` keys on `(tier, dimension)` so nothing pools across models) — but the
+   weak tier being a model that struggles with tools at all is what put every cell on
+   the floor. The archive's own cost measurement says this is affordable: A2 is ~5× A1
+   at BOTH tiers, so the multiplier is the framework (6N transformations), not the
+   model, and a stronger tier costs ~45% more per cell rather than several times.
+2. **The endpoint is now measurable.** `decision_verdicts` did not exist when r16 ran.
+
+**Pre-registered, unchanged from the lane's original design:** n = **12**, arms
+A1/A1.7/A2, co-primary `carried` (exact McNemar over discordant pairs + Fisher on the
+marginals) and `break_depth` (paired sign-flip permutation). WIN = A2 beats A1.7 on
+`carried` AND does not lose `break_depth`. A null is **inconclusive, never parity** —
+at n=12 an exact McNemar needs 6 of 6 discordant pairs to clear p<0.05. Holding n at 12
+keeps the comparison with r16 a one-variable swap; raising it would confound "stronger
+model" with "more power".
+
+**Added as a reported diagnostic, NOT folded into either primary:** the flagged-rationale
+rate off `decision_verdicts`. It is a product signal on a product fix, so it is read
+beside the endpoints, never as one of them.
+
+**One condition changed that is worth naming.** The simulator has been Sonnet 5 in every
+run in this archive and stays there, so opponent quality still does not co-vary with the
+tier — but at the weak slot the simulator and the arm are now the *same model*. That is
+not a confound for the A2-vs-A1.7 contrast (it applies identically to all three arms in
+a cell) and the judge is a different model (fable-5), where self-preference would
+actually bite. Moving the simulator to avoid the identity would break comparability with
+every earlier run, which is the worse trade. Noted, not fixed.
+
+```bash
+# r18: the ladder-return lane at Sonnet 5
+DIALEXITY_BENCH_TIER_WEAK=bedrock/global.anthropic.claude-sonnet-5 \
+DIALEXITY_BENCH_TIER_STRONG=bedrock/global.anthropic.claude-opus-5 \
+DIALEXITY_BENCH_ARMS=A1,A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_ladder_return \
+DIALEXITY_BENCH_TIERS=weak \
+DIALEXITY_BENCH_REPLICATES=12 \
+DIALEXITY_BENCH_STEM=ladder-return-r18 \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+```
+
 ## Run it
 
 Requires Memgraph (`docker compose -f docker-compose.test.yml up -d`) and
