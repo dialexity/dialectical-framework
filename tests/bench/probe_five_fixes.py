@@ -91,6 +91,8 @@ from pathlib import Path
 BENCH_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BENCH_DIR.parent))
 
+from bench.across_runs import (cross_model_stems, pooled_model,  # noqa: E402
+                               tier_model)
 from bench.models import RunRecord, SessionRecord  # noqa: E402
 from bench.report import load_records  # noqa: E402
 from bench.scoring import _RECORD_REQUEST, score_menu  # noqa: E402
@@ -374,7 +376,16 @@ def main() -> int:
         lambda: defaultdict(lambda: [0, 0])
     )
     cells: dict[str, int] = defaultdict(int)
+    # One model per tier, not one label. `ladder-return-r18` records Sonnet 5
+    # under the `weak` label, and these are behaviour rates — a stronger model
+    # concedes, re-asks and prices menus at different rates, so pooling it in
+    # would move every row for a reason that has nothing to do with the fixes.
+    # See `across_runs.tier_model`.
+    canonical = pooled_model("weak")
+    excluded = [s for s, _m in cross_model_stems("weak")]
     for stem in _stems():
+        if tier_model(stem, "weak") != canonical:
+            continue
         payload = load_records(RESULTS / f"{stem}.json")
         for raw in payload.get("runs") or []:
             record = RunRecord.model_validate(raw)
@@ -399,6 +410,13 @@ def main() -> int:
     print("=" * 100)
     print("CAN A MACHINE SEE THE FIVE FIXES?  weak tier, all poolable runs")
     print("=" * 100)
+    if excluded:
+        # Printed, never silent: a pool that quietly drops a run reads exactly
+        # like a pool that never had it.
+        print(
+            f"\n  excluded — labelled `weak` but ran another model: "
+            f"{', '.join(excluded)}"
+        )
     print(
         "\nEach cell is <hits>/<opportunities>. The DENOMINATOR is the finding: a\n"
         "pattern with no opportunities cannot be the mechanism behind a judged loss,\n"

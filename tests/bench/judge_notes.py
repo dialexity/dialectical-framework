@@ -93,6 +93,13 @@ def notes_for(
     `only_losses` defaults True because that is the diagnostic question, but the
     flag exists so the same call can produce the comparison set — see the module
     docstring on why a frequency from the losing cells alone is only a lead.
+
+    NOT model-pinned, unlike every pooled cut in `across_runs` (see its
+    `tier_model`). Deliberate: this returns rows carrying their `stem`, and a
+    reader is looking at quoted judge prose, not averaging it. A Sonnet note from
+    `ladder-return-r18` under the `weak` label stays attributable, so admitting
+    it adds evidence rather than contaminating a mean. Any FREQUENCY computed
+    over these rows must re-apply the model pin first.
     """
     out: dict[str, list[tuple[str, str, str, int, int, str]]] = defaultdict(list)
     for stem in _stems():

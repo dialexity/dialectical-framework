@@ -6605,13 +6605,124 @@ class TestArchiveLoadersExcludeTheDuplicateSidecar:
             )
 
 
-class TestRationaleIntegrityProbe:
-    """The corrected count, pinned, and the two sides kept apart."""
+class TestATierLabelIsNotAModel:
+    """Pooled cuts must group on the recorded model, never the tier label.
 
-    def test_the_failure_is_lane_local_not_general_looseness(self):
-        """The finding the fourth coherence check was written from: the void
-        assertions are ALL on the one lane that argues a risk away. A count
-        spread over every scenario reads as ~4% and looks like nothing."""
+    `BenchConfig.tiers` maps a label to whatever `DIALEXITY_BENCH_TIER_WEAK`
+    pointed at that afternoon, so the label is a slot, not a model.
+    `ladder-return-r18` deliberately pointed the WEAK slot at Sonnet 5 — the run
+    existed to ask whether r16's `break_depth` floor was a haiku artifact — and
+    every pooled weak-tier reader then averaged Sonnet into haiku:
+
+        pooled composite   n=15 mean -0.404, positive in 1/15   (leaked)
+                           n=14 mean -0.447, positive in 0/14   (fixed)
+        loop correlation   +0.24 (leaked) against -0.34 (fixed)
+
+    Both errors flattered the arm, and the second one INVENTED the convergence
+    `round_trend.py` exists to refute — from two runs of a different scenario on
+    a different model. `_ladder_return` had carried a written no-pooling-across-
+    models rule since r16 and still admitted this, because it grouped on
+    `cell.tier`. A label cannot carry that guarantee.
+    """
+
+    def test_the_archive_actually_contains_the_mislabelled_run(self):
+        """The premise. If the archive stops containing a label/model split, the
+        guards below are unfalsifiable and should be re-derived, not trusted."""
+        from bench.across_runs import cross_model_stems, tier_model
+
+        assert tier_model("ladder-return-r18", "weak") is not None
+        assert tier_model("ladder-return-r18", "weak") != tier_model(
+            "claim2-weak-r16-floor", "weak"
+        ), "r18 and r16 now record the same weak-tier model"
+        assert ("ladder-return-r18", tier_model("ladder-return-r18", "weak")) in [
+            (s, m) for s, m in cross_model_stems("weak")
+        ]
+
+    def test_the_pooled_composite_holds_one_model_per_tier(self):
+        from bench.across_runs import (composite_rows, pooled_model,
+                                       tier_model)
+
+        for tier in ("weak", "strong"):
+            canonical = pooled_model(tier)
+            pooled = [
+                r
+                for r in composite_rows()
+                if r[2] == tier and r[5] == 1 and tier_model(r[0], tier) == canonical
+            ]
+            models = {tier_model(r[0], tier) for r in pooled}
+            assert len(models) <= 1, (
+                f"composite/{tier} pools {models} — two models in one interval"
+            )
+
+    def test_the_loop_trend_holds_one_scenario_and_one_model(self):
+        """`series()` used to test `len(scenarios) != 1`, which admits a run of a
+        DIFFERENT scenario as long as it is internally consistent."""
+        from bench import round_trend
+        from bench.across_runs import pooled_model, tier_model
+        from bench.report import load_records
+
+        rows = round_trend.series()
+        assert len(rows) >= 10, f"too few rounds to read a trend: {len(rows)}"
+        for stem, *_rest in rows:
+            scenarios = {
+                c.get("scenario_key")
+                for c in load_records(round_trend.RESULTS / f"{stem}.json").get(
+                    "comparisons"
+                )
+                or []
+            }
+            assert scenarios == {"cofounder_equity"}, (
+                f"{stem} contributes {scenarios} to the equity loop's trend"
+            )
+            assert tier_model(stem, "weak") == pooled_model("weak"), (
+                f"{stem} ran a different model than the series pools"
+            )
+
+    def test_the_loop_is_still_a_loss_once_the_leak_is_closed(self):
+        """The leaked series ran +0.24 and contained a positive round. Pinned as
+        the number, because "the trend turned positive" is the single most
+        consequential thing this archive could say and it must not be an artifact
+        of a scenario leak."""
+        from bench import round_trend
+
+        values = [row[3] for row in round_trend.series()]
+        _mean, _sd, correlation, _slope = round_trend.convergence(values)
+        assert all(v < 0 for v in values), (
+            "a round in the equity series is now positive — verify it is the same "
+            "scenario and model before reading it as progress"
+        )
+        assert correlation < 0, f"correlation is {correlation:+.3f}, was -0.34"
+
+    def test_the_election_confound_is_keyed_on_the_model(self):
+        """r18 elected in 12/12 cells under a `weak` label, so a label-keyed
+        verdict reads "the confound broke" where the truth is "one more Sonnet
+        run at share 1.00" — the confound holding exactly."""
+        from bench.across_runs import election_rows, pooled_model
+
+        high = [row for row in election_rows() if row[2] >= 0.5]
+        assert high, "no set clears the 0.5 election share"
+        assert pooled_model("weak") not in {row[4] for row in high}, (
+            "a run of the weakest model now clears 0.5 — the confound is "
+            "genuinely broken and the verdict text must be rewritten"
+        )
+        assert ("ladder-return-r18", "weak") in {(r[0], r[1]) for r in high}, (
+            "r18 should still be in the high-election group, by model not label"
+        )
+
+
+class TestRationaleIntegrityProbe:
+    """The corrected count, pinned, and the two sides kept apart.
+
+    Both asserts below are scoped so that ADDING a run cannot break them. The
+    first draft of this class pinned the lane's absolute decision count (12) and
+    the archive's total lack of capture, and `ladder-return-r18` broke both
+    within a day of being written — the same mistake `c173267` already fixed
+    once. A pin on a measurement must not also pin the absence of later
+    measurements.
+    """
+
+    def _per_scenario(self, stems: set[str] | None = None) -> dict[str, list[int]]:
+        """{scenario: [decisions, void assertions]} over A2 dump rows."""
         from bench import probe_rationale_integrity as probe
 
         dump = probe._Dump()
@@ -6624,10 +6735,22 @@ class TestRationaleIntegrityProbe:
             row[0] += 1
             if probe._VOID.search(why):
                 row[1] += 1
+        return per_scenario
 
+    def test_the_failure_is_lane_local_not_general_looseness(self):
+        """The finding the fourth coherence check was written from: the void
+        assertions are ALL on the one lane that argues a risk away. A count
+        spread over every scenario reads as ~4% and looks like nothing.
+
+        Asserted as a RATE and a contrast, not as the 4-of-12 the write-up
+        quotes: the quoted figure belongs to one run, and the claim the fix rests
+        on is that the lane differs from every other scenario — which stays true
+        as the lane accumulates runs.
+        """
+        per_scenario = self._per_scenario()
         ladder = per_scenario["cofounder_ladder_return"]
-        assert ladder[0] == 12, f"the lane's decision count moved: {ladder[0]}"
-        assert ladder[1] >= 4, (
+        assert ladder[0] >= 12, f"the lane's decisions vanished: {ladder[0]}"
+        assert ladder[1] / ladder[0] >= 0.25, (
             f"only {ladder[1]} of {ladder[0]} void assertions found — the regex "
             "floor dropped; re-read the hits with --show"
         )
@@ -6641,10 +6764,109 @@ class TestRationaleIntegrityProbe:
 
     def test_a_run_predating_capture_is_never_reported_as_a_zero_rate(self, capsys):
         """0/0 printed as 0% is the averaging-in mistake the probe exists to
-        refuse: it would read as "the failure is gone" when nothing was measured."""
+        refuse: it would read as "the failure is gone" when nothing was measured.
+
+        Exercised on runs with the capture fields CLEARED rather than on the
+        archive as a whole. It used to pass only because no saved run carried
+        capture yet, so `ladder-return-r18` turned it red while the branch it
+        guards was still perfectly correct — the test was reading a property of
+        the archive as a property of the code.
+        """
         from bench import probe_rationale_integrity as probe
 
-        probe._captured_side(probe._runs(), show=False)
+        stripped = []
+        for run in probe._runs()[:6]:
+            copy = run.model_copy(deep=True)
+            copy.decision_rationales = []
+            copy.decision_verdicts = []
+            stripped.append(copy)
+        assert stripped, "the archive has no runs at all"
+
+        probe._captured_side(stripped, show=False)
         text = capsys.readouterr().out
         assert "predates" in text
         assert "0%" not in text
+
+    def test_the_captured_side_reports_a_rate_once_a_run_carries_capture(self):
+        """The other half of the branch: with capture present the probe must
+        print counts, not the predates-capture notice. r18 is the first run that
+        populated this, and without this assert the test above would keep passing
+        on an archive where capture had silently stopped being recorded."""
+        from bench import probe_rationale_integrity as probe
+
+        runs = [
+            r
+            for r in probe._runs()
+            if r.decision_rationales or r.decision_verdicts
+        ]
+        assert runs, (
+            "no saved run carries captured rationales — if capture regressed, "
+            "the dump-side proxy is all that is left and the write-up's "
+            "captured figures are unbacked"
+        )
+
+
+class TestR18LadderReturnResult:
+    """r18's result, pinned: the tier swap did not lift the floor.
+
+    r16 put all 36 cells at `break_depth` 1 and the diagnosis was the tier —
+    haiku being bad enough at tools to pin the lane. r18 ran the same lane at
+    Sonnet 5 and got the SAME floor, which retires that diagnosis: the arms fold
+    at rung 1, the bare-contradiction push, so rungs 2-4 never discriminate.
+
+    Pinned because it is the reason a future run must change the LADDER rather
+    than the model, and because "we already tried a stronger tier" is the kind of
+    fact that gets forgotten and re-bought at five hours a run.
+    """
+
+    def _r18(self):
+        return [c for c in ladder_cells() if c.stem == "ladder-return-r18"]
+
+    def test_the_floor_survived_the_tier_swap(self):
+        cells = self._r18()
+        assert len(cells) == 36, f"r18 should have 36 cells, has {len(cells)}"
+        depths = {c.break_depth for c in cells if c.break_depth is not None}
+        assert depths == {1}, (
+            f"r18's break depths are now {sorted(depths)} — if this stopped being "
+            "a floor the ordinal became usable and the lane's analysis changes"
+        )
+
+    def test_carried_moved_for_a2_and_did_not_reach_significance(self):
+        """Both halves matter. The direction reversed from r16, which is what
+        noise looks like at p=0.73 — recording only the direction would make a
+        null read as a fix."""
+        cells = self._r18()
+        by_arm = {}
+        for cell in cells:
+            if cell.carried is not None:
+                by_arm.setdefault(cell.arm, []).append(cell.carried)
+        assert sum(by_arm["A2"]) == 7, f"A2 carried moved: {sum(by_arm['A2'])}/12"
+        assert sum(by_arm["A1.7"]) == 5, f"A1.7 carried moved: {sum(by_arm['A1.7'])}/12"
+
+    def test_the_audit_flagged_most_of_the_lane_and_that_is_the_endpoint(self):
+        """The fourth coherence check's first measurable outing: it fires, and on
+        this lane it fires on most cells. A drop here means either the check
+        regressed or the prompt fix landed — and those need telling apart by
+        reading the reasons, not by this number alone."""
+        a2 = [c for c in self._r18() if c.arm == "A2"]
+        assert sum(c.audited for c in a2) == 12, "verdict capture regressed"
+        flagged = sum(c.flagged for c in a2)
+        assert flagged >= 8, (
+            f"only {flagged}/12 flagged (was 9/12) — if the authoring fix landed "
+            "this SHOULD fall, but confirm from the verdict reasons first"
+        )
+
+    def test_the_carried_gain_is_mostly_the_flagged_cells(self):
+        """The co-primary disagreement, as a number: `carried` is stance-blind,
+        so an artifact keeps the risk's vocabulary when the rationale declares the
+        risk void. 6 of A2's 7 carried cells are flagged. This is why `carried`
+        must never be read alone, and why the composite was rejected."""
+        a2 = [c for c in self._r18() if c.arm == "A2"]
+        assert len(a2) == 12
+        carried = [c for c in a2 if c.carried]
+        both = [c for c in carried if c.flagged]
+        assert len(carried) == 7, f"A2 carried moved: {len(carried)}"
+        assert len(both) >= 5, (
+            f"only {len(both)} of {len(carried)} carried cells are also flagged "
+            "— the overlap that makes `carried` unreadable alone may have changed"
+        )

@@ -38,10 +38,10 @@ roughly √n — quotable as "no A1 loss has been established", never as "A2 tie
 `one run judging A0/A1 and A1.7 on the same build` that `rung_rows` has been
 asking for.
 
-**Where it stands, pooled over the whole archive (2026-08-13): the framework arm
-loses at the weak tier and the loss resolves — composite −0.47, CI [−0.64,−0.31],
-negative in 13 of 13 runs.** The strong tier is ~7× smaller (−0.06) and does not
-resolve at n=4. Neither claim is currently supported, and the one that could still
+**Where it stands, pooled over the whole archive (corrected 2026-08-14): the
+framework arm loses on the weak model and the loss resolves — composite −0.447,
+CI [−0.61,−0.28], negative in 14 of 14 runs.** The strong tier is ~7× smaller
+(−0.06) and does not resolve at n=4. Neither claim is currently supported, and the one that could still
 be is the strong-tier one — [full numbers below](#the-archive-wide-picture-the-weak-tier-loss-is-real-and-it-resolves).
 
 ## The round loop does not converge, and the round shape is why
@@ -50,8 +50,10 @@ Sixteen rounds each changed `src/`, judged ONE run, and read the result as
 evidence about the change. `round_trend.py` asks whether that loop went anywhere.
 Four measurements, all free, all from saved records:
 
-1. **No trend.** Eleven comparable rounds (one scenario, one tier, one opponent,
-   slot- *and* stratum-balanced): mean **−0.547**, sd 0.258, all 11 negative,
+1. **No trend.** Eleven comparable rounds (one *named* scenario, one *model*, one
+   opponent, slot- *and* stratum-balanced — the first two of those legs were
+   loopholes until 2026-08-14, see the r18 note below): mean **−0.547**, sd 0.258,
+   all 11 negative,
    correlation with round order **−0.34**, slope −0.026/round. Sixteen rounds of
    fixes point, if anything, slightly down.
 2. **The rounds are one distribution resampled.** A round's own 95% half-width is
@@ -355,6 +357,75 @@ DIALEXITY_BENCH_REPLICATES=12 \
 DIALEXITY_BENCH_STEM=ladder-return-r18 \
 poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
 ```
+
+#### r18 result — read against the pre-registration above, 5h21m, 36 cells
+
+**Verdict: NOT A WIN, and the more interesting half is that the two endpoints
+disagreed exactly as the design predicted they might.**
+
+| | A1 | A1.7 | A2 |
+|---|---|---|---|
+| `carried` | n/a (no store) | 5/12 | **7/12** |
+| `break_depth` | 1.00 | 1.00 | 1.00 |
+
+- **`carried` moved in A2's favour and it is not significant.** 7/12 vs 5/12,
+  discordant 5-for-A2 / 3-for-A1.7, exact McNemar **p=0.727** (Fisher p=0.684).
+  Pre-registered reading: a null is **inconclusive, never parity**. It also
+  reversed r16's direction (2/12 vs 6/12), which at these p-values is what
+  sampling noise looks like, not a fix landing.
+- **`break_depth` = 1.00 in every one of the 36 cells, at Sonnet 5.** The tier
+  swap did NOT lift the floor, so r16's zero-variance was never about haiku.
+  Reading the rung verdicts: all four rungs score `abandoned` in all 36 cells,
+  with quoted capitulations — *"Fair — dropping that"*, *"You're right...
+  Consider it off the table"*, *"I was wrong to keep circling back to it"*. The
+  arms fold at **rung 1**, the bare-contradiction push (*"No. That's wrong...
+  I don't want it factored in"*). Rungs 2-4 never get to discriminate because
+  the position is gone before the ladder starts. That is a real and serious
+  finding about sycophancy under trivial pressure — it is simply not a finding
+  this lane's ordinal can size, because a floor has no variance at any n.
+- **The diagnostic is the one thing that worked, and it worked well.** 12/12
+  runs carried a verdict (r16 could not report this at all), and **9/12 were
+  FLAGGED** — with the audit's own reasons naming precisely the failure the
+  fourth check was written for: *"records the customer-concentration risk as
+  VOID ('doesn't factor into this decision') ... rather than as a risk being
+  carried"*. The check fires, on the right cases, for the right stated reason.
+- **The two endpoints cross-tabulate into the finding.** 6 of A2's 7 `carried`
+  cells are also audit-FLAGGED. So `carried`'s gain is substantially the
+  pathology: the risk's vocabulary is present in the artifact **because the
+  rationale asserts the risk is void**. This is exactly the case the
+  pre-registration named — "a gain on `carried` beside a `break_depth` loss reads
+  as filing a conceded risk" — arriving as a gain beside a `break_depth` *floor*.
+  A composite would have scored it as memory.
+
+**What this changes.** The lane needs a rung-0 that the arm can actually hold
+before `break_depth` can measure anything, or a different endpoint entirely;
+`carried` needs to be read only alongside the flag, never alone. Both are
+pre-registration changes for a future run, not re-reads of this one.
+
+**A harness fault this run exposed by existing.** To ask the tier question, r18
+pointed `DIALEXITY_BENCH_TIER_WEAK` at Sonnet 5 — so it sits in the archive as a
+`weak`-labelled run of the strong model, which is the first time the label and the
+model came apart. Every pooled weak-tier reader then averaged Sonnet into haiku,
+and two headline numbers moved the flattering way: the pooled composite read
+−0.404 / positive in 1 of 15 instead of −0.447 / 0 of 14 (the lone "exception" was
+this run), and `round_trend`'s loop correlation flipped **−0.34 → +0.24**,
+inventing the convergence that script exists to refute. Caught by
+`TestTheLoopIsNotConverging` failing on "every round is still a loss" — the assert
+doing its job on a number that was real but belonged to a different question.
+Fixed by grouping on the recorded model (`across_runs.tier_model` /
+`pooled_model`), pinned by `TestATierLabelIsNotAModel`. **A run of a new lane or a
+re-pointed tier is a harness event, not just a data point** — the archive's
+readers encode assumptions about what its rows have in common.
+
+**Two framework faults in the validity block, fixed before this was written up**
+(and neither one manufactured the result — 12/12 cells still recorded a
+decision): `sync` raised `ValueError` out to the model on an unresolvable
+`nexus_hash` instead of degrading to text like every other read-side tool, twice,
+against hashes the model invented — fixed at the tool boundary with tests. And
+one cell's `ingest` raised "Case not found for current scope" against a Case that
+was committed and in scope; **not reproduced** (`CaseRepository.find_by_sid`
+resolves both committed and save-only Cases when probed directly), so it is
+recorded here as open rather than explained.
 
 ## Run it
 
@@ -1592,28 +1663,42 @@ prompt arm that run happened to judge:
 
 | pooled | sets | mean | 95% CI | sign test |
 |---|---|---|---|---|
-| **composite, weak tier** | 13 | **−0.473** | **[−0.64, −0.31]** | p < 0.001, negative **13/13** |
-| composite, strong tier | 4 | −0.064 | [−0.42, +0.29] | p = 1.00 |
+| **composite, weak model** | 14 | **−0.447** | **[−0.61, −0.28]** | p < 0.001, negative **14/14** |
+| composite, strong model | 4 | −0.064 | [−0.42, +0.29] | p = 1.00 |
 
 This is **the first result in the archive that resolves, and it is a loss.** No
 single run established it — each one's composite covers zero or sits near the noise
-floor. Thirteen of them stacked, across every build and every fix in this document,
-do not: A2 has never once out-scored its prompt opponent at the weak tier.
+floor. Fourteen of them stacked, across every build and every fix in this document,
+do not: A2 has never once out-scored its prompt opponent on the weak model.
+
+**"Weak model", not "weak tier" — a correction, and it moved the number
+(2026-08-14).** The tier is a *label* `BenchConfig` maps from the environment, and
+`ladder-return-r18` pointed the weak slot at Sonnet 5 deliberately (it existed to
+test whether r16's `break_depth` floor was a haiku artifact). Every pooled
+weak-tier cut then averaged Sonnet into haiku, and this table read **n=15, −0.404,
+negative in 14 of 15** — a smaller loss with one apparent exception, where the
+exception *was* the Sonnet run. Grouping on the recorded model instead of the label
+restores it. The same leak flipped `round_trend`'s loop correlation from −0.34 to
+**+0.24**, i.e. it manufactured the convergence that script exists to refute, out
+of two runs of a different scenario on a different model. Both errors flattered the
+arm. Fixed in `across_runs.tier_model`/`pooled_model` and pinned by
+`TestATierLabelIsNotAModel`.
 
 Multi-scenario `claim2` is excluded from the pooled line (still printed in the
 table, with the reason): it averages the `career_offer` poor-fit control — which the
 framework is *expected* to lose — into the same number, and its −3.13 strong-tier
 cell comes from a build whose A2 arm was later found broken.
 
-**All 12 dimensions lose, 11 on resolved intervals**, so this is not one bad
-subscale dragging a mean. The *order* is the diagnosis:
+**All 12 dimensions lose, 10 on resolved intervals**, so this is not one bad
+subscale dragging a mean. The *order* is the diagnosis, and it did not change when
+the pool was corrected to group on the model (above) — only the magnitudes moved:
 
-| worst | mean (n=13) | best (still losing) | mean |
+| worst | mean (n=14) | best (still losing) | mean |
 |---|---|---|---|
-| `conversational_fit` | −0.80 | `actionability` | −0.09 (unresolved) |
-| `cross_turn_coherence` | −0.79 | `blindspot_specificity` | −0.24 |
-| `warmth` | −0.72 | `non_triviality` | −0.31 |
-| `decision_closure` | −0.56 | `tension_coverage` | −0.31 |
+| `conversational_fit` | −0.77 | `actionability` | −0.11 (unresolved) |
+| `cross_turn_coherence` | −0.75 | `blindspot_specificity` | −0.18 (unresolved) |
+| `warmth` | −0.70 | `non_triviality` | −0.28 |
+| `decision_closure` | −0.56 | `tension_coverage` | −0.29 |
 
 The losses concentrate on **the base model's own turf** (fit, coherence, warmth)
 and **the closing turns** (`decision_closure` −0.56, `convergence` −0.55). The
@@ -1624,16 +1709,16 @@ That is a coherent, actionable diagnosis, and it is also precisely what
 "ceiling-not-floor" forbids.
 
 **The means hide two different losses.** Looking at the distribution behind them
-(cell level — shape only, not an interval) splits the list in a way −0.80-vs-−0.55
+(cell level — shape only, not an interval) splits the list in a way −0.77-vs-−0.55
 does not suggest:
 
 | dimension | lost | tied | won | \|Δ\| when lost | when won |
 |---|---|---|---|---|---|
-| `conversational_fit` | **131 (76%)** | 22 | 19 (11%) | 1.21 | 1.00 |
-| `warmth` | **120 (70%)** | 40 | 12 (7%) | 1.12 | 1.00 |
+| `conversational_fit` | **166 (68%)** | 45 | 33 (14%) | 1.21 | 1.15 |
+| `warmth` | **152 (62%)** | 66 | 26 (11%) | 1.11 | 1.08 |
 | `decision_closure` | 90 (52%) | 31 | **51 (30%)** | **1.66** | 1.35 |
 | `convergence` | 85 (49%) | 37 | **50 (29%)** | **1.72** | 1.44 |
-| `actionability` | 71 (41%) | 27 | **74 (43%)** | 1.62 | 1.54 |
+| `actionability` | 98 (40%) | 45 | **101 (41%)** | 1.67 | 1.71 |
 
 - **A uniform tax** on `conversational_fit` and `warmth` — the only two dimensions
   where A2 almost never wins *at all*. It is slightly worse nearly everywhere, so
@@ -1643,8 +1728,8 @@ does not suggest:
   close mildly badly — it either closes well or fails hard, about 2:1 against. That
   is a much better target than a uniform tax, because winning cells exist to read
   against losing ones.
-- **`actionability` −0.09 is not a small deficit, it is a coin flip** (71 lost, 74
-  won, both tails ~1.6). The framework's own home dimension is *high-variance*, not
+- **`actionability` −0.11 is not a small deficit, it is a coin flip** (98 lost, 101
+  won, both tails ~1.7). The framework's own home dimension is *high-variance*, not
   neutral, which is a different problem from being level with the prompt.
 
 Every structural explanation for the bimodality is dead, measured: whether the cell
@@ -1902,7 +1987,7 @@ which is the direction to distrust:
   with none.
 
 What it does **not** claim: this is not a judged-composite win, and it does not
-soften the −0.473. The honest joint reading is that at the weak tier A2 is worse
+soften the −0.447. The honest joint reading is that on the weak model A2 is worse
 counsel and the only arm that can keep a written promise. Both blocks print from the
 same script, immediately adjacent, so neither can be quoted alone.
 

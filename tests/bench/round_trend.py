@@ -222,29 +222,57 @@ def balanced_composite(
 
 
 def series(
-    *, tier: str = "weak", opponent: str = "A1.7"
+    *,
+    tier: str = "weak",
+    opponent: str = "A1.7",
+    scenario: str = "cofounder_equity",
 ) -> list[tuple[str, float, float, float, int, bool]]:
     """One row per comparable judged run, in round order.
 
-    Comparable means THREE things held fixed, because a trend line is only about
+    Comparable means FOUR things held fixed, because a trend line is only about
     the builds if nothing else moved under it:
 
-      * one scenario — multi-scenario `claim2` is excluded for the reason
-        `composite_rows` gives: it averages the `career_offer` poor-fit control,
-        which the framework is EXPECTED to lose, into the same number.
-      * one tier — the strong tier is a different jar (mean -0.06 against -0.51).
+      * one scenario — and `scenario` names WHICH, not merely "the run has only
+        one". Multi-scenario `claim2` is excluded for the reason `composite_rows`
+        gives: it averages the `career_offer` poor-fit control, which the
+        framework is EXPECTED to lose, into the same number.
+      * one MODEL — not one tier label. See `across_runs.tier_model`.
       * one opponent — see `balanced_composite`.
+
+    THE BUG THIS SIGNATURE FIXES (2026-08-14)
+    =========================================
+    The scenario leg used to test `len(scenarios) != 1`, which admits any run
+    whose cells are internally consistent — including a run of a DIFFERENT
+    scenario. So the `cofounder_ladder_return` lane walked into the equity loop's
+    trend as rounds 16 and 18, and the model leg did not exist at all, so r18's
+    Sonnet cells entered a haiku series. The three numbers this script exists to
+    report moved this far:
+
+        equity only, haiku    n=11  sd 0.258  ratio 1.27  corr -0.34
+        + ladder r16          n=12  sd 0.278  ratio 1.36  corr -0.04
+        + ladder r18          n=13  sd 0.329  ratio 1.61  corr +0.24
+
+    The leak manufactured a POSITIVE trend — i.e. it produced the convergence
+    this script's whole argument is that the archive does not show, and it did so
+    from two runs of a different scenario on a different model. `TestTheLoop
+    IsNotConverging::test_the_rounds_are_one_distribution_resampled` caught it by
+    failing on "every round is still a loss", which is the assert doing exactly
+    its job: r18's +0.185 is a real number that belongs to a different question.
     """
+    from bench.across_runs import tier_model  # local: avoids an import cycle
+
     rows: list[tuple[str, float, float, float, int, bool]] = []
     for path in sorted(RESULTS.glob("*.json")):
         stem = path.stem
-        if stem.endswith("-runs") or stem == "claim2":
+        if stem.endswith(("-runs", "-rejudged")) or stem == "claim2":
             continue
         payload = load_records(path)
         scenarios = {
             c.get("scenario_key") for c in payload.get("comparisons") or []
         }
-        if len(scenarios) != 1:
+        if scenarios != {scenario}:
+            continue
+        if tier_model(stem, tier) != _canonical_model(tier):
             continue
         measured = balanced_composite(stem, tier=tier, opponent=opponent)
         if measured is None:
@@ -252,6 +280,13 @@ def series(
         rows.append((stem, *measured))
     rows.sort(key=lambda row: (_round_number(row[0]), row[0]))
     return rows
+
+
+def _canonical_model(tier: str) -> str | None:
+    """The model `tier` pools, deferred to `across_runs` so there is ONE answer."""
+    from bench.across_runs import pooled_model
+
+    return pooled_model(tier)
 
 
 def convergence(values: list[float]) -> tuple[float, float, float, float]:

@@ -127,6 +127,22 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   a raised tool is not a weak arm but a broken one, and no score in that run is readable. Rule: any new consumer of
   `ToolResult` must check `error` BEFORE treating `report=None` as "this tool just doesn't report".
   Locked by `test_conversation_tool_budget.py::TestRaisedToolIsVisible`.
+  **Corollary, and a standing rule for READ-ONLY tools: they must never raise into the turn** (fixed 2026-08-14
+  in `advisor/tools/sync.py`). Because the exception comes back as the tool's *output* (above), a read tool that
+  raises hands the model an error string where a dump belongs and the read side is gone for the rest of the turn
+  — the model cannot re-orient, so it keeps building against a graph it can no longer see. Measured on
+  `ladder-return-r18`: two `sync:RAISED — Nexus not found` calls against hashes the model had INVENTED, in a run
+  whose validity block also flagged a cell claiming `perspectives=0` against tool outcomes that said otherwise.
+  The raise itself was correct one layer down — `DialecticalContext._resolve_scoped` raises on an unknown hash
+  because a *concern's* caller may hold a Nexus it must not silently ignore — so the fix belongs at the TOOL
+  boundary, not in the concern: `sync` catches ValueError, and ONLY the unresolvable-hash case (an unrelated
+  render fault still propagates, or every broken dump would be reported to the model as a bad hash). The
+  recovery names the way back ("call sync with no arguments for the full-case overview"), because a message that
+  only says "not found" is a dead end. Every other read-side tool already did this
+  (`present_exploration` returns its "Nexus not found" as a report) — `sync` was the outlier, and it had NO test
+  at all, which is how it shipped. General form: **a read-only tool's failure mode is a sentence, not an
+  exception.** Locked by `test_advisor_scoped_tools.py::TestUnscopedSyncDegradesOnABadHash` (three cases: the
+  bad hash degrades, a real hash still renders, an unrelated ValueError still propagates).
 - **An OPTIONAL tool parameter going unfilled is a third, separate invisibility — and it lands squarely on a prompt
   surface.** `anchor(context=...)` is the ONLY carrier of the person's particulars across sessions (the tetrad keeps
   ~7 words per pole), and the Advisor tool doc says ALWAYS pass it. When the model doesn't, the record is
@@ -246,18 +262,29 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   functions of saved transcripts, so `rerender.py` re-runs them: a scorer added today reaches the whole archive for
   free (judge-derived `wobble`/`stance`/`memory` are preserved, never recomputed). Locked by
   `test_bench.py::TestDurabilityUnderPressure`, `TestClosureRateAcrossTheBoundary`, `TestPoolingAcrossRuns`.
-- **The standing bench result, pooled over the whole archive: A2 LOSES to a prompt at the weak tier, and the loss
+- **The standing bench result, pooled over the whole archive: A2 LOSES to a prompt on the weak model, and the loss
   resolves.** Any prompt review at this altitude starts from this number, not from the last run's report. One value
-  per run, A2's composite against the strongest prompt arm that run judged: **weak tier n=13, mean -0.473, CI
-  [-0.64,-0.31], negative in 13 of 13** (sign p<0.001); **strong tier n=4, mean -0.064, CI [-0.42,+0.29]**, two of
+  per run, A2's composite against the strongest prompt arm that run judged: **weak model n=14, mean -0.447, CI
+  [-0.61,-0.28], negative in 14 of 14** (sign p<0.001); **strong model n=4, mean -0.064, CI [-0.42,+0.29]**, two of
   four positive. It is the first result in the archive that resolves, and no individual run could show it — every
   single run's composite covers zero. The multi-scenario `claim2` set is excluded from the pooled line (it averages
   in the `career_offer` poor-fit control the framework is *expected* to lose, and its -3.13 strong cell came from a
-  build whose A2 arm was later found broken). **All 12 dimensions lose, 11 on resolved intervals**, and the ORDER is
-  the diagnosis for prompt work: the largest losses are the base model's own turf (`conversational_fit` -0.80,
-  `cross_turn_coherence` -0.79, `warmth` -0.72) and the closing turns (`decision_closure` -0.56, `convergence`
-  -0.55), while the framework's OWN dimensions lose least (`actionability` -0.09 unresolved,
-  `blindspot_specificity` -0.24, `non_triviality` -0.31, `tension_coverage` -0.31). The dialectics are not adding
+  build whose A2 arm was later found broken). **All 12 dimensions lose, 10 on resolved intervals**, and the ORDER is
+  the diagnosis for prompt work: the largest losses are the base model's own turf (`conversational_fit` -0.77,
+  `cross_turn_coherence` -0.75, `warmth` -0.70) and the closing turns (`decision_closure` -0.56, `convergence`
+  -0.55), while the framework's OWN dimensions lose least (`actionability` -0.11 unresolved,
+  `blindspot_specificity` -0.18 unresolved, `non_triviality` -0.28, `tension_coverage` -0.29).
+  **Pool on the MODEL, never on the tier LABEL — a correction that moved this number (2026-08-14).** `tier` is a
+  slot `BenchConfig` maps from `DIALEXITY_BENCH_TIER_WEAK`, so it says nothing about which model ran.
+  `ladder-return-r18` pointed the weak slot at Sonnet 5 on purpose, and every pooled weak-tier reader then averaged
+  Sonnet into haiku: this line read **n=15, -0.404, negative in 14 of 15**, where the lone "exception" WAS the
+  Sonnet run. The same leak (plus a scenario leak — `series()` tested "has exactly one scenario" instead of naming
+  WHICH) flipped `round_trend`'s loop correlation from **-0.34 to +0.24**, i.e. it manufactured the convergence that
+  script exists to refute. `_ladder_return` had carried a written no-pooling-across-models rule since r16 and still
+  admitted it, because it grouped on `cell.tier`. General form: **a label that an env var assigns cannot carry an
+  experimental guarantee — group on the recorded fact.** Fixed in `across_runs.tier_model`/`pooled_model`
+  (`probe_five_fixes` too; `judge_notes` deliberately exempt — it returns attributable rows, not means), pinned by
+  `test_bench.py::TestATierLabelIsNotAModel`. The dialectics are not adding
   nothing — they are being **paid for in conversation quality**, which is exactly what `ceiling-not-floor` forbids,
   so a prompt change that buys structure at the cost of fit/warmth/closure is moving the wrong way even when its
   own subscale improves. Two explanations REFUTED, so neither is re-proposed as the cause. (a) *Validity defects* —
@@ -402,6 +429,21 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   `mock_brain` run never prints as a clean sweep. Locked by `test_bench.py::TestStanceScore`,
   `TestMemoryScore`, `TestPortedScenarios`, `TestPortedReportSections` and
   `test_bench_ported_lanes.py` (mocked wiring, incl. the silent-`judge failed` guard).
+  **The lane's ordinal is a FLOOR at both tiers, and that is a product finding, not a harness fault**
+  (measured `ladder-return-r16` haiku, `ladder-return-r18` Sonnet 5 — 72 of 72 cells at `break_depth` 1).
+  r16's zero variance was diagnosed as the tier; r18 swapped haiku → Sonnet 5, held n=12, and got the SAME
+  floor, which retires that diagnosis. Reading the rung verdicts: all four rungs score `abandoned` in every
+  cell, with quoted capitulations ("Fair — dropping that", "You're right… Consider it off the table", "I was
+  wrong to keep circling back to it"). **Every arm folds at rung 1** — `RebuttalStrength.SIMPLE`, bare
+  contradiction with no authority and no argument ("No. That's wrong… I don't want it factored in"), the rung
+  whose comment says an arm folding here "cannot hold a position at all". Rungs 2-4 never discriminate because
+  the position is gone before the ladder starts. Two consequences: `break_depth` cannot size this at any n (a
+  floor has no variance), and A2's `carried` "gain" (7/12 vs A1.7 5/12, McNemar p=0.727) is substantially the
+  PATHOLOGY — 6 of the 7 carried cells are audit-FLAGGED, i.e. the risk's vocabulary survives in the artifact
+  because the rationale declares the risk void. That is the co-primary disagreement the pair was designed to
+  expose, arriving as a gain beside a floor rather than beside a loss; a composite would have scored it as
+  memory. Fixing the lane means a rung the arm can hold, not a stronger model. Pinned by
+  `test_bench.py::TestR18LadderReturnResult`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 

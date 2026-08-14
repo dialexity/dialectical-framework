@@ -23,10 +23,17 @@ committed rather than run once: the next time a single run produces a striking
 split, this is the two-minute check that comes before the write-up.
 
 The same machinery then answers the question the bench exists for, and the answer
-is the archive's first result that RESOLVES: pooled over 13 single-scenario runs
-at the weak tier, A2's composite against the strongest prompt arm in each run is
-**-0.473, CI [-0.64,-0.31], negative in 13 of 13**, and all 12 dimensions lose on
-intervals that exclude zero. So the headline block below is not a symmetric
+is the archive's first result that RESOLVES: pooled over 14 single-scenario runs
+of the weak MODEL, A2's composite against the strongest prompt arm in each run is
+**-0.447, CI [-0.61,-0.28], negative in 14 of 14**, and all 12 dimensions lose on
+intervals that exclude zero.
+
+"of the weak MODEL", not "at the weak tier": the tier is a LABEL that
+`BenchConfig` maps from the environment, and `ladder-return-r18` pointed the weak
+slot at Sonnet 5 on purpose. Pooling by label put that run inside this interval
+and made it read n=15, -0.404, positive in 1 of 15 — a smaller loss with an
+apparent exception, both of which dissolve when the pool groups on the recorded
+model. See `tier_model`. So the headline block below is not a symmetric
 "is there an effect" check — it is a standing record of a loss, and the splits
 after it are candidate explanations for it, none of which erases it. Kept in the
 same file as the refutations on purpose: the pooling that killed two flattering
@@ -99,6 +106,74 @@ def _stems() -> list[str]:
         if not p.stem.endswith(("-runs", "-rejudged"))
         and not p.stem.startswith("smoke")
     )
+
+
+def tier_model(stem: str, tier: str) -> str | None:
+    """The model that ACTUALLY ran under `stem`'s `tier` label, or None if mixed.
+
+    `tier` is a LABEL, not a model: `BenchConfig.tiers` maps it from the
+    environment (`DIALEXITY_BENCH_TIER_WEAK`), so "weak" means whatever that var
+    pointed at on the afternoon the run was saved. `ladder-return-r18` pointed it
+    at Sonnet 5 deliberately — the run existed to ask whether r16's `break_depth`
+    floor was a haiku artifact — and so it sits in the archive as a `weak` run on
+    the strong model.
+
+    Every pooled weak-tier cut then silently averaged Sonnet into haiku. Measured
+    at the moment of the fix: the pooled composite read n=15 mean -0.404 with it
+    in and n=14 mean -0.447 with it out, and `round_trend`'s loop correlation went
+    from -0.34 to +0.24 — i.e. the leak invented the convergence that script
+    exists to refuse. Both errors flattered the arm, which is the direction
+    unnoticed pooling errors have gone every time in this bench.
+
+    `_ladder_return` already refused to pool across models (see its `groups`
+    comment) and still admitted this, because it grouped on the label. The label
+    cannot carry the guarantee; only the recorded `model` can.
+    """
+    payload = load_records(RESULTS / f"{stem}.json")
+    models = {
+        run.get("model")
+        for run in payload.get("runs") or []
+        if run.get("tier") == tier and run.get("model")
+    }
+    return models.pop() if len(models) == 1 else None
+
+
+def pooled_model(tier: str) -> str | None:
+    """The model a `tier` label pools: the one most stems recorded under it.
+
+    Modal rather than hardcoded so the archive stays self-describing — the day
+    the weak tier is deliberately re-pointed for good, the majority moves and
+    the pool follows it, with the minority reported as excluded instead of
+    averaged. Ties (2 stems each) return None, which callers must read as "this
+    tier can no longer be pooled", never as "no exclusions".
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for stem in _stems():
+        model = tier_model(stem, tier)
+        if model:
+            counts[model] += 1
+    if not counts:
+        return None
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
+        return None
+    return ranked[0][0]
+
+
+def cross_model_stems(tier: str) -> list[tuple[str, str]]:
+    """(stem, model) for runs `tier` cannot pool — the visible half of the guard.
+
+    Returned so callers PRINT it. A pool that quietly drops a run reads exactly
+    like a pool that never had it, and the whole reason this function exists is
+    that a dropped-in run read exactly like a run that belonged.
+    """
+    canonical = pooled_model(tier)
+    rows = []
+    for stem in _stems():
+        model = tier_model(stem, tier)
+        if model and model != canonical:
+            rows.append((stem, model))
+    return sorted(rows)
 
 
 def valid_comparisons(stem: str) -> list[Comparison]:
@@ -312,7 +387,10 @@ def dimension_rows(tier: str) -> dict[str, list[float]]:
     weak tier and shrink every interval by ~3x for free.
     """
     per_dimension: dict[str, list[float]] = defaultdict(list)
+    canonical = pooled_model(tier)
     for stem in _stems():
+        if tier_model(stem, tier) != canonical:
+            continue  # the label is not the model — see `tier_model`
         comparisons = valid_comparisons(stem)
         if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
             continue
@@ -334,11 +412,11 @@ def dimension_shape(tier: str) -> dict[str, tuple[int, int, int, float, float]]:
 
     The distribution behind `dimension_rows`' means, and it splits the losing
     dimensions into two kinds that need opposite fixes — which the means hide
-    completely, because -0.81 and -0.47 look like the same finding at different
+    completely, because -0.77 and -0.55 look like the same finding at different
     strengths and are not:
 
-      * a UNIFORM TAX — `conversational_fit` loses 131 of 172 cells (76%) and wins
-        19, `warmth` 120 and wins 12, each by about 1.1 points. A2 is a bit worse
+      * a UNIFORM TAX — `conversational_fit` loses 166 of 244 cells (68%) and wins
+        33, `warmth` 152 and wins 26, each by about 1.1 points. A2 is a bit worse
         nearly everywhere. Whatever causes it is in every reply.
       * BIMODAL — `decision_closure` loses 90 and WINS 51 (30%), `convergence`
         loses 85 and wins 50, and both the losses and the wins are large
@@ -360,7 +438,10 @@ def dimension_shape(tier: str) -> dict[str, tuple[int, int, int, float, float]]:
     notes are the evidence, which is what `judge_notes.py` exists to extract.
     """
     shape: dict[str, list[float]] = defaultdict(list)
+    canonical = pooled_model(tier)
     for stem in _stems():
+        if tier_model(stem, tier) != canonical:
+            continue  # the label is not the model — see `tier_model`
         for comparison in valid_comparisons(stem):
             if comparison.tier != tier or comparison.error:
                 continue
@@ -423,7 +504,10 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
     needs one run that judges A0/A1 and A1.7 on the same build.
     """
     per: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+    canonical = pooled_model(tier)
     for stem in _stems():
+        if tier_model(stem, tier) != canonical:
+            continue  # the label is not the model — see `tier_model`
         for comparison in valid_comparisons(stem):
             if comparison.tier != tier or comparison.error:
                 continue
@@ -470,7 +554,10 @@ def visibility_cell_labels() -> dict[tuple[str, str, int], bool]:
     from bench.scoring import _RECORD_CLAIMED, _RECORD_REQUEST, _RECORD_TYPED
 
     cells: dict[tuple[str, str, int], bool] = {}
+    canonical = pooled_model("weak")
     for stem in _stems():
+        if tier_model(stem, "weak") != canonical:
+            continue  # the label is not the model — see `tier_model`
         payload = load_records(RESULTS / f"{stem}.json")
         for raw in payload.get("runs") or []:
             run = RunRecord.model_validate(raw)
@@ -545,7 +632,13 @@ def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
     """
     cells = visibility_cell_labels()
     per: dict[str, dict[bool, list[float]]] = defaultdict(lambda: defaultdict(list))
+    canonical = pooled_model("weak")
     for stem in _stems():
+        # Stated, not inherited. `cells` is already model-pinned, so an excluded
+        # stem would fall out anyway via `spoken is None` — but that makes the
+        # guard a side effect of the join, and the join is one edit from changing.
+        if tier_model(stem, "weak") != canonical:
+            continue
         for comparison in valid_comparisons(stem):
             if comparison.tier != "weak" or comparison.error:
                 continue
@@ -640,17 +733,26 @@ def validity_rows() -> list[tuple[str, float, int, float, int]]:
     return rows
 
 
-def election_rows() -> list[tuple[str, str, float, float]]:
-    """Per (run, tier): (stem, tier, share of A2 cells that ran explore/deepen, composite).
+def election_rows() -> list[tuple[str, str, float, float, str]]:
+    """Per (run, tier): (stem, tier, share of A2 cells that ran explore/deepen,
+    composite, model).
 
     `explore` election is the bench's longest-standing suspect — the framework
     cannot help through a pathway it never builds. The correlation is real
-    (+0.36) and CONFOUNDED beyond use: every set where the share clears 0.5 is a
-    strong-tier run, so "elected explore" and "ran on the better model" are the
-    same column. Printed with that stated, because the confound is the finding —
-    testing it needs a weak-tier run where election is forced, not more pooling.
+    (+0.36) and CONFOUNDED beyond use: every set where the share clears 0.5 ran
+    on the STRONG MODEL, so "elected explore" and "ran on the better model" are
+    the same column. Printed with that stated, because the confound is the
+    finding — testing it needs a haiku run where election is forced, not more
+    pooling.
+
+    The confound is stated against the MODEL, not the tier label, because
+    `ladder-return-r18` separates them: it is labelled `weak`, ran Sonnet, and
+    elected in 12 of 12 cells. Read by label it looks like the first weak-tier
+    run to clear 0.5 — i.e. like the confound breaking. Read by model it is one
+    more Sonnet run at share 1.00, which is the confound holding exactly. The
+    row carries its model so the verdict cannot be computed the flattering way.
     """
-    rows: list[tuple[str, str, float, float]] = []
+    rows: list[tuple[str, str, float, float, str]] = []
     for stem in _stems():
         comparisons = valid_comparisons(stem)
         if not comparisons or len({c.scenario_key for c in comparisons}) > 1:
@@ -677,7 +779,13 @@ def election_rows() -> list[tuple[str, str, float, float]]:
         for tier in deltas.tiers:
             if deltas.composite_n(tier) >= 2:
                 rows.append(
-                    (stem, tier, elected / len(a2), deltas.composite(tier) or 0.0)
+                    (
+                        stem,
+                        tier,
+                        elected / len(a2),
+                        deltas.composite(tier) or 0.0,
+                        tier_model(stem, tier) or "mixed",
+                    )
                 )
     return rows
 
@@ -1224,7 +1332,25 @@ def _headline() -> None:
             f"(cells {cells:2}){flag}"
         )
     for tier in ("weak", "strong"):
-        values = [r[3] for r in rows if r[2] == tier and r[5] == 1]
+        # Single-scenario AND one model. `scenarios == 1` only says a stem is not
+        # internally mixed; it does not say the stem runs the SAME scenario as the
+        # others, and it says nothing at all about the model. See `tier_model`.
+        canonical = pooled_model(tier)
+        excluded_models = [
+            (stem, model) for stem, model in cross_model_stems(tier)
+        ]
+        if excluded_models:
+            print()
+            print(
+                f"  excluded from composite/{tier} — the label, not the model:"
+            )
+            for stem, model in excluded_models:
+                print(f"    {stem:32} ran {model.split('/')[-1]}")
+        values = [
+            r[3]
+            for r in rows
+            if r[2] == tier and r[5] == 1 and tier_model(r[0], tier) == canonical
+        ]
         _summarise(
             f"composite/{tier}",
             values,
@@ -1275,9 +1401,9 @@ def _dimensions() -> None:
         )
     print(
         "    -> TWO KINDS OF LOSS, needing opposite fixes, and the means hide the\n"
-        "       difference because -0.80 and -0.55 read as one finding at two\n"
-        "       strengths. (a) A UNIFORM TAX on conversational_fit (loses 76% of\n"
-        "       cells, wins 11%) and warmth (70%, wins 7%) — the only two dimensions\n"
+        "       difference because -0.77 and -0.55 read as one finding at two\n"
+        "       strengths. (a) A UNIFORM TAX on conversational_fit (loses 68% of\n"
+        "       cells, wins 14%) and warmth (62%, wins 11%) — the only two dimensions\n"
         "       where A2 almost never wins at all. A2 is slightly worse nearly\n"
         "       everywhere, so the cause is in every reply, and no single cell will\n"
         "       show it. (b) BIMODAL closure: decision_closure and convergence lose\n"
@@ -1285,16 +1411,20 @@ def _dimensions() -> None:
         "       (1.66-1.72 lost against 1.35-1.44 won). It does not close mildly\n"
         "       badly; it either closes well or fails hard, about 2:1 against — so\n"
         "       there are winning cells to read against losing ones, which the\n"
-        "       uniform tax denies. Note also actionability's -0.09 is not a small\n"
-        "       deficit but a genuine COIN FLIP (71 lost, 74 won, both tails ~1.6):\n"
+        "       uniform tax denies. Note also actionability's -0.11 is not a small\n"
+        "       deficit but a genuine COIN FLIP (98 lost, 101 won, both tails ~1.7):\n"
         "       the framework's own home dimension is high-variance, not neutral.\n"
         "       Every structural explanation for the bimodality is dead (see\n"
         "       `dimension_shape`) — the variance is in what the reply SAYS, so read\n"
         "       `judge_notes.py`, not more counts."
     )
     print(
-        "  -> 11 of 12 lose on a resolved interval, so this is not one bad subscale.\n"
-        "     The ORDER is the diagnosis: the largest losses are the base model's own\n"
+        # Counted, not typed: this read "11 of 12" for a day after the pool was
+        # corrected to group on the model, while the block above it printed 10.
+        f"  -> {resolved} of {len(per_dimension)} lose on a resolved interval, so "
+        "this is not one bad\n"
+        "     subscale. The ORDER is the diagnosis: the largest losses are the base "
+        "model's own\n"
         "     turf (conversational_fit, cross_turn_coherence, warmth) and the closing\n"
         "     turns (decision_closure, convergence), while the framework's own\n"
         "     dimensions lose least (actionability -0.09 unresolved,\n"
@@ -1440,8 +1570,11 @@ def _explanations() -> None:
     print()
     print("  explore/deepen election share vs the run's composite:")
     elections = election_rows()
-    for stem, tier, share, composite in elections:
-        print(f"    {stem:32} {tier:7} share {share:.2f}  composite {composite:+.3f}")
+    for stem, tier, share, composite, model in elections:
+        print(
+            f"    {stem:32} {tier:7} share {share:.2f}  "
+            f"composite {composite:+.3f}  {model.split('/')[-1][:28]}"
+        )
     correlation = _corr([e[2] for e in elections], [e[3] for e in elections])
     high = [e[3] for e in elections if e[2] >= 0.5]
     low = [e[3] for e in elections if e[2] < 0.5]
@@ -1456,15 +1589,21 @@ def _explanations() -> None:
             f"    share <0.5: n={len(low)} mean {st.mean(low):+.3f} "
             f"{_fmt_ci(_ci95(low))}"
         )
-    tiers_high = {e[1] for e in elections if e[2] >= 0.5}
+    # Keyed on the MODEL, never the tier label: `ladder-return-r18` is a `weak`-
+    # labelled Sonnet run at share 1.00, so by label the high group stops being
+    # all-strong and this verdict would flip to "composition changed" while the
+    # confound was in fact perfectly intact. See `election_rows`.
+    weakest = pooled_model("weak")
+    models_high = {e[4] for e in elections if e[2] >= 0.5}
     print(
         "    -> UNUSABLE as evidence: "
         + (
-            f"every set above 0.5 is {'/'.join(sorted(tiers_high))} tier, so election\n"
-            "       and model strength are one column. To test it, force election on a\n"
-            "       weak-tier run."
-            if tiers_high <= {"strong"}
-            else "check the tier composition before reading this."
+            "every set above 0.5 ran "
+            f"{'/'.join(sorted(m.split('/')[-1] for m in models_high))}, so\n"
+            "       election and model strength are one column. To test it, force\n"
+            "       election on a run of the weakest model."
+            if weakest is not None and weakest not in models_high
+            else "check the MODEL composition before reading this."
         )
     )
 

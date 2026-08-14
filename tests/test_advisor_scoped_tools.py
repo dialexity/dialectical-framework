@@ -327,3 +327,69 @@ class TestScopedDeepen:
 
             assert deepened == [wheel.hash]
             assert "outside this exploration" not in result
+
+
+class TestUnscopedSyncDegradesOnABadHash:
+    """A read-only tool hands back text; it does not raise into the turn.
+
+    `DialecticalContext._resolve_scoped` raises on an unknown hash, which is
+    correct for a concern — a caller holding a Nexus it cannot render must not
+    proceed silently. At the TOOL boundary it is wrong: Mirascope turns the
+    exception into a plain-string result with `report=None`, so the model gets an
+    error where it expected a dump and the read side is gone for the rest of the
+    turn.
+
+    Measured on `ladder-return-r18`: two `sync:RAISED — Nexus not found` calls
+    against hashes the model had invented, in a run whose validity block also
+    reported a cell claiming zero perspectives against tool outcomes that said
+    otherwise. Every other read-side tool already degrades to a message here.
+    """
+
+    async def test_an_unknown_hash_comes_back_as_guidance_not_an_exception(self):
+        from dialectical_framework.agents.advisor.tools.sync import sync
+
+        sid = _new_sid()
+        with scope(sid):
+            out = await sync(nexus_hash="deadbee")
+
+        assert "not found" in out.lower()
+        # The recovery has to be actionable: the unscoped overview is the way
+        # back, and naming it is the difference between a dead end and a retry.
+        assert "no arguments" in out.lower()
+
+    async def test_a_real_hash_still_renders_and_the_guard_is_not_swallowing_it(self):
+        from dialectical_framework.agents.advisor.tools.sync import sync
+
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            member = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            member.nexus.connect(nexus)
+
+            out = await sync(nexus_hash=nexus.hash[:7])
+
+        assert "Control" in out
+        assert "not found" not in out.lower()
+
+    async def test_an_unrelated_valueerror_still_propagates(self, monkeypatch):
+        """The guard is for the unresolvable hash ONLY.
+
+        A broken dump that happens to raise ValueError must not be reported to
+        the model as a bad hash — that would turn every render fault into a
+        retry against a hash that was fine.
+        """
+        from dialectical_framework.agents.advisor.tools import sync as sync_mod
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+
+        async def boom(self):
+            raise ValueError("rendering blew up")
+
+        monkeypatch.setattr(DialecticalContext, "resolve", boom)
+
+        sid = _new_sid()
+        with scope(sid):
+            with pytest.raises(ValueError, match="rendering blew up"):
+                await sync_mod.sync(nexus_hash="deadbee")
