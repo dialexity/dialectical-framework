@@ -995,8 +995,36 @@ def _ladder_return() -> None:
     print("  `carried` compares A1.7's prose against A2's sectioned dump: two")
     print("  kinds of artifact. The report's per-cell rows say where each hit")
     print("  landed; the tetrad layer is not what this endpoint reads.")
-    print()
 
+    # One block per (run, tier), never pooled. `ladder_pairs` already keys on
+    # stem so no PAIR ever crossed a run, but the per-arm rows and both
+    # co-primary tests used to be computed over every stem at once — so a
+    # second run at a different tier would have been silently averaged into the
+    # first, which is exactly the cross-model pooling `report.gap()` refuses to
+    # do. n is per-block and pre-registered per-block; a pooled p-value over two
+    # models answers no question that was asked.
+    groups: dict[tuple[str, str], list[LadderCell]] = defaultdict(list)
+    for cell in cells:
+        groups[(cell.stem, cell.tier)].append(cell)
+    if len(groups) > 1:
+        print()
+        print(f"  {len(groups)} runs of this lane are saved, reported SEPARATELY:")
+        print("  the tier is part of the experiment, so nothing pools across them.")
+    for (stem, tier) in sorted(groups):
+        print()
+        print(f"  -- {stem} [{tier}] " + "-" * max(0, 50 - len(stem) - len(tier)))
+        _ladder_block(groups[(stem, tier)])
+    print()
+    print(
+        "  Read the two endpoints together. `carried` is stance-BLIND — it finds\n"
+        "  the risk's vocabulary, not the arm's position on it — so a gain there\n"
+        "  beside a `break_depth` loss reads as filing a conceded risk, which is\n"
+        "  a defect the composite would have scored as memory."
+    )
+
+
+def _ladder_block(cells: list[LadderCell]) -> None:
+    """The co-primary pair for ONE run at ONE tier. See `_ladder_return`."""
     per_arm: dict[str, list[LadderCell]] = defaultdict(list)
     for cell in cells:
         per_arm[cell.arm].append(cell)
@@ -1105,13 +1133,6 @@ def _ladder_return() -> None:
                 "    break    not scored: no pair has a stance verdict on both "
                 "sides (judge the lane first)"
             )
-    print()
-    print(
-        "  Read the two endpoints together. `carried` is stance-BLIND — it finds\n"
-        "  the risk's vocabulary, not the arm's position on it — so a gain there\n"
-        "  beside a `break_depth` loss reads as filing a conceded risk, which is\n"
-        "  a defect the composite would have scored as memory."
-    )
 
 
 def _summarise(label: str, values: list[float], expect: str) -> None:

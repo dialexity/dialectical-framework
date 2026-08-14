@@ -4849,10 +4849,15 @@ class TestTheLaddersPairedAnalysis:
         The floor is the finding: a lane whose rungs all break at the first one
         cannot separate arms on depth, so the next ladder run needs either a
         gentler rung 1 or the strong tier — not more replicates.
+
+        Scoped to r16's OWN cells rather than to the whole archive. The earlier
+        version asserted `{stem} == {"ladder-return-r16"}`, which pinned "r16 is
+        the only lane run that exists" alongside its result — so the first
+        follow-up run would fail this test for succeeding. A pin on a measurement
+        must not also pin the absence of later measurements.
         """
-        cells = ladder_cells()
-        assert {c.stem for c in cells} == {"ladder-return-r16"}
-        assert len(cells) == 36
+        cells = [c for c in ladder_cells() if c.stem == "ladder-return-r16"]
+        assert len(cells) == 36, "r16's saved cells are the pin; they must be intact"
         assert not any(c.invalid for c in cells)
 
         # The floor, asserted as the reason the ordinal endpoint is silent.
@@ -4921,6 +4926,62 @@ class TestTheLaddersPairedAnalysis:
             l for l in text.splitlines() if "intent-to-treat" in l and "A1.7" in l
         )
         assert "McNemar" in a17_itt
+
+    def test_two_runs_of_the_lane_are_reported_apart_never_pooled(self):
+        """The tier is part of the experiment, so a second run cannot average in.
+
+        `ladder_pairs` already keys on the stem, so no PAIR ever crossed runs —
+        but the per-arm rows and both co-primary tests were computed over every
+        saved stem at once. A follow-up run at a different tier would therefore
+        have printed one blended 24-pair McNemar over two models, which is the
+        cross-model pooling `report.gap()` refuses to do. n is pre-registered
+        per run, and a p-value over two tiers answers nothing that was asked.
+        """
+        from bench.across_runs import LadderCell, _ladder_return
+
+        def cell(stem: str, tier: str, arm: str, rep: str, carried: bool) -> LadderCell:
+            return LadderCell(
+                stem=stem,
+                arm=arm,
+                tier=tier,
+                scenario_key="cofounder_ladder_return",
+                replicate=rep,
+                break_depth=1 if tier == "weak" else 3,
+                carried=carried,
+                artifact_expected=True,
+                invalid=False,
+            )
+
+        # Opposite directions per run: pooled, they would cancel to a null.
+        cells = [
+            c
+            for rep in ("1", "2")
+            for c in (
+                cell("r16", "weak", "A2", rep, False),
+                cell("r16", "weak", "A1.7", rep, True),
+                cell("r18", "strong", "A2", rep, True),
+                cell("r18", "strong", "A1.7", rep, False),
+            )
+        ]
+        buf = io.StringIO()
+        with (
+            mock.patch("bench.across_runs.ladder_cells", return_value=cells),
+            contextlib.redirect_stdout(buf),
+        ):
+            _ladder_return()
+        text = buf.getvalue()
+
+        assert "r16 [weak]" in text and "r18 [strong]" in text
+        assert "reported SEPARATELY" in text
+        # Each block carries its OWN n and its own direction, and no block is
+        # the pooled 4 pairs.
+        per_protocol = [l for l in text.splitlines() if "per-protocol" in l]
+        assert len(per_protocol) == 2
+        assert any("A2 0/2" in l for l in per_protocol)
+        assert any("A2 2/2" in l for l in per_protocol)
+        assert all("/4" not in l for l in per_protocol)
+        # The depths differ by tier; a pooled mean would show neither.
+        assert "A2 1.00" in text and "A2 3.00" in text
 
     def test_pairs_match_on_the_replicate_and_drop_the_unmatched(self):
         """A shrunken pool must be visible, so unmatched cells are dropped here
