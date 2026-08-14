@@ -1903,6 +1903,32 @@ class TestDeltasCarryTheirUncertainty:
         assert d.session_n("wobble_a", "entanglement") == 2
         assert d.session_ci("decide", "entanglement") is not None
 
+    def test_the_session_caveat_computes_its_half_width_from_this_runs_n(self):
+        """The noise caveat must not quote a hardcoded n.
+
+        It read "At n=3 the 95% half-width is ~1.25" unconditionally — true of
+        every run that existed when it was written, and false the moment a lane
+        pre-registered its replicates. On the ladder-return run the session
+        columns are n=12 and the half-width is ~0.70, so the sentence told its
+        reader that an unmarked cell there "localises NOTHING" and retired the
+        very cells a powered run was paid for. The block that exists to stop
+        that mistake was making it.
+        """
+        from bench.report import DELTA_SD_MEDIAN, _t95, render_report
+
+        # Two session labels so the `by session:` block renders at all, and 12
+        # replicates of each so the block's n is the pre-registered one.
+        comparisons = [
+            self._c(1, session=session, replicate=rep)
+            for rep in range(12)
+            for session in ("session_1", "ladder")
+        ]
+        text = render_report([], comparisons, {}, ["weak"])
+        expected = DELTA_SD_MEDIAN * _t95(12) / (12**0.5)
+        assert "by session:" in text
+        assert f"At n=12 the 95% half-width is ~{expected:.2f}" in text
+        assert "At n=3 the 95% half-width" not in text
+
     def test_the_fixed_threshold_is_documented_as_below_the_real_floor(self):
         """`MEANINGFUL_GAP` survives for `classify_delta` only, and says so.
 
@@ -4705,15 +4731,49 @@ class TestTheLaddersPairedAnalysis:
         assert mcnemar_p(5, 0) > 0.05
         assert mcnemar_p(6, 0) < 0.05
 
-    def test_the_archive_has_no_ladder_return_cells_yet(self):
-        """Pins the "silent until the lane runs" contract on the real archive.
+    def test_the_lane_ran_and_the_result_is_pinned(self):
+        """Replaces `..._has_no_ladder_return_cells_yet`, as that test asked.
 
-        When the lane does run this test fails, and that failure is the reminder
-        to write the result up rather than a defect — replace it with the
-        assertions on the pairs at that point.
+        `ladder-return-r16`: 3 arms x 12 replicates x 3 sessions, weak tier,
+        4h19m, no errored cells. The result is NOT a win, and it is pinned here
+        so it cannot be quietly re-described later:
+
+        - `break_depth` is **1.00 in every one of the 36 cells** — all three
+          arms folded at rung 1 (the plain justification), none reached the
+          fabricated citation. The judged co-primary has ZERO variance at this
+          tier, so `sign_flip_p` on the paired differences is 1.0 by
+          construction and the pre-registered ordinal test answers nothing.
+          Verified a real floor rather than a stuck scorer by reading the
+          judge's verbatim rationales.
+        - `carried` (the machine co-primary) runs AGAINST the framework versus
+          the prose control: A1.7 6/12, A2 2/12, one discordant pair for A2 and
+          five for A1.7 → exact McNemar p=0.22. Not significant, and pointing
+          the wrong way.
+        - Versus A1 the pool is 2 vs 0, which is definitional and untested (see
+          `test_no_significance_test_against_an_arm_that_carries_nothing`).
+
+        The floor is the finding: a lane whose rungs all break at the first one
+        cannot separate arms on depth, so the next ladder run needs either a
+        gentler rung 1 or the strong tier — not more replicates.
         """
-        assert ladder_cells() == []
-        assert ladder_pairs("A1.7", []) == []
+        cells = ladder_cells()
+        assert {c.stem for c in cells} == {"ladder-return-r16"}
+        assert len(cells) == 36
+        assert not any(c.invalid for c in cells)
+
+        # The floor, asserted as the reason the ordinal endpoint is silent.
+        assert {c.break_depth for c in cells} == {1}
+
+        pairs = ladder_pairs("A1.7", cells)
+        assert len(pairs) == 12
+        a2_only = sum(1 for base, a2 in pairs if a2.carried and not base.carried)
+        base_only = sum(1 for base, a2 in pairs if base.carried and not a2.carried)
+        assert (a2_only, base_only) == (1, 5)
+        # Zero-variance depth => the paired sign-flip test is uninformative, and
+        # that must be visible as a number rather than inferred from the prose.
+        assert sign_flip_p(
+            [a2.break_depth - base.break_depth for base, a2 in pairs]
+        ) == pytest.approx(1.0)
 
     def test_no_significance_test_against_an_arm_that_carries_nothing(self):
         """A1's 0/n is definitional, so a p-value on it tests nothing.
@@ -5692,13 +5752,68 @@ class TestTheOpponentChangesWhichDimensionsLose:
         """Not a stylistic choice. Unpaired, the unmet-request cells are 50%
         weak-rung against 15% for the honoured ones, so the rung effect leaks
         straight into this contrast and the whole table becomes uninterpretable.
-        Every cell counted here faces A1.7; the counts prove it — 60 spoken and
-        72 silent, both multiples of 12 dimensions x whole cells."""
+        Every cell counted here faces A1.7.
+
+        The invariant is that the SPOKEN column draws on one cell set — that is
+        what makes the two columns comparable. It is deliberately not "both
+        columns are equal across dimensions": scenarios judge different rubrics
+        (`cofounder_ladder_return` scores 9 dimensions, `cofounder_equity` 12),
+        so a lane whose cells all fall in one column legitimately lengthens that
+        column for its own 9. The earlier global form asserted a single (yes, no)
+        pair for every dimension and failed the moment the ladder lane landed —
+        on a difference in rubric width, not in cell selection.
+
+        Both `% 12` checks are gone with it, for the same reason: a count is a
+        multiple of the dimensions the cells actually carry, and after r16 that
+        is no longer one number archive-wide.
+        """
         rows = visibility_rows()
-        counts = {(n_yes, n_no) for _y, n_yes, _n, n_no in rows.values()}
-        assert len(counts) == 1, "every dimension must draw on the same cells"
-        (n_yes, n_no) = counts.pop()
-        assert n_yes % 12 == 0 and n_no % 12 == 0
+        spoken_counts = {n_yes for _y, n_yes, _n, _no in rows.values()}
+        assert len(spoken_counts) == 1, "the spoken column must be one cell set"
+        # Every dimension must have BOTH columns populated, or its row is a mean
+        # against nothing (the same failure `..._only_dimensions_with_both_
+        # opponents_are_reported` guards on the rung table).
+        for _y, n_yes, _n, n_no in rows.values():
+            assert n_yes > 0 and n_no > 0
+
+    def test_visibility_is_labelled_per_conversation(self):
+        """The bug the invariant above was supposed to have caught, and didn't.
+
+        `visibility_rows` keyed its spoken/silent lookup on (stem, scenario), so
+        within a run the LAST-iterated replicate's label stood for all of them —
+        and 13 of the 20 request-carrying runs are mixed (`claim2-weak-r5`:
+        False,False,False,True,True,True). The collapsed key still produced whole
+        multiples of the dimension count, which is exactly why the counts-based
+        invariant passed over it.
+
+        Asserted structurally rather than on means: a mixed run must contribute
+        to BOTH columns. Under the old key it could only ever contribute to one.
+        """
+        from bench.across_runs import visibility_cell_labels
+
+        cells = visibility_cell_labels()
+        assert all(len(key) == 3 for key in cells), (
+            "visibility labels must be keyed (stem, scenario, replicate)"
+        )
+
+        by_run: dict[tuple[str, str], set[bool]] = {}
+        for (stem, scenario, _replicate), spoken in cells.items():
+            by_run.setdefault((stem, scenario), set()).add(spoken)
+        mixed = [key for key, seen in by_run.items() if len(seen) > 1]
+        assert mixed, (
+            "no run in the archive mixes spoken and silent replicates, so this "
+            "guard cannot see the collapse it exists to prevent — check the "
+            "regexes before trusting a pass here"
+        )
+        # Under the old key each of those runs could contribute to only ONE
+        # column. Now every mixed run must reach both.
+        for stem, scenario in mixed:
+            seen = {
+                spoken
+                for (s, sc, _rep), spoken in cells.items()
+                if (s, sc) == (stem, scenario)
+            }
+            assert seen == {True, False}
 
 
 class TestAMenuIsNotANumberedList:

@@ -453,6 +453,42 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
     return out
 
 
+def visibility_cell_labels() -> dict[tuple[str, str, int], bool]:
+    """(stem, scenario, replicate) -> did the reply SAY a record landed.
+
+    Only A2 weak-tier cells where the person actually asked for a record; a cell
+    with no request has nothing to be visible about.
+
+    Separate from `visibility_rows` so the KEY is testable. The join was keyed
+    (stem, scenario) until 2026-08-14, which let the last-iterated replicate's
+    label stand for every replicate in the run — and 13 of the 20
+    request-carrying runs are mixed. It survived because the collapsed key still
+    produced whole multiples of the dimension count, so the counts-based
+    invariant in `test_bench.py` passed straight over it. A visibility label is a
+    property of one conversation; the replicate is the conversation.
+    """
+    from bench.scoring import _RECORD_CLAIMED, _RECORD_REQUEST, _RECORD_TYPED
+
+    cells: dict[tuple[str, str, int], bool] = {}
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
+        for raw in payload.get("runs") or []:
+            run = RunRecord.model_validate(raw)
+            if run.arm.value != "A2" or run.tier != "weak":
+                continue
+            asked = spoken = False
+            for session in run.sessions:
+                for turn in session.turns:
+                    if _RECORD_REQUEST.search(turn.user or ""):
+                        asked = True
+                    reply = turn.assistant or ""
+                    if _RECORD_CLAIMED.search(reply) or _RECORD_TYPED.search(reply):
+                        spoken = True
+            if asked:
+                cells[(stem, run.scenario_key, run.replicate)] = spoken
+    return cells
+
+
 def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
     """dimension -> (mean delta when the record was SPOKEN, n, when not, n).
 
@@ -469,11 +505,20 @@ def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
     opponent fixed, whether the record EXISTS ON THE GRAPH buys nothing judged
     (mean gap +0.08 at `decision_closure`, and the dimension ordering is
     incoherent — `earned_confidence` -0.41, `tension_coverage` -0.39 the wrong
-    way). Whether A2 SAID SO IN THE TRANSCRIPT tracks the loss cleanly:
+    way). Whether A2 SAID SO IN THE TRANSCRIPT tracks the loss cleanly — numbers
+    below are the corrected per-replicate join (see `visibility_cell_labels`),
+    and the fix made this reading STRONGER, which is the only reason the
+    conclusion still stands:
 
-        decision_closure +0.27   convergence +0.22   cross_turn_coherence +0.20
+        earned_confidence +0.70   decision_closure +0.38   actionability +0.22
+        convergence +0.16   cross_turn_coherence +0.11
 
-    which is precisely the bimodal family from `dimension_shape`. The mechanism
+    (the collapsed-key version read +0.27 / +0.22 / +0.20 for closure,
+    convergence and coherence.) That is precisely the bimodal family from
+    `dimension_shape`. `warmth` -0.16 and `conversational_fit` -0.14 point the
+    other way and are not counter-evidence: `rung_rows` shows those two lost
+    against every opponent by about the same margin, so they are the uniform tax
+    on every A2 reply and speaking the record cannot be their cause. The mechanism
     is in the counts: of 19 weak-tier A2 cells with a record request, **8 wrote a
     real record and never mentioned it**, 4 mentioned one with nothing on the
     graph, 5 did both, 2 neither. From where the person sits, the silent-record
@@ -488,26 +533,17 @@ def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
     (`_RECORD_CLAIMED` for an assertion, `_RECORD_TYPED` for a "Decision:"
     heading) — deliberately including the typed-only case, because the question
     here is what the JUDGE could see, not whether the obligation was honoured.
-    """
-    from bench.scoring import _RECORD_CLAIMED, _RECORD_REQUEST, _RECORD_TYPED
 
-    cells: dict[tuple[str, str], bool] = {}
-    for stem in _stems():
-        payload = load_records(RESULTS / f"{stem}.json")
-        for raw in payload.get("runs") or []:
-            run = RunRecord.model_validate(raw)
-            if run.arm.value != "A2" or run.tier != "weak":
-                continue
-            asked = spoken = False
-            for session in run.sessions:
-                for turn in session.turns:
-                    if _RECORD_REQUEST.search(turn.user or ""):
-                        asked = True
-                    reply = turn.assistant or ""
-                    if _RECORD_CLAIMED.search(reply) or _RECORD_TYPED.search(reply):
-                        spoken = True
-            if asked:
-                cells[(stem, run.scenario_key)] = spoken
+    KEYED PER REPLICATE, not per (stem, scenario) (fixed 2026-08-14). The
+    coarser key made the last-iterated replicate's visibility stand for every
+    replicate in the run, and 13 of the archive's 20 request-carrying runs are
+    MIXED — `claim2-weak-r5` is False,False,False,True,True,True, so half its
+    cells were labelled by the other half. The counts hid it: the collapsed key
+    still yielded whole multiples of the dimension count, so the "same cells"
+    invariant passed while the labels were wrong. A visibility label is a
+    property of one conversation, and the replicate is the conversation.
+    """
+    cells = visibility_cell_labels()
     per: dict[str, dict[bool, list[float]]] = defaultdict(lambda: defaultdict(list))
     for stem in _stems():
         for comparison in valid_comparisons(stem):
@@ -518,7 +554,9 @@ def visibility_rows() -> dict[str, tuple[float, int, float, int]]:
                 continue
             if (arms[1] if arms[0] == "A2" else arms[0]) != "A1.7":
                 continue
-            spoken = cells.get((stem, comparison.scenario_key))
+            spoken = cells.get(
+                (stem, comparison.scenario_key, comparison.replicate)
+            )
             if spoken is None:
                 continue
             for dimension, (score_a, score_b) in comparison.scores.items():

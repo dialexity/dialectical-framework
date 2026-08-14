@@ -46,6 +46,13 @@ from .scoring import score_internal_prompt_echo, score_machinery_leak
 #: n; every row now ALSO prints its own interval, which is the number to read.
 MEANINGFUL_GAP = 0.34
 
+#: The measured median above, as a number the report can compute with instead of
+#: quoting. Every "the half-width is ~X" sentence must derive X from this and the
+#: run's own n — a hardcoded X goes stale the first time a lane pre-registers a
+#: different replicate count, and then the caveat retires cells that were paid
+#: for (see the `by session:` block).
+DELTA_SD_MEDIAN = 1.11
+
 #: How much a delta must shrink across tiers before it is called depreciating.
 DEPRECIATION_MARGIN = 0.5
 
@@ -1820,11 +1827,39 @@ def render_report(
             # half-width is ~1.25 rubric steps against a median cell of ~0.5:
             # nearly every cell here is noise, and the r16 read that sent me
             # looking for a context-flooding cause was one of them.
+            #
+            # COMPUTED FROM THIS RUN'S n, not hardcoded. The text said "At n=3"
+            # unconditionally, which was true of every run that existed when it
+            # was written and false the moment a lane pre-registered its
+            # replicates: the ladder-return run has n=12 per session column and
+            # a half-width near 0.62, and the sentence told its reader that an
+            # unmarked cell there "localises NOTHING" — retiring exactly the
+            # cells a powered run was paid for. The failure mode this whole
+            # block exists to prevent, committed by the block itself.
+            session_ns = {
+                d.session_n(s, d.dimensions()[0]) for s in sessions
+            } - {0, None}
+            worst_n = min(session_ns) if session_ns else 0
+            half = (
+                DELTA_SD_MEDIAN * _t95(worst_n) / (worst_n**0.5)
+                if worst_n and worst_n > 1
+                else None
+            )
             add(
                 f"  * = interval excludes zero ({session_resolved} of "
-                f"{session_total} cell(s)). At n=3 the 95% half-width is ~1.25"
+                f"{session_total} cell(s))."
             )
-            add("    rubric steps, so an unmarked cell localises NOTHING.")
+            if half is not None:
+                add(
+                    f"    At n={worst_n} the 95% half-width is ~{half:.2f} rubric"
+                    f" steps (sd {DELTA_SD_MEDIAN}),"
+                )
+                add(
+                    "    so an unmarked cell whose mean is inside that localises"
+                    " NOTHING."
+                )
+            else:
+                add("    n is too small here for an interval at all.")
             add("    Diagnose from the marked cells and from the transcripts,")
             add("    never from an unmarked mean.")
             add("")
