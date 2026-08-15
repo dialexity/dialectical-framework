@@ -6802,6 +6802,59 @@ class TestRungFiringProbe:
         assert pooled < 0.05, pooled
         assert _binomial_p(3, 12, pooled) < 0.05
 
+    def test_the_upper_bound_generalises_past_a_zero_baseline(self):
+        """r20's baseline is 1-of-24, not 0-of-24, and the closed form in
+        `null_rate` only covers zero hits. Using it anyway would UNDERSTATE the
+        null and so flatter the fix — the direction of error that matters here,
+        which is why this asserts the direction and not just equality.
+        """
+        from bench.probe_rung_firing import null_rate, upper_bound
+
+        # Agrees with the closed form exactly where the closed form is valid.
+        assert upper_bound(0, 12) == pytest.approx(null_rate(12), abs=1e-6)
+        assert upper_bound(0, 24) == pytest.approx(null_rate(24), abs=1e-6)
+        # A hit in the baseline RAISES the bound (a harder null, not an easier
+        # one), and more evidence at the same rate lowers it.
+        assert upper_bound(1, 24) > upper_bound(0, 24)
+        assert upper_bound(1, 24) < upper_bound(1, 12)
+        # And it stays a bound: above the point estimate, below certainty.
+        assert 1 / 24 < upper_bound(1, 24) < 1.0
+
+    def test_the_pre_fix_baseline_is_derived_not_asserted(self):
+        """The null must summarise the runs it claims to. Both pre-fix stems are
+        named explicitly rather than globbed, so a LATER run cannot silently
+        redefine the baseline it is being judged against — and r19 sits on the
+        baseline side because its escape clause was still unordered.
+        """
+        from bench.probe_rung_firing import (MOVED_MIN, MOVED_STRONG_MIN,
+                                             PRE_FIX_STEMS)
+
+        assert PRE_FIX_STEMS == ("ladder-return-r18", "r19-probe-firing")
+        # The bands are the README's, and the strong one must be the harder one.
+        assert MOVED_MIN == 3
+        assert MOVED_STRONG_MIN == 6
+        assert MOVED_STRONG_MIN > MOVED_MIN
+
+    def test_the_bands_match_the_nulls_they_were_derived_from(self):
+        """Each pre-registered band must actually be the p<0.05 point for the null
+        it was justified by, or the README's table is decoration. This is the
+        assert that would have caught last round's "3/12 is p≈0.05" error before
+        the run rather than after it.
+        """
+        from bench.probe_rung_firing import (MOVED_MIN, MOVED_STRONG_MIN,
+                                             _binomial_p, upper_bound)
+
+        point, ub = 1 / 24, upper_bound(1, 24)
+        # 3/12 clears the pooled POINT estimate...
+        assert _binomial_p(MOVED_MIN, 12, point) < 0.05
+        assert _binomial_p(MOVED_MIN - 1, 12, point) > 0.05
+        # ...and does NOT clear the generous upper bound, which is the whole
+        # reason two bands exist instead of one.
+        assert _binomial_p(MOVED_MIN, 12, ub) > 0.05
+        # 6/12 clears both.
+        assert _binomial_p(MOVED_STRONG_MIN, 12, ub) < 0.05
+        assert _binomial_p(MOVED_STRONG_MIN - 1, 12, ub) > 0.05
+
     def test_the_rung_one_reply_is_found_by_strength_not_by_index(self):
         """The ladder's establish beat shifts the turn index between lanes, so a
         hardcoded index would silently read the wrong reply — and every claim in
@@ -6871,6 +6924,13 @@ class TestRungFiringProbe:
         # the failure the whole pre-registration exists to prevent.
         assert "DID NOT FIRE" in readme
         assert "this part is post-hoc" in readme
+        # r20's result, recorded with the band it cleared AND the half it did
+        # not fix. A result written up without its limit is the failure mode the
+        # archive has hit before (r15/r16 both "met their structural goal").
+        assert "r20-probe RESULT" in readme
+        assert "abandons at rung 2" in readme
+        # Normalised: the sentence wraps in the source.
+        assert "did not buy the *arithmetic*" in " ".join(readme.split())
 
 
 class TestRationaleIntegrityProbe:

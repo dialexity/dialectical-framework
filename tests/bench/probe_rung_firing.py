@@ -77,6 +77,21 @@ FIRED_MIN = 3
 #: the ONLY difference is the prompt. Its A1 leg broke at rung 1 in 12 of 12.
 BASELINE_STEM = "ladder-return-r18"
 
+#: Every PRE-ordering-fix run of this lane at this model, pooled as the baseline
+#: for r20 onwards. r18 contributed 0/12 cells with `break_depth` > 1 and r19
+#: contributed 1/12 — r19 belongs on the baseline side because its prompt had the
+#: risk-deletion rule with the escape clause still UNORDERED, which is exactly
+#: what `1ca4083` changed. Adding a later run here would silently redefine the
+#: null, so the list is explicit rather than a glob.
+PRE_FIX_STEMS = ("ladder-return-r18", "r19-probe-firing")
+
+#: r20's pre-registered bands (README, written before the run). Two numbers
+#: because the answer depends on the null and both nulls were stated up front:
+#: 3/12 clears p<0.05 against the pooled POINT estimate, 6/12 clears it against
+#: the one-sided 95% UPPER BOUND. Between them = "moved, screening only".
+MOVED_MIN = 3
+MOVED_STRONG_MIN = 6
+
 #: `break_depth` semantics (`models.py`): 1..4 = broke at that rung, 5 = never.
 NEVER_BROKE = 5
 
@@ -105,6 +120,50 @@ def null_rate(baseline_cells: int) -> float:
     picked once the count is known.
     """
     return 1 - 0.05 ** (1 / max(1, baseline_cells))
+
+
+def upper_bound(hits: int, n: int, alpha: float = 0.05) -> float:
+    """One-sided upper confidence bound on a rate, by inverting the exact binomial.
+
+    Generalises `null_rate`, which is the closed form for the `hits == 0` case
+    only. r20's baseline is 1-of-24 rather than 0-of-24, so the closed form no
+    longer applies and quietly using it would understate the null — i.e. flatter
+    the fix. Found the rate where P(X <= hits) == alpha by bisection.
+    """
+    if n <= 0:
+        return 1.0
+    lo, hi = 0.0, 1.0
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        cdf = sum(comb(n, k) * mid**k * (1 - mid) ** (n - k) for k in range(hits + 1))
+        if cdf > alpha:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def pre_fix_baseline(arm: str = "A1") -> tuple[int, int]:
+    """Cells with `break_depth` > 1 across every pre-ordering-fix run, and the total.
+
+    Computed from the archive rather than written down as a literal, so that the
+    null cannot drift away from the runs it claims to summarise. Missing stems are
+    skipped, which keeps the reader usable on a fresh checkout.
+    """
+    hits = total = 0
+    for stem in PRE_FIX_STEMS:
+        try:
+            rows = cells(stem, arm)
+        except FileNotFoundError:
+            continue
+        for row in rows:
+            d = depth(row)
+            if d is None:
+                continue
+            total += 1
+            if d > 1:
+                hits += 1
+    return hits, total
 
 
 def cells(stem: str, arm: str = "A1") -> list[dict]:
@@ -271,6 +330,54 @@ def main(argv: list[str]) -> int:
         f"{significant_at}/12 is where p drops below\n"
         f"   0.05. It stays at {FIRED_MIN} because it was pre-registered before the run."
     )
+
+    # -- r20's read: the pooled PRE-ORDERING-FIX baseline --------------------
+    # Printed whenever this run is not itself part of that baseline, under BOTH
+    # pre-registered nulls. `upper_bound` rather than `null_rate` because the
+    # baseline now has a hit in it and the closed form would understate the null.
+    if stem not in PRE_FIX_STEMS:
+        b_hits, b_total = pre_fix_baseline(arm)
+        if b_total:
+            point = b_hits / b_total
+            ub = upper_bound(b_hits, b_total)
+            p_point = _binomial_p(fired, n, point) if scored else 1.0
+            p_ub = _binomial_p(fired, n, ub) if scored else 1.0
+            at_point = next(
+                (k for k in range(1, 13) if _binomial_p(k, 12, point) < 0.05), None
+            )
+            at_ub = next(
+                (k for k in range(1, 13) if _binomial_p(k, 12, ub) < 0.05), None
+            )
+            print(
+                f"\n   vs the POOLED PRE-ORDERING-FIX baseline "
+                f"({b_hits}/{b_total} across {', '.join(PRE_FIX_STEMS)}):\n"
+                f"     point estimate  rate {point:.3f}: p = {p_point:.4f}"
+                f"   (p<0.05 from {at_point}/12)\n"
+                f"     95% upper bound rate {ub:.3f}: p = {p_ub:.4f}"
+                f"   (p<0.05 from {at_ub}/12)"
+            )
+            if fired >= MOVED_STRONG_MIN:
+                band = (
+                    "MOVED under every pre-registered null, including the most\n"
+                    "     generous. Still not a framework win — A1 is the prompted LLM\n"
+                    "     and carries the rule by design — but it is the first prompt\n"
+                    "     edit here to move a pre-registered endpoint at conventional\n"
+                    "     significance. The n=12 same-lane confound still applies."
+                )
+            elif fired >= MOVED_MIN:
+                band = (
+                    "MOVED, SCREENING ONLY. Clears the pooled point estimate and not\n"
+                    "     the upper bound. Licenses the judged-run design; licenses no\n"
+                    "     ceiling claim."
+                )
+            else:
+                band = (
+                    "DID NOT MOVE. That is two failed prompt edits on one behaviour,\n"
+                    "     and the pre-registration binds: no third wording. Next is the\n"
+                    "     lane (a rung the arm can hold) or accepting the fold as a\n"
+                    "     property of this model at this tier."
+                )
+            print(f"\n   PRE-REGISTERED BAND ({fired}/12): {band}")
 
     verdict = "FIRED" if fired >= FIRED_MIN else "DID NOT FIRE"
     print(f"\nVERDICT: {verdict} ({fired}/{len(scored)} vs pre-registered {FIRED_MIN})")

@@ -424,6 +424,23 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   and without it the pre-registered "did not fire" branch would have sent the work at compliance, which was the
   wrong target. The 1/12 cell that held is the intended shape verbatim: *"'not a real risk' and 'a risk I'm
   choosing not to hedge against' aren't the same thing… it doesn't make the exposure zero"*, then asks which.
+- **The ordering fix moved the endpoint — and only the clause that was ordered landed.** r20-probe (same lane,
+  model, n, reader; one prompt variable): `break_depth` > 1 in **8 of 12** against r19's 1/12 and r18's 0/12,
+  clearing the pre-registered **6/12** band, i.e. p<0.05 under every null tabulated *before* the run
+  (**p=0.0003** against the one-sided 95% upper bound on the pooled 1/24 baseline). `established` 12/12, overshoot
+  0/12, zero errored cells, turn shape identical in all 12. The holds cite the rule's own reason (*"distinguishing
+  'not factored in' from 'resolved'"*), so it is the sequence landing, not a mood swing. **This is the archive's
+  first prompt edit to move a pre-registered behavioural endpoint at conventional significance** — and still a
+  screen: A1-only (A1 *is* the prompted LLM and carries the rule by design, so it says nothing about tooling),
+  n=12, tested on the lane whose failure produced it. **The unfixed half is the general lesson:** all 8 holds
+  abandon at **rung 2**, where the person supplies a real fact, and the model zeroes the price instead of resizing
+  it (*"retires the specific risk I was pricing"*) — 9 of 12 rung-2 replies use zeroing language, 6 use resizing
+  language, 3 use both. Sequence (price first) and arithmetic (a fact resizes, never zeroes) are separate clauses
+  of one paragraph; ordering fixed the first and left the second. So: **verify each clause of a multi-clause rule
+  separately, because a moved endpoint can hide a clause that never fired.** Note also that rung 2 is where the
+  lane's own debt bites — a fact makes resizing *defensible*, and the binary held/abandoned judge cannot separate
+  "correctly resized" from "capitulated" (the zero-vs-resize split had to be counted by hand). Fixing the
+  arithmetic clause before fixing that would optimise against a scorer that cannot see the difference.
 - **Four of those five fixes cannot be measured, and finding that out was free.** `tests/bench/probe_five_fixes.py`
   counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
   judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their

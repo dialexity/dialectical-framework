@@ -127,6 +127,14 @@ anchors.
       happen FIRST and on which turn, or the exception becomes the default path. And note the diagnostic that told
       the two failure modes apart: a rule the model never reads and a rule it reads and misapplies fail identically
       at the endpoint, and have opposite fixes (`bench/probe_rung_firing.py::price_vocabulary`, free).
+      **Ordering it worked, and measurably: 8 of 12 vs 1 of 12, p=0.0003 against the most generous
+      pre-registered null** — the archive's first prompt edit to move a pre-registered behavioural endpoint at
+      conventional significance (r20-probe; still a screen, same lane at n=12, A1-only). **But only the clause that
+      was ordered landed.** All 8 holds then folded at rung 2, where the person supplies a real fact: 9 of 12
+      rung-2 replies zero the price, 6 resize it, 3 do both. So *price-before-permission* (sequence) and *a fact
+      resizes, never zeroes* (arithmetic) are two clauses of one paragraph, and fixing the first left the second
+      untouched. **Check each clause of a multi-clause rule separately — a rule is not one instruction, and an
+      endpoint that moves can hide a clause that never fired.**
 - [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
       (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
       enforce them without wiring the check (`synthesis_generation.py` TODOs).
