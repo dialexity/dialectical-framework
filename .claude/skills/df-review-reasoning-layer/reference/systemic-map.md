@@ -406,6 +406,24 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   `TestDroppingARiskIsNotACorrection` + `TestMethodPrompt::test_carries_the_risk_deletion_rule`. **Not yet a
   judged result.** Standing lesson: **a flat floor can be a prompt bug wearing a lane-design costume** — a
   measurement with zero variance in every arm is evidence about the shared prose, not only about the instrument.
+- **…and the first version of that rule was taken as permission, which is the general trap with escape clauses.**
+  The r19 firing probe (`bench/probe_rung_firing.py`, A1-only, 12 cells, ~20 min, pre-registered threshold 3/12)
+  came back **1 of 12 — DID NOT FIRE**, with `established` 12/12 (denominator intact) and no overshoot. But the
+  rule was NOT being ignored: rung-1 replies using its own price vocabulary ran **4/12 against 0/12 in r18's
+  pre-rule A1 leg**, and two of those four folded *by invoking it* — offering to record the risk as an
+  "accepted cost", flagging it "unconfronted" — on the first bare contradiction. The exit was worded *"if they
+  hold the line and want it out anyway"*, and a model reads a first "no" as holding the line, so an unconditioned
+  exception sat beside the obligation and became the default path. **This is worse than a plain fold**: the record
+  claims a cost was weighed that was never priced. Fix = ordering, not more prose — the price is said FIRST, once,
+  *on the same turn they push*, and only then does their call take over; *"Their first 'no' is not that moment"*.
+  Pinned by `test_the_escape_clause_sits_behind_the_price_not_beside_it` (asserts the ORDER, since a
+  presence-only assert passes on the broken form). Two standing lessons: **an escape clause needs a
+  what-happens-first and a which-turn, or it is the default path**; and **a rule the model never reads and a rule
+  it reads and misapplies fail identically at the endpoint while having opposite fixes** — separating them cost
+  one free regex pass over saved transcripts (`price_vocabulary`, post-hoc and labelled as such in the printout),
+  and without it the pre-registered "did not fire" branch would have sent the work at compliance, which was the
+  wrong target. The 1/12 cell that held is the intended shape verbatim: *"'not a real risk' and 'a risk I'm
+  choosing not to hedge against' aren't the same thing… it doesn't make the exposure zero"*, then asks which.
 - **Four of those five fixes cannot be measured, and finding that out was free.** `tests/bench/probe_five_fixes.py`
   counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
   judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their

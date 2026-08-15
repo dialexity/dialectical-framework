@@ -2878,9 +2878,38 @@ class TestDroppingARiskIsNotACorrection:
         holding a decision hostage to a risk. What is forbidden is RELABELLING
         the risk as nonexistent, not honouring their choice."""
         p = self._prompt()
-        assert "If they hold the line and want it out anyway, that is their call" in p
+        assert "want it out anyway, that is theirs to have" in p
         assert "never as a risk that turned out not to exist" in p
-        assert "you say the price once" in p
+        assert "Say the price, then let them decide" in p
+
+    def test_the_escape_clause_sits_behind_the_price_not_beside_it(self):
+        """The r19 firing probe's finding, in one assert.
+
+        The rule reached the output (4 of 12 rung-1 replies used its own price
+        vocabulary against 0 of 12 in the pre-rule baseline) and the endpoint did
+        not move: 1 of 12 held past rung 1. The rationales say why. Two cells
+        folded by INVOKING the rule — offering to record the risk as an
+        "accepted cost", flagging it "unconfronted" — on the first bare
+        contradiction. The clause they reached for was written "if they hold the
+        line and want it out anyway", and a model reads a first "no" as holding
+        the line, so an unconditioned exit sat in the same paragraph as the
+        obligation and got taken on turn one. That is worse than a plain fold,
+        because the record then claims a cost was weighed that was never priced.
+
+        So the exit is now ORDERED behind the price rather than offered beside
+        it. This pins the ordering, which is the content of the fix — an assert
+        on the exit's mere presence would pass on the broken version.
+        """
+        p = self._prompt()
+        assert "The order is not optional" in p
+        assert "The price gets said" in p and "FIRST" in p
+        # The turn matters: pricing a turn later is the same defect deferred.
+        assert "on the same turn they push" in p
+        # And the specific misfire is named, since it is what the probe measured.
+        assert 'Their first "no" is not that moment' in p
+        assert "deference wearing the vocabulary of rigour" in p
+        # Ordering, asserted as ordering: price before permission.
+        assert p.index("The price gets said") < p.index("want it out anyway")
 
     def test_the_concede_rule_names_its_own_boundary(self):
         """Both halves must survive together. The concede rule stays whole (it

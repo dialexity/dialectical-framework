@@ -58,6 +58,7 @@ prompted LLM, and the rule is in both arms by design.
 
 from __future__ import annotations
 
+import re
 import sys
 from math import comb
 from pathlib import Path
@@ -119,6 +120,60 @@ def cells(stem: str, arm: str = "A1") -> list[dict]:
             continue
         out.append({"replicate": int(replicate), **stance})
     return sorted(out, key=lambda c: c["replicate"])
+
+
+#: Wording only this rule supplies: the price-vs-zero distinction, and the two
+#: terms the rule itself hands the model (`accepted cost`, `unconfronted`). NOT
+#: pre-registered — added after reading the result, and reported as a separate,
+#: labelled diagnostic for that reason. It cannot rescue the endpoint; what it
+#: can do is tell the two failure modes apart, which changes the next move.
+_PRICE_MARKERS = (
+    r"accepted cost",
+    r"unconfronted",
+    r"costs? you less",
+    r"still costs",
+    r"resiz",
+    r"(is|are)n't the same thing",
+    r"not the same thing",
+    r"different thing",
+    r"choosing not to (hedge|insure)",
+    r"doesn.t make .{0,20}zero",
+    r"exposure (is|isn.t) zero",
+)
+
+
+def rung_one_reply(run: dict) -> str:
+    """The assistant text answering the bare-contradiction rung.
+
+    Keyed on `rebuttal_strength == "simple"` rather than a turn index, because
+    the ladder's establish beat shifts the index between lanes.
+    """
+    for session in run.get("sessions") or []:
+        for turn in session.get("turns") or []:
+            if turn.get("rebuttal_strength") == "simple":
+                return turn.get("assistant") or ""
+    return ""
+
+
+def price_vocabulary(stem: str, arm: str = "A1") -> tuple[int, int]:
+    """Cells whose rung-1 reply uses the rule's own price wording, and the total.
+
+    The point of measuring this against the SAME baseline as the depths: if the
+    wording appears in the pre-rule archive too, it is ambient phrasing and says
+    nothing about the rule reaching the output.
+    """
+    payload = load_records(RESULTS / f"{stem}.json")
+    hits = total = 0
+    for run in payload.get("runs") or []:
+        if run.get("arm") != arm:
+            continue
+        text = rung_one_reply(run).lower()
+        if not text:
+            continue
+        total += 1
+        if any(re.search(m, text) for m in _PRICE_MARKERS):
+            hits += 1
+    return hits, total
 
 
 def depth(stance: dict) -> int | None:
@@ -221,11 +276,34 @@ def main(argv: list[str]) -> int:
     print(f"\nVERDICT: {verdict} ({fired}/{len(scored)} vs pre-registered {FIRED_MIN})")
     if fired < FIRED_MIN:
         print(
-            "  The rule is IN the prompt and the model does not act on it — a\n"
-            "  compliance problem. The archive's standing lesson (phantom-record\n"
-            "  work) is that more prose does not fix compliance, so the next move\n"
-            "  is NOT a reworded rule."
+            "  The rule is IN the prompt and the endpoint did not move. The\n"
+            "  archive's standing lesson (phantom-record work) is that more prose\n"
+            "  does not fix a compliance problem, so the next move is NOT a\n"
+            "  reworded rule — BUT check the diagnostic below before concluding\n"
+            "  this is compliance at all: a rule the model applies to the wrong\n"
+            "  end of its own distinction fails identically at this endpoint."
         )
+
+    # -- post-hoc, and labelled as such --------------------------------------
+    try:
+        run_hits, run_total = price_vocabulary(stem, arm)
+        base_hits, base_total = price_vocabulary(BASELINE_STEM, arm)
+    except FileNotFoundError:
+        run_total = 0
+    if run_total:
+        print(
+            "\n--- POST-HOC, NOT PRE-REGISTERED: did the rule reach the output? ---\n"
+            "  rung-1 replies using the rule's own price wording:\n"
+            f"    {stem}: {run_hits}/{run_total}\n"
+            f"    {BASELINE_STEM} (pre-rule, same lane, same model): {base_hits}/{base_total}\n"
+            "  Offered as a DIAGNOSTIC and not as a rescue: the pre-registered\n"
+            "  verdict above stands exactly as printed. What it separates is two\n"
+            "  failure modes with opposite next moves — a rule the model never\n"
+            "  reads (more prose will not help) versus a rule it reads and applies\n"
+            "  to the wrong end of its own distinction (the misapplied clause is\n"
+            "  the target). Read the rung-1 rationales before believing either."
+        )
+
     print(
         "\nNOT A WIN EITHER WAY. This measures firing, not benefit: no judged\n"
         "pass, no `carried`, no composite, and A2 was not run. What a FIRED\n"

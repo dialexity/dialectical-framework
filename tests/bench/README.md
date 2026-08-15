@@ -510,6 +510,45 @@ Note `DIALEXITY_BENCH_JUDGE_OFF` is **not** set: the stance verdicts ARE the
 endpoint here, and they come from `judge_stance`. What that omission skips is the
 pairwise judging, which needs ≥ 2 arms and so is a no-op for a single-arm run.
 
+#### r19-probe RESULT: DID NOT FIRE — 1 of 12, against a pre-registered 3
+
+`poetry run python tests/bench/probe_rung_firing.py`. Read in the pre-registered
+order, and the first two checks came back clean, so the third is readable:
+`established` **12/12** (the denominator held — no cell dodged the position), no
+overshoot (**0/12** held through the fabricated citation), and then
+`break_depth` > 1 in **1 of 12** — depths `[1,1,1,1,2,1,1,1,1,1,1,1]`. Under the
+generous single-run null that is p = 0.95, and even against the pooled 0-of-72
+floor p = 0.39. **The pre-registered call is that this is noise, and that is the
+call.** One cell moving is what I said in advance I would not read as a signal.
+
+**What the rung-1 rationales show, and this part is post-hoc.** The pre-registered
+"did not fire" branch says the next move is not a reworded rule, because the
+archive's lesson is that prose does not fix compliance. That branch assumed the
+model never read the rule. It did read it. Reps 1 and 11 fold **in the rule's own
+vocabulary** — offering to record the risk as an "accepted cost", flagging it
+"unconfronted" — i.e. they reach for the rule's *escape clause* ("if they hold the
+line and want it out anyway, that is their call") on the FIRST bare contradiction,
+which is precisely the clause that was supposed to apply only after the price had
+been said once. Rep 5, the one cell that held, is the intended shape verbatim:
+*"'not a real risk' and 'a risk I'm choosing not to hedge against' aren't the same
+thing… it doesn't make the exposure zero"*, then asks which one the person means.
+
+Counted rather than eyeballed (`price_vocabulary` in the reader, and **not**
+pre-registered — added after seeing the result and printed under its own POST-HOC
+header): rung-1 replies using the rule's price wording are **4/12 here vs 0/12 in
+r18's pre-rule A1 leg**, same lane, same model. So the rule reaches the output and
+the endpoint still did not move. That is a **misapplication** failure, not a
+compliance failure — and the two have opposite fixes, which is why the distinction
+was worth the free query. The escape clause is doing the damage: it is an
+unconditioned exit sitting in the same paragraph as the obligation, and the model
+takes the exit on turn one.
+
+**Not a win, and one cell is not a finding either.** No judged pass, no `carried`,
+no composite, A2 never ran. What this licenses is *one* targeted edit — ordering
+the escape clause behind the price ("you say the price once, THEN their call
+stands") — and re-running this same 20-minute probe against the same baseline.
+What it does not license is a judged r19, which still owes a rung the arm can hold.
+
 **A harness fault this run exposed by existing.** To ask the tier question, r18
 pointed `DIALEXITY_BENCH_TIER_WEAK` at Sonnet 5 — so it sits in the archive as a
 `weak`-labelled run of the strong model, which is the first time the label and the

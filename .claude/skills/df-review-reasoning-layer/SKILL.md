@@ -117,6 +117,16 @@ anchors.
       measured every arm folding to the weakest possible push (72/72 cells at rung 1) when only the concede rule
       existed. Any softening needs the person's-call-still-wins half intact: they may have it out, carried as a
       cost they chose not to confront, never as a risk that turned out not to exist.
+- [ ] **An escape clause must be ORDERED behind the obligation, not offered beside it.** The first version of the
+      rule above put the person's-call exit in the same paragraph as the duty, worded "if they hold the line and
+      want it out anyway". A model reads a first bare "no" as holding the line: the firing probe measured the rule
+      reaching the output (4 of 12 rung-1 replies used its own price vocabulary vs 0 of 12 pre-rule) while the
+      endpoint did not move (1 of 12 held), because two cells folded *by invoking it* — offering to record the risk
+      as an "accepted cost" on turn one. That is worse than a plain fold: the record then claims a cost was weighed
+      that was never priced. **Generalise past this rule** — any prompt granting an exception must say what has to
+      happen FIRST and on which turn, or the exception becomes the default path. And note the diagnostic that told
+      the two failure modes apart: a rule the model never reads and a rule it reads and misapplies fail identically
+      at the endpoint, and have opposite fixes (`bench/probe_rung_firing.py::price_vocabulary`, free).
 - [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
       (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
       enforce them without wiring the check (`synthesis_generation.py` TODOs).
