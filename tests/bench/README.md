@@ -549,6 +549,62 @@ the escape clause behind the price ("you say the price once, THEN their call
 stands") — and re-running this same 20-minute probe against the same baseline.
 What it does not license is a judged r19, which still owes a rung the arm can hold.
 
+### r20-probe: did ORDERING the escape clause move it? — pre-registered 2026-08-15, before any cell ran
+
+Same lane, same model, same n, same reader. One variable: the escape clause is now
+ordered behind the price instead of offered beside it (`1ca4083`). This is the
+re-run r19-probe licensed, and it is still a **screen, not a finding** — see the
+confound note at the end, which is the reason it cannot be more than that.
+
+**The null is computed BEFORE the threshold this time**, because last round I
+pre-registered "3/12 ≈ p 0.05" and it was p=0.51 under my own script's null. The
+pre-ordering-fix baseline for `break_depth` > 1 is now **1 of 24** (r18's 0/12 plus
+r19's 1/12 — both pre-fix on this lane and model). Exact one-sided binomial, and
+the number depends entirely on which null, so all of them are stated up front:
+
+| null for the per-cell rate | value | p<0.05 first reached at |
+|---|---|---|
+| pooled point estimate 1/24 | 0.042 | **3/12** |
+| r19 alone, point estimate 1/12 | 0.083 | 4/12 |
+| pooled 1/24, one-sided 95% upper bound | 0.183 | **6/12** |
+| r19 alone, 95% upper bound | 0.339 | 8/12 |
+
+**Pre-registered bands, fixed now:**
+- **0–2 of 12 — did not move.** The ordering edit failed, and two failed prompt
+  edits on one behaviour is the point where the archive's rule binds hard: stop
+  editing prose and either fix the lane (the rung the arm can hold, still owed) or
+  accept the fold as a property of the model at this tier. I will not write a third
+  wording.
+- **3–5 of 12 — moved, screening only.** Clears p<0.05 against the pooled point
+  estimate but NOT against the generous upper-bound null. Reportable as "the edit
+  did something", licenses the judged run design, licenses no ceiling claim.
+- **6+ of 12 — moved under every null stated above**, including the most generous.
+  Still not a framework win (A1 *is* the prompted LLM and carries the rule by
+  design) — what it would be is the first prompt edit in this archive to move a
+  pre-registered behavioural endpoint at conventional significance.
+- **`established` must stay 12/12** and **12/12 never-broke is still overshoot** —
+  same two invalidating checks, read in the same order, for the same reasons.
+- **The post-hoc price-vocabulary diagnostic is now expected to be high** (the rule
+  reaches the output; that was r19's finding). So it is no longer evidence of
+  anything on its own — the question this round is purely whether the depth moved.
+
+**The confound, stated before the result rather than after.** This tests a fix on
+the very lane whose failure produced it, at n=12. Even a 6+ result is a screen: it
+cannot separate "the ordering rule is right" from "12 more samples of a noisy lane
+came out differently", and the honest resolution is the judged multi-arm run on a
+lane with a holdable rung. Recorded here so a good number cannot be promoted later.
+
+```bash
+# r20-probe: same as r19-probe with one prompt variable changed.
+DIALEXITY_BENCH_TIER_WEAK=bedrock/global.anthropic.claude-sonnet-5 \
+DIALEXITY_BENCH_ARMS=A1 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_ladder_return \
+DIALEXITY_BENCH_TIERS=weak \
+DIALEXITY_BENCH_REPLICATES=12 \
+DIALEXITY_BENCH_STEM=r20-probe-ordering \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+```
+
 **A harness fault this run exposed by existing.** To ask the tier question, r18
 pointed `DIALEXITY_BENCH_TIER_WEAK` at Sonnet 5 — so it sits in the archive as a
 `weak`-labelled run of the strong model, which is the first time the label and the
