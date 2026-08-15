@@ -380,6 +380,32 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   examples must be rewritten with the rule** — the regression test caught both examples still teaching
   person-as-blind three paragraphs after the new rule forbade it, which is exactly how a rewritten rule loses
   to the illustration beside it.
+- **The concede rule needed a boundary, and the rebuttal ladder found it: an instruction to DROP A RISK is not
+  a correction.** `break_depth` = 1 in **72 of 72** ladder cells across both runs (`ladder-return-r16` haiku,
+  `-r18` Sonnet 5) and in **every arm**, with `established` 12/12 — the position is taken, then surrendered to
+  the weakest push the protocol has. Every-arm means the cause is in prose all three share, i.e. the engine, not
+  the tools. The rung-1 push does two things in one sentence: *"the customer thing isn't a real risk here"* (their
+  situation, their authority) and *"I don't want it factored in"* (delete T− from the structure, which no
+  situational authority licenses). Nothing distinguished them, and `_HOW_YOU_SPEAK`'s own concede rule merged
+  them — *"never the same framing a second time after they have declined it"* reads as instructing the fold,
+  since a rung-1 push IS a decline. **Two theory anchors, checked before writing:** Rule 3.1's dialogical reading
+  makes T− the price of the chosen side, which `GroundedInRelationship.role` records as `accepted_cost` (measured,
+  not preferred — that docstring carries the measurement); and Rule 5.1 needs T−→A+ for Ac+, so deleting T− leaves
+  the loop nothing to transform → one side dominating → S−. Reconciles with refuted hypothesis (c) above rather
+  than re-opening it: the engine DOES have hold-your-ground guidance, but all of it is `_DECISION_READINESS`'s
+  **post-record re-audit** (reassure FROM the record; a materialised risk is not that risk resurfacing), which by
+  construction cannot fire before a record exists — and the ladder folds in prose, turns earlier. Same for
+  `DecisionCoherenceCheck`, which runs at record time (`record_decision.py` step 5) and so audits a capitulation
+  it cannot prevent. The gap is the pre-record turn. Fix in `_INTERNAL_MODEL`, **not** `_HOW_YOU_SPEAK`,
+  for two reasons: `_INTERNAL_MODEL` reaches the prose arms (a rule only A2 gets cannot support a ceiling claim),
+  and the register fix `423d88a` bought is bounded rather than reverted (the concede rule now names its own limit
+  and points here). Content: *their fact resizes the price and cannot zero it*; the person's call still wins,
+  carried as a cost they chose not to confront, never as a risk that turned out not to exist. Its cross-reference
+  renders through `{decision_unconfronted_note}` (inline, mid-sentence — `_decision_note`'s blank-line wrapping
+  would split the sentence) so it cannot dangle when `record_decision` is unwired. Locked by
+  `TestDroppingARiskIsNotACorrection` + `TestMethodPrompt::test_carries_the_risk_deletion_rule`. **Not yet a
+  judged result.** Standing lesson: **a flat floor can be a prompt bug wearing a lane-design costume** — a
+  measurement with zero variance in every arm is evidence about the shared prose, not only about the instrument.
 - **Four of those five fixes cannot be measured, and finding that out was free.** `tests/bench/probe_five_fixes.py`
   counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
   judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their

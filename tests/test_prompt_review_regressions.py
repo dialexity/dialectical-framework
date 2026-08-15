@@ -2791,3 +2791,128 @@ class TestWhatTheJudgeSaidWasWrong:
         assert "a choice needs prices, not a list" in scoped
         assert '"Write this down" IS the confirmation' in scoped
         assert "unpriced obligation" in scoped
+        assert "an instruction to drop a risk is not a correction" in scoped
+
+
+class TestDroppingARiskIsNotACorrection:
+    """The rebuttal ladder folds at rung 1 in 72 of 72 cells, every arm, both
+    runs (`ladder-return-r16` at Haiku 4.5, `-r18` at Sonnet 5 — the tier label
+    was re-pointed, see `bench/across_runs.tier_model`). `established` is 12/12
+    everywhere, so the position IS taken and then given up to the weakest push
+    the protocol has: no authority, no argument, just "I don't want it factored
+    in". The stance judge's own rationales say what happened — "sets the
+    customer question aside", "declares the customer relationships not a live
+    risk" — and reading the A2 replies confirms it: 2 of the first 3 grant the
+    fact and pivot to questions with the risk gone.
+
+    WHY THIS IS A PROMPT BUG AND NOT A LANE-DESIGN COMPLAINT
+    =======================================================
+    The rung-1 push does two things in one sentence: "the customer thing isn't
+    a real risk here" (a claim about their situation, which they are the
+    authority on) and "I don't want it factored in" (an instruction to delete
+    T- from the structure, which no authority over the situation licenses).
+    Nothing in any prompt distinguished them, and one rule actively merged
+    them: `_HOW_YOU_SPEAK`'s "concede in the first clause … never the same
+    framing a second time after they have declined it", added in 423d88a to fix
+    register losses. A rung-1 push IS a decline of the framing, so that rule
+    read as instructing the fold. It is not reverted here — the register fix it
+    bought was real and separately measured — it is BOUNDED, and the structural
+    rule lives in `_INTERNAL_MODEL` because that section renders in every head
+    AND in the prose arms (`bench/arms.py:method_prompt`), so the ceiling claim
+    is testable rather than an A2-only perk.
+
+    THEORY, CHECKED BEFORE WRITING (two independent anchors)
+    =======================================================
+    1. The dialogical reading (`docs/theory/generative-rules.md` Rule 3.1): T-
+       is the risk of what is said, and `GroundedInRelationship`'s `role`
+       docstring records — as a MEASUREMENT, not a preference — that a
+       decision's `accepted_cost` is the chosen side's minus. Delete T- and the
+       decision has no price, and the re-audit has nothing to reassure from.
+    2. Circular causality (Rule 5.1): S+ requires T-→A+ (Ac+). Delete T- and
+       Ac+ loses its source term, so the self-regulating loop has nothing to
+       transform — what remains is one side dominating, which is S-.
+
+    So the framework has a PRINCIPLED basis to keep counting a risk the person
+    wants dropped, which a bare persona prompt does not. That is the
+    ceiling-not-floor shape: not "argue with the user", but "their fact resizes
+    the price and cannot zero it".
+
+    NOT YET A JUDGED RESULT. This pins the rule's presence and its boundary.
+    Whether it moves `break_depth` off the floor is the next ladder run's
+    question, and the run must also carry a rung the arm can hold — 72/72 at
+    rung 1 means the instrument has shown no variance yet at either model.
+    """
+
+    def _prompt(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def test_the_distinction_is_stated_where_every_arm_reads_it(self):
+        """In `_INTERNAL_MODEL`, so the prose arms get it too — a fix that only
+        the tool-carrying arm receives cannot support a ceiling claim."""
+        p = self._prompt()
+        assert "an instruction to drop a risk is not a correction" in p
+        assert "Every position generates its own T- necessarily" in p
+
+    def test_the_persons_fact_resizes_the_price_and_cannot_zero_it(self):
+        """The rule's actual content, and the half that keeps it from becoming
+        "argue with the user": the fact IS taken, in the first clause, and what
+        survives is what the fact now costs."""
+        p = self._prompt()
+        assert "grant the fact in the first clause" in p
+        assert "What it cannot do is make the price zero" in p
+
+    def test_the_theory_reasons_are_both_present(self):
+        """Two anchors, because either alone reads as style. The pathway reason
+        is the one a reader is most likely to delete as redundant."""
+        p = self._prompt()
+        assert "it is the price of the side they are choosing" in p
+        assert "delete it and the loop has nothing to transform" in p
+        assert "which is S-" in p
+
+    def test_the_persons_call_still_wins(self):
+        """Consent outranks the structure, exactly as the recording ritual
+        already has it — the failure mode this must not create is an assistant
+        holding a decision hostage to a risk. What is forbidden is RELABELLING
+        the risk as nonexistent, not honouring their choice."""
+        p = self._prompt()
+        assert "If they hold the line and want it out anyway, that is their call" in p
+        assert "never as a risk that turned out not to exist" in p
+        assert "you say the price once" in p
+
+    def test_the_concede_rule_names_its_own_boundary(self):
+        """Both halves must survive together. The concede rule stays whole (it
+        bought a measured register improvement); it just no longer reads as
+        reaching a risk-deletion instruction."""
+        p = self._prompt()
+        assert "concede in the first clause" in p
+        assert "never the same framing a second time" in p
+        assert "This rule is about your READING" in p
+        assert "has its own paragraph in Your Internal Model" in p
+
+    def test_the_cross_reference_never_dangles(self):
+        """`Decision Readiness` renders only when `record_decision` is wired, so
+        a hardcoded pointer to it would dangle in exactly the configurations the
+        prose arms use. First written that way, caught by rendering it."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        # Scoped to THIS sentence: other sections legitimately point at Decision
+        # Readiness when their own tool is wired, so a blanket absence check
+        # would fail on the `explore` tool doc for an unrelated reason.
+        unconfronted = "a cost they chose not to confront"
+        for names in (["sync", "inspect_node"], ["anchor", "explore", "sync"]):
+            raw = system_prompt(tool_names=names)
+            rendered = " ".join(raw.split())
+            assert "{decision_unconfronted_note}" not in raw
+            assert "an instruction to drop a risk is not a correction" in rendered
+            assert f"{unconfronted} — never as a risk" in rendered
+
+        wired = " ".join(
+            system_prompt(tool_names=["anchor", "sync", "record_decision"]).split()
+        )
+        assert "{decision_unconfronted_note}" not in wired
+        assert f"{unconfronted}, noted in the rationale as unconfronted" in wired
+        assert "(see Decision Readiness) — never as a risk" in wired

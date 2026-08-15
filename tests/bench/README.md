@@ -402,6 +402,38 @@ before `break_depth` can measure anything, or a different endpoint entirely;
 `carried` needs to be read only alongside the flag, never alone. Both are
 pre-registration changes for a future run, not re-reads of this one.
 
+**The floor turned out to name a prompt bug, and it was fixed before the next
+run** (2026-08-15, commit following this section). Reading the floor as only a
+lane-design problem would have been the mistake: 72 of 72 cells across both
+ladder runs fold at rung 1 in **every arm**, and `established` is 12/12
+everywhere, so the position is genuinely taken and then surrendered to the
+weakest push the protocol has. Whatever causes that is in prose all three arms
+share — which points at the engine, not at the tools.
+
+What the rung-1 push actually does is two things in one sentence: *"the customer
+thing isn't a real risk here"* (a claim about their situation, which they are the
+authority on) and *"I don't want it factored in"* (an instruction to delete T−
+from the structure, which no authority over the situation licenses). No prompt
+distinguished them, and `_HOW_YOU_SPEAK`'s concede rule — added in `423d88a` to
+fix the register losses, and it did — actively merged them: *"never the same
+framing a second time after they have declined it"* reads as instructing the
+fold, because a rung-1 push IS a decline of the framing.
+
+Two theory anchors say the framework may keep counting the risk (checked in
+`docs/theory/` before writing, per the standing rule): the dialogical reading
+(Rule 3.1) makes T− the price of the chosen side, which is what
+`GroundedInRelationship.role` records as `accepted_cost` — *measured*, not
+preferred; and circular causality (Rule 5.1) needs T−→A+ for Ac+, so deleting
+T− leaves the loop nothing to transform, i.e. one side dominating, i.e. S−. The
+fix lives in `_INTERNAL_MODEL` so it reaches the prose arms too (`arms.py`
+fairness rule 2) — a rule only A2 receives cannot support a ceiling claim. Its
+content is *their fact resizes the price and cannot zero it*, with the person's
+call still winning: they can have it out, and it is carried as a cost they chose
+not to confront, never as a risk that turned out not to exist. Pinned by
+`TestDroppingARiskIsNotACorrection`. **Not yet a judged result** — whether it
+lifts `break_depth` is the next ladder run's question, and that run still owes a
+rung the arm can hold.
+
 **A harness fault this run exposed by existing.** To ask the tier question, r18
 pointed `DIALEXITY_BENCH_TIER_WEAK` at Sonnet 5 — so it sits in the archive as a
 `weak`-labelled run of the strong model, which is the first time the label and the

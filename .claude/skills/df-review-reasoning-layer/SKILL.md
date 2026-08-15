@@ -109,6 +109,14 @@ anchors.
       regresses to Re-, Re+ without Ac+ drifts to Ac-". Restated across 4+ prompts with no owner — verify all agree.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
+- [ ] **A risk the person wants dropped stays priced (R1 dialogical + R5.1).** `_INTERNAL_MODEL` distinguishes a
+      correction about their SITUATION (take it — they are the authority) from an instruction to delete T− (their
+      fact resizes the price, never zeroes it). Deleting T− strips the `accepted_cost` a decision is priced on AND
+      Ac+'s source term (T−→A+), so the loop has nothing to transform → S−. `_HOW_YOU_SPEAK`'s "concede in the
+      first clause" must keep pointing at that boundary — the two read as contradictory otherwise, and the ladder
+      measured every arm folding to the weakest possible push (72/72 cells at rung 1) when only the concede rule
+      existed. Any softening needs the person's-call-still-wins half intact: they may have it out, carried as a
+      cost they chose not to confront, never as a risk that turned out not to exist.
 - [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
       (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
       enforce them without wiring the check (`synthesis_generation.py` TODOs).

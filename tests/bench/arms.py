@@ -236,11 +236,24 @@ def method_prompt(include_decision: bool = True) -> str:
         if include_decision
         else "",
     )
+    # Mid-sentence placeholder, on the paragraph that refuses to drop a risk
+    # because the person instructed it. A prompt-only arm has no `Decision
+    # Readiness` section unless one is appended below, so the cross-reference
+    # renders on the same condition the section does.
+    internal_model = _INTERNAL_MODEL.replace(
+        "{decision_unconfronted_note}",
+        (
+            ", noted as unconfronted in the record you write out (see Decision "
+            "Readiness)"
+        )
+        if include_decision
+        else "",
+    )
     sections = [
         _strip_tool_prose(_ROLE),
         _strip_tool_prose(eager),
         # The method itself — passed through with only tool prose rewritten.
-        _strip_tool_prose(_INTERNAL_MODEL),
+        _strip_tool_prose(internal_model),
         _strip_tool_prose(_CONVERSATION_USE),
         _strip_tool_prose(how_you_speak),
     ]

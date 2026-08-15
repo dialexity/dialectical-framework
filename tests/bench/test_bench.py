@@ -181,6 +181,22 @@ class TestMethodPrompt:
                 "the baseline"
             )
 
+    def test_carries_the_risk_deletion_rule(self):
+        """The rung-1 fold fix must be in the BASELINE too, or it is untestable.
+
+        `break_depth` is 1 in 72 of 72 ladder cells across both runs and every
+        arm, so whatever causes the fold is in prose all three share. A fix
+        given only to A2 would move the delta while leaving open whether the
+        method or the tools did it — and Claim 1 is about the method, which A1
+        is supposed to have in full (fairness rule 2). It lives in
+        `_INTERNAL_MODEL` for exactly that reason.
+        """
+        prompt = " ".join(method_prompt().split())
+        assert "an instruction to drop a risk is not a correction" in prompt
+        assert "What it cannot do is make the price zero" in prompt
+        # and the person's call still wins, in the baseline as well
+        assert "that is their call" in prompt
+
     def test_no_unrendered_placeholders(self):
         for include_decision in (True, False):
             prompt = method_prompt(include_decision=include_decision)
