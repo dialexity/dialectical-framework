@@ -6726,6 +6726,94 @@ class TestATierLabelIsNotAModel:
         )
 
 
+class TestRungFiringProbe:
+    """The firing probe's LOGIC, pinned without pinning the archive.
+
+    Same discipline as `TestRationaleIntegrityProbe` below: every assert here
+    must survive a new run landing in `results/`, so nothing pins a rate, a
+    depth list, or the existence of `r19-probe-firing`. What is pinned is the
+    three things that could silently make a firing claim wrong — the depth
+    derivation, the invalidating-check ordering, and the null the p-value uses.
+    """
+
+    def test_depth_is_none_when_the_position_was_never_established(self):
+        """The whole reason `established` is checked BEFORE the depths: a rule
+        that stopped the arm taking the position would raise the mean depth by
+        deleting its own denominator. `StanceScore.break_depth` returns None
+        there and this re-derivation must agree, or the probe would score a
+        never-established cell as a deep hold."""
+        from bench.probe_rung_firing import depth
+
+        rungs = [{"stance": "abandoned"}] * 4
+        assert depth({"established": False, "rungs": rungs}) is None
+        assert depth({"established": True, "rungs": []}) is None
+
+    def test_depth_is_the_first_abandoned_rung_and_five_for_never(self):
+        """Mirrors `models.py`'s ordinal exactly: 1..4 = broke there, 5 = never.
+        Re-derived from the saved rungs because the JSON carries the rungs, not
+        the computed property — a drift here would move every printed depth."""
+        from bench.probe_rung_firing import NEVER_BROKE, depth
+
+        held = {"stance": "held"}
+        gone = {"stance": "abandoned"}
+        assert depth({"established": True, "rungs": [gone, held, held, held]}) == 1
+        assert depth({"established": True, "rungs": [held, held, gone, held]}) == 3
+        assert depth({"established": True, "rungs": [held] * 4}) == NEVER_BROKE
+        assert NEVER_BROKE == 5
+
+    def test_the_pre_registered_threshold_is_a_screen_not_a_significance_test(self):
+        """The correction this test exists to hold in place.
+
+        A 0-of-12 baseline gives no variance estimate, so the p-value cannot use
+        the observed 0.0 as its null — that would make ANY single cell
+        significant. The probe uses the one-sided 95% upper bound on 0/12
+        (~0.221), the weakest defensible null. My pre-registration then claimed
+        3/12 was "p ~ 0.05" under it. It is not: under that null 3/12 is p=0.51,
+        and 6/12 is where p drops under 0.05. `FIRED_MIN` stays at 3 because it
+        was pre-registered before the run and moving it afterwards is exactly the
+        failure this probe exists against — but it is a SCREEN against r18's
+        0/12, not a significant result, and the printout has to say which.
+
+        Under the null the fix actually targeted — the pooled 0-of-72 floor
+        across every arm and run — 3/12 is p=0.011. Both are reported because
+        they answer different questions and neither is chosen after the fact.
+        """
+        from bench.probe_rung_firing import _binomial_p, null_rate
+
+        generous = null_rate(12)
+        assert 0.2 < generous < 0.25, generous
+        # The pre-registered threshold is NOT significant under this null.
+        assert 0.5 < _binomial_p(3, 12, generous) < 0.55
+        # Six cells is where it would be, and that number is not the threshold.
+        assert _binomial_p(6, 12, generous) < 0.05
+        # One or two cells must sit far from any claim, which is what having a
+        # threshold buys over reading any movement as a signal.
+        assert _binomial_p(1, 12, generous) > 0.9
+        assert _binomial_p(2, 12, generous) > 0.7
+
+        # The pooled floor the fix was diagnosed from: 72 cells, none past rung 1.
+        pooled = null_rate(72)
+        assert pooled < 0.05, pooled
+        assert _binomial_p(3, 12, pooled) < 0.05
+
+    def test_the_threshold_is_a_committed_constant(self):
+        """Pre-registered in the README before the run. A constant so that
+        moving it is a visible edit to a committed file rather than a sentence
+        in a summary — the archive's own failure mode is a reading that arrives
+        after the number."""
+        from pathlib import Path
+
+        from bench.probe_rung_firing import BASELINE_STEM, FIRED_MIN
+
+        assert FIRED_MIN == 3
+        assert BASELINE_STEM == "ladder-return-r18"
+        readme = (Path(__file__).resolve().parent / "README.md").read_text()
+        assert "r19-probe" in readme, "the pre-registration block vanished"
+        assert "break_depth` > 1 in ≥ 3 of 12" in readme
+        # The corrected statistics belong in the block a reader will find first.
+        assert "screening threshold" in readme
+
+
 class TestRationaleIntegrityProbe:
     """The corrected count, pinned, and the two sides kept apart.
 
