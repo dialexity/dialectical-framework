@@ -1912,6 +1912,95 @@ any write-up.** The archive pools across different builds, which makes it strong
 evidence *against* an effect and weak evidence *for* one; that asymmetry is
 exactly the right direction for a claim-killing check.
 
+### r21: the strong-tier claim on the CURRENT build — pre-registered 2026-08-16, before any cell ran
+
+**Why this run and not another prompt edit.** The headline **−0.447 is haiku-only**:
+14 of 14 losses, every one on the weakest model. The strong tier has never been
+resolved, and this document has called it "the cheapest open question in the bench:
+the claim the product needs is a strong-tier one" since the pooling landed — while
+r19 and r20 went to a 12-cell single-arm sycophancy probe instead. This run goes at
+the question the product claim actually rests on.
+
+**What the archive already says about this exact comparison,** recomputed rather
+than quoted, because the number that circulated (−0.064, n=4) pooled A2-vs-A1 sets
+into an A2-vs-A1.7 claim. A2 vs A1.7, strong tier only, is **three sets / 30 judged
+pairs: −0.299, +0.146, −0.208; pooled mean −0.103, sd 0.630, 95% CI
+[−0.338, +0.132]**. Positive in 1 of 3 sets.
+
+**So this run is NOT primarily about precision, and saying otherwise would be the
+flattering version.** Thirty existing pairs already bound the strong-tier effect to
+±0.24, tighter than a fresh n=20 can. What they cannot do is speak for the build:
+**all three ran on 2026-08-10, and `advisor/system_prompts.py` has taken 16 commits
+since the last of them** — including `a2c2e95` (the audit blind to an argued-away
+risk), `63c03cd` (a fact resizes the price) and `1ca4083` (the ordering fix r20
+measured). Sixteen is the count for that one file; the Advisor's assembled context
+also draws on `apps.py`, `dialectical_context.py` and the concerns, so it is a floor
+on how much the measured artefact changed, not a total. The
+question r21 answers is *what the effect is on the prompt that ships today*, on one
+build, with no edits landing mid-run. A single-build estimate is the thing the
+archive has never had at the strong tier.
+
+**Powered honestly, with the sd measured from this comparison and not borrowed.**
+Within-run composite sd across those 30 strong-tier pairs is **0.615**;
+archive-wide across all 19 A2-vs-A1.7 sets it is **0.787**. n=20 judged pairs on
+this lane = **5 replicates** (each replicate = 2 branch cells × 2 judged sessions).
+At n=20: se **0.138** and **MDE 0.41** at 80% power if the strong-tier sd holds; se
+**0.176** and **MDE 0.52** if the looser archive-wide sd does. Simulated power at
+n=20: **0.76–0.93 for a 0.5-step effect, 0.36–0.54 for a 0.3-step one.** Getting
+MDE down to 0.3 would need ~54 pairs and ~14 h of model time; that is not
+affordable, so 0.4 is the honest floor of what this run can see.
+
+**The most likely outcome is a bound, not a verdict, and that is pre-registered
+now.** If the true effect is the −0.10 the archive suggests, the CI will cover zero.
+That is a real result — "the current build neither wins nor loses by more than ~0.3
+on the strong tier" — and it must not be reported as vindication.
+
+**Pre-registered readings, fixed now:**
+- **Primary endpoint: the judged composite, A2 vs A1.7, strong tier, n=20 pairs,
+  single build.** One endpoint, not twelve — per-dimension sd is ~1.1 and would need
+  ~39 pairs, so every dimension row from this run is DESCRIPTIVE and no
+  dimension-level claim will be made from it.
+- **Framework wins** = composite CI excludes zero on the positive side. That is the
+  archive's first judged win and I will say so plainly, scoped to this lane.
+- **Framework loses** = CI excludes zero on the negative side. Then the weak-tier
+  loss is not a tier artifact, it is the build, and ceiling-not-floor is failing on
+  the model the product would ship on. That is the more important outcome to be
+  honest about, and it is the one 12 unmeasured prompt commits make plausible.
+- **Unresolved** = CI covers zero. Reported as a bound at the run's own MDE, with no
+  claim that the deficit "closes on a better model": a null at n=20 cannot separate
+  "no effect" from "an effect smaller than 0.4".
+- **Not pooled with the August 10 sets.** Different build; pooling would launder a
+  12-commit change into extra n. They stay side by side as separate rows.
+- **The capability column is reported beside it, never instead of it**
+  (`PROMISED RECORDS`): A2 writes a real record where the prose arms structurally
+  cannot — a capability, not a rubric win. Both blocks get quoted together or
+  neither does.
+- **No prompt edits during or before this run.** The rung-2 arithmetic clause that
+  r20 found unfired is deliberately NOT fixed first: one variable per run, and the
+  variable here is the tier.
+
+**Invalidating checks, before any delta is read:** any cell with `error` set, any
+`turn_errors`, and `collapsed_to_a1` on any A2 cell (an A2 that made no tool calls
+is an A1 wearing an A2 label and its pairs are void). Judge-side: the X/Y split per
+stratum, since a lopsided split is the defect that cost r4 a re-judge.
+
+**What this run cannot settle, stated first.** One scenario (`cofounder_equity`),
+one model, one simulator, one judge. A positive result is a strong-tier claim for
+THAT lane, not a general one; the poor-fit control (`career_offer`, which the
+framework is *expected* to lose) is not in it, so this run cannot show the framework
+knows when to stay out of the way. Cost: A2 ~600–900 s/cell against A1.7's ~150 s,
+2 cells per arm per replicate → **~2.5–3 h wall-clock**.
+
+```bash
+# r21: strong tier, current build, A2 vs A1.7, 5 replicates = 20 judged pairs.
+DIALEXITY_BENCH_ARMS=A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_equity \
+DIALEXITY_BENCH_TIERS=strong \
+DIALEXITY_BENCH_REPLICATES=5 \
+DIALEXITY_BENCH_STEM=r21-strong-current-build \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+```
+
 ### The archive-wide picture: the weak-tier loss is real, and it resolves
 
 Having built the pooling to kill two flattering findings, the honest next step was

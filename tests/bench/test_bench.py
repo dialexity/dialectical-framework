@@ -2916,6 +2916,94 @@ class TestReloadSavedRecords:
         assert run.comparisons[0].session_label == "decide"
 
 
+class TestBuildProvenanceIsRecorded:
+    """Which build a run measured must come from the records, not from `ls -lT`.
+
+    The archive quoted three strong-tier sets as one evidence base while the
+    Advisor's prompt took 12 commits across them; the only way to notice was
+    comparing file mtimes against `git log` by hand. A pooled estimate that
+    cannot name the prompt it measured is not an estimate of anything shippable,
+    so provenance is written on every save.
+    """
+
+    def test_every_save_records_the_git_and_prompt_sha(self, tmp_path):
+        from bench.report import load_records, save_records
+
+        path = tmp_path / "saved.json"
+        save_records(path, [_run(Arm.A2, "strong")], [], {})
+        build = load_records(path)["build"]
+        # Either real shas or a recorded error — never a silently absent key,
+        # which is what makes "-" in the table mean "predates this".
+        assert build
+        if "error" not in build:
+            assert len(build["git_sha"]) == 40
+            assert len(build["prompt_sha"]) == 40
+            assert build["prompt_file"].endswith("advisor/system_prompts.py")
+            assert isinstance(build["dirty"], bool)
+
+    def test_the_prompt_sha_names_the_advisor_prompt_and_not_the_repo(self):
+        """Two shas, because they license different poolings: a bench-only commit
+        leaves the measured artefact identical and its runs ARE comparable, while
+        a commit to the Advisor's prompt makes them different products. One sha
+        would force every bench edit to invalidate the pool, which is the reading
+        that made "different builds" a shrug instead of a filter."""
+        from bench.report import build_provenance
+
+        build = build_provenance()
+        if "error" in build:
+            pytest.skip("no git in this environment")
+        assert build["prompt_file"] == (
+            "src/dialectical_framework/agents/advisor/system_prompts.py"
+        )
+        # The prompt sha must be a COMMIT THAT TOUCHED THAT FILE, so it lags HEAD
+        # whenever the last commit was bench-only — which is the case this exists
+        # to distinguish. Asserted as "is an ancestor of HEAD", not as equality.
+        import subprocess
+        from pathlib import Path
+
+        merge_base = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", build["prompt_sha"], "HEAD"],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+        )
+        assert merge_base.returncode == 0
+
+    def test_a_run_without_provenance_reads_as_absent_not_as_matching(self, tmp_path):
+        """`None` must never be mistaken for "same build". Every run saved before
+        this existed returns None, and the reader prints it as `-` rather than
+        letting it pool as a replicate of the run beside it."""
+        import json
+
+        from bench import across_runs
+
+        path = tmp_path / "old.json"
+        path.write_text(json.dumps({"runs": [], "comparisons": [], "machine": {}}))
+        monkey = across_runs.RESULTS
+        try:
+            across_runs.RESULTS = tmp_path
+            assert across_runs.build_sha("old") == (None, None)
+        finally:
+            across_runs.RESULTS = monkey
+
+    def test_provenance_failure_does_not_lose_the_run(self, monkeypatch, tmp_path):
+        """Hours of paid model time must not be lost to a bookkeeping failure, so
+        a git that is missing, hung, or in a tarball checkout yields an `error`
+        entry rather than an exception out of `save_records`."""
+        import subprocess
+
+        from bench import report
+
+        def boom(*a, **k):
+            raise FileNotFoundError("git")
+
+        monkeypatch.setattr(subprocess, "run", boom)
+        build = report.build_provenance()
+        assert "error" in build and "FileNotFoundError" in build["error"]
+        path = tmp_path / "saved.json"
+        report.save_records(path, [_run(Arm.A2, "strong")], [], {})
+        assert path.exists()
+
+
 class TestSwallowedErrorCapture:
     """A fail-soft exception must reach the record, not just a terminal.
 
@@ -6931,6 +7019,87 @@ class TestRungFiringProbe:
         assert "abandons at rung 2" in readme
         # Normalised: the sentence wraps in the source.
         assert "did not buy the *arithmetic*" in " ".join(readme.split())
+
+
+class TestR21PreRegistration:
+    """The strong-tier run's readings, pinned before a cell runs.
+
+    Same discipline as r19/r20 and for the same reason: this is the run whose
+    result the product claim rests on, so every reading it could produce — win,
+    loss, and the most likely outcome of a bound covering zero — must be written
+    down while none of them is known. The archive's failure mode is a reading
+    that arrives after the number.
+    """
+
+    @staticmethod
+    def _readme() -> str:
+        from pathlib import Path
+
+        return " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+
+    def test_the_block_exists_and_names_its_three_outcomes(self):
+        readme = self._readme()
+        assert "r21:" in readme, "the r21 pre-registration block vanished"
+        # All three readings, including the boring one. A pre-registration that
+        # only defines "wins" and "loses" licenses reading a null as either.
+        assert "**Framework wins**" in readme
+        assert "**Framework loses**" in readme
+        assert "**Unresolved** = CI covers zero" in readme
+
+    def test_the_most_likely_outcome_is_pre_committed_as_a_bound(self):
+        """If the effect is the −0.10 the archive suggests, the CI covers zero.
+        Saying so in advance is what stops that being written up as vindication —
+        the r15/r16 mistake, where two runs "met their structural goal"."""
+        readme = self._readme()
+        assert "The most likely outcome is a bound, not a verdict" in readme
+        assert "must not be reported as vindication" in readme
+        # And the specific overclaim it forbids, named.
+        assert 'cannot separate "no effect" from "an effect smaller than 0.4"' in readme
+
+    def test_the_archive_baseline_is_the_recomputed_one(self):
+        """The −0.064/n=4 figure that circulated pooled A2-vs-A1 sets into an
+        A2-vs-A1.7 claim. The block must carry the recomputed same-pair number, or
+        the run is being justified against a comparison it is not making."""
+        readme = self._readme()
+        assert "three sets / 30 judged pairs" in readme
+        assert "pooled mean −0.103" in readme
+
+    def test_the_run_is_justified_by_build_not_by_precision(self):
+        """30 existing pairs already bound this effect tighter than a fresh n=20
+        can. Claiming r21 as a precision gain would be the flattering version, so
+        the block states the real reason: the archive's strong-tier sets predate
+        12 commits to the prompt under test."""
+        readme = self._readme()
+        assert "NOT primarily about precision" in readme
+        assert "16 commits since the last of them" in readme
+        # Stated as a floor: the assembled context is more than one file, so the
+        # count under-reports the change rather than over-reporting it.
+        assert "a floor on how much the measured artefact changed" in readme
+        # And the consequence: no pooling across the build boundary.
+        assert "Not pooled with the August 10 sets" in readme
+
+    def test_the_power_numbers_carry_both_planning_sds(self):
+        """One sd would hide the uncertainty in the uncertainty: the strong-tier
+        pairs give 0.615 and the archive-wide pool 0.787, and the honest MDE is a
+        range across both rather than whichever is prettier."""
+        readme = self._readme()
+        assert "0.615" in readme and "0.787" in readme
+        assert "MDE 0.41" in readme and "MDE 0.52" in readme
+        # n=20 judged pairs is 5 replicates on this lane, not 20 — the arithmetic
+        # a REPLICATES=20 command line would silently get wrong by 4x.
+        assert "n=20 judged pairs on this lane = **5 replicates**" in readme
+        assert "DIALEXITY_BENCH_REPLICATES=5" in readme
+
+    def test_the_invalidating_checks_come_before_the_delta(self):
+        """`collapsed_to_a1` is the one that matters: an A2 that made no tool calls
+        is an A1 wearing an A2 label, and pooling its pairs measures the harness."""
+        readme = self._readme()
+        assert "Invalidating checks, before any delta is read" in readme
+        assert "collapsed_to_a1" in readme
+        # The capability column may not be quoted alone in place of the endpoint.
+        assert "never instead of it" in readme
 
 
 class TestRationaleIntegrityProbe:

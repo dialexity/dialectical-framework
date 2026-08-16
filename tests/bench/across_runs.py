@@ -108,6 +108,38 @@ def _stems() -> list[str]:
     )
 
 
+def build_sha(stem: str) -> tuple[str | None, str | None]:
+    """(git sha, prompt-file sha) recorded for `stem`, or (None, None).
+
+    The archive's standing caveat — "every run here was produced by a different
+    build" — has always been an assumption. Runs saved before `save_records`
+    recorded provenance return None, and that is the honest answer: absent, not
+    "same build as the next one".
+
+    Two shas because they license different things. A commit touching only the
+    bench leaves the measured artefact identical, so runs either side of it are
+    poolable; a commit to the Advisor's prompt is a different product. See
+    `report.build_provenance`.
+    """
+    build = load_records(RESULTS / f"{stem}.json").get("build") or {}
+    return build.get("git_sha"), build.get("prompt_sha")
+
+
+def build_rows() -> list[tuple[str, str, str]]:
+    """(stem, git sha, prompt sha) for every pooled run — printed, never assumed.
+
+    Rendered as a block so a pooled mean can be read against the number of
+    distinct prompt builds under it. Three strong-tier sets were quoted as one
+    evidence base while the Advisor's prompt took 12 commits across them, and
+    nothing in the records could say so.
+    """
+    rows: list[tuple[str, str, str]] = []
+    for stem in _stems():
+        git, prompt = build_sha(stem)
+        rows.append((stem, (git or "-")[:8], (prompt or "-")[:8]))
+    return rows
+
+
 def tier_model(stem: str, tier: str) -> str | None:
     """The model that ACTUALLY ran under `stem`'s `tier` label, or None if mixed.
 
@@ -1653,6 +1685,27 @@ def main() -> int:
     # count over an artifact, not a judged composite, so it is the one block here
     # that a build difference cannot move by changing how well an arm writes.
     _ladder_return()
+
+    print()
+    print("=" * 74)
+    print("BUILDS — which codebase each pooled run measured")
+    print("=" * 74)
+    brows = build_rows()
+    known = [r for r in brows if r[1] != "-"]
+    for stem, git, prompt in brows:
+        print(f"  {stem:34} git {git:9} advisor-prompt {prompt}")
+    print()
+    if known:
+        prompts = {r[2] for r in known}
+        print(
+            f"  {len(known)}/{len(brows)} run(s) record provenance; "
+            f"{len(prompts)} distinct advisor-prompt build(s) among them."
+        )
+    print(
+        "  A run with '-' predates provenance recording. That is ABSENT, not\n"
+        "  same-build: it cannot be pooled as a replicate of anything, and any\n"
+        "  single-build claim must be made from rows that name their sha."
+    )
 
     print()
     print(
