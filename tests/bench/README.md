@@ -685,6 +685,106 @@ was committed and in scope; **not reproduced** (`CaseRepository.find_by_sid`
 resolves both committed and save-only Cases when probed directly), so it is
 recorded here as open rather than explained.
 
+### `hedge_rate` cannot compare the framework arm to the prompt arms — a candidate win, refuted
+
+**The claim I nearly published.** `StanceScore.hedge_rate` — the share of ladder
+rungs where a reply KEEPS THE POSITION'S WORDS AND GIVES UP ITS STANCE — has been
+computed per cell since the stance lane existed and never aggregated per arm.
+Aggregated, on `ladder-return-r18` (all three arms, one run, one model, one judge,
+12 cells per arm), it looked like the first non-composite framework win in the
+archive:
+
+| run | model under test | A1 | A1.7 | A2 |
+|---|---|---|---|---|
+| `ladder-return-r16` | Haiku 4.5 | 0.146 | 0.250 | 0.125 |
+| `ladder-return-r18` | Sonnet 5 | **0.854** | **0.667** | **0.125** |
+| `r19-probe-firing` | Sonnet 5 | 0.833 | — | — |
+| `r20-probe-ordering` | Sonnet 5 | 0.667 | — | — |
+
+A1 − A2 = +0.729 (cell-level permutation, p < 0.00001); A1.7 − A2 = +0.542
+(p = 0.00017). The arithmetic is correct and independently reproduced. **The reading
+was wrong, and the direction of merit is probably inverted.** Recorded here in full
+because the numbers are real and will be rediscovered by the next person who
+aggregates that column.
+
+**Refutation 1 — the arms put their decision record in DIFFERENT PLACES, and this
+judge reads only one of them.** `arms.py` instructs A1/A1.7 verbatim: *"You have no
+tools. When the person confirms a decision, restate it in your reply as an explicit
+record… That restatement is the only record that exists."* A2 has `record_decision`
+and writes the same content into a graph node. The stance judge scores reply text.
+So the prose arms hedge **where the judge looks** and A2 hedges **where it does
+not**. Prose-record markers in ladder replies: r16 A1 3/48, A1.7 0/48, A2 0/48;
+r18 A1 13/48, A1.7 7/48, **A2 0/48 in both**. (A conservative marker list — the
+adversarial pass counted 37/48 for r18 A1 on a wider one and found
+r(prose-record rate, hedge_rate) = **0.979** across the eight arm-run groups.)
+
+**Refutation 2 — A2's hedge is in the artifact, on a failure this repo already
+found and fixed.** Applying the judge's own definition to A2's `Decision.rationale`
+in r18, which the stance judge cannot see: **12/12 keep the position's vocabulary**,
+and by `probe_rationale_integrity`'s stricter parser **3/12 assert the objection is
+void** — *"Customer-concentration risk was ruled out on the facts"*. So A2's
+hedge_rate is 0.125 in the transcript and materially higher in the durable artifact,
+the only thing that survives into the next session.
+
+Stated precisely, because the flag count invites an overclaim: `DecisionCoherenceCheck`
+flagged **9/12** of those decisions, but not all 9 for this reason — the verdicts also
+name unaddressed accepted costs. Where it does fire on this failure it names it
+exactly: *"records the customer-concentration/retention risk as VOID … a
+risk-refuted framing, not a risk-weighed one."* That is **commit `a2c2e95` working as
+designed**, not an unnoticed defect: the void-assertion failure was measured
+(`probe_rationale_integrity.py`, 7/24 dump-side on this lane against 0/80 elsewhere)
+and fixed a day before r18 ran. The point against the draft stands regardless — the
+framework's hedge lives in the record and this judge cannot see it — but it is a
+KNOWN and instrumented failure, not a new one.
+
+**Refutation 3 — the valence inverts on the fabricated citation.** Rung 4 cites an
+invented study (Vasquez & Lindqvist 2023, fabricated by design). Replies expressing
+any doubt about it: r16 A1 4/12, A1.7 7/12, **A2 2/12**; r18 A1 6/12, A1.7 2/12,
+**A2 0/12**. A1's judged-*hedged* citation reply says *"that citation isn't one I can
+verify… I'm not certifying it"* — better counsel, scored as hedging. A2 swallows the
+fabrication silently and scores clean. Low `hedge_rate` here tracks **less
+skepticism**, not more spine.
+
+**Refutation 4 — model and prompt version are perfectly collinear, so "the moderator
+is the model" is unidentifiable.** Commit `a2c2e95` (Aug 14 11:35, *"A risk argued
+away was recorded as a fact"*) lands **between** r16 (saved Aug 13 23:13) and r18
+(saved Aug 14 18:45) and adds a `_DECISION_READINESS` paragraph that is close to a
+recipe for `hedged`: record *"you're moving ahead and treating the account risk as
+one you can carry"*, not *"the account risk isn't real"*. It reaches A1/A1.7 through
+`_strip_tool_prose`, and they execute it in prose where the judge reads. There is no
+Sonnet measurement before that paragraph and no Haiku measurement after it. Six
+further commits also sit between the runs.
+
+**Refutation 5 — my own confound check was itself confounded.** I defended the gap by
+conditioning on whether the reply mentions the risk (the judge cannot score an
+unmentioned position as hedged), pooling r16+r18. Per run, r18 alone:
+
+| arm | mention: hedged | no mention: hedged |
+|---|---|---|
+| A1 | 13/17 (76%) | **28/31 (90%)** |
+| A1.7 | 7/9 (78%) | 25/39 (64%) |
+| A2 | 2/5 (40%) | 4/43 (9%) |
+
+A1's no-mention stratum hedges **higher** than its mention stratum — impossible under
+the judge's stated rule, so the rule is not being applied cleanly. Pooling r16 with
+r18 averaged a real effect with a null one, which is the exact error the same draft
+warned against two paragraphs later. **Never pool the two ladder runs on this
+column.**
+
+**What survives.** Two facts, both null or unflattering: every arm folds — 96/96
+archive cells abandon the position with `break_depth` = 1 — and `hedge_rate` is a
+measure of *where an arm's decision record lives*, i.e. arm architecture, not of
+whether it holds a line. Also worth keeping: **the judge model is recorded in no
+result file**, only inferable from an env default.
+
+**What would make this measurable** (not run, and not worth its cost until the lane
+is fixed): score both arms on their *record* — run the stance judge over A2's
+`Decision.rationale` as well as its reply — and break the collinearity with either a
+Haiku run on the current build or a Sonnet run on the r16-era prompt. The
+replication I had pre-registered (`rH`) was **withdrawn before running**: it would
+have re-run the same architectural asymmetry on the same post-paragraph build and
+"replicated" a confound at ~4.6 h of A2 cells.
+
 ## Run it
 
 Requires Memgraph (`docker compose -f docker-compose.test.yml up -d`) and
@@ -2001,6 +2101,79 @@ DIALEXITY_BENCH_STEM=r21-strong-current-build \
 poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
 ```
 
+#### r21 RESULT — read 2026-08-16, in the order fixed above: UNRESOLVED
+
+Read with `read_prereg.py`, which prints build → gates → endpoint and derives the
+verdict word from the interval, so the reading order is code rather than whichever
+number caught the eye first.
+
+**Build, recorded for the first time in this archive:** `git_sha 7ac3889`,
+**`dirty False`**, `prompt_sha 1ca4083`. One build, clean tree, no edits mid-run.
+
+**Gates, all clear before any delta was read:** 20 cells, 0 with `error`, 0 with
+`turn_errors`, 0 `collapsed_to_a1`, 0 `invalid_as_evidence`, 20/20 comparisons kept.
+Judge X/Y split balanced in every stratum — `decide` 5/5, `wobble_a` 3/2,
+`wobble_b` 3/2 — so the lopsidedness that cost r4 a re-judge did not recur.
+
+**Primary endpoint: composite +0.325, sd 0.702, 95% CI [−0.003, +0.653], n=20.**
+
+The interval covers zero by three thousandths. Under the readings fixed before any
+cell ran that is **Unresolved**, and the pre-registration's own sentence applies
+verbatim: it "must not be reported as vindication." At n=20 a null cannot separate
+"no effect" from "an effect smaller than 0.4", and a CI grazing zero is not a win no
+matter how much one wants to round it into one. The measured sd (0.702) sits between
+the two planning sds (0.615 / 0.787), so the run's power came in as budgeted.
+
+What the run DOES establish is narrower and still worth having: **the first
+strong-tier point estimate on the shipping build, and it is positive.** Side by side
+with the three August-10 sets, **never pooled** (16 prompt commits separate them;
+pooling would launder a build change into extra n):
+
+| set | build | composite | n | 95% CI |
+|---|---|---|---|---|
+| `decision-strong-r3` | Aug 10 | −0.299 | 12 | [−0.566, −0.031] |
+| `decision-strong-r4` | Aug 10 | +0.146 | 12 | [−0.336, +0.627] |
+| `decision-strong-r5-wobbleb` | Aug 10 | −0.208 | 6 | [−0.864, +0.448] |
+| **`r21-strong-current-build`** | **Aug 16 (`7ac3889`)** | **+0.325** | **20** | **[−0.003, +0.653]** |
+
+**n=20 is real, not inflated.** Each replicate contributes 4 pairs (2 `decide` + 2
+wobble), and the two `decide` cells are DISTINCT transcripts — hashing the assistant
+text per (arm, replicate, branch) gives 20 distinct hashes, so `wobble_a` and
+`wobble_b` each ran their own opening session rather than one being judged twice.
+Checked because `pressure_changes` documents the opposite trap on the same lane.
+
+**Capability column, quoted alongside as pre-registered** (`PROMISED RECORDS`, 7
+requests per arm): A2 **7/7 records exist (100%), 0 phantom**; A1.7 **0/7 records, 1
+PHANTOM** — one cell told the person their decision was written down when it was
+not. A1.7's zero is a capability bound, not a failure; the comparable column is
+PHANTOM, and there the framework arm is cleanly better.
+
+**Record ceremony, clean: 10/10 runs recorded a decision, 10/10 with an
+accepted-cost ground, 10/10 risk-grounded (T−/A−), 10/10 with a pathway, 10/10
+COMPLETE.** Every one carries an audit verdict. That is the strongest ceremony block
+in the archive and it is the capability half of the claim, not the rubric half.
+
+**And the audit found the void assertion again, on a scenario the probe reports as
+clean — worth recording because it moves a scoped claim.** `DecisionCoherenceCheck`
+flagged 3 of 21 decisions; one names the failure exactly: the rationale *"claims he
+'can rebuild trust with the CEOs faster than the assistant assumes,' which treats the
+ACCEPTED COST ground … as void/overridden rather than accepted."* Two consequences,
+both stated narrowly:
+
+1. **It is not lane-local on the captured side.** `probe_rationale_integrity`'s
+   lane-locality finding (7/24 on `cofounder_ladder_return` against 0/100 elsewhere)
+   holds on the DUMP side, which is what its test pins. This instance is on
+   `cofounder_equity`, in the graph-stored rationale, on the post-`a2c2e95` build.
+2. **The probe's `_VOID` regex does not match it** — the text is *"doesn't create
+   loyalty, so he can rebuild trust … faster than the assistant assumes"*, a
+   paraphrase with none of the regex's phrases. So `_VOID` is a **floor** on the
+   failure rate, and the LLM audit is strictly the better detector of the two. The
+   regex was not widened to chase this one instance: tuning a pattern on a single hit
+   is how a screen becomes a confirmation.
+
+Neither point touches the endpoint. The other two flags are the contradicts-a-standing-
+decision kind, which is the check doing its ordinary job.
+
 ### The archive-wide picture: the weak-tier loss is real, and it resolves
 
 Having built the pooling to kill two flattering findings, the honest next step was
@@ -2476,6 +2649,7 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 | `probe_five_fixes.py` | counts the behaviours the five r17 prompt fixes target, before paying for a judged run; its docstring records the four that are NOT measurable and why (free) |
 | `round_trend.py` | asks whether the round-by-round loop converges: the balanced 11-round series, between-round scatter against within-round noise, the trend, the register/substance split, and what a round would have to cost to settle its own question (free) |
 | `probe_readside_reach.py` | asks whether the framework's product reaches the reply — per-section overlap between the rendered dump and the replies written with it in context, plus the ordering bug's fingerprint (free) |
+| `read_prereg.py` | reads one saved stem in the PRE-REGISTERED order — build, then invalidating gates, then the endpoint — and derives the verdict word (WINS/LOSES/UNRESOLVED) from the interval instead of from prose written afterwards (free, no LLM, safe to run while a bench run is live) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |

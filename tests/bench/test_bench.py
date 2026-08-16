@@ -7102,6 +7102,223 @@ class TestR21PreRegistration:
         assert "never instead of it" in readme
 
 
+class TestTheVerdictWordComesFromTheInterval:
+    """`read_prereg.verdict_for` — the one rule that must not drift.
+
+    Pure-function tests, no archive: `results/` is gitignored, so a rule checked
+    only against saved runs is checked only on the machine that produced them.
+    """
+
+    def test_the_three_words_are_the_three_pre_registered_readings(self):
+        from bench.read_prereg import LOSES, UNRESOLVED, WINS, verdict_for
+
+        assert verdict_for((0.10, 0.60)) == WINS
+        assert verdict_for((-0.60, -0.10)) == LOSES
+        assert verdict_for((-0.20, 0.40)) == UNRESOLVED
+
+    def test_an_interval_grazing_zero_is_unresolved_and_not_rounded_up(self):
+        """r21's actual interval, and the reason this function exists. +0.325 with
+        [-0.003, +0.653] is three thousandths from the archive's first judged win,
+        which is exactly the moment a human reader invents a tolerance band."""
+        from bench.read_prereg import UNRESOLVED, verdict_for
+
+        assert verdict_for((-0.003, 0.653)) == UNRESOLVED
+        # Symmetric: a hair the other way is not a loss either.
+        assert verdict_for((-0.653, 0.003)) == UNRESOLVED
+        # And zero as an endpoint is covered, not excluded — `>`/`<`, not `>=`.
+        assert verdict_for((0.0, 0.653)) == UNRESOLVED
+        assert verdict_for((-0.653, 0.0)) == UNRESOLVED
+
+    def test_no_interval_is_its_own_word_rather_than_a_null_reading(self):
+        """n=1 yields no sd and no CI. Folding that into UNRESOLVED would report
+        "measured, covered zero" for a cell that was never measured."""
+        from bench.read_prereg import NO_INTERVAL, UNRESOLVED, verdict_for
+
+        assert verdict_for(None) == NO_INTERVAL
+        assert verdict_for(None) != UNRESOLVED
+
+    def test_the_reader_uses_collect_deltas_and_not_a_hand_fed_deltas(self):
+        """The bug this script caught in itself: `Deltas.add` does no arm
+        filtering, so hand-feeding it every comparison in a file pooled all arm
+        pairs and printed "+0.455, n=72, FRAMEWORK WINS" for a stem whose real
+        A2-vs-A1.7 line is +0.185 and unresolved. `collect_deltas` keys by
+        (arm_a, arm_b)."""
+        import inspect
+
+        from bench import read_prereg
+
+        source = inspect.getsource(read_prereg.read)
+        assert "collect_deltas(" in source
+        assert "Deltas(" not in source, (
+            "read_prereg constructs a Deltas directly again — `Deltas.add` does "
+            "no arm filtering and will pool every arm pair in the file"
+        )
+        # Gate 2 must filter to the pair being read for the same reason.
+        assert "!= (hi, lo)" in source
+
+
+class TestR21Result:
+    """The r21 numbers as read, pinned against later re-narration.
+
+    Same reason as the pre-registration class above, one step later: the block
+    was written from `read_prereg.py`'s output, and the failure mode this archive
+    documents is a null that acquires a warmer reading a week after the run.
+    """
+
+    @staticmethod
+    def _readme() -> str:
+        from pathlib import Path
+
+        return " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+
+    @classmethod
+    def _block(cls) -> str:
+        """JUST the r21 result section — heading to the next `###`.
+
+        Scoping matters more than it looks: `readme.split(...)[1]` is everything
+        to the end of the file, so an assert written against it passes on a
+        phrase that lives 400 lines later in an unrelated section. That is a test
+        that cannot fail for the reason it was written.
+        """
+        after = cls._readme().split("#### r21 RESULT")
+        assert len(after) == 2, "the r21 RESULT heading is missing or duplicated"
+        return after[1].split("###")[0]
+
+    def test_the_result_is_reported_as_unresolved_in_its_own_heading(self):
+        readme = self._readme()
+        assert "#### r21 RESULT — read 2026-08-16, in the order fixed above: UNRESOLVED" in readme
+        assert "composite +0.325, sd 0.702, 95% CI [−0.003, +0.653], n=20" in readme
+        # The pre-registration's own forbidden reading, quoted back at the result.
+        assert 'it "must not be reported as vindication."' in readme
+        assert "a CI grazing zero is not a win" in readme
+
+    def test_the_build_provenance_is_quoted_because_that_was_the_point_of_the_run(self):
+        """r21 was justified by build, not precision — 30 existing pairs bound the
+        effect tighter. A result block without the sha does not answer the
+        question the run was pre-registered to answer."""
+        readme = self._readme()
+        assert "`git_sha 7ac3889`" in readme
+        assert "`dirty False`" in readme
+        assert "`prompt_sha 1ca4083`" in readme
+
+    def test_the_gates_are_reported_before_the_endpoint(self):
+        """Order on the page, not just in the script: the gate paragraph must
+        precede the endpoint paragraph, or the document teaches the wrong reading
+        order even though the tool enforced the right one."""
+        readme = self._readme()
+        gates = readme.index("**Gates, all clear before any delta was read:**")
+        endpoint = readme.index("**Primary endpoint: composite +0.325")
+        assert gates < endpoint
+        assert "0 `collapsed_to_a1`" in readme
+
+    def test_the_august_10_sets_stay_separate_rows(self):
+        """Pooling would launder a 16-commit prompt change into extra n, which the
+        pre-registration forbids by name."""
+        readme = self._readme()
+        assert "**never pooled**" in readme
+        for stem in (
+            "decision-strong-r3",
+            "decision-strong-r4",
+            "decision-strong-r5-wobbleb",
+        ):
+            assert stem in readme, f"{stem} dropped out of the baseline table"
+        # No pooled mean of the four. If one ever appears, it is a new claim.
+        assert "pooled mean" not in self._block()
+
+    def test_n20_is_documented_as_verified_rather_than_assumed(self):
+        """`pressure_changes` documents the opposite trap on this lane — one
+        `decide` cell paired against two wobbles turns n=3 into a confident n=6."""
+        readme = self._readme()
+        assert "**n=20 is real, not inflated.**" in readme
+        assert "20 distinct hashes" in readme
+
+    def test_the_capability_column_is_beside_the_endpoint_not_instead_of_it(self):
+        block = self._block()
+        assert "A2 **7/7 records exist (100%), 0 phantom**" in block
+        assert "A1.7 **0/7 records, 1 PHANTOM**" in block
+        # A1.7's zero must be labelled a bound, not read as a loss.
+        assert "A1.7's zero is a capability bound, not a failure" in block
+
+    def test_the_void_assertion_finding_keeps_its_two_scopes(self):
+        """It is on `cofounder_equity` (so the DUMP-side lane-locality claim is
+        the one that survives) and the `_VOID` regex misses it (so the regex is a
+        floor). Either half alone overstates or understates it."""
+        block = self._block()
+        assert "It is not lane-local on the captured side" in block
+        assert "holds on the DUMP side" in block
+        assert "`_VOID` is a **floor**" in block
+        # And the temptation that was refused, named so it stays refused.
+        assert "tuning a pattern on a single hit" in block
+
+
+class TestHedgeRateIsNotAFrameworkWin:
+    """The refuted candidate win, pinned so it is not rediscovered as a win.
+
+    `hedge_rate` has an arm gap of +0.73 with p < 0.00001 and it is an artifact
+    of where each arm keeps its decision record. The numbers are real and this
+    section is the only thing standing between them and a second write-up.
+    """
+
+    @staticmethod
+    def _readme() -> str:
+        from pathlib import Path
+
+        return " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+
+    def test_the_section_states_the_refutation_in_its_own_heading(self):
+        readme = self._readme()
+        assert (
+            "`hedge_rate` cannot compare the framework arm to the prompt arms "
+            "— a candidate win, refuted" in readme
+        )
+        assert (
+            "The reading was wrong, and the direction of merit is probably inverted"
+            in readme
+        )
+
+    def test_the_real_numbers_are_kept_so_they_are_not_rediscovered_clean(self):
+        """Deleting the table would guarantee the next person who aggregates that
+        column re-derives +0.729 with no refutation attached."""
+        readme = self._readme()
+        assert "+0.729" in readme and "p < 0.00001" in readme
+
+    def test_the_architectural_confound_is_named_first(self):
+        readme = self._readme()
+        assert "the arms put their decision record in DIFFERENT PLACES" in readme
+        assert "That restatement is the only record that exists." in readme
+        assert "hedge **where the judge looks**" in readme
+
+    def test_the_valence_inversion_is_recorded(self):
+        """The decisive half: low hedge_rate tracks LESS skepticism about a
+        fabricated citation, so even a clean measurement points the other way."""
+        readme = self._readme()
+        assert "the valence inverts on the fabricated citation" in readme
+        assert "Low `hedge_rate` here tracks **less skepticism**, not more spine" in readme
+
+    def test_the_two_ladder_runs_are_marked_never_to_be_pooled(self):
+        """Refutation 5 was my own confound check, confounded by pooling a real
+        effect with a null one."""
+        readme = self._readme()
+        assert "Never pool the two ladder runs on this column" in readme
+        assert "my own confound check was itself confounded" in readme
+
+    def test_the_withdrawn_replication_is_recorded_as_withdrawn(self):
+        """rH was pre-registered and never run. An un-recorded withdrawal is how a
+        confirmation test gets re-proposed at 4.6 h."""
+        readme = self._readme()
+        assert "withdrawn before running" in readme
+        assert 'would have re-run the same architectural asymmetry' in readme
+
+    def test_what_survives_is_stated_as_null_or_unflattering(self):
+        readme = self._readme()
+        assert "96/96" in readme
+        assert "the judge model is recorded in no result file" in readme
+
+
 class TestRationaleIntegrityProbe:
     """The corrected count, pinned, and the two sides kept apart.
 
