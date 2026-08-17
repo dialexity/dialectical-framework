@@ -2174,6 +2174,104 @@ both stated narrowly:
 Neither point touches the endpoint. The other two flags are the contradicts-a-standing-
 decision kind, which is the check doing its ordinary job.
 
+### r22: the continuation that resolves r21, or does not — pre-registered 2026-08-16, before any cell ran
+
+**This is the one run in the archive whose n was chosen by an earlier run's
+measurement rather than by a guess,** and that is the only reason it is worth
+buying. r21 came in at +0.325 with the interval covering zero by three
+thousandths. The temptation is to read that as a win; the honest move is to notice
+that r21 measured the two things needed to design the run that settles it — the
+real sd (0.702, not the borrowed 0.615/0.787) and the real clustering.
+
+**Why pooling r21+r22 is legitimate here and was not legitimate for the August-10
+sets.** The refusal there was specific: 16 commits on
+`advisor/system_prompts.py` between those runs and r21, so pooling would launder a
+build change into extra n. Between r21's build and this one, `git diff 7ac3889 HEAD`
+touches **only `tests/bench/`** — README prose, `read_prereg.py`, `test_bench.py` —
+and `prompt_sha` is the same `1ca4083`. The measured artifact is byte-identical, so
+the two runs are replicates of one build in the strict sense. This is checked by
+code, not by memory: `read_pooled.py` computes the endpoint only when every stem
+agrees on `prompt_sha` and prints REFUSED otherwise (verified: it refuses
+r21+`decision-strong-r3` because that stem's provenance is ABSENT, which reads as
+absent and never as same-build).
+
+**Powered from r21's own sd.** At the pooled n=40, se **0.111** and MDE **0.311**
+at 80% power. Simulated outcomes (40k trials, sd 0.702, flat-pair endpoint):
+
+| if the true effect is | WIN | UNRESOLVED | LOSE |
+|---|---|---|---|
+| +0.325 (r21's estimate) | **83%** | 17% | 0% |
+| +0.25 | 62% | 38% | 0% |
+| +0.20 | 44% | 56% | 0% |
+| +0.15 | 28% | 72% | 0% |
+| 0.00 (true null) | 3% | 94% | 3% |
+
+Two things that table settles in advance. **A second n=20 read alone would be a
+coin flip** (50% at the r21 estimate), so r22 is pre-registered as a *pooled* read
+and not as an independent replication — declared now, before the number exists,
+which is the only time that declaration means anything. And **an UNRESOLVED at n=40
+is informative in a way r21's was not**: it puts the effect below ~0.31, which is
+where "the framework helps, modestly" and "the framework does nothing" stop being
+distinguishable at any n this bench can afford.
+
+**The clustering check, and the trap it creates.** The endpoint pools 4 pairs per
+replicate (2 sessions × 2 branches sharing an opening), so those pairs are not
+independent. On r21 the intra-replicate ICC is **negative (−0.178)** — pairs within
+a replicate are *less* alike than pairs across replicates. Consequence: the flat
+interval is the CONSERVATIVE one, and the replicate-level interval is tighter —
+r21 by replicate is **+0.325, 95% CI [+0.031, +0.619], n=5**, which excludes zero.
+
+**That interval is NOT being promoted to the endpoint, and this paragraph is why.**
+It excludes zero, it is arguably the more defensible unit, and I found it while
+looking for a reason r21 might really be a win. Switching units after seeing which
+one clears zero is the same error as reading a null warmly — it just wears a
+methodologist's hat. So: the flat pair mean stays primary at n=40, the
+replicate-level row is reported beside it as secondary, and `read_pooled.py` prints
+the ICC on every read so that if a future run shows a POSITIVE ICC — where the flat
+interval becomes anti-conservative and the replicate level becomes the honest
+one — that switch is a visible argued decision instead of a silent convenience.
+
+**Pre-registered readings, fixed now:**
+- **Primary endpoint: the pooled flat composite, A2 vs A1.7, strong tier, n=40
+  pairs across r21+r22, one build.** Same lane, same scenario, same judge model,
+  same 5-replicate shape.
+- **Framework wins** = pooled flat CI excludes zero on the positive side. That is
+  the archive's first judged framework win, and I will say so plainly, scoped to
+  this lane and this tier.
+- **Framework loses** = pooled flat CI excludes zero on the negative side. Then
+  r21's positive point estimate was noise and the weak-tier loss is not a tier
+  artifact.
+- **Unresolved** = CI covers zero. Reported as an effect bounded below ~0.31, with
+  no third run: at 44% power for a 0.20 effect, the next increment costs ~6 h for
+  ~20 more pairs and this lane has better uses for that money.
+- **The secondary replicate-level row is reported in all three cases**, including
+  the case where it disagrees with the primary. A unit that only appears when it
+  flatters is not a unit, it is a lever.
+- **No prompt edits before or during this run.** `prompt_sha` must read `1ca4083`
+  in r22's own recorded provenance, or the pooling premise is void and the run is
+  read alone at n=20.
+- **Invalidating checks first, as always:** any `error`, any `turn_errors`,
+  `collapsed_to_a1` on any A2 cell, and the X/Y split per stratum.
+
+**What this still cannot settle.** One scenario, one model, one simulator, one
+judge. A win here is a strong-tier claim for `cofounder_equity`, not a general one.
+The poor-fit control (`career_offer`, which the framework should LOSE) is still not
+in it, so this run cannot show the framework knows when to stay out of the way —
+that remains the most important unrun control in the bench.
+
+```bash
+# r22: the continuation. Same build, same lane, 5 replicates = 20 more pairs.
+DIALEXITY_BENCH_ARMS=A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=cofounder_equity \
+DIALEXITY_BENCH_TIERS=strong \
+DIALEXITY_BENCH_REPLICATES=5 \
+DIALEXITY_BENCH_STEM=r22-strong-pooled \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+
+# then the pooled read, which refuses if the builds disagree:
+poetry run python tests/bench/read_pooled.py r21-strong-current-build r22-strong-pooled
+```
+
 ### The archive-wide picture: the weak-tier loss is real, and it resolves
 
 Having built the pooling to kill two flattering findings, the honest next step was

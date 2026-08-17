@@ -7319,6 +7319,197 @@ class TestHedgeRateIsNotAFrameworkWin:
         assert "the judge model is recorded in no result file" in readme
 
 
+class TestPooledReadRefusesToLaunderABuild:
+    """`read_pooled.py`'s gate, and the unit choice it must not make silently.
+
+    Pooling is the cheapest way to buy resolution and the cheapest way to launder
+    a result, so the refusal is tested as behaviour rather than trusted as prose.
+    """
+
+    def test_absent_provenance_is_never_read_as_same_build(self, capsys, monkeypatch):
+        """Every pre-r21 stem has no `build` block. Treating absent as "same as
+        the other one" is exactly how the August-10 sets would get pooled into
+        r21 and turn 16 prompt commits into extra n."""
+        import json
+
+        from bench import read_pooled
+
+        tmp = {
+            "with": {
+                "build": {"git_sha": "a" * 40, "dirty": False, "prompt_sha": "b" * 40},
+                "runs": [],
+                "comparisons": [],
+            },
+            "without": {"runs": [], "comparisons": []},
+        }
+
+        def fake_load(path):
+            return tmp[path.stem]
+
+        monkeypatch.setattr(read_pooled, "load_records", fake_load)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        code = read_pooled.read(["with", "without"], ("A2", "A1.7"))
+        out = capsys.readouterr().out
+        assert code == 2, "pooling a provenance-less stem was not refused"
+        assert "NOT POOLABLE" in out
+        assert "provenance ABSENT" in out
+        # And it must not print an endpoint it refused to compute.
+        assert "FRAMEWORK WINS" not in out
+
+    def test_two_different_prompt_shas_are_refused(self, capsys, monkeypatch):
+        from bench import read_pooled
+
+        tmp = {
+            "one": {
+                "build": {"git_sha": "a" * 40, "dirty": False, "prompt_sha": "b" * 40},
+                "runs": [],
+                "comparisons": [],
+            },
+            "two": {
+                "build": {"git_sha": "c" * 40, "dirty": False, "prompt_sha": "d" * 40},
+                "runs": [],
+                "comparisons": [],
+            },
+        }
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: tmp[p.stem])
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        code = read_pooled.read(["one", "two"], ("A2", "A1.7"))
+        out = capsys.readouterr().out
+        assert code == 2
+        assert "2 distinct prompt_sha values" in out
+
+    def test_forcing_stamps_the_output_so_it_cannot_be_quoted_as_ordinary(
+        self, capsys, monkeypatch
+    ):
+        """`--force` exists for a human with an argument. A forced number that
+        prints identically to an unforced one is a trap."""
+        from bench import read_pooled
+
+        tmp = {"a": {"runs": [], "comparisons": []}}
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: tmp[p.stem])
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        read_pooled.read(["a"], ("A2", "A1.7"), force=True)
+        out = capsys.readouterr().out
+        assert "FORCED" in out
+
+    def test_small_n_uses_t_and_not_1_96(self):
+        """The replicate-level read is n=5. At df=4, 1.96 understates the interval
+        by ~30% — enough to manufacture an exclusion of zero on its own."""
+        from bench.read_pooled import _ci, _t95
+
+        assert _t95(4) == 2.776
+        assert _t95(19) == 2.093
+        # A constant-ish sample: the half-width must reflect t, not 1.96.
+        ci = _ci([1.0, 1.0, 1.0, 1.0, 2.0])
+        assert ci is not None
+        import statistics as st
+
+        half = ci[1] - st.fmean([1.0, 1.0, 1.0, 1.0, 2.0])
+        naive = 1.96 * st.stdev([1.0, 1.0, 1.0, 1.0, 2.0]) / (5**0.5)
+        assert half > naive * 1.3
+
+    def test_the_icc_sign_decides_which_unit_is_conservative(self):
+        """The whole reason both rows are printed. Negative ICC => flat is
+        conservative (r21's case); positive => flat is anti-conservative."""
+        from bench.read_pooled import _icc
+
+        # Tight clusters far apart: positive ICC.
+        clustered = _icc({1: [1.0, 1.1], 2: [-1.0, -1.1], 3: [2.0, 2.1]})
+        assert clustered is not None and clustered[0] > 0
+        # Wide spread within clusters whose means coincide: negative ICC.
+        anti = _icc({1: [-1.0, 1.0], 2: [-1.1, 1.1], 3: [-0.9, 0.9]})
+        assert anti is not None and anti[0] < 0
+
+    def test_replicate_keys_carry_the_stem(self):
+        """Replicate numbers restart per run, so keying on the bare number would
+        collapse r21's rep 3 and r22's rep 3 into one cluster and corrupt the
+        ICC the unit decision rests on."""
+        import inspect
+
+        from bench import read_pooled
+
+        source = inspect.getsource(read_pooled.read)
+        assert "per_replicate[(stem, c.replicate)]" in source
+
+
+class TestR22PreRegistration:
+    """The continuation's readings, pinned before a cell runs.
+
+    r22 is the run that either produces the archive's first judged framework win
+    or bounds the effect below ~0.31. Both readings are written down here while
+    neither is known, and so is the unit choice — which is the one this run could
+    most easily fudge, because r21's replicate-level interval already excludes
+    zero.
+    """
+
+    @staticmethod
+    def _readme() -> str:
+        from pathlib import Path
+
+        return " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+
+    @classmethod
+    def _block(cls) -> str:
+        after = cls._readme().split("### r22:")
+        assert len(after) == 2, "the r22 pre-registration block is missing"
+        return after[1].split("### The archive-wide picture")[0]
+
+    def test_the_block_names_all_three_outcomes_including_the_dull_one(self):
+        block = self._block()
+        assert "**Framework wins** = pooled flat CI excludes zero" in block
+        assert "**Framework loses** = pooled flat CI excludes zero" in block
+        assert "**Unresolved** = CI covers zero" in block
+
+    def test_pooling_is_justified_by_a_checked_build_identity(self):
+        """The August-10 refusal and this permission must rest on the same rule,
+        or "poolable" just means "convenient"."""
+        block = self._block()
+        assert "touches **only `tests/bench/`**" in block
+        assert "same `1ca4083`" in block
+        assert "checked by code, not by memory" in block
+        assert "prints REFUSED otherwise" in block
+
+    def test_the_pooled_design_is_declared_before_the_number_exists(self):
+        """A second n=20 is a coin flip, so reading r22 alone and then pooling
+        only if it disappoints is the error this sentence forecloses."""
+        block = self._block()
+        assert "pre-registered as a *pooled* read" in block
+        assert "before the number exists" in block
+        assert "**83%**" in block  # the power table survived
+
+    def test_the_replicate_level_interval_is_refused_as_primary_on_the_record(self):
+        """r21 by replicate is [+0.031, +0.619] — it excludes zero. Promoting it
+        after seeing that is unit-shopping, and the block must say so."""
+        block = self._block()
+        assert "[+0.031, +0.619]" in block
+        assert "is NOT being promoted to the endpoint" in block
+        assert "it just wears a methodologist's hat" in block
+        assert "not a unit, it is a lever" in block
+
+    def test_the_icc_direction_and_its_future_reversal_are_stated(self):
+        block = self._block()
+        assert "negative (−0.178)" in block
+        assert "flat interval is the CONSERVATIVE one" in block
+        # The condition under which the decision must be revisited.
+        assert "POSITIVE ICC" in block
+
+    def test_an_unresolved_outcome_is_pre_committed_as_terminal(self):
+        """Without this, a null at n=40 becomes an argument for n=60."""
+        block = self._block()
+        assert "with no third run" in block
+        assert "bounded below ~0.31" in block
+
+    def test_the_unrun_poor_fit_control_is_still_named(self):
+        block = self._block()
+        assert "career_offer" in block
+        assert "most important unrun control" in block
+
+
 class TestRationaleIntegrityProbe:
     """The corrected count, pinned, and the two sides kept apart.
 
