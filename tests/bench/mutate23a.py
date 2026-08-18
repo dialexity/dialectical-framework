@@ -1,4 +1,4 @@
-"""Do the POOR_FIT-exemption pins actually fire? Eleven mutations, run and report.
+"""Do the POOR_FIT-exemption pins actually fire? Fourteen mutations, run and report.
 
     poetry run python tests/bench/mutate23a.py
 
@@ -12,18 +12,25 @@ which cells `drop_invalid` deletes, so every branch of it gets a mutation:
   5. field default flipped        -> archived records silently revalidated
 
 The smoke run also moved the archive's own claim from "no control has ever RUN"
-to "no control has been READ", stated at four sites across two files. Six more
-mutations check that they cannot drift apart (6-11).
+to "no control has been READ", stated at four sites across two files. Nine more
+mutations check that it cannot drift apart (6-14): one per site, plus three that
+sneak a CELL COUNT back next to the claim.
 
-TWO WAYS THIS SCRIPT HAS LIED, both fixed here:
+THREE WAYS THIS SCRIPT OR ITS PINS HAVE LIED, all fixed here:
 
   * A pytest selector matching NOTHING exits nonzero, which reads as "the
     mutation was caught". Every selector is asserted to match >=1 test first.
-  * A pin that asserts a phrase ONCE is satisfied by any of its copies. Mutation
-    10 ("reading guide 6 reverts") survived the first draft for exactly that
-    reason, and the fix was to COUNT the sites. Keep the per-site mutations —
-    they are the only thing that distinguishes "stated three times" from
-    "grepped once".
+  * A pin that asserts a phrase ONCE is satisfied by any of its copies. The
+    "reading guide 6 reverts" mutation survived the first draft for exactly that
+    reason. Keep the per-site mutations — they are the only thing that
+    distinguishes "stated at three sites" from "grepped once".
+  * A pin that COUNTS occurrences breaks on documentation edits (adding a Files
+    row moved the count 3 -> 4). Check each site's own wording instead.
+
+And the claim itself must quote no cell count: the first draft said "4 cells" at
+three sites, and re-smoking the fix made all three stale within the hour. Same
+brittleness that broke the "392 saved runs" pin. Mutations 7, 12 and 14 are the
+guard.
 """
 
 from __future__ import annotations
@@ -91,6 +98,13 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
         SURFACES,
     ),
     (
+        "printed report re-quotes a count",
+        REPORT,
+        "premature_relocation have cells only under smoke* stems, which",
+        "premature_relocation have only the 4 cells of smoke-r23-wiring, which",
+        SURFACES,
+    ),
+    (
         "README drops the census annotation",
         README,
         "> **Annotation, added hours later — the census above is left as written.**",
@@ -114,8 +128,22 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     (
         "correction-block update reverts",
         README,
-        "`smoke*` rule in `_stems()`. **No control has been READ.**",
-        "`smoke*` rule in `_stems()`. **No control counts.**",
+        "by the `smoke*` rule in `_stems()`. **No control has\n> been READ.**",
+        "by the `smoke*` rule in `_stems()`. **No control counts.**",
+        SURFACES,
+    ),
+    (
+        "a stale cell count creeps back into the claim",
+        README,
+        "> **Updated later the same day:** the controls now have cells",
+        "> **Updated later the same day:** the controls now have 4 cells",
+        SURFACES,
+    ),
+    (
+        "reading guide 6 re-quotes a count",
+        README,
+        "`premature_relocation` have cells only under `smoke*` stems",
+        "`premature_relocation` have only the 4 cells under `smoke*` stems",
         SURFACES,
     ),
     (

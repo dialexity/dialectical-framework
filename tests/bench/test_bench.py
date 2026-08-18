@@ -7998,26 +7998,37 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
 
     def test_all_three_surfaces_say_read_not_run(self):
         """The claim narrowed from "never run" to "never read" when the smoke run
-        produced 4 cells. It is stated in three places — the README correction
-        block, the README reading guide, and every printed report — and a reader
-        who sees "never run" in one and 4 cells in the archive learns to distrust
-        all three. So they move together or the test fails."""
+        produced its first control cells. It is stated in three places — the README
+        correction block, the README reading guide, and every printed report — and a
+        reader who sees "never run" in one and control cells in the archive learns
+        to distrust all three. So they move together or the test fails.
+
+        And NO SITE MAY QUOTE A CELL COUNT. The first draft said "4 cells" at three
+        sites; re-smoking the fix made all three stale within the hour, which is the
+        "392 saved runs" brittleness again. The claim is *which stems*, which the
+        `smoke*` rule fixes for good.
+        """
         import inspect
+        import re
         from pathlib import Path
 
         from bench.report import render_report
 
+        raw = (Path(__file__).resolve().parent / "README.md").read_text()
+        # Blockquote markers are stripped BEFORE whitespace-normalising: two of the
+        # three sites live inside `>` blocks, and a wrapped line otherwise
+        # normalises to "...has > been READ", which no readable assertion matches.
         readme = " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
+            re.sub(r"(?m)^>\s?", "", raw).split()
         )
         # Rendered, not grepped from source: the guide is what a reader SEES, and
         # an empty report still prints it in full.
         printed = " ".join(render_report([], [], {}, []).split())
 
         assert "NO CONTROL HAS BEEN READ" in printed
-        assert "smoke-r23-wiring run, which every pooled read excludes" in printed
+        assert "cells only under smoke* stems, which every pooled read" in printed
         assert "NO CONTROL HAS EVER RUN" not in printed, (
-            "the smoke run falsified this wording — 4 control cells exist"
+            "the smoke runs falsified this wording — control cells exist"
         )
         # Each site checked by its OWN wording, not by one phrase that happens to
         # appear somewhere. First version asserted the phrase once, and a mutation
@@ -8026,25 +8037,35 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
         # on adding a Files-table row, which is a documentation edit, not drift.
         for site in (
             # correction block, updated when the smoke cells appeared
-            "`smoke*` rule in `_stems()`. **No control has been READ.**",
+            "by the `smoke*` rule in `_stems()`. **No control has been READ.**",
             # r23 census annotation, which is why the census may stay as written
             "claim — that **no control has been READ** — still holds",
             # reading guide item 6, the instruction a reader actually follows
             "has been READ. This line stood",
         ):
             assert site in readme, f"the READ-not-RUN claim lost a site: {site!r}"
-        assert "4 cells of the 1-replicate `smoke-r23-wiring` run" in readme
+        assert "No cell count is quoted here on purpose" in readme
         assert (
-            "`smoke-r23-wiring` run, which every pooled read excludes as "
-            "`smoke*`; no control has been READ" in readme
+            "cells only under `smoke*` stems, which every pooled read excludes; "
+            "no control has been READ" in readme
         )
+        # A count quoted next to the claim is the failure mode this cost an hour to
+        # learn. Checked against the CLAIM's own sentences, not the whole README,
+        # which legitimately counts cells elsewhere (372, 432, "8 of 374").
+        for sentence in (
+            "the controls now have cells",
+            "have cells only under `smoke*` stems",
+        ):
+            assert sentence in readme, f"claim site rewritten: {sentence!r}"
+        assert "the controls now have 4 cells" not in readme
+        assert "only the 4 cells" not in readme
         # The r23 pre-registration's own census says "zero cells in the entire
         # archive". That is left standing — pre-registered text is not edited after
         # the fact — but it MUST carry the annotation, or it reads as a live claim
         # the archive contradicts.
-        assert "zero cells in\nthe entire archive" in (
-            Path(__file__).resolve().parent / "README.md"
-        ).read_text(), "the pre-registered census was edited instead of annotated"
+        assert (
+            "zero cells in\nthe entire archive" in raw
+        ), "the pre-registered census was edited instead of annotated"
         assert "the census above is left as written" in readme
         assert "stopped being literally true on the day it was written" in readme
         # And the exclusion the claim leans on is real, not asserted.

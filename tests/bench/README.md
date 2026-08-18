@@ -2423,12 +2423,17 @@ most important unrun control in the bench was not merely unrun — its name had 
 quietly transferred to a scenario that *was* running, which is how an absent control
 stops looking absent. That is r23's subject.
 
-> **Updated later the same day:** the controls now have **4 cells**, all from the
-> 1-replicate `smoke-r23-wiring` run described below, and all excluded from every
-> pooled read by the `smoke*` rule in `_stems()`. **No control has been READ.** A
-> 1-replicate smoke is a wiring check, not a tripwire — and it fired a different alarm
-> instead, deleting the poor-fit control's own passing cell. Any claim that a control
-> has passed still has nothing behind it.
+> **Updated later the same day:** the controls now have cells — from two 1-replicate
+> smoke runs (`smoke-r23-wiring`, then `smoke-r23-refix`) — and every one of them is
+> excluded from every pooled read by the `smoke*` rule in `_stems()`. **No control has
+> been READ.** A 1-replicate smoke is a wiring check, not a tripwire, and this one fired
+> a different alarm instead: it caught the harness deleting the poor-fit control's own
+> passing cell. Any claim that a control has passed still has nothing behind it.
+>
+> No cell count is quoted here on purpose. The first version of this note said "4
+> cells", which the re-smoke made stale within the hour — the same brittleness that
+> broke the "392 saved runs" pin. The claim is *which stems*, and that is what the test
+> recomputes.
 
 ### The archive-wide picture: the weak-tier loss is real, and it resolves
 
@@ -2901,8 +2906,9 @@ has never once been carried out, and no reader could have told, **because an abs
 control looks exactly like a control that passed.**
 
 > **Annotation, added hours later — the census above is left as written.** Smoking the
-> wiring (below) added **4 control cells** under stem `smoke-r23-wiring`, so "zero cells
-> in the entire archive" stopped being literally true on the day it was written. It is
+> wiring (below) added control cells under `smoke-r23-wiring` and `smoke-r23-refix`, so
+> "zero cells in the entire archive" stopped being literally true on the day it was
+> written. It is
 > not edited: pre-registered text is not rewritten after the fact, and the paragraph's
 > claim — that **no control has been READ** — still holds, because `_stems()` excludes
 > `smoke*` from every pooled read. The canonical census (372 cells, controls at zero) is
@@ -3034,12 +3040,29 @@ smoke records with the kind attached moves the A2 poor-fit cell from
 collapse, and the inverted `convergence` reading pre-registered above needs the arm to
 have actually run. The smoke cell built 1 tool call and was valid without any exemption.
 
+**Then re-smoked, because a replay is not the wiring.** Re-reading old records with the
+kind attached proves the predicate; it does not prove `driver.run_cell` writes the field
+on a live run. `smoke-r23-refix` (295 s, same 4 cells) came back with `scenario_kind`
+populated on every record, **zero exclusions, zero turn errors**, `dirty: False`, and
+`prompt_sha 1ca4083` — the sha the pre-registration names:
+
+| arm | scenario | kind recorded | chars | tools | collapsed | invalid |
+|-----|----------|---------------|------:|------:|-----------|---------|
+| A1.7 | `poorfit_ssl_expiry` | `poor_fit` | 8121 | 0 | False | False |
+| A2 | `poorfit_ssl_expiry` | `poor_fit` | 7693 | 0 | False | False |
+| A1.7 | `premature_relocation` | `premature` | 3742 | 0 | False | False |
+| A2 | `premature_relocation` | `premature` | 733 | 1 | False | False |
+
 Pinned by `TestRecords` (six branch tests, including that `None` keeps the strict reading
 and that the driver writes the field — without the writer side the fix is inert) and by
 `TestThePoorFitControlDeletedItsOwnPassingEvidence`, which re-runs the predicate against
-the real smoke cells rather than fixtures. Five mutations, all caught
-(`mutate23a.py`): exemption deleted, keyed on `PREMATURE` instead, keyed on
-"any known kind", writer side removed, field default flipped.
+the real smoke cells rather than fixtures. **Fourteen** mutations, all caught
+(`mutate23a.py`): five on the exemption (deleted, keyed on `PREMATURE` instead, keyed on
+"any known kind", writer side removed, field default flipped) and nine on the "no control
+has been READ" claim — one per site, plus three that sneak a cell count back next to it.
+The per-site mutations exist *because* the first draft of that pin asserted the phrase
+once and a site-local revert survived; the count mutations exist because the second draft
+quoted "4 cells", which this re-smoke made stale within the hour.
 
 No `src/` change, so `prompt_sha` is unaffected and r23 still gates the build the
 pre-registration names.
@@ -3082,7 +3105,7 @@ poetry run python tests/bench/read_prereg.py r23-controls A2 A1.7
 | `read_prereg.py` | reads one saved stem in the PRE-REGISTERED order — build, then invalidating gates, then the endpoint — and derives the verdict word (WINS/LOSES/UNRESOLVED) from the interval instead of from prose written afterwards (free, no LLM, safe to run while a bench run is live) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_bench.py` | the harness's own tests (free) |
-| `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the four-site "no control has been READ" claim: 11 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass |
+| `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the four-site "no control has been READ" claim: 14 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass. Its docstring records the three ways this script or its pins have lied |
 | `test_bench_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_bench_run.py` | the `--real-llm` entry points |
 
@@ -3110,8 +3133,8 @@ poetry run python tests/bench/read_prereg.py r23-controls A2 A1.7
    framework added nothing measurable.
 6. Check the poor-fit control before believing anything else — **and note that as
    of 2026-08-18 there is nothing to check.** `poorfit_ssl_expiry` and
-   `premature_relocation` have only the 4 cells of the 1-replicate
-   `smoke-r23-wiring` run, which every pooled read excludes as `smoke*`; no control
+   `premature_relocation` have cells only under `smoke*` stems, which every pooled
+   read excludes; no control
    has been READ. This line stood
    for 22 rounds as an instruction a reader could not follow, and for most of them
    `career_offer` was misdescribed as the control it isn't, which is how the gap
