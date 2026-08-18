@@ -2086,7 +2086,7 @@ stratum, since a lopsided split is the defect that cost r4 a re-judge.
 
 **What this run cannot settle, stated first.** One scenario (`cofounder_equity`),
 one model, one simulator, one judge. A positive result is a strong-tier claim for
-THAT lane, not a general one; the poor-fit control (`career_offer`, which the
+THAT lane, not a general one; the poor-fit control (`poorfit_ssl_expiry`, which the
 framework is *expected* to lose) is not in it, so this run cannot show the framework
 knows when to stay out of the way. Cost: A2 ~600–900 s/cell against A1.7's ~150 s,
 2 cells per arm per replicate → **~2.5–3 h wall-clock**.
@@ -2259,6 +2259,13 @@ The poor-fit control (`career_offer`, which the framework should LOSE) is still 
 in it, so this run cannot show the framework knows when to stay out of the way —
 that remains the most important unrun control in the bench.
 
+> **Left as written, annotated 2026-08-18 — pre-registered text is not edited after
+> the fact.** `career_offer` is NOT the poor-fit control; it is a second `DECISION`
+> scenario, and the real controls (`poorfit_ssl_expiry`, `premature_relocation`) have
+> never been run. The paragraph's *claim* survives the correction intact — no control
+> is in this run and that is still the bench's most important gap — only the name is
+> wrong. See "the poor-fit control was never the control" below.
+
 ```bash
 # r22: the continuation. Same build, same lane, 5 replicates = 20 more pairs.
 DIALEXITY_BENCH_ARMS=A1.7,A2 \
@@ -2271,6 +2278,150 @@ poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
 # then the pooled read, which refuses if the builds disagree:
 poetry run python tests/bench/read_pooled.py r21-strong-current-build r22-strong-pooled
 ```
+
+#### r22 RESULT — read 2026-08-18, in the pre-registered order: UNRESOLVED at n=36
+
+**Build gate first, because the whole design hangs on it.** r22 recorded `git_sha
+716d124`, `dirty False`, `prompt_sha 1ca4083` — the same `prompt_sha` as r21, so
+`read_pooled.py` computed the endpoint instead of refusing. The pooling premise
+declared in advance held.
+
+**Deviation from the pre-registration, stated before any number.** r22 was
+pre-registered at 20 pairs for a pooled n=40. It delivered **16**, so the pooled read
+is **n=36**. This is not a choice made after seeing the data; it is damage. A network
+outage during replicate 5 killed 3 of its 4 cells (`A1.7|5|wobble_b`,
+`A2|5|wobble_a`, `A2|5|wobble_b` — 8 errored turns each, zero assistant text, zero
+tool calls; the two A2s also tripped `collapsed_to_a1`, which is what an unreachable
+model looks like from `invalid_cells`' side). `A1.7|5|wobble_a` survived but its pair
+partner did not, so `drop_invalid` removed all 4 of replicate 5's comparisons.
+Replicates 1–4 are fully intact for both arms: 8 turns, no turn errors, 9.5k–17.5k
+chars of assistant text per cell, A2 cells showing 5–13 tool calls.
+
+**The judge phase failed separately, and the transcripts were innocent.** The first
+save carried 16 kept comparisons and still printed `strong no pairs`, because every
+one of them had `error='ConnectionError: Connection error.'` and `scores={}` — the
+same outage that broke the Langfuse export took the judge down wholesale. This is
+exactly the case `test_bench_rejudge` exists for, and it cost **12m22s** instead of
+re-running 2h55m of conversation:
+
+```bash
+DIALEXITY_BENCH_REJUDGE=r22-strong-pooled \
+DIALEXITY_BENCH_STEM=r22-strong-pooled-rejudge \
+DIALEXITY_BENCH_TIERS=strong DIALEXITY_BENCH_ARMS=A1.7,A2 \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_rejudge --real-llm -s
+```
+
+Note the output stem: `across_runs._stems()` excludes `-rejudged`, so a re-judge
+saved under that suffix is invisible to every archive-wide reader. `-rejudge` (no
+`d`) is deliberate — this file is not a second scoring of already-scored cells, it is
+the ONLY scoring those cells ever received, and the pooled line must see it. The
+judge-failed original is superseded, not pooled beside it.
+
+**Gates, then the endpoint:**
+
+| gate | r22 |
+|---|---|
+| cells | 20 |
+| cells with `error` set | 0 |
+| cells with `turn_errors` | 3 (all replicate 5) |
+| `collapsed_to_a1` | 2 (both replicate 5, both unreachable) |
+| `invalid_as_evidence` | 3 |
+| comparisons | 20 (dropped 4, **kept 16**) |
+| X/Y split | `decide` 4/4, `wobble_a` 2/2, `wobble_b` 2/2 — exact |
+
+| read | estimate | sd | 95% CI | n | verdict |
+|---|---|---|---|---|---|
+| r22 alone | **+0.141** | 0.805 | [−0.288, +0.569] | 16 | UNRESOLVED |
+| **r21+r22 pooled, FLAT (primary)** | **+0.243** | 0.744 | **[−0.008, +0.494]** | **36** | **UNRESOLVED** |
+| r21+r22 by replicate (secondary) | +0.243 | 0.227 | [+0.069, +0.417] | 9 | *wins* — not promoted |
+
+**So: UNRESOLVED, by eight thousandths.** r21 missed by three thousandths on the low
+side of zero; the pooled read misses by eight. Two independent-in-time reads of the
+same build, each landing a hair from significance, is the signature of a real effect
+too small for this bench's price — not of a fluke. The pre-registration named that
+outcome in advance and said what it means: **the effect is bounded below ~0.34**
+(MDE at n=36, 80% power), which is where "helps modestly" and "does nothing" stop
+being distinguishable at any n this lane can afford.
+
+**The secondary row wins, and is still not promoted** — as pre-registered, in the
+case that was always the awkward one. The intra-replicate ICC is **−0.207** (design
+effect 0.378), negative again and close to r21's −0.178, so the flat interval remains
+the CONSERVATIVE one and stays primary by the rule fixed before the run. Reported
+here because "the secondary row is reported in all three cases, including where it
+disagrees" was written down when it cost nothing to write. It now costs something.
+
+**What the lost 4 pairs actually cost, computed at both n.** Simulated 40k trials at
+sd 0.702, flat-pair endpoint, same generator as the pre-registered table:
+
+| if the true effect is | WIN at n=40 | WIN at n=36 |
+|---|---|---|
+| +0.325 (r21's estimate) | 82% | 77% |
+| +0.25 | 59% | 54% |
+| +0.20 | 42% | 38% |
+| 0.00 (true null) | 3% | 3% |
+
+Losing replicate 5 cost about **5 percentage points of power** — se 0.111 → 0.117,
+MDE 0.318 → 0.336. It did not change the design's character, and it is not the
+reason the read came out unresolved: at the pooled point estimate of +0.243 the run
+was under 60% to resolve even at the full n=40. **The pre-registration's own table
+said so before the run existed**, which is the difference between a deviation and an
+excuse. No third run: the next ~20 pairs cost ~6 h for ~4 points of power.
+
+**The pooled headline now DEPENDS on the validity filter, and a guard written in
+advance said so.** `TestAnUnexercisedArmIsNotAWeakArm::test_the_archives_headline_is_unaffected_by_the_fix`
+failed the moment r22 landed. Its docstring predicted this exactly — *"if a future
+round lands a collapsed arm inside a single-scenario stem, this test starts failing,
+and that is the moment the guard earns itself"* — so it was measured rather than
+silenced:
+
+| | r22 alone | r21+r22 pooled |
+|---|---|---|
+| **with** the filter (as reported) | **+0.141** (n=16) | **+0.243** [−0.008, +0.494] (n=36) |
+| without it, dead cells averaged in | −0.225 (n=20) | +0.050 [−0.290, +0.390] (n=40) |
+
+The gap is **+0.366** on r22 and **+0.193** pooled, both in the flattering direction.
+Every number in this section therefore rests on `drop_invalid`, and anyone quoting
++0.243 is also quoting the argument in `RunRecord.invalid_as_evidence`: a cell whose
+every turn raised `ConnectionError` produced no text, and the judge scored the empty
+transcript against a healthy opponent. That is a measurement of an outage, not of an
+arm. Averaging it in would be scoring the network.
+
+The honest statement of the dependency is not "the filter is correct so the number is
+fine" — it is that **this pooled read is the first in the archive whose headline the
+filter can move**, and the previous 20 rounds' habit of glancing past the exclusion
+block no longer applies here. The guard's assertion was changed from "no
+single-scenario stem has invalid cells" (now false, permanently) to "any stem that
+does is on a declared list, with its effect measured" — see
+`HEADLINE_DEPENDS_ON_FILTER` in `test_bench.py`.
+
+#### The poor-fit control was never the control — a documentation bug, found during r22
+
+Five places in this bench called **`career_offer`** "a poor-fit control the framework
+is EXPECTED to lose", and used that as a ground for excluding the `claim2` set from
+pooled lines. Both halves are false:
+
+1. **`CAREER_OFFER.kind` is `ScenarioKind.DECISION`** — the same kind as
+   `cofounder_equity`, the bench's main lane. It is a second decision scenario, not
+   a control. The archive's real controls are **`poorfit_ssl_expiry`** (kind
+   `POOR_FIT`) and **`premature_relocation`** (kind `PREMATURE`).
+2. **The rationale was inverted where it was used.** On the exact line the exclusion
+   cites — weak tier, A2 vs A1.7 — `career_offer` reads **−0.208** against
+   `cofounder_equity`'s **−0.938**. The supposedly-doomed control is the *better*
+   half, so averaging it in moved the number **up** by ~+0.011, in the flattering
+   direction. Excluding it "because we expect to lose it" excluded the kinder cell.
+
+The `claim2` exclusion **still stands** — the −3.13 strong-tier cell from a build
+whose A2 arm was later found broken is sufficient on its own, and that ground was
+always true. Only the reasoning is corrected, at `across_runs.composite_rows`,
+`round_trend.comparable_rows`, and three README passages.
+
+**The finding that matters more than the mislabel:** `poorfit_ssl_expiry` and
+`premature_relocation` have **zero cells across every saved run** in this archive —
+372 cells over the canonical pooling set, 432 counting superseded and smoke files —
+while this README has been telling readers to check the poor-fit control first. The
+most important unrun control in the bench was not merely unrun — its name had been
+quietly transferred to a scenario that *was* running, which is how an absent control
+stops looking absent. That is r23's subject.
 
 ### The archive-wide picture: the weak-tier loss is real, and it resolves
 
@@ -2303,9 +2454,11 @@ arm. Fixed in `across_runs.tier_model`/`pooled_model` and pinned by
 `TestATierLabelIsNotAModel`.
 
 Multi-scenario `claim2` is excluded from the pooled line (still printed in the
-table, with the reason): it averages the `career_offer` poor-fit control — which the
-framework is *expected* to lose — into the same number, and its −3.13 strong-tier
-cell comes from a build whose A2 arm was later found broken.
+table, with the reason): its −3.13 strong-tier cell comes from a build whose A2 arm
+was later found broken, and it averages a second scenario (`career_offer`) into the
+same number. It was excluded on a *third*, wrong ground until 2026-08-18 — that
+`career_offer` is a poor-fit control the framework is expected to lose. See "the
+poor-fit control was never the control" below.
 
 **All 12 dimensions lose, 10 on resolved intervals**, so this is not one bad
 subscale dragging a mean. The *order* is the diagnosis, and it did not change when
@@ -2725,6 +2878,112 @@ below is from re-scoring the 374 saved cells in `results/` myself.
   `test_the_archive_has_no_ladder_return_cells_yet` pins that. When the lane runs,
   that test fails — which is the reminder to write the result up, not a defect.
 
+### r23: the control that could invalidate everything above — pre-registered 2026-08-18, before any cell ran
+
+**This document has said "check the poor-fit control before believing anything else"
+since the reading guide was written, and the control has never been run.** Not "run
+inconclusively" — `poorfit_ssl_expiry` and `premature_relocation` have **zero cells in
+the entire archive**. Over the canonical pooling set (`across_runs._stems()`, 372
+cells) every scenario ever run is `cofounder_equity` (260), `cofounder_ladder_return`
+(96), `career_offer` (16); counting the superseded and smoke files too it is 432 cells
+and adds only `agile_process` (10). Either way the controls are at **zero**, and both
+counts are quoted because "392 saved runs" — the figure this README carried on
+2026-08-17 — was the pre-supersession total and no longer reproduces. So the
+instruction that gates every other number in this file
+has never once been carried out, and no reader could have told, **because an absent
+control looks exactly like a control that passed.**
+
+**Strong tier, not weak — a correction to my own first draft of this block.** The
+draft specified weak, on the reasoning that the archive's resolved result is the
+weak-tier loss. That gets the purpose backwards. A control validates the *judge*
+behind a *claim*, and the claims now in play — r21's +0.325, the pooled +0.243 — are
+strong-tier. Running the control on weak would validate the judge for numbers nobody
+is quoting while leaving the quoted ones ungated. Measured cost of the correction:
+~2.2 h at n=12 strong (per-beat medians of 13.9 s for A1.7 and 81.1 s for A2, over
+3+4 beats × 2 arms × 12) against ~1.2 h weak. Worth an extra hour to gate the right
+claim.
+
+**What r23 measures.** Both controls, `A1.7` vs `A2`, **strong** tier, 12 replicates.
+The endpoint is NOT the 12-dimension composite: `dimensions_for` gives `poor_fit`
+exactly the three non-inferiority dimensions (`warmth`, `actionability`,
+`conversational_fit`) and `premature` those plus the seven structural ones including
+`convergence` (verified, not assumed). That is correct design — on a control **no gain
+is the target**, so the reading is an interval around zero, not a delta to maximise.
+
+**Powered from the archive's own NI-composite sd (0.831 over 414 judged pairs on the
+canonical stems, recomputed after r22's supersession — not a borrowed figure).** One
+session and no branches means 1 judged pair per replicate, so replicates *are* pairs
+and the ICC problem that dogs r21/r22 does not arise here. Simulated (40k trials):
+
+| if the framework gains spuriously | fires at n=8 | **n=12** | n=16 |
+|---|---|---|---|
+| +0.50 | 31% | **48%** | 61% |
+| +0.75 | 59% | **81%** | 92% |
+| +1.00 | 83% | **96%** | 99% |
+| 0.00 (true null) | 3% | **3%** | 3% |
+
+n=12 is the knee: it catches a 1-step spurious gain almost certainly and a 0.75 one
+four times in five, for ~2.2 h. n=16 buys 11 points at 0.75 for another 45 minutes and
+does not change what the run can conclude.
+
+**Pre-registered readings, fixed now:**
+- **The tripwire fires** = the NI composite CI on either control excludes zero **on
+  the positive side** (framework better). Per this repo's own rule in `report.py`:
+  *"On poor-fit controls the framework SHOULD show no gain. A win there means the
+  judge is rewarding structure, and the rubric needs revision before any other number
+  is trusted."* If this fires, **r21's +0.325 and the pooled +0.243 are suspended, not
+  merely annotated** — a judge that rewards structure where structure is inappropriate
+  cannot be trusted to have measured structure's value where it is appropriate. That is
+  the whole reason to run this, and it is the outcome I would be least able to argue
+  my way out of afterwards, which is why it is written here first.
+- **The control passes** = CI covers zero. Every other number in this file keeps its
+  stated meaning. This earns no celebration — a passed control is a precondition, not
+  a finding, and at n=12 a pass bounds spurious credit at ~0.53 rather than excluding
+  it.
+- **The framework LOSES the control** = CI excludes zero on the negative side. Also a
+  real result, and a mild one: on a factual/procedural request with one right answer,
+  machinery that adds dialectical framing is *supposed* to add nothing, and actively
+  subtracting is a cost the product should know about. Reported as a cost, not as a
+  failure of the eval.
+- **`premature_relocation` is read separately from `poorfit_ssl_expiry`**, never
+  pooled into one "controls" number. They test different failures (rewarding structure
+  vs closing a decision that should stay open), have different dimension sets, and a
+  pooled control row would let one pass hide the other's fire.
+- **`convergence` on `premature_relocation` is read INVERTED, fixed now:** the correct
+  behaviour there is NOT closing, so a *higher* `convergence` score for A2 is a
+  **fault**, not a win. This is the one dimension in the bench whose sign flips by
+  scenario kind, and deciding it after seeing the number would be indistinguishable
+  from choosing it.
+- **No prompt edits before or during r23.** `prompt_sha` must read `1ca4083` in r23's
+  own recorded provenance, so the control speaks for the same build whose claim it
+  gates. If it reads anything else, the run gates nothing and must be re-run.
+- **Invalidating checks first, as always** — and with r22's lesson attached: a cell
+  whose turns all errored produces no text and gets judged anyway, which on r22 moved
+  the pooled headline by +0.193. On a control that error runs the *other* way (an empty
+  transcript cannot show spurious structure), so a dead cell here biases the run toward
+  a false PASS. Any `turn_errors` on this run invalidate the tripwire, not just the
+  cell.
+
+**What r23 cannot settle.** It is a tripwire, not a measurement of fit: n=12 cannot
+resolve a half-step spurious gain, so a pass bounds contamination rather than
+excluding it. It uses the same judge model as every other run, so it tests whether
+*this* judge rewards structure inappropriately — a different judge needs its own
+control. And it is two scenarios: a pass says nothing about poor-fit requests in
+general.
+
+```bash
+# r23: the two never-run controls, same build, strong tier, 12 replicates each.
+DIALEXITY_BENCH_ARMS=A1.7,A2 \
+DIALEXITY_BENCH_SCENARIOS=poorfit_ssl_expiry,premature_relocation \
+DIALEXITY_BENCH_TIERS=strong \
+DIALEXITY_BENCH_REPLICATES=12 \
+DIALEXITY_BENCH_STEM=r23-controls \
+poetry run pytest tests/bench/test_bench_run.py::test_bench_matrix --real-llm -s
+
+# read each control SEPARATELY — never pooled into one "controls" number:
+poetry run python tests/bench/read_prereg.py r23-controls A2 A1.7
+```
+
 ## Files
 
 | File | Role |
@@ -2775,4 +3034,11 @@ below is from re-scoring the 374 saved cells in `results/` myself.
 5. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the
    framework added nothing measurable.
-6. Check the poor-fit control before believing anything else.
+6. Check the poor-fit control before believing anything else — **and note that as
+   of 2026-08-18 there is nothing to check.** `poorfit_ssl_expiry` and
+   `premature_relocation` have zero cells in the entire archive. This line stood
+   for 22 rounds as an instruction a reader could not follow, and for most of them
+   `career_offer` was misdescribed as the control it isn't, which is how the gap
+   stayed invisible. Until a control run exists, every number in this file is a
+   measurement of the framework where it is *supposed* to help, with no evidence
+   about where it is supposed to stay out of the way.

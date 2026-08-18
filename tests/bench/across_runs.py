@@ -93,18 +93,48 @@ _EXACT_MAX = 20
 _PERMUTATION_SEED = 20260813
 
 
+#: Stems whose cells live on under another name, mapped to the stem that replaces
+#: them. NOT the `-rejudged` case: those files score cells that were ALREADY scored,
+#: and the suffix filter below handles them. This is the other case — a run whose
+#: judge phase failed wholesale, so its comparisons are empty and the re-judge is
+#: the only scoring those transcripts ever got.
+#:
+#: `r22-strong-pooled`'s 20 cells were judged during a network outage: all 16 kept
+#: comparisons came back `ConnectionError` with `scores={}`. `-rejudge` (no `d`) is
+#: the real scoring, and it must be pooled. But the ORIGINAL still carries intact
+#: run records, and the machine-score blocks here read runs rather than
+#: comparisons — so leaving both in counted r22's 8 machine-scored cells TWICE
+#: (measured: both stems printed `A1.7 -0.04 -> A2 +0.15  (cells 8)` in the closure
+#: table, and the set count read 24 instead of 23).
+#:
+#: Superseded rather than deleted: the dead file is evidence of what the outage did,
+#: and `superseded_rows` prints this mapping so the omission is visible.
+SUPERSEDED: dict[str, str] = {
+    "r22-strong-pooled": "r22-strong-pooled-rejudge",
+}
+
+
+def superseded_rows() -> list[tuple[str, str]]:
+    """(dead stem, the stem that replaces it) — printed, never silent."""
+    return sorted(SUPERSEDED.items())
+
+
 def _stems() -> list[str]:
     """Saved runs worth pooling.
 
     `-runs` is the same payload under a second name, `-rejudged` is the same cells
     scored twice (pooling it would count one run as two), and `smoke*` are harness
     checks with 1-2 cells. Including any of them inflates n with no new evidence.
+
+    `SUPERSEDED` is the fourth case and the one no suffix catches: a run replaced by
+    a re-judge because its own judge phase died. See that constant.
     """
     return sorted(
         p.stem
         for p in RESULTS.glob("*.json")
         if not p.stem.endswith(("-runs", "-rejudged"))
         and not p.stem.startswith("smoke")
+        and p.stem not in SUPERSEDED
     )
 
 
@@ -384,11 +414,28 @@ def composite_rows() -> list[tuple[str, str, str, float, int, int]]:
     """(stem, prompt arm, tier, composite, cells, scenarios) per saved set.
 
     `scenarios` is carried because the multi-scenario `claim2` set is not
-    comparable with the rest: it averages `career_offer` (a poor-fit control the
-    framework is EXPECTED to lose) into the same number, and its strong-tier cell
-    is the archive's -3.13 outlier from a build whose A2 arm was later found
-    broken. Reported, then excluded from the pooled line rather than deleted from
-    the table, so the exclusion is visible instead of assumed.
+    comparable with the rest: it averages a SECOND scenario into the same number,
+    and its strong-tier cell is the archive's -3.13 outlier from a build whose A2
+    arm was later found broken. Reported, then excluded from the pooled line
+    rather than deleted from the table, so the exclusion is visible instead of
+    assumed.
+
+    THE MISLABEL THIS DOCSTRING CARRIED UNTIL 2026-08-18
+    ===================================================
+    It said `career_offer` is "a poor-fit control the framework is EXPECTED to
+    lose". It is not: `scenarios.CAREER_OFFER.kind` is `ScenarioKind.DECISION`,
+    the same kind as `cofounder_equity`. The archive's actual poor-fit control is
+    `poorfit_ssl_expiry` (kind `POOR_FIT`), which has never been run — see the
+    README's control section.
+
+    Worse, the reason was inverted where it was used. On the very line the
+    exclusion cites (weak, A2 vs A1.7) `career_offer` reads **-0.208** against
+    `cofounder_equity`'s **-0.938**: the supposedly-doomed control is the BETTER
+    half, so averaging it in moved the number UP, not down. The exclusion of
+    `claim2` still stands — the -3.13 strong-tier outlier from a broken A2 build
+    is reason enough on its own, and that half was always true — but it stands on
+    that ground alone, and callers must not read "multi-scenario" as "contains a
+    scenario we expect to lose".
     """
     rows: list[tuple[str, str, str, float, int, int]] = []
     for stem in _stems():
@@ -1356,6 +1403,12 @@ def _headline() -> None:
         for stem, dropped, total, why in excluded:
             print(f"    {stem:32} {dropped:3}/{total:<3} — {why}")
         print()
+    superseded = superseded_rows()
+    if superseded:
+        print("  whole stems SUPERSEDED (judge phase died; re-judge replaces them):")
+        for dead, live in superseded:
+            print(f"    {dead:32} -> {live}")
+        print()
     rows = composite_rows()
     for stem, base, tier, composite, cells, scenarios in rows:
         flag = "  (multi-scenario: excluded below)" if scenarios > 1 else ""
@@ -1389,10 +1442,13 @@ def _headline() -> None:
             "NEGATIVE AND RESOLVED — the framework arm loses to a prompt at this\n"
             "     tier, and it is not one afternoon."
             if tier == "weak"
-            else "does not resolve, and is ~7x smaller than the weak-tier loss. Four\n"
-            "     sets cannot tell 'the deficit closes on a better model' from noise,\n"
-            "     and that is the cheapest open question in the bench: the claim the\n"
-            "     product needs is a strong-tier one.",
+            else "does not resolve, and is an order of magnitude smaller than the\n"
+            "     weak-tier loss. This many sets cannot tell 'the deficit closes on\n"
+            "     a better model' from noise — note the n above rather than trusting\n"
+            "     this sentence, which is fixed prose over a growing pool. The two\n"
+            "     newest sets (r21 +0.325, r22 +0.141) are the only ones designed for\n"
+            "     this question; read them pooled with read_pooled.py, where the\n"
+            "     pre-registered n=36 endpoint is +0.243 [-0.008,+0.494].",
         )
 
 

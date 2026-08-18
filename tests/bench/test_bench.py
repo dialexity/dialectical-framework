@@ -6531,6 +6531,20 @@ class TestTheProductDoesNotReachTheReply:
             )
 
 
+#: Single-scenario stems whose invalid cells DO move the pooled headline, each with
+#: the reason. Being on this list is not permission — see
+#: `test_a_declared_filter_dependency_is_quantified_in_the_readme`, which requires the
+#: effect to be measured in the README before a stem may be listed here.
+HEADLINE_DEPENDS_ON_FILTER: dict[str, str] = {
+    "r22-strong-pooled-rejudge": (
+        "network outage killed 3 of replicate 5's 4 cells; they produced zero text "
+        "and were judged against healthy opponents. Filter moves r22 by +0.366 "
+        "(-0.225 -> +0.141) and the r21+r22 pooled read by +0.193 "
+        "(+0.050 -> +0.243), both in the flattering direction."
+    ),
+}
+
+
 class TestAnUnexercisedArmIsNotAWeakArm:
     """The validity section named dead runs; the delta table then averaged them.
 
@@ -6631,26 +6645,105 @@ class TestAnUnexercisedArmIsNotAWeakArm:
     def test_the_archives_headline_is_unaffected_by_the_fix(self):
         """The claim made in `RunRecord.invalid_as_evidence`, checked not asserted.
 
-        If a future round lands a collapsed arm inside a single-scenario stem,
-        this test starts failing — and that is the moment the guard earns itself.
-        Failing here means "the pooled headline now depends on the filter", which
-        is information, not a bug in the test.
+        THE MOMENT THIS GUARD EARNED ITSELF (2026-08-18)
+        ===============================================
+        The original assertion was `assert not pooled` — no single-scenario stem
+        has invalid cells, so the pooled headline cannot depend on the filter.
+        `r22-strong-pooled-rejudge` broke it, exactly as the old docstring said a
+        future round would. A network outage killed 3 of replicate 5's 4 cells;
+        they produced zero text and the judge scored the empty transcripts.
+
+        Measured rather than silenced, because the size is the whole point:
+
+            r22 alone      +0.141 (n=16, filtered)  vs  -0.225 (n=20, not)
+            r21+r22 pooled +0.243 (n=36, filtered)  vs  +0.050 (n=40, not)
+
+        So the headline DOES now depend on `drop_invalid`, by +0.366 and +0.193
+        respectively, both in the flattering direction. That cannot be asserted
+        away and must not be: the fix is to make the dependency declared and
+        measured instead of impossible. A stem may appear in
+        `HEADLINE_DEPENDS_ON_FILTER` only alongside a written reason, and a stem
+        that appears there WITHOUT the README documenting the effect fails the
+        companion test below.
         """
-        pooled = [
+        pooled = {
             stem
             for stem, _dropped, _total, _why in excluded_rows()
-            if len(
-                {
-                    c.scenario_key
-                    for c in valid_comparisons(stem)
-                }
-            )
-            == 1
-        ]
-        assert not pooled, (
-            "a stem inside the pooled single-scenario line now has invalid "
-            f"cells: {pooled} — re-read the headline before quoting it"
+            if len({c.scenario_key for c in valid_comparisons(stem)}) == 1
+        }
+        undeclared = pooled - set(HEADLINE_DEPENDS_ON_FILTER)
+        assert not undeclared, (
+            "a stem inside the pooled single-scenario line has invalid cells and "
+            f"is not declared: {sorted(undeclared)} — measure how far the filter "
+            "moves the headline, write it in the README, then add it to "
+            "HEADLINE_DEPENDS_ON_FILTER. Do NOT just add it to the list."
         )
+
+    def test_a_declared_filter_dependency_is_quantified_in_the_readme(self):
+        """Declaring a dependency must cost more than one line in a set literal.
+
+        Without this, `HEADLINE_DEPENDS_ON_FILTER` becomes the place where
+        inconvenient stems go to stop failing a test.
+        """
+        from pathlib import Path
+
+        readme = " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+        for stem, why in HEADLINE_DEPENDS_ON_FILTER.items():
+            assert why, f"{stem} declared with no reason"
+            assert "DEPENDS on the validity filter" in readme, (
+                "the README must state that the headline depends on the filter"
+            )
+            # Both sides of the comparison, or the reader cannot judge the size.
+            assert "without it, dead cells averaged in" in readme.lower()
+
+    def test_the_filter_dependency_is_stated_with_both_numbers(self):
+        """The direction and the magnitude, recomputed from the archive.
+
+        Pinned against the ARCHIVE rather than against the prose, so the README's
+        two figures cannot quietly drift from what `drop_invalid` actually does.
+        Skips when the archive is absent — `results/` is gitignored.
+        """
+        import statistics as st
+        from pathlib import Path
+
+        from bench.models import Arm, Comparison, RunRecord
+        from bench.report import drop_invalid, load_records
+
+        results = Path(__file__).resolve().parent / "results"
+
+        def composite(stem: str, filtered: bool) -> list[float]:
+            payload = load_records(results / f"{stem}.json")
+            runs = [RunRecord.model_validate(r) for r in payload["runs"]]
+            comps = [Comparison.model_validate(c) for c in payload["comparisons"]]
+            use = drop_invalid(comps, runs)[0] if filtered else comps
+            return [
+                st.fmean([a - b for a, b in c.scores.values()])
+                for c in use
+                if c.scores and (c.arm_a, c.arm_b) == (Arm.A2, Arm("A1.7"))
+            ]
+
+        stems = ["r21-strong-current-build", "r22-strong-pooled-rejudge"]
+        if not all((results / f"{s}.json").exists() for s in stems):
+            pytest.skip("archive absent (results/ is gitignored)")
+
+        with_filter = st.fmean(composite(stems[1], True))
+        without = st.fmean(composite(stems[1], False))
+        # The two exact values already fix the direction (+0.141 vs -0.225), so a
+        # separate `with_filter > without` assert is decoration — mutation-tested
+        # and it survived being weakened to `!= 0`. Dropped rather than left in.
+        assert round(with_filter, 3) == 0.141
+        assert round(without, 3) == -0.225
+
+        pooled_with = st.fmean([v for s in stems for v in composite(s, True)])
+        pooled_without = st.fmean([v for s in stems for v in composite(s, False)])
+        assert round(pooled_with, 3) == 0.243
+        assert round(pooled_without, 3) == 0.050
+
+        readme = " ".join((results.parent / "README.md").read_text().split())
+        assert "The gap is **+0.366** on r22" in readme
+        assert "**+0.193** pooled" in readme
 
     def test_the_exclusions_are_printed_not_silent(self):
         """A pool that quietly shrinks its own n is the error being prevented."""
@@ -7457,7 +7550,12 @@ class TestR22PreRegistration:
     def _block(cls) -> str:
         after = cls._readme().split("### r22:")
         assert len(after) == 2, "the r22 pre-registration block is missing"
-        return after[1].split("### The archive-wide picture")[0]
+        # Terminate at the RESULT block, not at the next `###`. The result and the
+        # mislabel finding were both written under `####` headings after this one,
+        # and terminating late let their text satisfy assertions that are supposed
+        # to be about the pre-registration alone — the same scoping bug the r21
+        # class already had once.
+        return after[1].split("#### r22 RESULT")[0]
 
     def test_the_block_names_all_three_outcomes_including_the_dull_one(self):
         block = self._block()
@@ -7508,6 +7606,353 @@ class TestR22PreRegistration:
         block = self._block()
         assert "career_offer" in block
         assert "most important unrun control" in block
+
+
+class TestR22Result:
+    """r22's read, pinned — including the deviation and the refusal it forced.
+
+    The interesting pins here are not the numbers. They are (a) that the shortfall
+    from the pre-registered n=40 to the delivered n=36 is on the record as damage
+    rather than absorbed silently, and (b) that the secondary replicate-level row
+    came out a WIN and was still not promoted. r21's block promised that promise
+    while it cost nothing; this is the read where it cost something.
+    """
+
+    @staticmethod
+    def _readme() -> str:
+        from pathlib import Path
+
+        return " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+
+    @classmethod
+    def _block(cls) -> str:
+        after = cls._readme().split("#### r22 RESULT")
+        assert len(after) == 2, "the r22 result block is missing or duplicated"
+        return after[1].split("#### The poor-fit control was never")[0]
+
+    def test_the_verdict_word_is_the_pre_registered_one(self):
+        block = self._block()
+        assert "UNRESOLVED" in block
+        # And it is not quietly upgraded in the heading.
+        assert "first judged framework win" not in block
+
+    def test_the_shortfall_from_the_pre_registered_n_is_recorded_as_damage(self):
+        """n=40 was pre-registered; 36 was delivered. A silently smaller n is the
+        single easiest way to launder a design, so the deviation is stated BEFORE
+        any number, with its cause."""
+        block = self._block()
+        assert "Deviation from the pre-registration" in block
+        assert "It delivered **16**" in block
+        assert "**n=36**" in block
+        assert "not a choice made after seeing the data; it is damage" in block
+
+    def test_the_lost_power_is_quantified_at_both_n(self):
+        """"We lost some cells" is not a measurement. The cost of the deviation is
+        ~5 points, and stating it prevents both over- and under-claiming it."""
+        block = self._block()
+        assert "WIN at n=40" in block and "WIN at n=36" in block
+        assert "**5 percentage points of power**" in block
+        # And the deviation must not be blamed for the unresolved verdict.
+        assert "it is not the reason the read came out unresolved" in block
+
+    def test_the_winning_secondary_row_is_reported_and_refused(self):
+        """The replicate-level interval [+0.069, +0.417] excludes zero. The ICC is
+        negative again, so the flat row stays primary by the rule fixed in advance —
+        this is the pin that the rule survived contact with a flattering number."""
+        block = self._block()
+        assert "[+0.069, +0.417]" in block
+        assert "not promoted" in block
+        assert "−0.207" in block
+        assert "stays primary by the rule fixed before the run" in block
+
+    def test_the_judge_failure_is_distinguished_from_a_matrix_failure(self):
+        """16 kept comparisons with `scores={}` is a judge-side death, and the
+        transcripts were fine. Conflating the two would have cost a 3h re-run."""
+        block = self._block()
+        assert "scores={}" in block
+        assert "transcripts were innocent" in block
+        assert "12m22s" in block
+
+    def test_the_rejudge_stem_name_is_explained_not_incidental(self):
+        """`across_runs._stems()` drops `-rejudged`. A re-judge that IS the only
+        scoring must not be named that way, and the reason has to be written down
+        or the next person "fixes" the suffix."""
+        block = self._block()
+        assert "`-rejudge` (no" in block
+        assert "excludes `-rejudged`" in block
+
+    def test_two_near_misses_are_not_reported_as_one_win(self):
+        block = self._block()
+        assert "by eight thousandths" in block
+        assert "bounded below ~0.34" in block
+
+
+class TestSupersededStemsAreNotDoubleCounted:
+    """A judge-failed run and its re-judge both carry intact run records.
+
+    Machine-score blocks read RUNS, not comparisons, so the dead stem's cells were
+    counted twice in every one of them — measured, before the fix, as `closure:
+    n=24 sets` with r22's 8 cells appearing under both names. No suffix rule
+    catches this: the live file is the `-rejudge`, and the dead one has an ordinary
+    name.
+    """
+
+    def test_the_dead_stem_is_excluded_from_the_pooling_set(self):
+        from bench.across_runs import SUPERSEDED, _stems
+
+        stems = set(_stems())
+        for dead, live in SUPERSEDED.items():
+            assert dead not in stems, f"{dead} is superseded but still pooled"
+
+    def test_the_replacement_actually_exists_before_the_original_is_dropped(self):
+        """Dropping a stem in favour of a file that is not there deletes evidence
+        instead of superseding it."""
+        from pathlib import Path
+
+        from bench.across_runs import RESULTS, SUPERSEDED, _stems
+
+        stems = set(_stems())
+        for dead, live in SUPERSEDED.items():
+            if not (RESULTS / f"{dead}.json").exists():
+                continue  # a fresh checkout has no archive at all
+            assert (RESULTS / f"{live}.json").exists(), f"{live} missing"
+            assert live in stems, f"{live} replaces {dead} but is not pooled"
+
+    def test_the_supersession_is_printed_rather_than_silent(self):
+        """The whole module's rule: a pool that shrank itself must say so."""
+        import inspect
+
+        from bench import across_runs
+
+        source = inspect.getsource(across_runs._headline)
+        assert "superseded_rows()" in source
+        assert "SUPERSEDED" in inspect.getsource(across_runs._stems)
+
+
+class TestThePoorFitControlWasNeverTheControl:
+    """`career_offer` is a DECISION scenario, not the poor-fit control.
+
+    Pinned on the SCENARIO DEFINITION rather than on prose, so the docs cannot
+    drift back: if someone later re-kinds `career_offer` to POOR_FIT, this fails
+    and the correction gets revisited deliberately.
+    """
+
+    def test_career_offer_is_a_decision_not_a_poor_fit_control(self):
+        from bench.scenarios import CAREER_OFFER, COFOUNDER, ScenarioKind
+
+        assert CAREER_OFFER.kind is ScenarioKind.DECISION
+        # Same kind as the bench's main lane — that is the whole point.
+        assert CAREER_OFFER.kind is COFOUNDER.kind
+
+    def test_the_real_controls_exist_and_are_kinded_as_controls(self):
+        from bench.scenarios import ALL_SCENARIOS, ScenarioKind
+
+        by_key = {s.key: s for s in ALL_SCENARIOS}
+        assert by_key["poorfit_ssl_expiry"].kind is ScenarioKind.POOR_FIT
+        assert by_key["premature_relocation"].kind is ScenarioKind.PREMATURE
+
+    def test_no_module_still_calls_career_offer_a_poor_fit_control(self):
+        """The mislabel lived in two docstrings that justified an exclusion with
+        it. Prose is not usually worth pinning; a false premise that gates which
+        runs enter a pooled number is."""
+        import inspect
+
+        from bench import across_runs, round_trend
+
+        for module in (across_runs, round_trend):
+            source = inspect.getsource(module)
+            assert "`career_offer` poor-fit control" not in source
+            assert "career_offer` (a poor-fit control" not in source
+
+    def test_the_exclusion_of_claim2_now_rests_on_the_ground_that_is_true(self):
+        """The -3.13 outlier from a broken A2 build was always sufficient. The
+        exclusion must survive the correction, or correcting the reason would
+        silently readmit the set."""
+        import inspect
+
+        from bench.across_runs import composite_rows
+
+        doc = " ".join(inspect.getdoc(composite_rows).split())
+        assert "-3.13 outlier" in doc
+        assert "stands on that ground alone" in doc
+        rows = {r[0] for r in composite_rows() if r[5] > 1}
+        if rows:  # only when the archive is present
+            assert "claim2" in rows, "claim2 must still be flagged multi-scenario"
+
+    @staticmethod
+    def _block() -> str:
+        from pathlib import Path
+
+        readme = " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+        after = readme.split("#### The poor-fit control was never")
+        assert len(after) == 2, "the poor-fit correction block is missing"
+        return after[1]
+
+    def test_the_inversion_is_recorded_with_its_direction(self):
+        """Not just "the label was wrong" but "and it flattered the arm" — the
+        direction is what makes it worth a paragraph."""
+        block = self._block()
+        assert "**−0.208**" in block and "**−0.938**" in block
+        assert "the *better* half" in block
+        assert "in the flattering direction" in block
+
+    def test_the_absent_controls_are_named_as_absent(self):
+        block = self._block()
+        assert "**zero cells across every saved run**" in block
+        assert "its name had been quietly transferred" in block
+
+    def test_the_controls_really_have_no_cells(self):
+        """The claim, recomputed — and the reason the prose says "every saved run"
+        instead of a cell count.
+
+        The first version of this pin asserted "392 saved runs". Superseding
+        `r22-strong-pooled` changed the canonical total to 372 and the pin failed
+        on a documentation edit, which is the right failure for the wrong reason:
+        a hardcoded archive size is not the claim. The claim is that the controls
+        are at ZERO, and that is what gets recomputed here.
+        """
+        import json
+        from pathlib import Path
+
+        results = Path(__file__).resolve().parent / "results"
+        if not any(results.glob("*.json")):
+            pytest.skip("archive absent (results/ is gitignored)")
+        seen: set[str] = set()
+        for path in results.glob("*.json"):
+            for run in json.loads(path.read_text()).get("runs") or []:
+                seen.add(run["scenario_key"])
+        assert "poorfit_ssl_expiry" not in seen, (
+            "the poor-fit control has RUN — write the result up and retire this "
+            "test; the README's 'never been run' claim is now false"
+        )
+        assert "premature_relocation" not in seen
+
+
+class TestR23ControlPreRegistration:
+    """The control's readings, pinned before a cell runs.
+
+    r23 is the only run in this bench that can INVALIDATE the others, so the
+    outcome that would cost the most — the tripwire firing and suspending r21's
+    +0.325 and the pooled +0.243 — is written down while it is still hypothetical.
+    That sentence is cheap to write now and would be expensive to write later,
+    which is the entire mechanism of pre-registration.
+    """
+
+    @staticmethod
+    def _block() -> str:
+        from pathlib import Path
+
+        readme = " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+        after = readme.split("### r23:")
+        assert len(after) == 2, "the r23 pre-registration block is missing"
+        return after[1].split("## Files")[0]
+
+    def test_the_tripwire_suspends_the_wins_it_would_contradict(self):
+        """The costly clause. A control that fires and merely gets "annotated"
+        is not a control."""
+        block = self._block()
+        assert "+0.325 and the pooled +0.243 are suspended, not merely annotated" in block
+        assert "least able to argue my way out of afterwards" in block
+
+    def test_all_three_outcomes_are_named_including_the_dull_pass(self):
+        block = self._block()
+        assert "**The tripwire fires**" in block
+        assert "**The control passes**" in block
+        assert "**The framework LOSES the control**" in block
+        # A pass must not be reported as a win.
+        assert "a precondition, not a finding" in block
+
+    def test_the_tier_choice_is_argued_not_inherited(self):
+        """The first draft said weak. A control validates the judge behind a
+        CLAIM, and the claims in play are strong-tier."""
+        block = self._block()
+        assert "Strong tier, not weak" in block
+        assert "gets the purpose backwards" in block
+        assert "validate the judge for numbers nobody is quoting" in block
+
+    def test_the_two_controls_are_never_pooled_into_one_number(self):
+        block = self._block()
+        assert "read separately from `poorfit_ssl_expiry`" in block
+        assert "let one pass hide the other's fire" in block
+
+    def test_the_inverted_dimension_is_declared_before_the_number_exists(self):
+        """`convergence` on a PREMATURE scenario is a fault when it goes UP. The
+        one sign in the bench that flips by scenario kind."""
+        block = self._block()
+        assert "read INVERTED, fixed now" in block
+        assert "is a **fault**, not a win" in block
+        assert "indistinguishable from choosing it" in block
+
+    def test_the_dimension_sets_the_block_claims_are_the_real_ones(self):
+        """The block asserts what `dimensions_for` gives each control kind. If
+        that mapping changes, the pre-registered endpoint changes with it and the
+        block is stale — better to fail here than to read r23 against the wrong
+        dimensions."""
+        from bench.judge import dimensions_for
+        from bench.scenarios import ALL_SCENARIOS
+
+        by_key = {s.key: s for s in ALL_SCENARIOS}
+        poorfit = set(dimensions_for(by_key["poorfit_ssl_expiry"]))
+        assert poorfit == {"warmth", "actionability", "conversational_fit"}, (
+            f"poor_fit dimensions changed to {sorted(poorfit)} — the r23 block "
+            "pre-registers the NI trio as its endpoint"
+        )
+        premature = set(dimensions_for(by_key["premature_relocation"]))
+        assert poorfit < premature, "premature must be a superset of the NI trio"
+        assert "convergence" in premature, (
+            "the r23 block pre-registers convergence as INVERTED on this control; "
+            "if it is no longer judged, that clause is dead"
+        )
+
+    def test_the_dead_cell_bias_runs_the_other_way_on_a_control(self):
+        """r22's lesson, carried forward with its sign worked out. On the main
+        lane a dead cell biases DOWNWARD; on a control an empty transcript cannot
+        show spurious structure, so it biases toward a false PASS."""
+        block = self._block()
+        assert "biases the run toward a false PASS" in block
+        assert "invalidate the tripwire, not just the cell" in block
+
+    def test_the_controls_are_single_session_so_replicates_are_pairs(self):
+        """Why r23 escapes the ICC problem that dogs r21/r22 — checked against
+        the scenario definitions, not asserted in prose."""
+        from bench.scenarios import ALL_SCENARIOS
+
+        by_key = {s.key: s for s in ALL_SCENARIOS}
+        for key in ("poorfit_ssl_expiry", "premature_relocation"):
+            sessions = by_key[key].sessions
+            assert len(sessions) == 1, f"{key} is no longer single-session"
+            assert not sessions[0].branch, f"{key} grew a branch"
+        assert "replicates *are* pairs" in self._block()
+
+    def test_the_power_table_is_reproducible_from_the_archives_own_sd(self):
+        """0.831 is measured, not borrowed. Recomputed over the canonical stems
+        so a future supersession cannot silently invalidate the table."""
+        import statistics as st
+        from pathlib import Path
+
+        from bench.across_runs import _stems, valid_comparisons
+
+        if not any((Path(__file__).resolve().parent / "results").glob("*.json")):
+            pytest.skip("archive absent (results/ is gitignored)")
+        trio = {"warmth", "actionability", "conversational_fit"}
+        values = [
+            st.fmean([a - b for a, b in scores.values()])
+            for stem in _stems()
+            for c in valid_comparisons(stem)
+            if len(scores := {k: v for k, v in c.scores.items() if k in trio}) == 3
+        ]
+        assert len(values) > 200, f"too few NI pairs to size a control: {len(values)}"
+        assert round(st.stdev(values), 2) == 0.83, (
+            f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
+            "table was computed at 0.831 and must be recomputed"
+        )
+        assert "0.831 over 414 judged pairs" in self._block()
 
 
 class TestRationaleIntegrityProbe:

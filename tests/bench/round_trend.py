@@ -234,8 +234,12 @@ def series(
 
       * one scenario — and `scenario` names WHICH, not merely "the run has only
         one". Multi-scenario `claim2` is excluded for the reason `composite_rows`
-        gives: it averages the `career_offer` poor-fit control, which the
-        framework is EXPECTED to lose, into the same number.
+        gives: a second scenario averaged into the same number, plus the -3.13
+        strong-tier outlier from a build whose A2 arm was later found broken. NOT
+        because `career_offer` is a poor-fit control the framework should lose —
+        that claim stood here until 2026-08-18 and was wrong twice over
+        (`CAREER_OFFER.kind` is `DECISION`, and it scored BETTER than
+        `cofounder_equity` on the cited line). See `composite_rows`.
       * one MODEL — not one tier label. See `across_runs.tier_model`.
       * one opponent — see `balanced_composite`.
 

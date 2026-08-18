@@ -1974,4 +1974,8 @@ def render_report(
     add("5. On poor-fit controls the framework SHOULD show no gain. A win")
     add("   there means the judge is rewarding structure, and the rubric")
     add("   needs revision before any other number is trusted.")
+    add("   AS OF 2026-08-18 NO CONTROL HAS EVER RUN: poorfit_ssl_expiry and")
+    add("   premature_relocation have zero cells in the archive, so item 5 is")
+    add("   an instruction with nothing to apply it to. Do not read a run")
+    add("   that omits them as having passed a control it never took.")
     return "\n".join(lines)
