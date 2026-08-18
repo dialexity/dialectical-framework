@@ -1800,6 +1800,77 @@ class TestRecords:
         run.sessions[0].graph_summary = "perspectives=0 decisions=0"
         assert run.collapsed_to_a1 is True
 
+    def test_on_a_poor_fit_control_an_empty_graph_is_not_a_collapse(self):
+        """The bug the r23 smoke run found, 2026-08-18.
+
+        `poorfit_ssl_expiry` exists to check the framework stays OUT of the way on
+        a factual request with one right answer. Staying out of the way means zero
+        tool calls and an empty graph — the PASS condition. The predicate read that
+        as "never exercised", so `drop_invalid` deleted the cell: measured, A2
+        answered in 6,116 chars with 0 tools and the report printed "2 judged
+        cell(s) EXCLUDED".
+
+        The bias runs one way. On this control the well-behaved A2 cells are
+        exactly the ones discarded, leaving only cells where A2 over-built, so the
+        tripwire became systematically LESS likely to fire. A control that deletes
+        its own passing evidence gates nothing.
+        """
+        run = _run(Arm.A2, "strong")
+        run.scenario_kind = ScenarioKind.POOR_FIT
+        assert run.collapsed_to_a1 is False
+        assert run.invalid_as_evidence is False
+
+    def test_a_premature_control_with_an_empty_graph_still_collapses(self):
+        """`PREMATURE` is deliberately NOT exempted, and this is the pin.
+
+        There the correct behaviour is declining to CLOSE, not declining to think:
+        an A2 that never engages the tension is a genuine collapse, and the
+        inverted `convergence` reading needs the arm to have actually run. The
+        smoke cell built 1 tool call and was valid, so the exemption was never
+        needed here.
+        """
+        run = _run(Arm.A2, "strong")
+        run.scenario_kind = ScenarioKind.PREMATURE
+        assert run.collapsed_to_a1 is True
+
+    def test_a_non_control_scenario_with_an_empty_graph_still_collapses(self):
+        """The exemption is keyed on POOR_FIT alone, not on `is_control`."""
+        run = _run(Arm.A2, "strong")
+        run.scenario_kind = ScenarioKind.DECISION
+        assert run.collapsed_to_a1 is True
+
+    def test_an_unknown_scenario_kind_takes_the_strict_reading(self):
+        """Every pre-2026-08-18 archived record has `scenario_kind=None`.
+
+        `None` must keep the old behaviour, or re-reading the archive would
+        silently revalidate cells that were dropped when their numbers were
+        published.
+        """
+        run = _run(Arm.A2, "weak")
+        assert run.scenario_kind is None
+        assert run.collapsed_to_a1 is True
+
+    def test_the_driver_records_the_scenarios_kind_on_the_cell(self):
+        """Without the writer side the exemption never fires — the field would
+        default to `None` on every new run and the fix would be inert."""
+        import inspect
+
+        from bench.driver import BenchDriver
+
+        source = inspect.getsource(BenchDriver.run_cell)
+        assert "scenario_kind=scenario.kind" in source
+
+    def test_every_scenario_kind_is_reachable_from_the_driver(self):
+        """`RunRecord.scenario_kind` and `Scenario.kind` must be the same type,
+        so a new kind cannot arrive as a string the predicate never matches."""
+        from bench.models import RunRecord as _RR
+        from bench.scenarios import SCENARIOS_BY_KEY
+
+        annotation = repr(_RR.model_fields["scenario_kind"].annotation)
+        assert "ScenarioKind" in annotation
+        for scenario in SCENARIOS_BY_KEY.values():
+            assert isinstance(scenario.kind, ScenarioKind)
+
     def test_all_turns_errored_is_visible(self):
         """A cell whose every turn failed is missing data, not a weak arm.
 
@@ -7805,31 +7876,195 @@ class TestThePoorFitControlWasNeverTheControl:
         assert "**zero cells across every saved run**" in block
         assert "its name had been quietly transferred" in block
 
-    def test_the_controls_really_have_no_cells(self):
-        """The claim, recomputed — and the reason the prose says "every saved run"
-        instead of a cell count.
+    def test_the_controls_have_no_cells_any_pooled_read_would_see(self):
+        """The claim, recomputed — and narrowed twice, both times by reality.
 
-        The first version of this pin asserted "392 saved runs". Superseding
-        `r22-strong-pooled` changed the canonical total to 372 and the pin failed
-        on a documentation edit, which is the right failure for the wrong reason:
-        a hardcoded archive size is not the claim. The claim is that the controls
-        are at ZERO, and that is what gets recomputed here.
+        v1 asserted "392 saved runs". Superseding `r22-strong-pooled` changed the
+        canonical total to 372 and the pin failed on a documentation edit: the
+        right failure for the wrong reason, since a hardcoded archive size is not
+        the claim.
+
+        v2 asserted the controls appear in NO saved file. That failed the moment
+        `smoke-r23-wiring` ran, and it was also the right failure — the claim had
+        become false as literally written. But "the control has been read" is not
+        what a 1-replicate wiring smoke establishes, and `_stems()` excludes
+        `smoke*` from every pooled read for exactly that reason.
+
+        So the claim is now the one that carries the weight: no cell a POOLED READ
+        would see. If a non-smoke stem ever produces control cells, r23 has run,
+        and this test's job is to demand the write-up.
         """
         import json
         from pathlib import Path
 
+        from bench.across_runs import SUPERSEDED
+
         results = Path(__file__).resolve().parent / "results"
         if not any(results.glob("*.json")):
             pytest.skip("archive absent (results/ is gitignored)")
-        seen: set[str] = set()
+        readable: dict[str, set[str]] = {}
+        smoked: set[str] = set()
         for path in results.glob("*.json"):
+            stem = path.stem
             for run in json.loads(path.read_text()).get("runs") or []:
-                seen.add(run["scenario_key"])
-        assert "poorfit_ssl_expiry" not in seen, (
-            "the poor-fit control has RUN — write the result up and retire this "
-            "test; the README's 'never been run' claim is now false"
+                key = run["scenario_key"]
+                if key not in ("poorfit_ssl_expiry", "premature_relocation"):
+                    continue
+                excluded = (
+                    stem.startswith("smoke")
+                    or stem.endswith(("-runs", "-rejudged"))
+                    or stem in SUPERSEDED
+                )
+                (smoked if excluded else readable.setdefault(key, set())).add(stem)
+        assert readable == {}, (
+            "a control has RUN in a stem a pooled read would see "
+            f"({readable}) — write the result up and retire this test; the "
+            "README's 'no control has been read' claim is now false"
         )
-        assert "premature_relocation" not in seen
+        # Positive half: the smoke cells DO exist, so the README's "4 cells, all
+        # smoke" annotation is not itself stale prose.
+        assert smoked, "the smoke-r23-wiring cells vanished — the README cites them"
+
+
+class TestThePoorFitControlDeletedItsOwnPassingEvidence:
+    """The bug the r23 smoke run found before r23 could be misread (2026-08-18).
+
+    This class pins the fix against the REAL cells that exposed it, not only
+    against synthetic fixtures. `TestRecords` covers the predicate's branches;
+    this covers "the predicate, applied to the transcripts that were actually
+    produced, stops throwing the pass away".
+    """
+
+    SMOKE = "smoke-r23-wiring"
+
+    def _cells(self):
+        from pathlib import Path
+
+        from bench.models import RunRecord as _RR
+        from bench.report import load_records
+        from bench.scenarios import SCENARIOS_BY_KEY
+
+        path = Path(__file__).resolve().parent / "results" / f"{self.SMOKE}.json"
+        if not path.exists():
+            import pytest as _pytest
+
+            _pytest.skip(f"{self.SMOKE} not in results/ (gitignored archive)")
+        out = []
+        for raw in load_records(path).get("runs") or []:
+            record = _RR.model_validate(raw)
+            # The smoke run predates the field, so the kind is re-attached the
+            # same way the driver now writes it. Re-reading the archive this way
+            # is the point: the fix must change these cells' verdicts.
+            record.scenario_kind = SCENARIOS_BY_KEY[record.scenario_key].kind
+            out.append(record)
+        return out
+
+    def test_the_measured_poor_fit_cell_is_no_longer_thrown_away(self):
+        """A2 answered the TLS question in ~6k chars with zero tool calls — the
+        control's PASS condition — and was previously dropped as invalid."""
+        cells = [
+            c
+            for c in self._cells()
+            if c.scenario_key == "poorfit_ssl_expiry" and c.arm is Arm.A2
+        ]
+        assert cells, "the smoke run no longer contains a poor-fit A2 cell"
+        for cell in cells:
+            assert not cell.all_tool_calls, (
+                "this cell built tools, so it no longer models the bug"
+            )
+            assert cell.collapsed_to_a1 is False
+            assert cell.invalid_as_evidence is False
+
+    def test_the_premature_cell_is_untouched_by_the_fix(self):
+        """The exemption must be surgical: `premature_relocation` keeps the strict
+        reading, and its measured cell was valid on its own merits (1 tool call)."""
+        cells = [
+            c
+            for c in self._cells()
+            if c.scenario_key == "premature_relocation" and c.arm is Arm.A2
+        ]
+        assert cells, "the smoke run no longer contains a premature A2 cell"
+        for cell in cells:
+            assert cell.invalid_as_evidence is False
+
+    def test_no_cell_in_the_smoke_run_is_dropped_any_more(self):
+        """The report printed "2 judged cell(s) EXCLUDED" before the fix. Zero
+        exclusions is what makes r23 able to gate anything."""
+        dropped = [c for c in self._cells() if c.invalid_as_evidence]
+        assert dropped == [], (
+            "still dropping "
+            + ", ".join(f"{c.arm.value}/{c.scenario_key}" for c in dropped)
+        )
+
+    def test_all_three_surfaces_say_read_not_run(self):
+        """The claim narrowed from "never run" to "never read" when the smoke run
+        produced 4 cells. It is stated in three places — the README correction
+        block, the README reading guide, and every printed report — and a reader
+        who sees "never run" in one and 4 cells in the archive learns to distrust
+        all three. So they move together or the test fails."""
+        import inspect
+        from pathlib import Path
+
+        from bench.report import render_report
+
+        readme = " ".join(
+            (Path(__file__).resolve().parent / "README.md").read_text().split()
+        )
+        # Rendered, not grepped from source: the guide is what a reader SEES, and
+        # an empty report still prints it in full.
+        printed = " ".join(render_report([], [], {}, []).split())
+
+        assert "NO CONTROL HAS BEEN READ" in printed
+        assert "smoke-r23-wiring run, which every pooled read excludes" in printed
+        assert "NO CONTROL HAS EVER RUN" not in printed, (
+            "the smoke run falsified this wording — 4 control cells exist"
+        )
+        # Each site checked by its OWN wording, not by one phrase that happens to
+        # appear somewhere. First version asserted the phrase once, and a mutation
+        # reverting the reading guide alone SURVIVED because the correction block's
+        # copy satisfied the assert. A bare count is the wrong fix too — it broke
+        # on adding a Files-table row, which is a documentation edit, not drift.
+        for site in (
+            # correction block, updated when the smoke cells appeared
+            "`smoke*` rule in `_stems()`. **No control has been READ.**",
+            # r23 census annotation, which is why the census may stay as written
+            "claim — that **no control has been READ** — still holds",
+            # reading guide item 6, the instruction a reader actually follows
+            "has been READ. This line stood",
+        ):
+            assert site in readme, f"the READ-not-RUN claim lost a site: {site!r}"
+        assert "4 cells of the 1-replicate `smoke-r23-wiring` run" in readme
+        assert (
+            "`smoke-r23-wiring` run, which every pooled read excludes as "
+            "`smoke*`; no control has been READ" in readme
+        )
+        # The r23 pre-registration's own census says "zero cells in the entire
+        # archive". That is left standing — pre-registered text is not edited after
+        # the fact — but it MUST carry the annotation, or it reads as a live claim
+        # the archive contradicts.
+        assert "zero cells in\nthe entire archive" in (
+            Path(__file__).resolve().parent / "README.md"
+        ).read_text(), "the pre-registered census was edited instead of annotated"
+        assert "the census above is left as written" in readme
+        assert "stopped being literally true on the day it was written" in readme
+        # And the exclusion the claim leans on is real, not asserted.
+        source = inspect.getsource(
+            __import__("bench.across_runs", fromlist=["_stems"])._stems
+        )
+        assert "smoke" in source, "`_stems()` no longer excludes smoke stems"
+
+    def test_the_bias_direction_is_recorded_where_the_fix_lives(self):
+        """Not decoration. "A control that deletes its own passing evidence gates
+        nothing" is the reason this was a bug and not a preference, and the next
+        reader of `collapsed_to_a1` needs it at the call site."""
+        import inspect
+
+        from bench.models import RunRecord as _RR
+
+        doc = " ".join(inspect.getdoc(_RR.collapsed_to_a1.fget).split())
+        assert "systematically LESS likely to fire" in doc
+        assert "deletes its own passing evidence gates nothing" in doc
+        assert "`PREMATURE` is deliberately NOT exempted" in doc
 
 
 class TestR23ControlPreRegistration:

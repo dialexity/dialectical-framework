@@ -474,6 +474,12 @@ class RunRecord(BaseModel):
     tier: str
     model: str
     scenario_key: str
+    #: What the scenario was FOR. Recorded on the cell rather than looked up from
+    #: `SCENARIOS_BY_KEY`, because `collapsed_to_a1` needs it and `scenarios`
+    #: imports this module (not the other way round). Optional so that every
+    #: pre-2026-08-18 record in the archive still validates; `None` reads as
+    #: "unknown kind", which the collapse predicate treats as the strict case.
+    scenario_kind: Optional[ScenarioKind] = None
     replicate: int
     #: Which alternative continuation this cell ran after the base sessions
     #: (None for scenarios with no branches). Two cells differing only in
@@ -730,8 +736,38 @@ class RunRecord(BaseModel):
         framework demonstrably ran. So the predicate is "no tool calls AND no
         framework-authored artifact", which keeps the tripwire honest in both
         directions.
+
+        ON A POOR-FIT CONTROL, BUILDING NOTHING IS CORRECT (fixed 2026-08-18)
+        ===================================================================
+        This predicate assumed every scenario is one where A2 SHOULD build, so an
+        empty graph means "never exercised". True for `decision` and `counsel`,
+        exactly backwards for `poor_fit`: that control exists to check the
+        framework stays OUT of the way on a factual request with one right answer,
+        and staying out of the way means no tetrad, no wheel, no tools.
+
+        Caught by a 1-replicate smoke run of r23 — the first cells these controls
+        have ever produced. A2 answered the TLS-rotation question in 6,116 chars
+        with zero tool calls, was marked `collapsed_to_a1`, hence
+        `invalid_as_evidence`, hence DROPPED, and the report printed "2 judged
+        cell(s) EXCLUDED". The bias runs one way: on this control the
+        well-behaved A2 cells are precisely the ones discarded, leaving only cells
+        where A2 built machinery it should not have — so the tripwire is
+        systematically LESS likely to fire, and a control that deletes its own
+        passing evidence gates nothing. Had r23 run at n=12 without this fix, the
+        likely outcome was "no valid pairs" after 2.2 h.
+
+        `PREMATURE` is deliberately NOT exempted. There the correct behaviour is
+        declining to CLOSE, not declining to think: an A2 that never engages the
+        tension is a genuine collapse, and the inverted `convergence` reading
+        needs the arm to have actually run. Smoke-checked — that cell built 1 tool
+        call and was valid.
         """
         if self.arm is not Arm.A2:
+            return False
+        if self.scenario_kind is ScenarioKind.POOR_FIT:
+            # Not "exempt from scrutiny": an empty graph here is the PASS
+            # condition, and `poor_fit`'s three NI dimensions score the answer on
+            # its own terms. `wove_no_pathway` still reports what was built.
             return False
         if self.all_tool_calls:
             return False

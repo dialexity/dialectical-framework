@@ -457,6 +457,11 @@ class BenchDriver:
             tier=tier,
             model=tier_model,
             scenario_key=scenario.key,
+            # Carried on the cell, not looked up later: `collapsed_to_a1` needs
+            # it, and `models` cannot import `scenarios` (the dependency runs the
+            # other way). Also makes an archived record self-describing if a
+            # scenario's kind is ever retuned.
+            scenario_kind=scenario.kind,
             replicate=replicate,
             branch=branch,
         )
