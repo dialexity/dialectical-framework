@@ -3021,3 +3021,54 @@ later prompt is still worth having — the judge-rewards-structure question is a
 and pretending otherwise would be the kind of quiet promotion this file exists to
 prevent. Either the run is labelled as gating `b28ebf5` (and the r21 numbers stay
 formally ungated), or the controls run on a checkout of `1ca4083`. **Not decided here.**
+
+#### Decided: r23 runs on `b28ebf5`, because the `1ca4083` option cannot be run
+
+The line above left two options open. Checking them turned one into a
+non-option and the other into the only honest reading, so this is a forced
+choice, not a preference.
+
+**Option B — "run the controls on a checkout of `1ca4083`" — is self-defeating.**
+`scenario_kind` does not exist at `1ca4083`. It landed in `e53031b`, four
+commits later, as the fix for *the control deleting the cell that proved it
+passed*: at `1ca4083` the harness has no `scenario_kind` field
+(`git grep -c scenario_kind 1ca4083 -- tests/**` returns nothing), so
+`dimensions_for` cannot give `poor_fit` its three-dimension set, and the
+exclusion filter kills the very cells the control needs. A `1ca4083` run
+would reproduce r23's original failure mode — 2.2 h of paid model time and no
+valid pairs. The clause "no prompt edits before or during r23" was written
+assuming the harness was frozen too; it was not, and the harness had to move
+for the control to be measurable at all. **A pre-registration clause that
+cannot be satisfied by any run is a defect in the clause.**
+
+**And the prompt edit that broke the sha is symmetric across the contrast.**
+`b28ebf5` adds a paragraph to `_INTERNAL_MODEL`, which `method_prompt()`
+renders into the PROSE arms — so it enters **A1.7 and A2 in identical wording**
+(verified: all six of its distinctive phrases present in both renders). r23
+measures A1.7-vs-A2. An edit present in both arms cannot manufacture a gap
+between them; it changes the shared floor, not the contrast. That is the
+opposite of the case the clause was written to catch (a prompt edit landing on
+one arm and inflating a delta).
+
+**What the run gates, stated exactly.** r23 asks whether *this judge* rewards
+structure where structure is inappropriate. The judge is what must be frozen,
+and it is: `judge.py` at HEAD is **byte-identical to `1ca4083`** except the
+class rename `BenchJudge` → `E2EJudge`, and `scoring.py` and `scenarios.py` are
+byte-identical modulo the same rename. The changed files are `report.py`
+(provenance recording — additive), `driver.py` and `models.py`
+(`scenario_kind`). So the rubric, the dimension sets, the composite, and both
+control scenarios are the artefacts r21 was measured against, unchanged.
+
+Therefore: **the run is labelled as gating `b28ebf5`, and it carries its
+inference to `1ca4083` explicitly** — the judge and rubric are identical, the
+one prompt delta is symmetric across the measured contrast, so a fired tripwire
+suspends r21's +0.325 and the pooled +0.243 exactly as pre-registered, and a
+passed control licenses them with one caveat recorded: the prompt A2 spoke from
+carried one extra paragraph, present in the baseline too. If that caveat is ever
+load-bearing for a shipped claim, the fix is to re-run r21, not to re-run r23.
+
+**Not weakened, for the record:** the invalidating checks stand as written
+(`turn_errors` anywhere invalidates the tripwire, not just the cell), the
+positive-side reading stands, the two controls stay unpooled, and the
+`convergence` correction from the section above applies (read as scored — the
+inversion is already in the rubric text).

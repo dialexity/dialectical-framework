@@ -8860,6 +8860,151 @@ class TestR23ControlPreRegistration:
         assert "0.831 over 414 judged pairs" in self._block()
 
 
+class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
+    """Why r23's "no prompt edits, `prompt_sha 1ca4083`" clause was retired.
+
+    The clause was written assuming the HARNESS was frozen alongside the prompt.
+    It was not: `scenario_kind` — the field without which `dimensions_for`
+    cannot give `poor_fit` its endpoint, and without which the exclusion filter
+    deletes the control's own cells — landed AFTER `1ca4083`. So "re-run the
+    controls on a `1ca4083` checkout" reproduces r23's original failure mode
+    (2.2 h, no valid pairs) rather than satisfying the clause.
+
+    These are the two facts that made the choice forced rather than preferential,
+    pinned as code so a future reader cannot re-open the question from prose
+    alone — and so that if either fact stops being true, this fails loudly
+    instead of leaving a decision resting on a stale premise.
+    """
+
+    PROMPT_SHA = "1ca4083"
+
+    @staticmethod
+    def _root():
+        from pathlib import Path
+
+        return Path(__file__).resolve().parents[2]
+
+    @staticmethod
+    def _rev_parse(rev: str) -> str | None:
+        import subprocess
+        from pathlib import Path
+
+        try:
+            out = subprocess.run(
+                ["git", "rev-parse", "--verify", rev],
+                cwd=Path(__file__).resolve().parents[2],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return out.stdout.strip() if out.returncode == 0 else None
+
+    def test_scenario_kind_does_not_exist_at_the_sha_the_clause_demands(self):
+        """Fact 1, and the one that makes option B a non-option.
+
+        Checked against git, not against memory: if someone backports
+        `scenario_kind` or rewrites history, this fails and the decision above
+        must be re-argued.
+        """
+        import subprocess
+
+        root = self._root()
+        if self._rev_parse(self.PROMPT_SHA) is None:
+            pytest.skip(f"{self.PROMPT_SHA} unreachable (shallow clone?)")
+        # The harness lived under tests/bench/ at that sha (renamed in 210bf00).
+        found = subprocess.run(
+            ["git", "grep", "-l", "scenario_kind", self.PROMPT_SHA, "--", "tests/"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        assert found.stdout.strip() == "", (
+            f"`scenario_kind` now EXISTS at {self.PROMPT_SHA} "
+            f"({found.stdout.strip()!r}) — the r23 decision rests on it being "
+            "absent there, so re-read the rounds.md section and re-decide"
+        )
+        # And it exists now, or the control cannot be scored at all.
+        from e2e.models import RunRecord
+
+        assert "scenario_kind" in RunRecord.model_fields
+
+    def test_the_prompt_delta_is_symmetric_across_the_measured_contrast(self):
+        """Fact 2: `b28ebf5`'s paragraph enters A1.7 AND A2 in identical wording.
+
+        r23 measures A1.7-vs-A2. An edit present in both arms moves the shared
+        floor, not the contrast — the opposite of the case the frozen-sha clause
+        was written to catch. `_INTERNAL_MODEL` reaches the prose arms through
+        `method_prompt()`, so this is a property of the harness, not a promise.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import system_prompt
+
+        from e2e.arms import method_prompt
+
+        prose_arm = " ".join(method_prompt().split())
+        advisor_arm = " ".join(system_prompt().split())
+        for phrase in (
+            "A fact can retire the MECHANISM you named without retiring the price",
+            "a price belongs to the side they are choosing, not to the route",
+            "go find what that side still costs and say THAT",
+            "the most plausible-looking way to fold",
+            "that read was mine, not yours to inherit",
+            "nothing here is being carried forward as an unconfronted cost",
+        ):
+            needle = " ".join(phrase.split())
+            assert needle in prose_arm, f"A1/A1.7 lost: {phrase!r}"
+            assert needle in advisor_arm, f"A2 lost: {phrase!r}"
+
+    def test_the_judge_and_rubric_r21_was_measured_against_are_unchanged(self):
+        """What r23 actually gates is the JUDGE, and the judge is frozen.
+
+        `judge.py`, `scoring.py` and `scenarios.py` must be byte-identical to
+        `1ca4083` modulo the bench→e2e rename. If a real edit lands in any of
+        them, r23 no longer inherits r21's rubric and the inference recorded in
+        `rounds.md` ("a fired tripwire suspends r21") needs re-argument.
+        """
+        import subprocess
+
+        root = self._root()
+        if self._rev_parse(self.PROMPT_SHA) is None:
+            pytest.skip(f"{self.PROMPT_SHA} unreachable (shallow clone?)")
+
+        def _normalize(text: str) -> str:
+            for old, new in (("bench", "e2e"), ("Bench", "E2E")):
+                text = text.replace(old, new)
+            return text
+
+        for name in ("judge.py", "scoring.py", "scenarios.py"):
+            old = subprocess.run(
+                ["git", "show", f"{self.PROMPT_SHA}:tests/bench/{name}"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+            )
+            assert old.returncode == 0, f"cannot read {name} at {self.PROMPT_SHA}"
+            new = (self._root() / "tests" / "e2e" / name).read_text(encoding="utf-8")
+            assert _normalize(old.stdout) == _normalize(new), (
+                f"tests/e2e/{name} has diverged from {self.PROMPT_SHA} by more "
+                "than the bench→e2e rename. r23's inference to r21 assumed an "
+                "identical rubric — re-read the decision in rounds.md"
+            )
+
+    def test_the_decision_records_both_facts_and_does_not_hedge(self):
+        rounds = _rounds()
+        block = rounds.split("#### Decided: r23 runs on `b28ebf5`")
+        assert len(block) == 2, "the r23 sha decision section is missing"
+        block = block[1]
+        assert "is self-defeating" in block
+        assert "cannot be satisfied by any run is a defect in the clause" in block
+        assert "identical wording" in block
+        assert "byte-identical to `1ca4083`" in block
+        # The costly half must survive the relabelling, or the decision quietly
+        # bought itself an escape from the tripwire.
+        assert "suspends r21's +0.325 and the pooled +0.243 exactly as pre-registered" in block
+        assert "re-run r21, not to re-run r23" in block
+
+
 class TestRationaleIntegrityProbe:
     """The corrected count, pinned, and the two sides kept apart.
 
