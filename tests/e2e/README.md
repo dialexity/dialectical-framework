@@ -43,7 +43,36 @@ engine, and the certification code and the diagnostic code read the same records
 **The seam lane already existed, unlabelled** — eight `--real-llm` files in
 `tests/`, each born from a measured defect in this archive, now carrying
 `pytest.mark.seam`. Run it after any prompt or seam change. It is cheap, it needs
-no opponent, and every test in it names the link it guards.
+no opponent, and every test in it names the link it guards:
+
+| Guard (`tests/`) | The link it guards | Born from |
+|---|---|---|
+| `test_pathways_seam_real_llm` | two seeded tensions → a woven arrangement, and weaving first doesn't cost the record | `62244f0` — the seam never ran |
+| `test_pathways_before_closing_weak_tier` | a confirmed decision AND its arrangement on the same turn | `explore` fired 6/55 weak vs 17/25 strong |
+| `test_single_perspective_explore_real_llm` | ONE perspective is enough to explore | 5/6 A2 runs never called `explore`; 3 prompt fixes failed |
+| `test_decision_repair_weak_tier` | a weak model still leaves a record | 0/6 weak vs 6/6 strong recorded a decision |
+| `test_decision_rationale_integrity_weak_tier` | a REFUTED risk is not recorded as a CARRIED one | 4/12 A2 rationales swallowed a fabricated dismissal |
+| `test_machinery_silence_weak_tier` | the REPLY, not the prompt, keeps the machinery quiet | 15 vocabulary leaks in 6 cells, every prompt test green |
+| `test_tetrad_collapse_real_llm` | no aspect deduplicates into its own pole | `672c19d`; an `accepted_cost` ground sitting at `T/T-` |
+| `test_condition_ambiguity_live_probe` | the accepted-cost condition renders (0/6 live) | duplicate directed edges vs genuine ambiguity |
+
+Note what the "born from" column is: **a count, from a run.** Every one of these
+started as a number in this archive that had no business being that number, which
+is why the search lane below is not decoration.
+
+**This table is pinned, not documented.** `TestTheSeamLaneRosterIsReal`
+(`test_e2e.py`) fails if a rostered file is renamed or loses its marker, if a
+marked file is missing from this table, if the `seam` marker is unregistered, or if
+`pytest-timeout` is dropped. Six mutations, six caught. A lane described only in
+prose is the same shape of claim as a timeout that doesn't time out.
+
+**The lane is deliberately narrow, and `-m seam` must not become `-m real_llm`.**
+A seam test drives the *assembled* system and reproduces a measured defect from
+`results/`. `test_aspect_axis_real_llm` and `test_options_classification_real_llm`
+check one concern's judgement against a real provider — useful, and not this.
+`test_decision_confirmation_repair` and `test_prompt_review_regressions` pin the
+same seams DB-free and already run in the default suite; they need no marker
+because they cost nothing.
 
 **Why the search lane keeps its judge and its opponent arms.** A regression test
 can only guard a defect someone already found; it cannot answer *"is this worse
@@ -876,16 +905,38 @@ have re-run the same architectural asymmetry on the same post-paragraph build an
 Requires Memgraph (`docker compose -f docker-compose.test.yml up -d`) and
 Bedrock credentials in `.env`. Everything spends real money — `--real-llm` only.
 
+**Start with the seam lane. It is the one you run often.**
+
 ```bash
+# LANE 1 — seam. 12 guards, each reproducing a measured defect from this
+# archive. Run after ANY prompt, context-dump, or seam change. Minutes, cents.
+poetry run pytest -m seam --real-llm -s
+
 # free: the harness's own unit tests (no LLM, no DB)
 poetry run pytest tests/e2e/test_e2e.py
 
 # cheap end-to-end smoke: 1 scenario, 1 tier, A1 vs A2, no judge (~7 min)
 poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_smoke --real-llm -s
 
-# the full matrix
+# LANE 2 — search. The judge and the opponent arm, to find defects nobody
+# has written a guard for yet. Hours, dollars.
 poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
+
+# ...and then READ IT. This, not the delta table, is the search lane's output.
+poetry run python tests/e2e/judge_notes.py                # worst 5 dimensions
+poetry run python tests/e2e/judge_notes.py --all-cells     # won cells too
+
+# LANE 3 — archive. Free, no LLM. Only when a number must be defensible.
+poetry run python tests/e2e/across_runs.py
+poetry run python tests/e2e/read_pooled.py
+poetry run python tests/e2e/read_prereg.py
 ```
+
+**The loop the lanes are meant to close:** a lost cell in lane 2 →
+`judge_notes.py` says what the arm actually did → fix it in `src/` → write the
+guard into `tests/test_*.py` with `pytest.mark.seam` so lane 1 owns it from then
+on. Every one of the 12 seam tests arrived by that route. A finding that does not
+end in a seam guard will be re-found next round at full matrix price.
 
 `-s` matters: a matrix run takes hours and the progress lines are the only way
 to watch it.

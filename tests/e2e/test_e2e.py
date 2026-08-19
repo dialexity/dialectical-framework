@@ -1764,6 +1764,97 @@ class TestReadDecisions:
         assert verdicts == ["dec1234:none"]
 
 
+class TestTheSeamLaneRosterIsReal:
+    """The README claims a seam lane of 8 files. Pin it, don't assert it in prose.
+
+    This whole harness exists because a stated guarantee with nothing enforcing
+    it is the framework's characteristic defect: `62244f0` (the differentiator
+    was never running), r23 (a timeout with no timeout), and the 16
+    `@pytest.mark.timeout` decorators that were inert because `pytest-timeout`
+    was never a dependency. A README table listing a lane is exactly that shape
+    of claim, so it gets a test.
+
+    What this does NOT do is require every `real_llm` test to be a seam guard.
+    The lane is deliberately narrow — a seam test drives the ASSEMBLED system and
+    reproduces a measured defect from `results/`. `test_aspect_axis_real_llm` and
+    `test_options_classification_real_llm` check one concern's judgement against a
+    real provider, which is a different (also useful) thing; marking them would
+    make `-m seam` a synonym for `-m real_llm` and cost the lane its meaning.
+    """
+
+    #: file stem -> the link in the chain it guards, mirroring the README table.
+    ROSTER = {
+        "test_pathways_seam_real_llm": "seeded tensions become a woven pathway",
+        "test_pathways_before_closing_weak_tier": "record and pathway, same turn",
+        "test_single_perspective_explore_real_llm": "one perspective is explorable",
+        "test_decision_repair_weak_tier": "a weak model still leaves a record",
+        "test_decision_rationale_integrity_weak_tier": "refuted != carried",
+        "test_machinery_silence_weak_tier": "the reply keeps the machinery quiet",
+        "test_tetrad_collapse_real_llm": "no aspect is its own pole",
+        "test_condition_ambiguity_live_probe": "the accepted-cost condition renders",
+    }
+
+    @staticmethod
+    def _tests_dir() -> Path:
+        from pathlib import Path as _Path
+
+        return _Path(__file__).resolve().parent.parent
+
+    def test_every_rostered_file_exists_and_carries_the_marker(self):
+        """A rename or a dropped marker silently shrinks the lane.
+
+        Both failure modes are quiet: `-m seam` just collects fewer tests and
+        still exits 0, so nothing tells you a guard stopped guarding.
+        """
+        missing, unmarked = [], []
+        for stem in self.ROSTER:
+            path = self._tests_dir() / f"{stem}.py"
+            if not path.exists():
+                missing.append(stem)
+                continue
+            if "mark.seam" not in path.read_text():
+                unmarked.append(stem)
+        assert not missing, f"rostered seam guard(s) gone: {missing}"
+        assert not unmarked, f"seam guard(s) no longer in the lane: {unmarked}"
+
+    def test_the_marker_is_registered_so_it_is_not_a_no_op(self):
+        """The `pytest-timeout` lesson, applied to our own marker.
+
+        An unregistered mark raises no error and skips no test — it silently
+        matches nothing, which is how 16 timeout decorators did nothing for
+        weeks. `-m seam` against an unregistered marker is the same trap.
+        """
+        pyproject = (self._tests_dir().parent / "pyproject.toml").read_text()
+        assert '"seam:' in pyproject, "seam marker not registered in pyproject.toml"
+        assert "pytest-timeout" in pyproject, (
+            "pytest-timeout dropped — every @pytest.mark.timeout in tests/ goes "
+            "inert again, silently"
+        )
+
+    def test_no_seam_guard_lives_outside_the_roster(self):
+        """The reverse drift: a marked file the README never mentions.
+
+        Harmless to run, but it means the documented lane and the executable
+        lane have diverged, and the README is the thing people read.
+        """
+        marked = {
+            path.stem
+            for path in self._tests_dir().glob("test_*.py")
+            if "mark.seam" in path.read_text()
+        }
+        assert marked == set(self.ROSTER), (
+            f"lane drifted from the README: only-in-code={marked - set(self.ROSTER)}, "
+            f"only-in-roster={set(self.ROSTER) - marked}"
+        )
+
+    def test_the_readme_documents_each_guard(self):
+        """The table is the only place a newcomer learns what the lane covers."""
+        readme = (self._tests_dir() / "e2e" / "README.md").read_text()
+        assert "-m seam --real-llm" in readme, "the lane's invocation is undocumented"
+        undocumented = [stem for stem in self.ROSTER if stem not in readme]
+        assert not undocumented, f"seam guard(s) absent from the README: {undocumented}"
+
+
 class TestAnAbandonedCellIsMissingDataNotAWeakArm:
     """r23 hung 21h on one cell and wrote nothing. Two halves to the fix.
 
