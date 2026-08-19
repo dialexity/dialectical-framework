@@ -3229,3 +3229,66 @@ each control separately, `convergence` on `premature` read as scored.
 (A1.7 median ~49s, A2 median ~86s) projects the 48-cell matrix at roughly **1h**, not the
 2.2h pre-registered — these two controls carry fewer beats than the decide-lane
 scenarios the estimate was extrapolated from.
+
+#### Second gap in the same reader, same afternoon: the tripwire number did not exist
+
+Also recorded blind — the run was at 22 of 48 cells and none judged.
+
+The pre-registration two sections up says the tripwire is *"the **NI composite** CI on
+either control"*. It also says, correctly and verified rather than assumed, that
+`dimensions_for` gives `poor_fit` exactly the three non-inferiority dimensions and
+`premature` those **plus seven structural ones including `convergence`**. Both true. What
+neither I nor the pre-registration checked is whether the script it tells you to run can
+*compute* that number. It cannot. `Deltas.composite` averages every dimension present in
+`scores`, and no dimension-group filter exists anywhere in `report.py` — the `[NI]` tag
+appears only in the per-dimension table. On `poorfit_ssl_expiry` this is harmless by
+coincidence: its composite already *is* the NI composite. On `premature_relocation` it
+blends the seven structural dims straight into the three the tripwire is defined on.
+
+**The error runs toward a false FIRE, which is the opposite of what I had been guarding.**
+Every earlier note in this file worries about a control biased toward a false PASS (the
+`collapsed_to_a1` bug, dead cells producing no text). This one inverts. Simulated at r23's
+exact shape with the controls **passing** — NI flat at zero, structural at +1:
+
+| what is printed | number | reads as |
+|---|---|---|
+| `premature` composite, all 10 dims | **+0.700** | FRAMEWORK WINS |
+| `premature` NI composite (the pre-registered tripwire) | **+0.000** | covers zero → PASS |
+| pooled across both controls | **+0.350** | FRAMEWORK WINS |
+
+A fired tripwire means *"r21's +0.325 and the pooled +0.243 are suspended, not merely
+annotated."* So the reader as it stood could have thrown away the archive's two live
+numbers on the strength of a control that had actually passed — and it would have looked
+like the most rigorous possible outcome while doing it. **A tripwire wired to the wrong
+number is not a weak safeguard, it is a random one, and the direction it fails in is not
+predictable from the direction you were worried about.**
+
+**Fixed, gated on the recorded `scenario_kind`.** Controls get a `TRIPWIRE` block naming
+the three NI dims, plus a line saying which structural dims the composite above blends in
+and which block to read. `poor_fit` gets the same block with "identical to the composite
+above — every dimension judged here is NI", because two identical numbers under different
+headings invite a hunt for a difference that is not there. Kind is read off the cell, not
+looked up, so a reclassified scenario cannot re-read history.
+
+**Deliberately NOT fixed: the published composites.** r21's +0.325 and the pooled +0.243
+are DECISION-kind, judged on twelve dimensions, and they fold the three NI dims in at a
+quarter of the weight — while `models.py` says of that group, in the constant's own
+docstring, *"never folded into the headline"*. That is a real inconsistency and it is a
+**separate question with a separate blast radius**: changing it re-reads every published
+number in this file. Settling it by editing the reader while a control is in flight is
+precisely the move the gates-before-endpoint discipline exists to prevent. Logged here as
+open, to be pre-registered on its own terms. Both readers verified unchanged on the real
+stems after today's two fixes: **r21 +0.325 [−0.003,+0.653], r22 +0.141, pooled +0.243**,
+neither printing a tripwire block.
+
+**Two fixes, one lesson, and it is not about scenarios or dimensions.** Both gaps are the
+same sentence: *a pre-registered reading names a distinction, and the aggregation key does
+not carry it.* Prose cannot enforce an axis that the code has already averaged away. The
+check that would have caught both, and which is now cheap to run before any future
+pre-registration is called done: **take the sentence that states the endpoint, and confirm
+some tool prints exactly that number.** Not a similar one.
+
+Guards: 15 mutations across both fixes, 15 killed, every mutation string asserted present
+before running (the r24 round's no-op survivor taught that). Run outside pytest, because
+the bench run holds Memgraph and the autouse cleanup fixture deletes exactly the labels
+the runner writes.
