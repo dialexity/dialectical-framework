@@ -45,6 +45,11 @@ MODELS = ROOT / "tests" / "e2e" / "models.py"
 DRIVER = ROOT / "tests" / "e2e" / "driver.py"
 REPORT = ROOT / "tests" / "e2e" / "report.py"
 README = ROOT / "tests" / "e2e" / "README.md"
+#: The append-only round log, split out of README.md on 2026-08-19. Five of the
+#: mutations below target sites that moved with it. When they did not, this
+#: script printed "target text NOT FOUND" and counted them UNPINNED rather than
+#: reporting a false CAUGHT — which is the behaviour its docstring promises.
+ROUNDS = ROOT / "tests" / "e2e" / "rounds.md"
 
 SURFACES = "test_all_three_surfaces_say_read_not_run"
 
@@ -106,14 +111,14 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     ),
     (
         "README drops the census annotation",
-        README,
+        ROUNDS,
         "> **Annotation, added hours later — the census above is left as written.**",
         "> **Annotation.**",
         SURFACES,
     ),
     (
         "README's pre-registered census silently EDITED instead of annotated",
-        README,
+        ROUNDS,
         "**zero cells in\nthe entire archive**",
         "**4 smoke cells in\nthe entire archive**",
         SURFACES,
@@ -127,14 +132,14 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     ),
     (
         "correction-block update reverts",
-        README,
+        ROUNDS,
         "by the `smoke*` rule in `_stems()`. **No control has\n> been READ.**",
         "by the `smoke*` rule in `_stems()`. **No control counts.**",
         SURFACES,
     ),
     (
         "a stale cell count creeps back into the claim",
-        README,
+        ROUNDS,
         "> **Updated later the same day:** the controls now have cells",
         "> **Updated later the same day:** the controls now have 4 cells",
         SURFACES,
@@ -148,7 +153,7 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     ),
     (
         "census annotation's own claim reverts",
-        README,
+        ROUNDS,
         "claim — that **no control has been READ** — still holds",
         "claim — that no control counts — still holds",
         SURFACES,

@@ -82,6 +82,37 @@ from e2e.scenarios import ALL_SCENARIOS, scenarios_for
 pytestmark = []
 
 
+# ---------------------------------------------------------------------------
+# Prose surfaces. Two files, and WHICH one a claim lives in is part of the claim.
+#
+# README.md is reference (the harness, the ladder, the lanes, the fairness
+# guards). rounds.md is the append-only round log (pre-registrations, results,
+# corrections). They were one 3406-line file until 2026-08-19, when the round log
+# was 3006 of those lines and the document a fresh session read first was 88%
+# provenance.
+#
+# Deliberately NOT a single helper that concatenates both files. A pre-registration
+# guard that passes when its subject sits in *either* document cannot see the round
+# log being quietly folded back into the reference — and the whole point of these
+# guards is that a pre-registration must stay where it was written. Each class
+# reads the surface it is about.
+# ---------------------------------------------------------------------------
+
+
+def _prose(name: str) -> str:
+    """Whitespace-normalised text of one prose surface, for substring asserts."""
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent / name
+    assert path.exists(), f"prose surface is gone: {name}"
+    return " ".join(path.read_text().split())
+
+
+def _rounds() -> str:
+    """The round log — where every pre-registration and result lives."""
+    return _prose("rounds.md")
+
+
 @pytest.fixture(autouse=True)
 def cleanup_graph_db():
     yield
@@ -1850,6 +1881,85 @@ class TestTheResumeSkillStaysWired:
                 assert f"def {name}" in entries, (
                     f"the skill advertises {name} but it is not in test_e2e_run.py"
                 )
+
+
+class TestTheTwoProseSurfacesStaySeparate:
+    """The 2026-08-19 split, pinned — because nothing else was pinning it.
+
+    README.md had reached 3406 lines, of which 3006 were round log: the document a
+    fresh session opens was 88% provenance, and 14 round write-ups were nested as
+    H3s under a single H2 titled "Measured: the ceremony is tier-gated" (a finding
+    from r4), so the file's own outline claimed one section where there were
+    fourteen. The split moved the log to `rounds.md` verbatim.
+
+    Found by mutation: with the round-log guards repointed and all 544 tests green,
+    `cat rounds.md >> README.md` — the entire split undone — still passed. Every
+    guard read one surface or the other and none cared how big either had become,
+    so the reference document could re-accrete a lab notebook indefinitely without
+    a single failure. That is this repo's signature defect (a stated property that
+    is not wired), so the property gets asserted rather than described.
+
+    Thresholds are deliberately loose. This is a "has it re-accreted" tripwire, not
+    a style rule, and a guard that fails on ordinary editing gets deleted.
+    """
+
+    def test_the_reference_document_has_not_re_accreted_a_round_log(self):
+        """The mutation that escaped: README grows the log back.
+
+        Round write-ups are recognisable by their pre-registration headers, which
+        is what makes them log rather than reference. A couple of references to
+        rounds in prose is normal and expected; a dozen pre-registration blocks
+        means the split has been undone.
+        """
+        readme = _prose("README.md")
+        prereg_blocks = readme.count("pre-registered 2026-")
+        assert prereg_blocks <= 2, (
+            f"README.md carries {prereg_blocks} pre-registration blocks — the "
+            "round log is growing back into the reference document. Round "
+            "write-ups belong in rounds.md; see the 2026-08-19 split."
+        )
+
+    def test_the_reference_document_stays_readable_in_one_sitting(self):
+        """A size ceiling, because 3406 lines is how the last one ended.
+
+        Loose on purpose: the ceiling is ~3x the post-split size, so it catches
+        re-accretion and not a new section.
+        """
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parent / "README.md"
+        n = len(path.read_text().split("\n"))
+        assert n < 1_500, (
+            f"README.md is {n} lines. It was split at 3406 because the reference "
+            "had become a lab notebook; if this is real reference growth, raise "
+            "the ceiling deliberately and say why."
+        )
+
+    def test_the_round_log_says_it_is_append_only_and_historical(self):
+        """Its two load-bearing properties, and the reason it may hold wrong numbers.
+
+        A reader who quotes rounds.md as current state gets a stale figure — the
+        exact error `status.py` exists to prevent — so the file must say so itself.
+        """
+        rounds = _prose("rounds.md")
+        assert "append-only" in rounds, (
+            "rounds.md no longer states that it is append-only — the rule that "
+            "makes a pre-registration meaningful"
+        )
+        assert "status.py" in rounds, (
+            "rounds.md must route current numbers to status.py; its own figures "
+            "are historical"
+        )
+
+    def test_each_surface_points_at_the_other(self):
+        """A split that loses its cross-links is just a hidden file."""
+        assert "rounds.md" in _prose("README.md"), (
+            "README.md does not link the round log — the provenance became "
+            "invisible rather than separate"
+        )
+        assert "README.md" in _prose("rounds.md"), (
+            "rounds.md does not link back to the reference"
+        )
 
 
 class TestTheDocumentedMethodMatchesTheCode:
@@ -7274,11 +7384,7 @@ class TestAnUnexercisedArmIsNotAWeakArm:
         Without this, `HEADLINE_DEPENDS_ON_FILTER` becomes the place where
         inconvenient stems go to stop failing a test.
         """
-        from pathlib import Path
-
-        readme = " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        readme = _rounds()
         for stem, why in HEADLINE_DEPENDS_ON_FILTER.items():
             assert why, f"{stem} declared with no reason"
             assert "DEPENDS on the validity filter" in readme, (
@@ -7330,7 +7436,7 @@ class TestAnUnexercisedArmIsNotAWeakArm:
         assert round(pooled_with, 3) == 0.243
         assert round(pooled_without, 3) == 0.050
 
-        readme = " ".join((results.parent / "README.md").read_text().split())
+        readme = _rounds()
         assert "The gap is **+0.366** on r22" in readme
         assert "**+0.193** pooled" in readme
 
@@ -7684,7 +7790,7 @@ class TestRungFiringProbe:
 
         assert FIRED_MIN == 3
         assert BASELINE_STEM == "ladder-return-r18"
-        readme = (Path(__file__).resolve().parent / "README.md").read_text()
+        readme = _rounds()
         assert "r19-probe" in readme, "the pre-registration block vanished"
         assert "break_depth` > 1 in ≥ 3 of 12" in readme
         # The corrected statistics belong in the block a reader will find first.
@@ -7715,11 +7821,9 @@ class TestR21PreRegistration:
 
     @staticmethod
     def _readme() -> str:
-        from pathlib import Path
-
-        return " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        # The round log, not README.md: this class's subject is a round
+        # write-up, and it moved when the two surfaces were split.
+        return _rounds()
 
     def test_the_block_exists_and_names_its_three_outcomes(self):
         readme = self._readme()
@@ -7849,11 +7953,9 @@ class TestR21Result:
 
     @staticmethod
     def _readme() -> str:
-        from pathlib import Path
-
-        return " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        # The round log, not README.md: this class's subject is a round
+        # write-up, and it moved when the two surfaces were split.
+        return _rounds()
 
     @classmethod
     def _block(cls) -> str:
@@ -7945,11 +8047,9 @@ class TestHedgeRateIsNotAFrameworkWin:
 
     @staticmethod
     def _readme() -> str:
-        from pathlib import Path
-
-        return " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        # The round log, not README.md: this class's subject is a round
+        # write-up, and it moved when the two surfaces were split.
+        return _rounds()
 
     def test_the_section_states_the_refutation_in_its_own_heading(self):
         readme = self._readme()
@@ -8129,11 +8229,9 @@ class TestR22PreRegistration:
 
     @staticmethod
     def _readme() -> str:
-        from pathlib import Path
-
-        return " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        # The round log, not README.md: this class's subject is a round
+        # write-up, and it moved when the two surfaces were split.
+        return _rounds()
 
     @classmethod
     def _block(cls) -> str:
@@ -8209,11 +8307,9 @@ class TestR22Result:
 
     @staticmethod
     def _readme() -> str:
-        from pathlib import Path
-
-        return " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        # The round log, not README.md: this class's subject is a round
+        # write-up, and it moved when the two surfaces were split.
+        return _rounds()
 
     @classmethod
     def _block(cls) -> str:
@@ -8372,11 +8468,7 @@ class TestThePoorFitControlWasNeverTheControl:
 
     @staticmethod
     def _block() -> str:
-        from pathlib import Path
-
-        readme = " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
+        readme = _rounds()
         after = readme.split("#### The poor-fit control was never")
         assert len(after) == 2, "the poor-fit correction block is missing"
         return after[1]
@@ -8532,13 +8624,22 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
 
         from e2e.report import render_report
 
-        raw = (Path(__file__).resolve().parent / "README.md").read_text()
+        # The claim spans BOTH prose surfaces since the 2026-08-19 split, and each
+        # site is pinned to the file that actually holds it rather than to a
+        # concatenation of the two. Concatenating would let a site migrate between
+        # documents unnoticed — and "which document says it" is part of this claim:
+        # the reading guide's copy is the instruction a reader follows, while the
+        # census annotation is provenance that must stay in the append-only log.
+        raw = (Path(__file__).resolve().parent / "rounds.md").read_text()
         # Blockquote markers are stripped BEFORE whitespace-normalising: two of the
         # three sites live inside `>` blocks, and a wrapped line otherwise
         # normalises to "...has > been READ", which no readable assertion matches.
-        readme = " ".join(
-            re.sub(r"(?m)^>\s?", "", raw).split()
-        )
+        def _surface(name: str) -> str:
+            text = (Path(__file__).resolve().parent / name).read_text()
+            return " ".join(re.sub(r"(?m)^>\s?", "", text).split())
+
+        rounds = _surface("rounds.md")
+        readme = _surface("README.md")
         # Rendered, not grepped from source: the guide is what a reader SEES, and
         # an empty report still prints it in full.
         printed = " ".join(render_report([], [], {}, []).split())
@@ -8553,16 +8654,28 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
         # reverting the reading guide alone SURVIVED because the correction block's
         # copy satisfied the assert. A bare count is the wrong fix too — it broke
         # on adding a Files-table row, which is a documentation edit, not drift.
-        for site in (
+        for site, surface, where in (
             # correction block, updated when the smoke cells appeared
-            "by the `smoke*` rule in `_stems()`. **No control has been READ.**",
+            (
+                "by the `smoke*` rule in `_stems()`. **No control has been READ.**",
+                rounds,
+                "rounds.md",
+            ),
             # r23 census annotation, which is why the census may stay as written
-            "claim — that **no control has been READ** — still holds",
-            # reading guide item 6, the instruction a reader actually follows
-            "has been READ. This line stood",
+            (
+                "claim — that **no control has been READ** — still holds",
+                rounds,
+                "rounds.md",
+            ),
+            # reading guide item 6, the instruction a reader actually follows.
+            # This one is REFERENCE, not provenance: it must stay in README.md,
+            # which is the file a fresh session opens.
+            ("has been READ. This line stood", readme, "README.md"),
         ):
-            assert site in readme, f"the READ-not-RUN claim lost a site: {site!r}"
-        assert "No cell count is quoted here on purpose" in readme
+            assert site in surface, (
+                f"the READ-not-RUN claim lost a site in {where}: {site!r}"
+            )
+        assert "No cell count is quoted here on purpose" in rounds
         assert (
             "cells only under `smoke*` stems, which every pooled read excludes; "
             "no control has been READ" in readme
@@ -8570,13 +8683,17 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
         # A count quoted next to the claim is the failure mode this cost an hour to
         # learn. Checked against the CLAIM's own sentences, not the whole README,
         # which legitimately counts cells elsewhere (372, 432, "8 of 374").
-        for sentence in (
-            "the controls now have cells",
-            "have cells only under `smoke*` stems",
+        for sentence, surface, where in (
+            ("the controls now have cells", rounds, "rounds.md"),
+            ("have cells only under `smoke*` stems", readme, "README.md"),
         ):
-            assert sentence in readme, f"claim site rewritten: {sentence!r}"
-        assert "the controls now have 4 cells" not in readme
-        assert "only the 4 cells" not in readme
+            assert sentence in surface, (
+                f"claim site rewritten in {where}: {sentence!r}"
+            )
+        # No count may be quoted next to the claim, on EITHER surface.
+        for surface, where in ((rounds, "rounds.md"), (readme, "README.md")):
+            assert "the controls now have 4 cells" not in surface, where
+            assert "only the 4 cells" not in surface, where
         # The r23 pre-registration's own census says "zero cells in the entire
         # archive". That is left standing — pre-registered text is not edited after
         # the fact — but it MUST carry the annotation, or it reads as a live claim
@@ -8584,8 +8701,8 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
         assert (
             "zero cells in\nthe entire archive" in raw
         ), "the pre-registered census was edited instead of annotated"
-        assert "the census above is left as written" in readme
-        assert "stopped being literally true on the day it was written" in readme
+        assert "the census above is left as written" in rounds
+        assert "stopped being literally true on the day it was written" in rounds
         # And the exclusion the claim leans on is real, not asserted.
         source = inspect.getsource(
             __import__("e2e.across_runs", fromlist=["_stems"])._stems
@@ -8618,14 +8735,28 @@ class TestR23ControlPreRegistration:
 
     @staticmethod
     def _block() -> str:
-        from pathlib import Path
-
-        readme = " ".join(
-            (Path(__file__).resolve().parent / "README.md").read_text().split()
-        )
-        after = readme.split("### r23:")
+        rounds = _rounds()
+        after = rounds.split("### r23:")
         assert len(after) == 2, "the r23 pre-registration block is missing"
-        return after[1].split("## Files")[0]
+        block = after[1]
+        # r23 is currently the LAST section, so this block runs to EOF. The old
+        # terminator was "## Files", which left with the 2026-08-19 split and no
+        # longer appears here — the slice silently became "everything after r23".
+        # That is harmless while r23 is last and becomes a bug the moment a round
+        # is appended: the next round's prose would be scanned as if it were r23's
+        # pre-registration, and every assert below would keep passing. So terminate
+        # on the next H3 and assert the block is a plausible size rather than the
+        # whole tail of the log.
+        for terminator in ("### ", "## "):
+            if terminator in block:
+                block = block.split(terminator)[0]
+                break
+        assert 5_000 < len(block) < 40_000, (
+            f"the r23 block is {len(block)} chars — the slice is no longer "
+            "bounded by its own section, so these asserts may be scanning the "
+            "wrong round"
+        )
+        return block
 
     def test_the_tripwire_suspends_the_wins_it_would_contradict(self):
         """The costly clause. A control that fires and merely gets "annotated"

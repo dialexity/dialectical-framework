@@ -156,7 +156,7 @@ poetry run python tests/e2e/judge_notes.py --all-cells  # won cells too — REQU
 `--all-cells` is not optional for anything promoted to a finding: notes are selected from
 cells the arm LOST, so a behaviour's frequency there is a lead, not a result.
 
-**Before launching anything:** pre-register what would count as a win, in the README,
+**Before launching anything:** pre-register what would count as a win, in `rounds.md`,
 before the first cell runs. Pre-register n before looking. Every round in the archive
 that skipped this was re-argued afterwards.
 
@@ -246,7 +246,8 @@ positive reading, and they are the least run.
 | Path | Role |
 |---|---|
 | `tests/e2e/status.py` | **where we stand** — coverage, unread, deltas (free) |
-| `tests/e2e/README.md` | full history, per-round pre-registrations, findings |
+| `tests/e2e/README.md` | reference: the harness, the ladder, the lanes, the fairness guards |
+| `tests/e2e/rounds.md` | the round log: every pre-registration and result, append-only, historical |
 | `tests/e2e/judge_notes.py` | the search lane's real output — judge rationales |
 | `tests/e2e/scenarios.py` | the situations; `ALL_SCENARIOS` is the declared space |
 | `tests/e2e/arms.py` | the ablation ladder (A0/A1/A1.5/A1.7/A2) |
