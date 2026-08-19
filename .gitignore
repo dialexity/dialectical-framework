@@ -65,6 +65,9 @@ logs/
 tests/play.py
 docs/r-n-d/
 .chainlit/
-# Bench run outputs (the bench CODE is committed; individual runs are not —
-# transcripts are large and a run is reproducible from the harness)
-tests/bench/results/
+# e2e run outputs (the harness CODE is committed; individual runs are not —
+# transcripts are large and a run is reproducible from the harness).
+# Renamed from tests/bench/results/ on 2026-08-19: the stale path silently
+# stopped ignoring anything, and a `git add tests/` swept 208k lines of
+# transcripts into the rename commit before the diffstat was read.
+tests/e2e/results/
