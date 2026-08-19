@@ -5,7 +5,7 @@ This is the real-LLM counterpart to `test_decision_confirmation_repair.py` (whic
 pins the seam DB-free). It reproduces the exact measured failure and asserts the
 repair closes it.
 
-The measurement, from `tests/bench/README.md`:
+The measurement, from `tests/e2e/README.md`:
 
 | tier | model | runs recording >=1 decision |
 |------|-------|-----------------------------|
@@ -74,7 +74,7 @@ class TestWeakTierStillLeavesARecord:
     async def test_confirmed_decision_reaches_the_graph_on_a_weak_model(
         self, di_container
     ):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         case = Case()
         case.commit()
@@ -114,7 +114,7 @@ class TestWeakTierStillLeavesARecord:
             "reached the graph. Either the confirmation check failed to detect "
             "an unambiguous 'write that down as the decision', or the repair "
             "did not run. Measured baseline without the repair: 0/6 at this "
-            "tier — see tests/bench/README.md."
+            "tier — see tests/e2e/README.md."
         )
 
         # The record must carry the person's actual choice, not a paraphrase of

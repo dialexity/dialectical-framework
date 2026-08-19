@@ -2186,7 +2186,7 @@ class TestDecisionReadiness:
         not a general looseness. (First reported as 6 of 24 / 0 of 160: the
         counting script double-counted the `-runs.json` duplicate sidecars, and
         reading the hits later found one its regex had missed. Corrected in
-        `tests/bench/probe_rationale_integrity.py`, which is where the count
+        `tests/e2e/probe_rationale_integrity.py`, which is where the count
         lives now.)
 
         The pairing matters. `_DECISION_READINESS` governs what gets WRITTEN;
@@ -2655,7 +2655,7 @@ class TestPathwayLineIsPickable:
 
 class TestWhatTheJudgeSaidWasWrong:
     """Five weak-tier prompt gaps, each found by reading the judge's own
-    written rationales rather than guessing (`tests/bench/judge_notes.py`).
+    written rationales rather than guessing (`tests/e2e/judge_notes.py`).
 
     All five sit in the dimensions where A2's deficit does NOT depend on which
     arm it faces (conversational_fit gap -0.31, warmth +0.11 between weak rungs

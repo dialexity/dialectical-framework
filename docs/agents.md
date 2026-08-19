@@ -391,7 +391,7 @@ this for free on both `chat()` and `chat_stream()` — nothing to wire.
 Why it exists: `record_decision` fired 6/6 at a strong tier and **0/6** at a
 weak one on identical prompt text, the weak model writing a formatted "Your
 Decision" section in prose every time while the person was told it was saved
-(`tests/bench/README.md`). Three rounds of prompt strengthening changed that by
+(`tests/e2e/README.md`). Three rounds of prompt strengthening changed that by
 zero. The model calling the tool itself is still the preferred path — it can
 adopt a pathway, which the repair never guesses — so the seam is a floor, not a
 replacement. The engine prompt does not mention it: telling the model a backstop

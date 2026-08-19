@@ -66,7 +66,7 @@ class TestOnePerspectiveIsEnoughToExplore:
     @pytest.mark.timeout(1200)
     # Deliberately NOT @traced — serializing `di_container` HANGS (CLAUDE.md).
     async def test_single_perspective_explore_produces_a_pathway(self, di_container):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         case = Case()
         case.commit()

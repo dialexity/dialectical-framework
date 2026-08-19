@@ -10,7 +10,7 @@ transferable across cases — but it throws the evidence away. "Solo leadership
 enables faster decisive execution" no longer knows that this founder holds 55%,
 gave feedback in March, and sat through three customer calls as a plus-one.
 
-Measured cost of that loss (`tests/bench`, `claim2-weak-r5`): across six live
+Measured cost of that loss (`tests/e2e`, `claim2-weak-r5`): across six live
 counsel sessions the graph carried **0 of 15** case particulars while a plain
 prompted LLM keeping its own session notes carried **11 of 15**. At the
 returning-session wobble the framework contradicted its own record — "This isn't

@@ -198,7 +198,7 @@ class TestDialecticalContextWithPerspectives:
         hash in the dump the
         only address in view is the Perspective's, so the model grounds on the
         tension instead of the cost and the re-audit has nothing specific to
-        point back to — observed in tests/bench before this was rendered.
+        point back to — observed in tests/e2e before this was rendered.
         """
         import re
 

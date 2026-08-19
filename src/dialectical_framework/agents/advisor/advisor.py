@@ -240,7 +240,7 @@ class Advisor:
         writing a formatted "Your Decision" section in prose every time. The
         person was told it was written down; it was not. Three rounds of
         prompt strengthening moved that number not at all (see
-        `tests/bench/README.md`), because no amount of prompt text makes an
+        `tests/e2e/README.md`), because no amount of prompt text makes an
         elective call reliable.
 
         `record_decision` already treats WHO confirmed as a host attestation

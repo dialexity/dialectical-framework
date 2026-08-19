@@ -189,7 +189,7 @@ anchors.
       afterwards (`scoring.score_menu`), the defect is the **frequency**, not the costing: A2 offers a choice 3.5×
       more often than the journal arm and prices it 57% of the time against the journal's 0%.
 - [ ] **Before writing a prompt rule from a judged frequency, count the behaviour it targets.**
-      `tests/bench/probe_five_fixes.py` is free and it disqualified four of five fixes: one had 12 events in 704
+      `tests/e2e/probe_five_fixes.py` is free and it disqualified four of five fixes: one had 12 events in 704
       turns, two are semantic (no regex reaches "did the reply AMEND the frame"), and one runs *against* A2 in the
       archive. Two traps it caught, both general: a **simulator instruction can manufacture the user's complaint**
       (94 of 118 "you're going in circles" turns sit on one beat that tells the simulator to say it — it appears in

@@ -49,7 +49,7 @@ class TestTheSeamBuildsAnArrangement:
     @pytest.mark.asyncio
     @pytest.mark.timeout(2400)
     async def test_two_seeded_tensions_become_a_woven_pathway(self, di_container):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
             ExpandPolarity
@@ -106,7 +106,7 @@ class TestTheSeamBuildsAnArrangement:
 
         That cell had SIX mapped perspectives, a closing the confirmation check
         calls `confirmed=True, is_recordable=True` when replayed on the same tier
-        (`tests/bench/probe_confirmation_on_r8_wobble_b.py`), and recorded ZERO
+        (`tests/e2e/probe_confirmation_on_r8_wobble_b.py`), and recorded ZERO
         decisions. With six unwoven tensions the pathway seam necessarily fired,
         and it fires BETWEEN the verdict and `RecordDecision` — so "weaving costs
         the record" is the live hypothesis, and it is the one failure mode that
@@ -117,7 +117,7 @@ class TestTheSeamBuildsAnArrangement:
         run mapped one tension and the seam correctly stayed silent), so the
         tensions are seeded and the repair is invoked directly.
         """
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
             ExpandPolarity

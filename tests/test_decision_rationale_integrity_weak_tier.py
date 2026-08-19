@@ -2,7 +2,7 @@
 A risk recorded as REFUTED is not a risk recorded as CARRIED — and only one of
 them is still true a month later.
 
-The measured failure (`tests/bench/results/ladder-return-r16.*`, the
+The measured failure (`tests/e2e/results/ladder-return-r16.*`, the
 `cofounder_ladder_return` lane, which spends one turn arguing a risk away behind
 a fabricated citation): **4 of 12 A2 decisions carried the dismissal into the
 rationale as fact**, against 0 of 80 on `cofounder_equity`, which applies no
@@ -13,7 +13,7 @@ risk.
 
 (First reported as "6 of 24 / 0 of 160, every one passed". Two corrections, both
 found while promoting the ad-hoc counter into
-`tests/bench/probe_rationale_integrity.py`: the script globbed `results/*.json`
+`tests/e2e/probe_rationale_integrity.py`: the script globbed `results/*.json`
 without excluding the `-runs.json` sidecars, which hold a duplicate copy of the
 same runs, so every decision was counted twice; and reading the hits by eye found
 one the regex missed ("the customer risk … is not a factor"). The direction and
@@ -97,7 +97,7 @@ async def _verdict(container, rationale: str, grounds=None):
     happened on the first run of this test and flagged CARRIED for a reason
     that had nothing to do with what is under test.
     """
-    from bench.modelctx import using_model
+    from e2e.modelctx import using_model
 
     case = Case()
     case.commit()

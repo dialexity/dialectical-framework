@@ -53,16 +53,16 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
   produces no graph (A2→A1 collapse, `docs/r-n-d/judged-eval-vs-prompted-llm.md`) — treat failure as prompt-steering signal, not flake.
-  **The bench imports these section constants.** `tests/bench/arms.py` builds its A1 baseline (the
+  **The bench imports these section constants.** `tests/e2e/arms.py` builds its A1 baseline (the
   "prompt-only model given the real method") from `_ROLE`, `_EAGER`, `_INTERNAL_MODEL`,
   `_CONVERSATION_USE`, `_DECISION_READINESS`, `_HOW_YOU_SPEAK` — rewriting tool verbs into mental acts
   via a phrase table, then dropping only what stays machinery. Editing any of those sections can silently
   invalidate the eval: an unmatched rewrite key means the paragraph keeps its tool verbs, gets dropped, and
-  the baseline loses method text — inflating every framework-vs-baseline delta. `tests/bench/test_bench.py::
+  the baseline loses method text — inflating every framework-vs-baseline delta. `tests/e2e/test_e2e.py::
   TestMethodPrompt::test_rewrite_table_has_no_stale_keys` fails on that drift (free, no `--real-llm`);
   run it after editing these constants and update `_TOOL_REWRITES` in the same change.
   Rule of thumb for what belongs where: rules about **how to talk** (`_HOW_YOU_SPEAK`) must reach every
-  arm; only rules about **operating machinery** are the framework arm's. See `tests/bench/README.md`.
+  arm; only rules about **operating machinery** are the framework arm's. See `tests/e2e/README.md`.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
 - **The structured-extraction slot is a prompt surface in the USER role, and the model reads it as the person.**
@@ -97,7 +97,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   collapse rather than malformed history (the recurring misdiagnosis; cf. the connect-timeout and thinking-shape bugs).
   `_close_dangling_tool_calls` answers every open call with a synthetic `tool_result` carrying `_BUDGET_STOP_NOTICE`
   (`conversation_facilitator.py`) — **model-visible text**: it says the tool did not run and to answer now without
-  further calls, so a cut-short turn can't present unverified material as tool-confirmed. Caught by `tests/bench`
+  further calls, so a cut-short turn can't present unverified material as tool-confirmed. Caught by `tests/e2e`
   (an A2 arm lost 103 min of real tool work to it); locked by `test_conversation_tool_budget.py`.
 - **A tool that RAN and failed is not an error anywhere.** `last_tool_calls` records only what the model *attempted*;
   a tool returning `ok=False` raises nothing and sets no turn error, so the turn reads as a normal reply over a graph
@@ -109,7 +109,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   against the broken code (that's how `report=None` for EVERY event survived from streaming's introduction until a
   real bench run made 16 successful calls and recorded zero outcomes); and read-only tools (`sync`, `inspect_node`)
   legitimately have no report, so "no report" can't be treated as failure. Locked by `test_conversation_tool_budget.py`
-  and `test_bench.py::TestReport`.
+  and `test_e2e.py::TestReport`.
 - **A tool that RAISED was invisible in a strictly worse way — and the framework's logging discipline could not have
   caught it.** Mirascope's `AsyncTool.execute` (`mirascope/llm/tools/tools.py`) wraps the call in
   `except Exception as e: result = str(e); error = ToolExecutionError(e)`. The exception never crosses back into
@@ -155,11 +155,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   would put a second copy of the transcript in every record. `_GROUNDING_TOOLS` in `bench/arms.py` must track the
   tool signatures: a new grounding-carrying tool missing from it records as if it had no grounding to carry.
   Found in `r12-raise-probe`: two `anchor:ok` calls, two perspectives, ZERO `Grounded in:` lines.
-  Locked by `test_conversation_tool_budget.py::TestToolCallArgsAreRecorded` and `test_bench.py`.
+  Locked by `test_conversation_tool_budget.py::TestToolCallArgsAreRecorded` and `test_e2e.py`.
 - **`submit_stream` did not reset `last_tool_results` between turns** (`submit` always did). Stale outcomes attribute
   a crash to a healthy turn *and* leave the healthy turn's own tools looking unreported — both halves of the
   misdiagnosis this cluster keeps producing. Reset alongside `last_tool_calls` in both paths.
-- **The judge's rubric is a prompt, and its slot order outweighs some of what it scores.** `tests/bench/judge.py`'s
+- **The judge's rubric is a prompt, and its slot order outweighs some of what it scores.** `tests/e2e/judge.py`'s
   `_JUDGE_PROMPT` explicitly discounts length, eloquence, framework vocabulary and agreement — and it works for those.
   It says nothing about position, and measurement says it cannot: whichever arm sat in the **Y** slot scored **+0.35** of
   a 5-point step higher (288 scores in `decision-strong-r3`; per-comparison mean +0.354, sd 0.704, n=24, t=2.5; Y won
@@ -171,13 +171,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   reading rows; and **any new rubric dimension must be assumed position-sensitive** until the reported bias says
   otherwise. Also record `Comparison.session_label`: a delta pooled over sessions cannot be attributed, and the
   `decide`-vs-`wobble` split is what localised A2's `earned_confidence` loss (−1.50 vs −0.50) to the commitment turn.
-  Locked by `test_bench.py::TestJudgeSetup`, `TestPositionBias`, `TestReportedBiasAndSessions`.
+  Locked by `test_e2e.py::TestJudgeSetup`, `TestPositionBias`, `TestReportedBiasAndSessions`.
 - **A judged delta printed without its interval is not a measurement, and this report printed 48 of them**
   (fixed 2026-08-13). Reviewing anything at the third altitude means reading a bench report, so the report's own
   honesty is part of this map. `report.py` rendered every judged gap as a bare two-decimal mean with neither n nor
   spread — *the same defect the 2026-08-11 audit already fixed for RATES* ("Rates printed to two decimals with no
   n"), never carried across to the rows the product claim rests on. The floor is now measured rather than assumed:
-  `tests/bench/noise_floor.py` pools the 300 saved (run, arm-pair, dimension) delta rows and finds the
+  `tests/e2e/noise_floor.py` pools the 300 saved (run, arm-pair, dimension) delta rows and finds the
   within-dimension sd of a delta has median **1.11 rubric steps** → 95% half-width ~0.63 at n=12, ~1.25 at n=3;
   MDE(80%) 0.89 / 0.63 / 0.45 at n=12 / 24 / 48. It is a committed script, not a pasted constant, because the floor
   is a property of THIS judge and THIS rubric and drifts whenever either is re-worded. Applied to r16: **of 48
@@ -195,9 +195,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   this bench: **the noisiest dimensions are the ones the fixes target** (median sd: actionability 1.48, convergence
   1.38, paired_recipe 1.31, decision_closure 1.30; warmth 0.67 is the quietest), so a rubric-side reword that
   reduces variance buys more than a prompt-side gain of the same size. Locked by
-  `test_bench.py::TestDeltasCarryTheirUncertainty` and the render tests in `TestReportedBiasAndSessions`.
+  `test_e2e.py::TestDeltasCarryTheirUncertainty` and the render tests in `TestReportedBiasAndSessions`.
 - **70% of that noise is the transcripts, not the judge — so a prompt-side reword cannot rescue an underpowered
-  run.** `tests/bench/judge_variance.py` uses the two runs that were re-judged from their own saved transcripts
+  run.** `tests/e2e/judge_variance.py` uses the two runs that were re-judged from their own saved transcripts
   (`decision-strong-r3`/`-rejudged`, `decision-strong-r4`/`-rejudged`) as a same-pair-twice design: matching
   comparisons by (scenario, tier, replicate, arm pair, session) gives 9 pairs scored under two independent judge
   passes, and `Var(pass1 - pass2) = 2*sigma_judge^2` isolates the judge component. Median sigma_judge **0.61**
@@ -214,7 +214,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   error at this altitude.** They are repeated measures on the same transcript pair (which is why r16's delta is
   n=12, not n=144), so `report.py` now prints a **composite** — each pair's mean across dimensions, one
   independent value per pair — ABOVE the dimension table, with n counted in PAIRS and an explicit "every row
-  below is a subscale of this" line. `tests/bench/endpoint_power.py` measures why over all 25 saved (run,
+  below is a subscale of this" line. `tests/e2e/endpoint_power.py` measures why over all 25 saved (run,
   arm-pair) sets: composite sd **0.76** vs per-dimension median **1.08**, ratio **0.70** with a narrow spread
   (0.47-0.94), so the advantage is a property of the rubric rather than of one run. A 0.5-step effect needs ~19
   pairs on the composite against ~37 on a single dimension, and **nothing under ~0.4 steps is reachable at any
@@ -227,11 +227,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   that happened to move is choosing an endpoint after seeing the data. Before 2026-08-13 the composite was
   hand-computed in the README for exactly one run, which is how "read this delta as underpowered" ended up as an
   after-the-fact paragraph instead of a printed interval. Locked by
-  `test_bench.py::TestThePrimaryEndpointIsPrinted`.
+  `test_e2e.py::TestThePrimaryEndpointIsPrinted`.
 - **A single run's session split is a LEAD, never a finding — pool the archive before writing it up.** This bullet
   used to assert "the framework arm is level at the opening and loses it under pushback", from r16's composite
   split: opening (`decide`) **+0.56**, follow-up (`wobble_*`) **-0.67**, within-replicate change **-1.22**, twice
-  anything else in the run and invisible in the pooled -0.37. `tests/bench/across_runs.py` stacks every saved run
+  anything else in the run and invisible in the pooled -0.37. `tests/e2e/across_runs.py` stacks every saved run
   against it: over 14 (run, arm-pair, tier) sets the durability change is **+0.006** (sd 0.68, CI [-0.39,+0.40],
   negative in 6 of 14, sign p=0.79), and **r16's -1.22 is the most extreme value in the archive in either
   direction**. The split remains a sound DECOMPOSITION — a pooled row cannot distinguish "worse throughout" from
@@ -261,7 +261,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   each separately reuses one number twice and narrows the interval by ~sqrt(2) for free. Machine scores are pure
   functions of saved transcripts, so `rerender.py` re-runs them: a scorer added today reaches the whole archive for
   free (judge-derived `wobble`/`stance`/`memory` are preserved, never recomputed). Locked by
-  `test_bench.py::TestDurabilityUnderPressure`, `TestClosureRateAcrossTheBoundary`, `TestPoolingAcrossRuns`.
+  `test_e2e.py::TestDurabilityUnderPressure`, `TestClosureRateAcrossTheBoundary`, `TestPoolingAcrossRuns`.
 - **The standing bench result, pooled over the whole archive: A2 LOSES to a prompt on the weak model, and the loss
   resolves.** Any prompt review at this altitude starts from this number, not from the last run's report. One value
   per run, A2's composite against the strongest prompt arm that run judged: **weak model n=14, mean -0.447, CI
@@ -275,7 +275,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   -0.55), while the framework's OWN dimensions lose least (`actionability` -0.11 unresolved,
   `blindspot_specificity` -0.18 unresolved, `non_triviality` -0.28, `tension_coverage` -0.29).
   **Pool on the MODEL, never on the tier LABEL — a correction that moved this number (2026-08-14).** `tier` is a
-  slot `BenchConfig` maps from `DIALEXITY_BENCH_TIER_WEAK`, so it says nothing about which model ran.
+  slot `E2EConfig` maps from `DIALEXITY_E2E_TIER_WEAK`, so it says nothing about which model ran.
   `ladder-return-r18` pointed the weak slot at Sonnet 5 on purpose, and every pooled weak-tier reader then averaged
   Sonnet into haiku: this line read **n=15, -0.404, negative in 14 of 15**, where the lone "exception" WAS the
   Sonnet run. The same leak (plus a scenario leak — `series()` tested "has exactly one scenario" instead of naming
@@ -284,7 +284,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   admitted it, because it grouped on `cell.tier`. General form: **a label that an env var assigns cannot carry an
   experimental guarantee — group on the recorded fact.** Fixed in `across_runs.tier_model`/`pooled_model`
   (`probe_five_fixes` too; `judge_notes` deliberately exempt — it returns attributable rows, not means), pinned by
-  `test_bench.py::TestATierLabelIsNotAModel`. The dialectics are not adding
+  `test_e2e.py::TestATierLabelIsNotAModel`. The dialectics are not adding
   nothing — they are being **paid for in conversation quality**, which is exactly what `ceiling-not-floor` forbids,
   so a prompt change that buys structure at the cost of fit/warmth/closure is moving the wrong way even when its
   own subscale improves. Two explanations REFUTED, so neither is re-proposed as the cause. (a) *Validity defects* —
@@ -296,8 +296,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   forced. What stays open is the tier the product claim actually needs: **-0.06 at n=4 is a shrug**, consistent both
   with "the deficit closes as base models improve" and with noise, and a powered strong-tier run is the only
   remaining measurement that could support the claim. Powering the weak tier further buys a more precise loss.
-  Printed by `tests/bench/across_runs.py` (free, no LLM); pooling helpers locked by
-  `test_bench.py::TestPoolingAcrossRuns` (baseline choice is the strongest prompt arm PRESENT, so pre-A1.7 runs
+  Printed by `tests/e2e/across_runs.py` (free, no LLM); pooling helpers locked by
+  `test_e2e.py::TestPoolingAcrossRuns` (baseline choice is the strongest prompt arm PRESENT, so pre-A1.7 runs
   still pool and no easy A0 win enters the average).
 - **The one archive-wide result the framework WINS, and it is not judged: a promise that must be kept.**
   Prints from the same script, immediately below the loss above, so neither can be quoted alone. Scenario turns
@@ -320,7 +320,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   *A2* defect), and counting a `**Decision:**` heading as a lie (charged the prose arms 10 lies they did not tell
   — typing the decision out is the honest ceiling of a reply-only arm, tracked as `typed_only`, and is a tell only
   in an A2 cell where a store exists and went unused). Locked by
-  `test_bench.py::TestAPromisedRecordMustExist` (one test per bug) and `TestPoolingAcrossRuns`'s `fisher_exact`
+  `test_e2e.py::TestAPromisedRecordMustExist` (one test per bug) and `TestPoolingAcrossRuns`'s `fisher_exact`
   cases.
 - **…and it bought nothing judged, because the record was never SPOKEN.** The follow-up to the win above, and
   the more useful half for prompt work. Holding the opponent fixed at A1.7 and restricting to cells where a
@@ -335,7 +335,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   prose. Both halves now render, and the closing turn may only consolidate — no new either/or, no fresh caveat
   after it. Holding the opponent constant is mandatory here, not stylistic: unpaired, half the unmet-request
   cells face a weak rung against 15% of the honoured ones, and the rung effect swamps the contrast. Locked by
-  `test_bench.py::TestTheOpponentChangesWhichDimensionsLose`.
+  `test_e2e.py::TestTheOpponentChangesWhichDimensionsLose`.
 - **Which arm A2 faces changes WHICH dimensions it loses — the uniform tax is opponent-independent, the
   closure loss is journal-specific.** `across_runs.py::rung_rows`. Weak tier, cell level: `conversational_fit`
   −1.05 vs A0/A1 and −0.74 vs A1.7 (gap −0.31), `warmth` −0.62/−0.73 (+0.11) — the opponent barely matters, so
@@ -349,7 +349,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   one build, where the ordering survives (mean gap +0.94, closure +1.31, fit +0.25) on 8–16 cells per side.
   Settling it needs one run judging both rungs on the same build.
 - **Five weak-tier prompt gaps found by READING the judge's 531 rationales, not by guessing.**
-  `tests/bench/judge_notes.py` extracts per-dimension rationale for lost cells with X/Y de-randomised; every fix
+  `tests/e2e/judge_notes.py` extracts per-dimension rationale for lost cells with X/Y de-randomised; every fix
   below was verified ABSENT first, and the key negative result is that the engine had **no accumulation rule at
   all** (`already answered`, `asked before`, `re-ask`, `previous turn`, `accumulat`, `carry forward` = 0 matches
   across every section constant) and `_HOW_YOU_SPEAK` had no rule about conceding. All five sit in the
@@ -441,7 +441,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   lane's own debt bites — a fact makes resizing *defensible*, and the binary held/abandoned judge cannot separate
   "correctly resized" from "capitulated" (the zero-vs-resize split had to be counted by hand). Fixing the
   arithmetic clause before fixing that would optimise against a scorer that cannot see the difference.
-- **Four of those five fixes cannot be measured, and finding that out was free.** `tests/bench/probe_five_fixes.py`
+- **Four of those five fixes cannot be measured, and finding that out was free.** `tests/e2e/probe_five_fixes.py`
   counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
   judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their
   structural goal completely and moved no judged row). Results: fix 1 has **no room to move** (the person
@@ -470,9 +470,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   as the guard against fixing frequency by dropping prices. Standing lesson, now the third instance (r4's
   position bias, the election-vs-record scorer, this): **a new scorer's first version tends to point the
   flattering-or-damning way its author already expected — validate it by SAMPLING the strings it matched**, not
-  by reading its regex. Locked by `test_bench.py::TestAMenuIsNotANumberedList`.
+  by reading its regex. Locked by `test_e2e.py::TestAMenuIsNotANumberedList`.
 - **The two ported-protocol judges are single-item, not paired, and their prompts carry the whole port.**
-  `tests/bench/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
+  `tests/e2e/judge.py` also holds `_STANCE_PROMPT` (SycEval, arXiv:2502.08177) and `_MEMORY_PROMPT` +
   `_ABILITY_NOTES` (LongMemEval, arXiv:2410.10813). Three properties are load-bearing and each is a prompt
   decision, not a code one. (a) *Per-item isolation*: each rebuttal rung and each memory probe is judged with
   no transcript — a judge shown the whole ladder anchors on its first impression and reports a smooth
@@ -487,9 +487,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   never taken — hence `StanceJudge.ESTABLISH_TAG`), and only `regressive` is comparable to the paper's 14.66%
   (the ladder argues AGAINST the position, so nothing in it can correct an arm toward it; the reverse movement
   is named `late_adoption` for exactly that reason). Both DTOs order their neutral/failing value FIRST so a
-  `mock_brain` run never prints as a clean sweep. Locked by `test_bench.py::TestStanceScore`,
+  `mock_brain` run never prints as a clean sweep. Locked by `test_e2e.py::TestStanceScore`,
   `TestMemoryScore`, `TestPortedScenarios`, `TestPortedReportSections` and
-  `test_bench_ported_lanes.py` (mocked wiring, incl. the silent-`judge failed` guard).
+  `test_e2e_ported_lanes.py` (mocked wiring, incl. the silent-`judge failed` guard).
   **The lane's ordinal is a FLOOR at both tiers, and that is a product finding, not a harness fault**
   (measured `ladder-return-r16` haiku, `ladder-return-r18` Sonnet 5 — 72 of 72 cells at `break_depth` 1).
   r16's zero variance was diagnosed as the tier; r18 swapped haiku → Sonnet 5, held n=12, and got the SAME
@@ -504,7 +504,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   because the rationale declares the risk void. That is the co-primary disagreement the pair was designed to
   expose, arriving as a gain beside a floor rather than beside a loss; a composite would have scored it as
   memory. Fixing the lane means a rung the arm can hold, not a stronger model. Pinned by
-  `test_bench.py::TestR18LadderReturnResult`.
+  `test_e2e.py::TestR18LadderReturnResult`.
 
 ### Stack B — Structured concern call (Mirascope, `concerns/*.py`)
 
@@ -920,7 +920,7 @@ annotation) → **GenerateSynthesis**
   `[[short_hash]]`. Load-bearing for this lifecycle, not cosmetic — `record_decision` asks for the CHOSEN side's
   `-` aspect as the `accepted_cost` ground and the re-audit reassures FROM it; while aspect lines were unaddressed
   the only hash in view was the Perspective's, so every observed recording grounded on the tension instead of the
-  cost and the re-audit had nothing specific to point back to (caught by `tests/bench`). `_TOOL_DOCS["record_decision"]`
+  cost and the re-audit had nothing specific to point back to (caught by `tests/e2e`). `_TOOL_DOCS["record_decision"]`
   names the aspect hash explicitly. Locked by `test_dialectical_context.py::test_aspect_lines_are_addressable`.
   **Second addressability surface — the anchor RESULT** (fixed 2026-08): the dump is not the only place aspect hashes
   are needed. A decision reached in the FIRST session has no dump at all — the only artifact in view is
@@ -1001,7 +1001,7 @@ annotation) → **GenerateSynthesis**
   prompt rule governs whether to CALL something, it belongs in the tool doc too.** Bench-side, the symptom is
   double-counted unless attributed: the missing record made the wobble (a) variant unanswerable, so the row read
   as the framework losing the re-audit (`RunRecord.prose_only_decision` /
-  `wobble_a_without_a_record` in `tests/bench/models.py` name the cause once).
+  `wobble_a_without_a_record` in `tests/e2e/models.py` name the cause once).
   **RESOLVED IN CODE, not in the prompt** (live since 2026-08-10): the prompt layer was the wrong layer. Firing
   rate was 6/6 strong vs **0/6 weak** on identical text, and three rounds of strengthening (the prose paragraph,
   the `record_decision` tool doc, the `explore` threshold) moved the weak tier by zero. A decision is a
@@ -1065,7 +1065,7 @@ annotation) → **GenerateSynthesis**
   `anchor` built 5-7 tensions each. Those cells closed decisions over a graph with no nexus, no cycle, no wheel,
   no transformation and no synthesis: **the differentiator never executed**, so the "framework arm" was a prompted
   model with tetrads bolted on and every judged row from it measured `anchor`, not Structured Dialectics. Not a
-  capability limit — `tests/bench/probe_explore_reachability.py` shows the weak tier calling `explore` unprompted
+  capability limit — `tests/e2e/probe_explore_reachability.py` shows the weak tier calling `explore` unprompted
   when a turn asks for a causal map — so it is ELECTION, and election at the closing turn is exactly what the
   decision-repair lesson says belongs in code. The seam fires only inside `_repair_unrecorded_decision` AFTER the
   confirmation verdict passes (never a background weaver: mid-exploration weaving would burn latency on
@@ -1247,13 +1247,13 @@ annotation) → **GenerateSynthesis**
   General form: **before writing a prompt rule from a measured rate, check the measurement can see the thing the
   rule changes** — the sibling of "count the behaviour before writing the rule", one level down.
   **And the same rate was DOUBLE-COUNTED** (corrected 2026-08-14, first reported as 6 of 24 / 0 of 160, actually
-  3 of 12 / 0 of 80). The ad-hoc counter globbed `tests/bench/results/*.json` without excluding the `-runs.json`
+  3 of 12 / 0 of 80). The ad-hoc counter globbed `tests/e2e/results/*.json` without excluding the `-runs.json`
   sidecars, which hold a duplicate copy of every run, so each decision was counted twice. The rate, the
   scenario-locality and therefore the fix all survive unchanged at 25% — but a one-off script that re-implements
   archive loading re-opens a hole the shared helper had already closed (`probe_five_fixes._stems()` carries the
   exclusion; the cross-tab escaped because it deduplicated by hash). General form: **a throwaway counting script
   reuses the archive loader or it inherits none of its fixes**; promote it under `tests/` while the number is
-  still being quoted, not after (`tests/bench/probe_rationale_integrity.py` is where this one lives now, and it
+  still being quoted, not after (`tests/e2e/probe_rationale_integrity.py` is where this one lives now, and it
   reports the graph-captured side and the dump proxy side apart, never merged).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
@@ -1434,7 +1434,7 @@ annotation) → **GenerateSynthesis**
   no-context no-op, failure isolation, grounding-before-validation, plus
   `TestAnchorBranchesGroundAlike` — both branches ground, `ingest` still does not), and
   `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
-  specifics, the reason is stated, the Field agrees). Measured by `bench/test_bench.py::TestCarriedParticulars`,
+  specifics, the reason is stated, the Field agrees). Measured by `bench/test_e2e.py::TestCarriedParticulars`,
   `TestCarryoverIsRecorded`, `TestParticularsAreWellFormed` (a particular form may not collide with a pole marker, or
   the carry probe and the symmetry share agree by construction) and `TestParticularsReporting` (an unrecorded artifact
   renders `--` and a warning, never a zero — the same absence-is-not-failure rule as `cited_record`).

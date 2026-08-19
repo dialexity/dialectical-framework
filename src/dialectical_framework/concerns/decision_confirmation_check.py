@@ -9,7 +9,7 @@ the assistant has to infer at its own discretion — so whether a record gets
 written must not depend on the conversational model electing to call a tool at
 exactly the moment it is most inclined to simply answer well.
 
-Measured (`tests/bench/README.md`, "the ceremony is tier-gated"): with the same
+Measured (`tests/e2e/README.md`, "the ceremony is tier-gated"): with the same
 prompt, the same tools and the same scenario, `record_decision` fired 6/6 at the
 strong tier and **0/6** at the weak tier. The weak tier's failure was identical
 every time — asked to "write that down as the decision", it produced a

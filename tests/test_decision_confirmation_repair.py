@@ -1,7 +1,7 @@
 """
 The decision record is a user-driven artefact, so it cannot be elective.
 
-Measured before this seam existed (`tests/bench/README.md`, "the ceremony is
+Measured before this seam existed (`tests/e2e/README.md`, "the ceremony is
 tier-gated"): with identical prompt, tools and scenario, `record_decision` fired
 **6/6 at the strong tier and 0/6 at the weak tier**. The weak tier failed the
 same way every run — asked to "write that down as the decision", it produced a
@@ -530,7 +530,7 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
     differentiator never ran, so the arm was a prompted model with tetrads
     bolted on, which is what the judged rows then measured.
 
-    A direct probe (`tests/bench/probe_explore_reachability.py`) confirmed the
+    A direct probe (`tests/e2e/probe_explore_reachability.py`) confirmed the
     weak tier CAN call `explore` unprompted when a turn asks for a causal map.
     So this is election, not capability — same diagnosis, same remedy as the
     decision repair above.

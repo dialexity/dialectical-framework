@@ -92,7 +92,7 @@ class TestAspectsStayDistinctFromPolesOnARealModel:
     # `di_container` is cyclic, which HANGS the serializer (CLAUDE.md).
     @pytest.mark.parametrize("t_text,a_text", PAIRS)
     async def test_no_aspect_is_its_own_pole(self, di_container, t_text, a_text):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         case = Case()
         case.commit()

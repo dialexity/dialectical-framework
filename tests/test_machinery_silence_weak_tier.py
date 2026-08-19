@@ -84,9 +84,9 @@ class TestTheMachineryStaysQuiet:
         ),
     )
     async def test_no_framework_vocabulary_reaches_the_person(self, di_container):
-        from bench.modelctx import using_model
-        from bench.scoring import score_machinery_leak
-        from bench.models import SessionRecord, TurnRecord
+        from e2e.modelctx import using_model
+        from e2e.scoring import score_machinery_leak
+        from e2e.models import SessionRecord, TurnRecord
 
         case = Case()
         case.commit()

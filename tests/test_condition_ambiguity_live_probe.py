@@ -66,7 +66,7 @@ class TestLiveConditionAmbiguity:
     @pytest.mark.timeout(1200)
     # Deliberately NOT @traced — serializing `di_container` HANGS (CLAUDE.md).
     async def test_report_minus_aspect_multiplicity(self, di_container):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
             ExpandPolarity

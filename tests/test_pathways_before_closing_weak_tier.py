@@ -8,7 +8,7 @@ hold on the SAME turn:
 1. a decision the person confirmed reaches the graph, and
 2. the tensions it closed over got woven into an arrangement.
 
-The measurement that motivates (2), from `tests/bench/README.md`: `explore` fires
+The measurement that motivates (2), from `tests/e2e/README.md`: `explore` fires
 in 6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all six cells of
 `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7 tensions
 each. Decisions closed over a graph with no nexus, no cycle, no wheel, no
@@ -23,7 +23,7 @@ leaves the scope, the DI container or the conversation in a state
 the failure the repair exists to prevent, on the exact path meant to enrich it.
 `claim2-weak-r8-pathways` / wobble_b closed on an unambiguous "write that down as
 the decision" and recorded NOTHING, while a replay of that turn's classifier
-(`tests/bench/probe_confirmation_on_r8_wobble_b.py`) returns
+(`tests/e2e/probe_confirmation_on_r8_wobble_b.py`) returns
 `confirmed=True, is_recordable=True` on this same tier. So the loss is
 downstream of the verdict, and this test is where that gets caught.
 
@@ -88,7 +88,7 @@ class TestWeakTierClosesOnPathways:
     async def test_a_confirmed_decision_leaves_a_record_and_a_pathway(
         self, di_container
     ):
-        from bench.modelctx import using_model
+        from e2e.modelctx import using_model
 
         case = Case()
         case.commit()
@@ -125,7 +125,7 @@ class TestWeakTierClosesOnPathways:
             "The person explicitly confirmed a decision and no Decision node "
             "reached the graph. The confirmation classifier is NOT the suspect "
             "— it returns confirmed=True on this exact turn at this exact tier "
-            "(tests/bench/probe_confirmation_on_r8_wobble_b.py). Look for a "
+            "(tests/e2e/probe_confirmation_on_r8_wobble_b.py). Look for a "
             "fail-soft exception logged between the verdict and RecordDecision, "
             "which is where pathway construction now sits."
         )
