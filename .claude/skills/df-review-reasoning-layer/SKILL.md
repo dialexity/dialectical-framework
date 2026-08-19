@@ -213,6 +213,15 @@ anchors.
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
       the person has already supplied it.
+- [ ] **A ceremony hardened in one direction has an unmeasured other direction — check it before hardening
+      again.** `_DECISION_READINESS` has been strengthened four times against WITHHOLDING a record, and the
+      opposite pole went unmeasured until a control scenario looked: on `premature_relocation`, whose
+      pre-registered right answer is "you do not have enough to decide yet", **12 of 12 A2 cells recorded anyway**
+      (26 Decision nodes, `DecisionCoherenceCheck` 25 passed / 1 failed) and A2 **lost** that control's blended
+      composite. UNFIXED on purpose — decision *timing* appears nowhere in the eight generative rules, so this is
+      a design conflict rather than a defect against spec, and a prompt-only fix could not bind anyway (the
+      code seam repairs an unrecorded confirmation back in). Do not write the restraining rule as a prompt patch;
+      see the `r23-controls` entry under Decision lifecycle in reference §4 for the three constraints on any fix.
 - [ ] **Accumulation and concession are register-independent, so verify the SCOPED render too.** Counsel mode
       swaps `_ROLE`/`_HOW_YOU_SPEAK`/`_REJECTION_HANDLING` for scoped variants; a conversational rule that only
       lands unscoped silently exempts the toggle (`TestWhatTheJudgeSaidWasWrong` asserts both).

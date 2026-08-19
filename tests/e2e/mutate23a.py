@@ -11,10 +11,19 @@ which cells `drop_invalid` deletes, so every branch of it gets a mutation:
   4. writer side removed          -> the fix inert on every new run
   5. field default flipped        -> archived records silently revalidated
 
-The smoke run also moved the archive's own claim from "no control has ever RUN"
-to "no control has been READ", stated at four sites across two files. Nine more
-mutations check that it cannot drift apart (6-14): one per site, plus three that
-sneak a CELL COUNT back next to the claim.
+The claim about the controls has moved twice: the smoke run took it from "no
+control has ever RUN" to "no control has been READ", and r23 retired it on
+2026-08-19 by reading both. Nine mutations (6-14) hold the sites in place, and
+they now split by KIND, which is the point:
+
+  * live surfaces (printed guide, README item 6) carry the r23 RESULT, and a
+    mutation that reports the passing tripwire without the control the framework
+    LOST must be caught — the flattering half alone is the failure mode here
+  * the append-only log holds the superseded wording VERBATIM; a mutation that
+    "helpfully" updates it must be caught too, because a record of being wrong
+    edited into a record of being right is the thing the log is for
+
+Plus three that sneak a CELL COUNT back next to the live claim.
 
 THREE WAYS THIS SCRIPT OR ITS PINS HAVE LIED, all fixed here:
 
@@ -51,7 +60,7 @@ README = ROOT / "tests" / "e2e" / "README.md"
 #: reporting a false CAUGHT — which is the behaviour its docstring promises.
 ROUNDS = ROOT / "tests" / "e2e" / "rounds.md"
 
-SURFACES = "test_all_three_surfaces_say_read_not_run"
+SURFACES = "test_the_live_surfaces_carry_the_result_and_the_log_keeps_its_history"
 
 MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     (
@@ -96,17 +105,25 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     ),
     # -- the "READ, not RUN" claim, one mutation per site ------------------
     (
-        "printed report reverts to 'EVER RUN'",
+        "printed guide reverts to the retired 'NO CONTROL HAS BEEN READ'",
         REPORT,
-        "NO CONTROL HAS BEEN READ",
-        "NO CONTROL HAS EVER RUN",
+        "READ 2026-08-19 (r23-controls, n=12 strong): NEITHER TRIPWIRE FIRES.",
+        "AS OF 2026-08-18 NO CONTROL HAS BEEN READ: it is an instruction with",
         SURFACES,
     ),
     (
-        "printed report re-quotes a count",
+        "printed guide keeps the pass and drops the control that was LOST",
         REPORT,
-        "premature_relocation have cells only under smoke* stems, which",
-        "premature_relocation have only the 4 cells of smoke-r23-wiring, which",
+        '    add("   premature_relocation NI -0.472 [-1.094,+0.150] passes, and A2 LOSES")\n'
+        '    add("   its blended composite -0.767 [-1.504,-0.029], warmth included.")\n',
+        '    add("   premature_relocation NI -0.472 [-1.094,+0.150] also passes.")\n',
+        SURFACES,
+    ),
+    (
+        "printed guide rounds the 0.016 margin away",
+        REPORT,
+        '    add("   poorfit_ssl_expiry +0.333 [-0.016,+0.683] passes by 0.016 — the same")',
+        '    add("   poorfit_ssl_expiry passes comfortably — the same")',
         SURFACES,
     ),
     (
@@ -124,10 +141,10 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
         SURFACES,
     ),
     (
-        "reading guide item 6 reverts",
+        "README item 6 keeps the verdict and drops the 0.016 margin",
         README,
-        "has been READ. This line stood",
-        "has been read. This line stood",
+        "clears zero by **0.016** on a",
+        "clears zero on a",
         SURFACES,
     ),
     (
@@ -145,10 +162,10 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
         SURFACES,
     ),
     (
-        "reading guide 6 re-quotes a count",
+        "README item 6 drops the LOST control's number",
         README,
-        "`premature_relocation` have cells only under `smoke*` stems",
-        "`premature_relocation` have only the 4 cells under `smoke*` stems",
+        "premature\n   control at **\u22120.767 [\u22121.504, \u22120.029]**, `warmth` included",
+        "premature\n   control, `warmth` included",
         SURFACES,
     ),
     (

@@ -8869,8 +8869,8 @@ class TestThePoorFitControlWasNeverTheControl:
         assert "**zero cells across every saved run**" in block
         assert "its name had been quietly transferred" in block
 
-    def test_the_controls_have_no_cells_any_pooled_read_would_see(self):
-        """The claim, recomputed — and narrowed twice, both times by reality.
+    def test_a_control_that_has_run_in_a_readable_stem_is_written_up(self):
+        """The claim, narrowed three times, each time by reality.
 
         v1 asserted "392 saved runs". Superseding `r22-strong-pooled` changed the
         canonical total to 372 and the pin failed on a documentation edit: the
@@ -8883,9 +8883,13 @@ class TestThePoorFitControlWasNeverTheControl:
         what a 1-replicate wiring smoke establishes, and `_stems()` excludes
         `smoke*` from every pooled read for exactly that reason.
 
-        So the claim is now the one that carries the weight: no cell a POOLED READ
-        would see. If a non-smoke stem ever produces control cells, r23 has run,
-        and this test's job is to demand the write-up.
+        v3 said: no cell a POOLED READ would see, and "if a non-smoke stem ever
+        produces control cells, this test's job is to demand the write-up."
+        `r23-controls` produced 48 of them on 2026-08-19, so the demand is now the
+        assertion — the test no longer defends the absence, it defends that the
+        presence got read. `TestR23ControlResultIsWrittenUp` checks the numbers
+        against the archive; this one only checks that no readable stem's controls
+        went unmentioned, which is the part that generalises to r25 and after.
         """
         import json
         from pathlib import Path
@@ -8895,28 +8899,28 @@ class TestThePoorFitControlWasNeverTheControl:
         results = Path(__file__).resolve().parent / "results"
         if not any(results.glob("*.json")):
             pytest.skip("archive absent (results/ is gitignored)")
-        readable: dict[str, set[str]] = {}
-        smoked: set[str] = set()
+        readable: set[str] = set()
         for path in results.glob("*.json"):
             stem = path.stem
+            if (
+                stem.startswith("smoke")
+                or stem.endswith(("-runs", "-rejudged"))
+                or stem in SUPERSEDED
+            ):
+                continue
             for run in json.loads(path.read_text()).get("runs") or []:
-                key = run["scenario_key"]
-                if key not in ("poorfit_ssl_expiry", "premature_relocation"):
-                    continue
-                excluded = (
-                    stem.startswith("smoke")
-                    or stem.endswith(("-runs", "-rejudged"))
-                    or stem in SUPERSEDED
-                )
-                (smoked if excluded else readable.setdefault(key, set())).add(stem)
-        assert readable == {}, (
-            "a control has RUN in a stem a pooled read would see "
-            f"({readable}) — write the result up and retire this test; the "
-            "README's 'no control has been read' claim is now false"
+                if run["scenario_key"] in (
+                    "poorfit_ssl_expiry",
+                    "premature_relocation",
+                ):
+                    readable.add(stem)
+        rounds = _rounds()
+        unwritten = sorted(s for s in readable if s not in rounds)
+        assert not unwritten, (
+            f"control cells exist in {unwritten} and rounds.md never names the "
+            "stem — a control that ran and was not read is worse than no control, "
+            "because the archive now looks like it has one"
         )
-        # Positive half: the smoke cells DO exist, so the README's "4 cells, all
-        # smoke" annotation is not itself stale prose.
-        assert smoked, "the smoke-r23-wiring cells vanished — the README cites them"
 
 
 class TestThePoorFitControlDeletedItsOwnPassingEvidence:
@@ -8989,17 +8993,31 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
             + ", ".join(f"{c.arm.value}/{c.scenario_key}" for c in dropped)
         )
 
-    def test_all_three_surfaces_say_read_not_run(self):
-        """The claim narrowed from "never run" to "never read" when the smoke run
-        produced its first control cells. It is stated in three places — the README
-        correction block, the README reading guide, and every printed report — and a
-        reader who sees "never run" in one and control cells in the archive learns
-        to distrust all three. So they move together or the test fails.
+    def test_the_live_surfaces_carry_the_result_and_the_log_keeps_its_history(self):
+        """The claim went "never RUN" → "never READ" → **read**, in eight days.
 
-        And NO SITE MAY QUOTE A CELL COUNT. The first draft said "4 cells" at three
-        sites; re-smoking the fix made all three stale within the hour, which is the
-        "392 saved runs" brittleness again. The claim is *which stems*, which the
-        `smoke*` rule fixes for good.
+        Its first two forms were pinned at three sites that had to move together,
+        because a reader who sees "never run" in one and control cells in the
+        archive learns to distrust all three. r23 retired the claim outright on
+        2026-08-19, and that splits the sites into two kinds that must NOT move
+        together any more:
+
+        * **Live surfaces** — the printed reading guide and README item 6. These
+          are read as current state, so they carry the result. A stale "no control
+          has been READ" here is a false statement to the next reader, and the
+          worse failure mode is subtler: a reader who is told the control passed,
+          with neither qualification attached, has been handed the flattering half.
+          So the pass and both qualifications are pinned as a unit.
+        * **The append-only log** — rounds.md's correction block and r23 census
+          annotation. These are provenance and stay VERBATIM. Editing them to
+          match today's state is how a record of being wrong becomes a record of
+          having always been right.
+
+        The count ban survives on the live surfaces and is why it was there: the
+        first draft quoted "4 cells" at three sites and re-smoking made all three
+        stale within the hour. r23's own numbers are quoted deliberately and are
+        pinned against the archive in `TestR23ControlResultIsWrittenUp`, which is
+        the difference between a count and a result.
         """
         import inspect
         import re
@@ -9007,15 +9025,9 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
 
         from e2e.report import render_report
 
-        # The claim spans BOTH prose surfaces since the 2026-08-19 split, and each
-        # site is pinned to the file that actually holds it rather than to a
-        # concatenation of the two. Concatenating would let a site migrate between
-        # documents unnoticed — and "which document says it" is part of this claim:
-        # the reading guide's copy is the instruction a reader follows, while the
-        # census annotation is provenance that must stay in the append-only log.
         raw = (Path(__file__).resolve().parent / "rounds.md").read_text()
         # Blockquote markers are stripped BEFORE whitespace-normalising: two of the
-        # three sites live inside `>` blocks, and a wrapped line otherwise
+        # historical sites live inside `>` blocks, and a wrapped line otherwise
         # normalises to "...has > been READ", which no readable assertion matches.
         def _surface(name: str) -> str:
             text = (Path(__file__).resolve().parent / name).read_text()
@@ -9027,66 +9039,99 @@ class TestThePoorFitControlDeletedItsOwnPassingEvidence:
         # an empty report still prints it in full.
         printed = " ".join(render_report([], [], {}, []).split())
 
-        assert "NO CONTROL HAS BEEN READ" in printed
-        assert "cells only under smoke* stems, which every pooled read" in printed
-        assert "NO CONTROL HAS EVER RUN" not in printed, (
-            "the smoke runs falsified this wording — control cells exist"
-        )
-        # Each site checked by its OWN wording, not by one phrase that happens to
-        # appear somewhere. First version asserted the phrase once, and a mutation
-        # reverting the reading guide alone SURVIVED because the correction block's
-        # copy satisfied the assert. A bare count is the wrong fix too — it broke
-        # on adding a Files-table row, which is a documentation edit, not drift.
-        for site, surface, where in (
-            # correction block, updated when the smoke cells appeared
-            (
-                "by the `smoke*` rule in `_stems()`. **No control has been READ.**",
-                rounds,
-                "rounds.md",
-            ),
-            # r23 census annotation, which is why the census may stay as written
-            (
-                "claim — that **no control has been READ** — still holds",
-                rounds,
-                "rounds.md",
-            ),
-            # reading guide item 6, the instruction a reader actually follows.
-            # This one is REFERENCE, not provenance: it must stay in README.md,
-            # which is the file a fresh session opens.
-            ("has been READ. This line stood", readme, "README.md"),
-        ):
-            assert site in surface, (
-                f"the READ-not-RUN claim lost a site in {where}: {site!r}"
+        # -- the live surfaces: current state, both qualifications attached ------
+        for surface, where in ((printed, "the printed guide"), (readme, "README.md")):
+            assert "NO CONTROL HAS BEEN READ" not in surface.upper(), (
+                f"{where} still says the controls have never been read — r23 read "
+                "them on 2026-08-19"
             )
-        assert "No cell count is quoted here on purpose" in rounds
-        assert (
-            "cells only under `smoke*` stems, which every pooled read excludes; "
-            "no control has been READ" in readme
-        )
-        # A count quoted next to the claim is the failure mode this cost an hour to
-        # learn. Checked against the CLAIM's own sentences, not the whole README,
+            assert "NO CONTROL HAS EVER RUN" not in surface.upper(), where
+        # Per SITE, not per file. README now states the result twice — the standing
+        # caveat and reading-guide item 6 — so a file-wide `"0.767" in readme`
+        # passes while item 6 alone is gutted. Two mutations survived exactly that
+        # way before these were split out, which is this test's oldest lesson
+        # (a pin that asserts a phrase ONCE is satisfied by any of its copies)
+        # arriving for the third time.
+        for label, needle, surface in (
+            ("printed guide: verdict", "NEITHER TRIPWIRE FIRES", printed),
+            (
+                "printed guide: the 0.016 margin",
+                "poorfit_ssl_expiry +0.333 [-0.016,+0.683] passes by 0.016",
+                printed,
+            ),
+            (
+                "printed guide: the control A2 LOST",
+                "A2 LOSES its blended composite -0.767 [-1.504,-0.029], warmth "
+                "included",
+                printed,
+            ),
+            (
+                "printed guide: the instruction still applies to runs without them",
+                "not read a run that omits the controls as having",
+                printed,
+            ),
+            ("README item 6: verdict", "so **neither tripwire fires** and", readme),
+            (
+                "README item 6: the 0.016 margin",
+                "clears zero by **0.016** on a composite the same size as the "
+                "live +0.325 claim",
+                readme,
+            ),
+            (
+                "README item 6: the control A2 LOST",
+                "**loses** the premature control at **−0.767 "
+                "[−1.504, −0.029]**, `warmth` included",
+                readme,
+            ),
+            (
+                "README standing caveat: the 0.016 margin",
+                "passes by **0.016** (+0.333 [−0.016, +0.683])",
+                readme,
+            ),
+            (
+                "README standing caveat: the control A2 LOST",
+                "**loses** `premature_relocation` (−0.767 "
+                "[−1.504, −0.029])",
+                readme,
+            ),
+        ):
+            assert needle in surface, (
+                f"{label} no longer states it: {needle!r}. Quoting the passing "
+                "tripwire without the control the framework lost hands the reader "
+                "the flattering half"
+            )
+        # No cell count next to the live claim — the pre-r23 brittleness, still
+        # banned. Checked against the claim's own wording, not the whole file,
         # which legitimately counts cells elsewhere (372, 432, "8 of 374").
-        for sentence, surface, where in (
-            ("the controls now have cells", rounds, "rounds.md"),
-            ("have cells only under `smoke*` stems", readme, "README.md"),
-        ):
-            assert sentence in surface, (
-                f"claim site rewritten in {where}: {sentence!r}"
-            )
-        # No count may be quoted next to the claim, on EITHER surface.
-        for surface, where in ((rounds, "rounds.md"), (readme, "README.md")):
+        for surface, where in ((printed, "the printed guide"), (readme, "README.md")):
             assert "the controls now have 4 cells" not in surface, where
             assert "only the 4 cells" not in surface, where
-        # The r23 pre-registration's own census says "zero cells in the entire
-        # archive". That is left standing — pre-registered text is not edited after
-        # the fact — but it MUST carry the annotation, or it reads as a live claim
-        # the archive contradicts.
+
+        # -- the append-only log: verbatim, including the wording r23 falsified --
+        for site in (
+            # correction block, as written when the smoke cells appeared
+            "by the `smoke*` rule in `_stems()`. **No control has been READ.**",
+            # r23 census annotation, which is why the census may stay as written
+            "claim — that **no control has been READ** — still holds",
+            # and the count-free wording of the smoke-cell update. This was a LIVE
+            # ban before r23 ("no site may quote a cell count"); it is now history,
+            # and history is held verbatim for the same reason the ban existed —
+            # someone tidying "have cells" into "have 4 cells" would be editing
+            # what the record says was believed.
+            "**Updated later the same day:** the controls now have cells",
+        ):
+            assert site in rounds, (
+                f"a historical site in rounds.md was EDITED, not superseded: "
+                f"{site!r} — the log records what was believed when, and r23's "
+                "result section is where the correction belongs"
+            )
+        assert "No cell count is quoted here on purpose" in rounds
         assert (
             "zero cells in\nthe entire archive" in raw
         ), "the pre-registered census was edited instead of annotated"
         assert "the census above is left as written" in rounds
         assert "stopped being literally true on the day it was written" in rounds
-        # And the exclusion the claim leans on is real, not asserted.
+        # And the exclusion those historical sites leaned on is real, not asserted.
         source = inspect.getsource(
             __import__("e2e.across_runs", fromlist=["_stems"])._stems
         )
@@ -9241,6 +9286,230 @@ class TestR23ControlPreRegistration:
             "table was computed at 0.831 and must be recomputed"
         )
         assert "0.831 over 414 judged pairs" in self._block()
+
+
+class TestR23ControlResultIsWrittenUp:
+    """The result block, and its numbers checked against the archive.
+
+    Every other result in this log is prose someone typed after reading a script's
+    output, and the archive is gitignored, so a transcription slip is invisible
+    forever. r23 is the run that can invalidate the others, which makes its
+    write-up the worst place to carry one — so the numbers are RECOMPUTED here
+    from `r23-controls.json` and matched against the block's own text. When the
+    archive is absent the recomputation skips and the prose pins still run: a
+    fresh clone can still tell whether the block says what the run said, just not
+    whether the run said it.
+
+    Written the same afternoon as the two `read_prereg.py` fixes, and pinning one
+    thing those fixes could not: that the SEPARATED numbers are the ones quoted.
+    A block that reported the pooled −0.217 as "the control result" would satisfy
+    every existing test in this file.
+    """
+
+    SCENARIOS = ("poorfit_ssl_expiry", "premature_relocation")
+    NI = ("warmth", "actionability", "conversational_fit")
+
+    @staticmethod
+    def _block() -> str:
+        from pathlib import Path
+
+        # Sliced on the RAW text, then normalised — the section carries `#####`
+        # subheadings, and "#### " is a substring of "##### ", so slicing the
+        # whitespace-normalised copy cut the block off at its first subheading and
+        # every assert below it read as "the prose is missing". Anchoring on the
+        # newline is what distinguishes a heading from a heading's prefix.
+        raw = (Path(__file__).resolve().parent / "rounds.md").read_text()
+        after = raw.split("\n#### r23 RESULT")
+        assert len(after) == 2, "the r23 result block is missing from rounds.md"
+        block = " ".join(after[1].split("\n#### ")[0].split())
+        assert 3_000 < len(block) < 30_000, (
+            f"the r23 result block is {len(block)} chars — the slice is no longer "
+            "bounded by its own section"
+        )
+        return block
+
+    @staticmethod
+    def _deltas(scenario: str, dimensions: tuple[str, ...] | None = None):
+        """Composite per judged pair for one scenario, A2 vs A1.7."""
+        import statistics as st
+        from pathlib import Path
+
+        from e2e.models import Arm, Comparison, RunRecord
+        from e2e.report import drop_invalid, load_records
+
+        path = Path(__file__).resolve().parent / "results" / "r23-controls.json"
+        if not path.exists():
+            pytest.skip("r23-controls.json absent (results/ is gitignored)")
+        payload = load_records(path)
+        runs = [RunRecord.model_validate(r) for r in payload["runs"]]
+        comparisons = [Comparison.model_validate(c) for c in payload["comparisons"]]
+        kept, _ = drop_invalid(comparisons, runs)
+        out = []
+        for c in kept:
+            if c.scenario_key != scenario or (c.arm_a, c.arm_b) != (Arm.A2, Arm.A1_7):
+                continue
+            scores = {
+                k: v for k, v in c.scores.items()
+                if dimensions is None or k in dimensions
+            }
+            if scores:
+                out.append(st.fmean([a - b for a, b in scores.values()]))
+        return out
+
+    def test_the_gates_were_clean_so_nothing_bounds_the_reading(self):
+        """GATE 1 recomputed. A control run with a dead cell biases toward a false
+        PASS, and this run's verdict is a pass — so "0 turn_errors" is not
+        housekeeping here, it is the reason the pass means anything."""
+        from pathlib import Path
+
+        from e2e.models import Comparison, RunRecord
+        from e2e.report import drop_invalid, invalid_cells, load_records
+
+        path = Path(__file__).resolve().parent / "results" / "r23-controls.json"
+        if not path.exists():
+            pytest.skip("r23-controls.json absent (results/ is gitignored)")
+        payload = load_records(path)
+        runs = [RunRecord.model_validate(r) for r in payload["runs"]]
+        comparisons = [Comparison.model_validate(c) for c in payload["comparisons"]]
+        assert len(runs) == 48
+        assert [r for r in runs if r.error] == []
+        assert [r for r in runs if r.turn_errors] == []
+        assert [r for r in runs if r.collapsed_to_a1] == []
+        assert invalid_cells(runs) == set()
+        kept, dropped = drop_invalid(comparisons, runs)
+        assert (len(kept), dropped) == (24, 0)
+        assert "**0** `invalid_as_evidence`" in self._block()
+
+    def test_neither_tripwire_fires_and_the_block_says_so(self):
+        """The pre-registered endpoint: the NI composite CI on either control,
+        firing only on the POSITIVE side. Recomputed, then matched to the text."""
+        from e2e.report import _ci95
+
+        block = self._block()
+        for scenario in self.SCENARIOS:
+            values = self._deltas(scenario, self.NI)
+            assert len(values) == 12, f"{scenario} has {len(values)} pairs, not 12"
+            low, _high = _ci95(values)
+            assert low <= 0, (
+                f"the {scenario} tripwire FIRES ({low:+.3f} > 0) — r21's +0.325 "
+                "and the pooled +0.243 are suspended and this block is wrong"
+            )
+        assert "BOTH TRIPWIRES PASS" in block
+        assert "NOT suspended" in block
+
+    def test_the_poorfit_margin_is_quoted_to_the_thousandth(self):
+        """0.016 is the whole story of this control. Rounded to "just misses" it
+        reads like a comfortable pass, which it is not — and `_ci95` is
+        deterministic Student-t, so the margin is exactly reproducible rather than
+        a resampling artifact that would make the precision dishonest."""
+        import statistics as st
+
+        from e2e.report import _ci95
+
+        values = self._deltas("poorfit_ssl_expiry", self.NI)
+        mean, (low, high) = st.fmean(values), _ci95(values)
+        block = self._block()
+        assert f"{mean:+.3f}" == "+0.333" and f"+0.333" in block
+        assert f"[{low:+.3f}, {high:+.3f}]" == "[−0.016, +0.683]".replace("−", "-")
+        assert "[−0.016, +0.683]" in block
+        assert "passes by 0.016" in block or "by 0.016" in block
+        # And the composite IS the NI composite here — no structural dims to blend.
+        assert sorted(set(self.NI)) == sorted(
+            {d for d in _judged_dimensions("poorfit_ssl_expiry")}
+        )
+
+    def test_the_premature_loss_is_reported_as_a_loss_not_softened(self):
+        """The pre-registration calls this outcome "a real result, and a mild
+        one… reported as a cost". A block that reported only the passing tripwire
+        would be quoting the half that flatters."""
+        import statistics as st
+
+        from e2e.report import _ci95
+
+        values = self._deltas("premature_relocation")
+        mean, (low, high) = st.fmean(values), _ci95(values)
+        assert high < 0, "the premature composite no longer resolves negative"
+        block = self._block()
+        assert f"{mean:+.3f}" == "-0.767"
+        assert "−0.767" in block and "[−1.504, −0.029]" in block
+        assert "FRAMEWORK LOSES" in block
+        # warmth is an NI dimension, which is what makes this more than a
+        # structural-rubric artifact — pinned because it is the harder half.
+        warmth = self._deltas("premature_relocation", ("warmth",))
+        assert _ci95(warmth)[1] < 0, "warmth no longer resolves negative"
+        assert "`warmth` included" in _prose("README.md")
+        assert "`warmth` [NI]" in block
+
+    def test_the_overridden_convergence_rule_is_argued_and_bounded(self):
+        """The pre-registration's own reading rule was wrong, and overriding a
+        pre-registered reading after seeing data is the move this file exists to
+        forbid. It is admissible here on two conditions, both of which must stay
+        stated: the justification predates the run (the rubric text), and the
+        correction runs AGAINST the arm being sold. Plus the sensitivity, because
+        a verdict that turned on the override would not be worth having."""
+        block = self._block()
+        assert "double-invert" in block
+        assert "the correction runs against the framework" in block.lower()
+        for number in ("−0.759", "−0.893", "−0.600"):
+            assert number in block, f"the {number} sensitivity row is missing"
+        # The rubric text the override rests on, checked at the source rather than
+        # quoted — if the fit clause is ever removed, the inverted reading becomes
+        # correct again and this argument must be revisited.
+        from e2e.judge import _DIMENSION_GUIDE
+
+        assert (
+            "closing prematurely is the failure" in _DIMENSION_GUIDE["convergence"]
+        )
+
+    def test_the_mechanism_reads_are_labelled_as_leads_not_results(self):
+        """Both post-hoc reads (tool calls, judge rationales) run in the
+        framework's favour on the poor-fit control, which is exactly when
+        `judge_notes`' own documented limit — "a lead, not a result" — is easiest
+        to forget."""
+        block = self._block()
+        assert "not pre-registered" in block
+        assert "leads and not results" in block
+        assert "record_decision" in block
+
+    def test_the_record_decision_count_is_real(self):
+        """12 of 12 is the product finding, and it is the one number in the block
+        that no reading script prints — so it is recomputed here or nowhere."""
+        from pathlib import Path
+
+        from e2e.models import Arm, RunRecord
+        from e2e.report import load_records
+
+        path = Path(__file__).resolve().parent / "results" / "r23-controls.json"
+        if not path.exists():
+            pytest.skip("r23-controls.json absent (results/ is gitignored)")
+        runs = [
+            RunRecord.model_validate(r) for r in load_records(path)["runs"]
+        ]
+        premature = [
+            r for r in runs
+            if r.scenario_key == "premature_relocation" and r.arm is Arm.A2
+        ]
+        called = [r for r in premature if "record_decision" in r.all_tool_calls]
+        decisions = sum(len(r.decision_hashes or []) for r in premature)
+        assert (len(called), len(premature)) == (12, 12)
+        assert decisions == 26
+        block = self._block()
+        assert "**12 of 12**" in block and "**26**" in block
+
+    def test_the_pooled_line_is_named_as_the_reader_fixs_own_case(self):
+        """The scenario-axis fix was written blind on a hypothetical. This run is
+        the case, and saying so is what keeps the next blind fix affordable."""
+        block = self._block()
+        assert "opposite directions" in block
+        assert "−0.217" in block
+        assert "This run is the case" in block or "this run is the case" in block
+
+
+def _judged_dimensions(scenario: str) -> set[str]:
+    from e2e.judge import dimensions_for
+    from e2e.scenarios import ALL_SCENARIOS
+
+    return set(dimensions_for({s.key: s for s in ALL_SCENARIOS}[scenario]))
 
 
 class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:

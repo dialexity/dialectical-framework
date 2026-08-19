@@ -3292,3 +3292,163 @@ Guards: 15 mutations across both fixes, 15 killed, every mutation string asserte
 before running (the r24 round's no-op survivor taught that). Run outside pytest, because
 the bench run holds Memgraph and the autouse cleanup fixture deletes exactly the labels
 the runner writes.
+
+#### r23 RESULT — the controls have been read (2026-08-19): BOTH TRIPWIRES PASS, and A2 loses one control
+
+`r23-controls`, exit 0, 1 h 33 m, 48 cells. Build `1cd4830`, `dirty False`,
+`prompt_sha b28ebf5` — the build the "Decided" block above fixed, not the
+unsatisfiable `1ca4083` clause. Read with `read_prereg.py r23-controls A2 A1.7`, in
+the pre-registered order, with both of today's reader fixes in place.
+
+**GATE 1 first, as always.** 48 cells; **0** with `error`, **0** with `turn_errors`,
+**0** `collapsed_to_a1`, **0** `all_turns_errored`, **0** `invalid_as_evidence`; 24
+comparisons, 0 dropped. Nothing here bounds the reading, and the `collapsed_to_a1`
+POOR_FIT exemption found by the smoke run held on real cells: 12 A2 poor-fit cells
+built almost no graph and none of them was deleted as a collapse.
+
+**GATE 2.** Exactly `{'A1.7': 6, 'A2': 6}` X-arm split on *each* scenario separately —
+the reading the second reader fix made possible.
+
+##### `poorfit_ssl_expiry` — TRIPWIRE DOES NOT FIRE, by 0.016
+
+Its composite *is* its NI composite (three dimensions, by `dimensions_for`):
+
+| | delta | 95% CI | verdict |
+|---|---|---|---|
+| **NI composite (the tripwire)** | **+0.333** | **[−0.016, +0.683]** | UNRESOLVED → **PASSES** |
+| `conversational_fit` [NI] | +0.500 | [+0.072, +0.928] | resolves POSITIVE |
+| `actionability` [NI] | +0.417 | [−0.008, +0.841] | grazes zero |
+| `warmth` [NI] | +0.083 | [−0.244, +0.410] | flat |
+
+A2 better in 8 of 12 pairs, worse in 1, tied in 3. **This is a pass, and it is not a
+comfortable one:** sixteen thousandths of a rubric step from firing, with one
+constituent dimension resolving positive and a second missing by eight thousandths.
+`_ci95` is deterministic Student-t, not a bootstrap, so the margin is exactly
+reproducible and not a resampling artifact. And the magnitude is the awkward part:
+**+0.333 of spurious-looking gain on a control is the same size as the +0.325 the
+archive's live claim rests on** — measured on three dimensions rather than twelve,
+which is not nothing, but not a difference anyone should be asked to feel.
+
+**What the mechanism check says, and it cuts the other way.** Two readings that were
+not pre-registered, so they are leads and not results — but both are cheap and both
+were run before writing this:
+
+1. **Tool calls.** Across all 12 A2 poor-fit cells: `anchor` once, `explore` once,
+   *nothing else*. Zero `record_decision`. The machinery essentially did not fire on a
+   factual request — which is the behaviour the control was built to test, and it means
+   the +0.333 cannot be "the judge rewarding structure" because there was almost no
+   structure in the transcripts to reward.
+2. **The judge's own rationales** (de-randomised via `judge_notes._derandomise`). A2
+   wins on *concision*, and A1.7 loses on framework-flavour: "wordier and more
+   framework-flavored than the user asked for", "a slightly presumptuous plan-recording
+   offer", "trades specifics for a mildly preachy reflection", "more sermonizing than
+   scriptable". The one cell where A2 clearly lost (−1.00) is the one where A2 leaked
+   framework vocabulary: it "proposes a heavier tiered-automation design with
+   'Action/Reflection' labels that overshoots the user's brisk, practical register."
+
+So the honest reading of this control is: **it passes, the tripwire's intended failure
+mode (judge rewards structure) is not what produced the +0.333, and the one time
+structure did reach a poor-fit user it was penalised.** That is the outcome the rubric
+was supposed to produce. But "passes by 0.016 and the pass is explained by a
+post-hoc rationale read" is a bound, not a clearance, exactly as the pre-registration
+said at n=12.
+
+##### `premature_relocation` — TRIPWIRE DOES NOT FIRE; A2 LOSES the control
+
+| | delta | 95% CI | verdict |
+|---|---|---|---|
+| **NI composite (the tripwire)** | **−0.472** | **[−1.094, +0.150]** | UNRESOLVED → **PASSES** (does not fire positive) |
+| blended composite, all 10 dims | −0.767 | [−1.504, −0.029] | **FRAMEWORK LOSES** |
+| `cross_turn_coherence` | −1.167 | [−2.016, −0.317] | resolves NEGATIVE |
+| `non_triviality` | −1.083 | [−2.000, −0.167] | resolves NEGATIVE |
+| `warmth` [NI] | −0.750 | [−1.300, −0.200] | resolves NEGATIVE |
+| `blindspot_specificity` | −0.583 | [−1.155, −0.012] | resolves NEGATIVE |
+| `convergence` | −0.833 | [−1.876, +0.210] | directional |
+
+A2 worse in 9 of 12 pairs, better in 3. Per the pre-registration this is "a real
+result, and a mild one… reported as a cost, not as a failure of the eval" — and the
+cost is on the *home-turf* dimension too: `warmth` is one of the three
+non-inferiority dimensions, and it resolves negative.
+
+**The pre-registered reading rule for `convergence` was itself wrong, and I am
+overriding it — in the direction that hurts.** The block above fixed, in advance,
+that "`convergence` on `premature_relocation` is read INVERTED: a *higher* score for
+A2 is a **fault**". Reading the rubric text (which predates the run) shows the
+dimension is *already* fit-scored: *"(For a scenario where converging would be
+premature, closing prematurely is the failure — judge whether the closing behaviour
+fit the situation.)"* The judge applied it — rep 7's rationale says "both score low on
+convergence because the right move was to keep the decision open, and neither did".
+So inverting it again would **double-invert**, turning A2's −0.833 penalty into a
++0.833 reward. The as-scored reading stands. Two things make this an admissible
+after-the-fact correction rather than a laundered one: the justification is rubric
+text written before the run, and **the correction runs against the framework** — the
+inverted reading is the one that would have flattered A2. Sensitivity, since the
+verdict must not depend on it: as scored **−0.767** [−1.504, −0.029]; convergence
+dropped **−0.759** [−1.472, −0.047]; structural dims only **−0.893** [−1.730, −0.056];
+even wrongly inverted, **−0.600** [−1.148, −0.052]. **LOSES on all four.**
+
+##### What A2 actually did on the premature control — and it is a product finding
+
+The judge, in 8 of 12 cells, says **both** arms failed the core test: neither declined
+to close a decision the scenario defines as not yet decidable (unsigned contract,
+partner's employer conversation not held, school placement three weeks out). A1.7
+resists longer and more coherently; A2 "capitulates entirely", "records 'DECIDED,
+final'", "explicitly writes that the three load-bearing unknowns 'don't touch the
+answer'".
+
+And unlike A1.7, A2 can act on that:
+
+| | cells calling `record_decision` | Decision nodes committed | other tools |
+|---|---|---|---|
+| **A2** | **12 of 12** | **26** | `discard` 9, `anchor` 5, `inspect_node` 4, `sync` 3, `explore` 1 |
+| A1.7 | 0 (has none) | 0 | — |
+
+`DecisionCoherenceCheck` ran on all 26 and returned **25 `passed`, 1 `failed`** — and
+the one failure is the *r24* defect, caught cleanly: a rationale whose accepted cost
+"reads as if the cost no longer exists rather than being accepted". So the check works
+on what it checks and is silent on decidability, which it was never asked about.
+
+**This is not a defect against spec — it is the spec.** `_DECISION_READINESS` has been
+hardened four times against the failure of *withholding* the record, and says so in
+terms: *"refusing to write down a decision the person has stated is not diligence — it
+is the one failure the record exists to prevent"*, *"'Write this down' IS the
+confirmation"*, *"A request to close is never answered with homework"*, *"A decision is
+a speech act — it exists because they declared it"*. A simulated user who demands a
+final record gets one, 12 times out of 12. There is no clause about a decision whose
+load-bearing facts are not yet knowable, and `docs/theory/` has none either — I checked;
+decision *timing* is nowhere in the eight generative rules, so this is an app-layer
+product commitment, not a theory claim. **The control is measuring a genuine conflict
+between two design positions, and which one wins is not mine to decide.** Logged for
+the user; no prompt edited.
+
+##### The pooled line, and why today's first fix was load-bearing
+
+| | delta | 95% CI |
+|---|---|---|
+| pooled across both controls | −0.217 | [−0.665, +0.232] |
+
+The two controls moved in **opposite directions** (+0.333 and −0.767). The reader as it
+stood this morning would have printed that single number and nothing else — one
+confident nothing, averaging a near-fire against a loss, on a stem whose own
+pre-registration says "read each control SEPARATELY". The scenario-axis fix was written
+blind, at cell 8 of 48, on the argument that pooling *could* hide a fire. It did not
+have to be hypothetical: **this run is the case.**
+
+##### Verdict, in the pre-registered words
+
+**Neither tripwire fires. r21's +0.325 and the pooled +0.243 are NOT suspended.** They
+keep their stated meaning, and they now have something they have never had in 23 rounds:
+a control run behind them. Three qualifications travel with them from here on, and any
+quotation of those numbers that omits them is incomplete:
+
+1. `poorfit_ssl_expiry` passes by **0.016**, with `conversational_fit` resolving
+   positive. At n=12 a pass bounds spurious credit at ~0.53; it does not exclude it.
+2. The +0.333 on a control is the **same magnitude** as the claimed decide-lane gain,
+   on 3 dimensions rather than 12.
+3. A2 **loses** `premature_relocation` on the blended composite, including `warmth` —
+   a non-inferiority dimension — and the mechanism is that the machinery converts a
+   conversational capitulation into 26 persisted Decision nodes.
+
+**What r23 still cannot settle**, unchanged from the pre-registration: n=12 cannot
+resolve a half-step spurious gain; it tests *this* judge; and two scenarios say nothing
+about poor-fit requests in general.

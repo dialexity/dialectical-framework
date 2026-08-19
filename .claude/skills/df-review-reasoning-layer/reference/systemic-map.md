@@ -1244,6 +1244,34 @@ annotation) → **GenerateSynthesis**
   the tool report's `decision_hash` rather than "newest Decision", and a grounding fault never breaks the turn) —
   revert-verified 4/45 failing on the three call sites alone. Still NOT verified at the behaviour layer: whether
   grounding the pathway moves `paired_recipe` (-0.58) or `decision_closure` (-0.75) needs r17.
+  **The decision was not decidable yet and got recorded anyway, 12 of 12** (measured 2026-08-19,
+  `r23-controls`; UNFIXED, and deliberately so — the direction is the product owner's call, not this map's).
+  `premature_relocation` is a control scenario whose pre-registered right answer is "you do not have enough to
+  decide yet", and **every one of the 12 strong-tier A2 cells called `record_decision`**, committing 26 Decision
+  nodes; `DecisionCoherenceCheck` returned 25 passed / 1 failed. That is the exact mirror of the whole
+  under-recording lineage above, and three things constrain any fix — read them before hardening anything here a
+  fifth time:
+  (1) **No theory claim licenses a fix.** Decision TIMING appears nowhere in the eight generative rules.
+  `docs/theory/` prices what a decision closes ON — pathways (Rule 8 arrangement) and an `accepted_cost` (Rule 1
+  dialogical) — and both were satisfied in these cells. "Premature" is a product judgement, so this is a design
+  conflict, not a defect against spec.
+  (2) **A prompt-only fix cannot bind, for the reason the opposite failure already proved.**
+  `_DECISION_READINESS` was hardened four times against WITHHOLDING a record and the fix that finally worked moved
+  the rule out of the prompt entirely (`decision_confirmation_check.py` + `_repair_unrecorded_decision`). That seam
+  fires on the observable confirmation event, so a "don't record when it's premature" paragraph would be repaired
+  back in by code. Any fix here is a code fix on that same seam or it is nothing — the same
+  code-not-prompt conclusion, arrived at from the other direction.
+  (3) **The two error directions are not symmetric in measured cost.** A withheld record leaves the person
+  believing something was written down that was not — the harm that built the repair seam, and the one with a
+  judged cost attached. A premature record leaves the person holding an artefact that says they decided. Both are
+  false beliefs about the graph; only the first has ever been measured.
+  Why this is more than hygiene: on that control **A2 LOSES the blended composite, -0.767 [-1.504, -0.029],
+  `warmth` included**, while the pre-registered NI tripwire PASSES (-0.472 [-1.094, +0.150]) — so the control did
+  not fire and the finding is a product one, not an invalidation. Reviewing prompts here: change nothing until the
+  direction is decided; if it ever is, `_TOOL_DOCS["record_decision"]`, `_DECISION_READINESS` and the confirmation
+  check move together (the tool-doc lesson above), and `tests/e2e/arms.py::_TOOL_REWRITES` must hand A1/A1.7 the
+  same restraint or the comparison stops being fair (bench fairness rule 4). Write-up: `tests/e2e/rounds.md`
+  "r23 RESULT".
   **Decision provenance** (live since 2026-08): the rationale's `agent` names the confirming PRINCIPAL — "human"
   iff a person confirmed the ceremony; delegated drivers (agent-to-agent runs) record "agent:<name>" instead.
   Host-attested at construction (`Advisor(principal=...)` → closed over by `build_record_decision`, same

@@ -599,7 +599,17 @@ conclusion. The guards, each with a test in `test_e2e.py`:
 - **Controls.** On `poorfit_ssl_expiry` the framework should show **no gain** —
   if it wins there, the judge is rewarding structure over counsel and the rubric
   is invalid before any other number is trusted. On `premature_relocation` the
-  correct behaviour is *declining* to converge.
+  correct behaviour is *declining* to converge. **Both were read on 2026-08-19
+  (r23) and both tripwires pass** — see the reading guide below for what that
+  does and does not license.
+- **A pre-registered reading rule can itself be wrong, and the tell is which way
+  the correction cuts.** r23 pre-registered "read `convergence` INVERTED on
+  `premature_relocation`", then the rubric text — written before the run — turned
+  out to already be fit-scored ("closing prematurely is the failure"), so
+  inverting again would double-invert. Overriding a pre-registered reading after
+  seeing the data is admissible only when the justification predates the run AND
+  the correction runs *against* the arm you are selling; both held there (the
+  inverted reading was the flattering one). Publish the sensitivity either way.
 - **Simulated decisions are attested as `agent:bench-simulator`**, never
   `"human"` — the framework's own provenance contract holds under test.
 
@@ -700,10 +710,20 @@ already found.** Each line is a pointer, not a current number.
 | The escape clause fired only because it was **ordered** behind the obligation (8/12 vs 1/12) | the archive's first prompt edit to move a pre-registered endpoint — and only the ordered clause landed |
 | r23 hung 21 hours on one cell of 48 and wrote nothing | `CELL_TIMEOUT_S`; then 16 inert `@pytest.mark.timeout` decorators found by grepping for siblings |
 
-**The standing caveat, and the most important line in this file:** the controls
-(`poorfit_ssl_expiry`, `premature_relocation`) have **never reported**. Until they
-do, everything above measures the framework where it is *supposed* to help, with no
-evidence about where it is supposed to stay out of the way. Run
+**The standing caveat, retired 2026-08-19 and replaced by a narrower one.** For 23
+rounds this line said the controls had **never reported**, so everything above
+measured the framework where it is *supposed* to help with no evidence about where it
+is supposed to stay out of the way. r23 read both at n=12 strong: **neither tripwire
+fires**, so nothing above is suspended — and two findings travel with every number
+from here on. `poorfit_ssl_expiry` passes by **0.016** (+0.333 [−0.016, +0.683]),
+which is the same magnitude as the archive's live +0.325 claim on a third as many
+dimensions; the mechanism check acquits it (two tool calls across twelve A2 cells, and
+the judge's rationales credit *concision*, penalising the one cell that leaked
+`Action/Reflection` labels), but a pass at n=12 bounds spurious credit at ~0.53 rather
+than excluding it. And A2 **loses** `premature_relocation` (−0.767 [−1.504, −0.029]),
+`warmth` included — the machinery turned a conversational capitulation into 26
+committed Decision nodes, 12 of 12 cells calling `record_decision`, which is
+`_DECISION_READINESS` working exactly as written. Run
 `python tests/e2e/status.py` for what is currently judged and what has never been
 opened.
 
@@ -735,7 +755,7 @@ opened.
 | `read_prereg.py` | reads one saved stem in the PRE-REGISTERED order — build, then invalidating gates, then the endpoint — and derives the verdict word (WINS/LOSES/UNRESOLVED) from the interval instead of from prose written afterwards (free, no LLM, safe to run while a bench run is live) |
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_e2e.py` | the harness's own tests (free) |
-| `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the four-site "no control has been READ" claim: 14 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass. Its docstring records the three ways this script or its pins have lied |
+| `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the control-claim sites — now the r23 RESULT on the live surfaces plus the superseded wording held verbatim in the log: 14 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass. Its docstring records the three ways this script or its pins have lied |
 | `test_e2e_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_e2e_run.py` | the `--real-llm` entry points |
 
@@ -761,13 +781,15 @@ opened.
 5. `depreciating` deltas shrink to zero as models improve — do not build the
    product claim on them. `durable` deltas are the claim. `absent` means the
    framework added nothing measurable.
-6. Check the poor-fit control before believing anything else — **and note that as
-   of 2026-08-18 there is nothing to check.** `poorfit_ssl_expiry` and
-   `premature_relocation` have cells only under `smoke*` stems, which every pooled
-   read excludes; no control
-   has been READ. This line stood
-   for 22 rounds as an instruction a reader could not follow, and for most of them
+6. Check the poor-fit control before believing anything else — **and as of
+   2026-08-19 there is something to check.** `r23-controls` read both at n=12
+   strong: `poorfit_ssl_expiry` **+0.333 [−0.016, +0.683]** and
+   `premature_relocation` NI **−0.472 [−1.094, +0.150]**, so **neither tripwire
+   fires** and nothing in this file is suspended. Read the two qualifications with
+   them, never the verdict alone: the poor-fit pass clears zero by **0.016** on a
+   composite the same size as the live +0.325 claim, and A2 **loses** the premature
+   control at **−0.767 [−1.504, −0.029]**, `warmth` included. For 22 rounds this
+   item was an instruction a reader could not follow, and for most of them
    `career_offer` was misdescribed as the control it isn't, which is how the gap
-   stayed invisible. Until a control run exists, every number in this file is a
-   measurement of the framework where it is *supposed* to help, with no evidence
-   about where it is supposed to stay out of the way.
+   stayed invisible; `rounds.md`'s "r23 RESULT" section is the full reading, and a
+   run that omits the controls has still not passed a control it never took.
