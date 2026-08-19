@@ -1,5 +1,5 @@
 """
-Data model for the judged eval (docs/r-n-d/judged-eval-vs-prompted-llm.md).
+Data model for the judged eval (see tests/e2e/README.md).
 
 Everything here is plain data — no LLM calls, no DB access — so the shapes can
 be unit-tested without `--real-llm` and without Memgraph.

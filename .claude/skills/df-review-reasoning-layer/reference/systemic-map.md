@@ -52,7 +52,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   only** (prompt-steered tools); a background-analysis hook was also tried and removed (same day, too
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
-  produces no graph (A2→A1 collapse, `docs/r-n-d/judged-eval-vs-prompted-llm.md`) — treat failure as prompt-steering signal, not flake.
+  produces no graph (A2→A1 collapse, `tests/e2e/README.md`) — treat failure as prompt-steering signal, not flake.
   **The bench imports these section constants.** `tests/e2e/arms.py` builds its A1 baseline (the
   "prompt-only model given the real method") from `_ROLE`, `_EAGER`, `_INTERNAL_MODEL`,
   `_CONVERSATION_USE`, `_DECISION_READINESS`, `_HOW_YOU_SPEAK` — rewriting tool verbs into mental acts

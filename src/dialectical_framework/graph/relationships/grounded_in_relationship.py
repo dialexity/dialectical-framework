@@ -42,7 +42,7 @@ class GroundedInRelationship(AnalyticalStructure, type="GROUNDED_IN"):
     was an A+. Those are remedies: things to DO, not prices paid. The re-audit
     then had nothing to reassure from, and the judge marked the commitment
     turn down against a plain-prose baseline on `earned_confidence` in all six
-    (docs/r-n-d/judged-eval-vs-prompted-llm.md; `tests/e2e`).
+    (`tests/e2e`).
     """
 
     role: Optional[str] = None

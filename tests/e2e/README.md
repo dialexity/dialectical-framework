@@ -3,8 +3,6 @@
 A falsifiable harness, not a demo. It is built to be *able to report that the
 framework adds nothing* — if it could not, a positive result would mean nothing.
 
-Design spec: `docs/r-n-d/judged-eval-vs-prompted-llm.md` (gitignored).
-
 **Resuming this work?** Run `/df-e2e` (`.claude/skills/df-e2e/SKILL.md`) — it orients a
 fresh session and routes every figure through `status.py`. And read that script's output
 before this file, because **prose carries judgement and `status.py` carries numbers**:
@@ -614,6 +612,28 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   current archive `across_runs.py`'s section is silent and
   `test_the_archive_has_no_ladder_return_cells_yet` pins that. When the lane runs,
   that test fails — which is the reminder to write the result up, not a defect.
+- **The judge has never been human-calibrated.** Every guard in the section above
+  attacks a *mechanical* judge bias — position, length, eloquence, a lopsided
+  split. None of them touches self-preference (the judge is a Claude model
+  scoring Claude models) or the fidelity-scoring temptation to reward any
+  plausible-looking structure. The original design called for a human pass over a
+  sample of comparisons and it has never happened, so an unknown constant may sit
+  under every dimension. It biases *both* arms, which is why the deltas are still
+  worth reading — but it caps how far a per-dimension absolute score can be
+  pushed. The judge model is held off the arms under test
+  (`DEFAULT_JUDGE = fable-5`) precisely because that is the one part of it we
+  *can* fix by construction.
+- **There is no human-counselor arm, so the rubric has no ceiling.** The ladder
+  measures arms against each other; nothing in it says what a *good* answer looks
+  like. A skilled counselor working a scenario subset over the same interface,
+  notes allowed (roughly "A1.7 with human judgement"), was the design's
+  calibration anchor: if A2 out-scores a human on wisdom-flavoured dimensions
+  — `blindspot_specificity`, `non_triviality` — the right conclusion is that the
+  judge rewards structure over substance, not that the framework is wise. Absent
+  that arm, a high absolute score on those two dimensions is uninterpretable and
+  only the cross-arm delta carries information. Small-N and unblindable in style,
+  so it was never a significance comparison; it is the missing answer to "wise
+  compared to what?"
 
 ## What the rounds found
 

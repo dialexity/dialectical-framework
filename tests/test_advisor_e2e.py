@@ -3,7 +3,8 @@ End-to-end smoke test for the Advisor's framework hand-off.
 
 Graph-building is model-initiated (via the ingest/anchor/explore tools, as
 steered by the system prompt). This test is the A2 != A1 instrumentation
-from the judged-eval design (docs/r-n-d/judged-eval-vs-prompted-llm.md):
+from the judged-eval design (`tests/e2e/README.md`, "What keeps the
+comparison honest"):
 after a multi-turn counsel-shaped conversation, a committed
 graph must exist — an Advisor whose graph is empty after a rich conversation
 has silently degraded to a bare persona-prompted model.
@@ -72,7 +73,7 @@ class TestAdvisorFrameworkHandoff:
                 "After a multi-turn counsel-shaped conversation the model "
                 "called no graph-building tools (or they produced nothing) — "
                 "the Advisor degraded to a bare persona-prompted model "
-                "(A2->A1 collapse, see docs/r-n-d/judged-eval-vs-prompted-llm.md). "
+                "(A2->A1 collapse, see tests/e2e/README.md). "
                 "Tool calls per turn: "
                 f"{tool_calls_per_turn}"
             )
