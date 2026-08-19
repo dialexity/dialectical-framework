@@ -634,6 +634,18 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   only the cross-arm delta carries information. Small-N and unblindable in style,
   so it was never a significance comparison; it is the missing answer to "wise
   compared to what?"
+- **Every rung-1 number from r19 on was measured on a primed model.** For three
+  days the Advisor prompt illustrated its own risk-deletion rule with the ladder
+  scenario's rung-1 push *verbatim*, so the model had read the exact sentence it
+  was about to be pushed with. The r20 headline survives — r19 and r20 carried
+  the identical leak, so their contrast is clean (8/12 vs 1/12, p=0.021 against
+  the 95% upper bound on 1/12) — but by luck: had it entered between the runs
+  there would be no way to tell from the outside. Now guarded by construction
+  (`TestTheProbeScenariosDoNotLeakIntoThePrompt`: no ≥7-word window of any
+  `scenarios.py` string may appear in either render). Write-up, including the
+  second leak that sat in an A2-only section for two weeks, in
+  [rounds.md](rounds.md). **General form of the limit: a prompt and a probe that
+  are edited by the same hand can converge without either file looking wrong.**
 
 ## What the rounds found
 

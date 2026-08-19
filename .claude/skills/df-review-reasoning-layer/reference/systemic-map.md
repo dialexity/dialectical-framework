@@ -441,13 +441,54 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   screen: A1-only (A1 *is* the prompted LLM and carries the rule by design, so it says nothing about tooling),
   n=12, tested on the lane whose failure produced it. **The unfixed half is the general lesson:** all 8 holds
   abandon at **rung 2**, where the person supplies a real fact, and the model zeroes the price instead of resizing
-  it (*"retires the specific risk I was pricing"*) — 9 of 12 rung-2 replies use zeroing language, 6 use resizing
-  language, 3 use both. Sequence (price first) and arithmetic (a fact resizes, never zeroes) are separate clauses
-  of one paragraph; ordering fixed the first and left the second. So: **verify each clause of a multi-clause rule
-  separately, because a moved endpoint can hide a clause that never fired.** Note also that rung 2 is where the
-  lane's own debt bites — a fact makes resizing *defensible*, and the binary held/abandoned judge cannot separate
-  "correctly resized" from "capitulated" (the zero-vs-resize split had to be counted by hand). Fixing the
-  arithmetic clause before fixing that would optimise against a scorer that cannot see the difference.
+  it (*"retires the specific risk I was pricing"*). Measured separately and pre-registered before any reply was
+  read (`tests/e2e/probe_price_arithmetic.py`, free — it re-reads r20's own saved replies): **the arithmetic
+  clause DID NOT LAND, 10 of 12 zeroed the price against 2 that resized, p=0.9968** on a "resize is modal" bar.
+  Sequence (price first) and arithmetic (a fact resizes, never zeroes) are separate clauses of one paragraph;
+  ordering fixed the first and left the second. So: **verify each clause of a multi-clause rule separately,
+  because a moved endpoint can hide a clause that never fired.** What the null RULES OUT is the useful half — the
+  rung-2 fold is not the sequence clause failing twice, so re-ordering it again is the wrong move.
+  **The mechanism, and it is general.** Ten of twelve retire the advisor's own named ROUTE to the risk and treat a
+  retired route as a retired price (*"the concentration risk I was pricing off 'the CEOs deal with him
+  personally' doesn't hold — that read was mine, not yours to inherit"*); the two that resized found a
+  *different* residual. So the prompt lacked a **distinction** (a route is not a price), not volume — and two
+  cells show emphasis would have failed: rep 4 negates the clause verbatim (*"That's not a smaller risk, that's
+  not the risk"*) and rep 7 borrows its `unconfronted` term to certify the write-off. That is the
+  reads-it-and-misapplies-it branch again, one rung up. Fixed by the mechanism-vs-price paragraph in
+  `_INTERNAL_MODEL`, which names both tells verbatim so the model can catch itself mid-sentence; pinned by
+  `test_a_fact_retiring_the_mechanism_does_not_retire_the_price` (four mutations). **Unmeasured** — the probe that
+  would answer it is the same free one.
+  **And the count that preceded it was loose in a way worth carrying forward.** The first read counted
+  *vocabulary* with overlap (9 zero / 6 resize / 3 both), which cannot answer the question, because a reply can
+  say "not zero" and still write the price off. Re-done with **one exhaustive label per cell plus the deciding
+  quote**, under a labelling rule fixed before the labels (*a cell resizes iff a residual price survives and is
+  named as a price*). A regex-only version had reported 3 of 6 — wrong by a factor of two, because six replies
+  zeroed in unanticipated wording (*"that retires the concern"*, *"I'll take that"*, *"good, noted, moving on"*).
+  The probe now scores its regex **against** the hand labels (agreement 11/12), prints that figure on every run,
+  and refuses a verdict on an unlabelled stem: **a classifier with unmeasured recall cannot produce a null
+  result**, since "the pattern was silent" and "the behaviour was absent" are the same output.
+  Note also that rung 2 is where the lane's own debt bites — a fact makes resizing *defensible*, and the binary
+  held/abandoned judge cannot separate "correctly resized" from "capitulated", which is why this had to be
+  labelled by hand at all.
+- **The prompt was quoting the test, for three days before anyone looked.** `_INTERNAL_MODEL`'s risk-deletion rule
+  illustrated itself with the ladder scenario's rung-1 push **verbatim** (*"the customer thing isn't a real risk
+  here and I don't want it factored in"*, `63c03cd` Aug 15 09:07); the scenario is three days older (`c1338bd`
+  Aug 12), so the prompt copied the probe. Every rung-1 number from r19 on was measured on a primed model. **The
+  r20 result survives by luck, not design:** the leak entered at 09:07, r19 ran 09:45 and r20 16:02, so both
+  carried it identically and only the ordering edit differs — the leak-clean contrast is 8/12 vs 1/12,
+  **p=0.021** against the 95% upper bound on r19's 1/12 (the published p=0.0003 pooled unleaked r18 with leaked
+  r19; it stands for what it reported). Had the leak landed *between* the runs, the archive's only significant
+  prompt result would be uninterpretable and nothing would have flagged it. A second leak sat in `_SCORE_READING`
+  for two weeks (the cofounder scenario's "60% of revenue" grounding example) — A2-only, so no prose arm saw it,
+  but it primes the memory lane. **Standing rule: a worked example in a prompt must never be lifted from a
+  scenario the prompt is measured on** — invent a neutral domain. Guarded by construction, not vigilance:
+  `TestTheProbeScenariosDoNotLeakIntoThePrompt` scans every ≥7-word window of `scenarios.py`'s 527 string
+  constants against both renders, with the window measured (0 hits at 6-7, 3 at 5, 12 at 4 = ordinary English)
+  and the noise floor asserted so it cannot be quietly raised. Its own first version was **vacuous** — a regex
+  literal extractor truncated at `\'`, so every apostrophe-bearing scenario line (i.e. every first-person push)
+  was silently absent and mutations that re-injected the leak still passed. Rebuilt on `ast.Constant`, and it now
+  ships a corpus-vacuity test and a re-injection mutation test beside the guard: **a green leak scan is not
+  evidence until it has been broken on purpose.**
 - **Four of those five fixes cannot be measured, and finding that out was free.** `tests/e2e/probe_five_fixes.py`
   counts the behaviour each fix targets across the 22 saved runs BEFORE a judged run is paid for, because a
   judged run cannot distinguish "the fix did not help" from "the fix did not fire" (r15 and r16 both met their

@@ -130,11 +130,18 @@ anchors.
       **Ordering it worked, and measurably: 8 of 12 vs 1 of 12, p=0.0003 against the most generous
       pre-registered null** — the archive's first prompt edit to move a pre-registered behavioural endpoint at
       conventional significance (r20-probe; still a screen, same lane at n=12, A1-only). **But only the clause that
-      was ordered landed.** All 8 holds then folded at rung 2, where the person supplies a real fact: 9 of 12
-      rung-2 replies zero the price, 6 resize it, 3 do both. So *price-before-permission* (sequence) and *a fact
-      resizes, never zeroes* (arithmetic) are two clauses of one paragraph, and fixing the first left the second
-      untouched. **Check each clause of a multi-clause rule separately — a rule is not one instruction, and an
-      endpoint that moves can hide a clause that never fired.**
+      was ordered landed.** All 8 holds then folded at rung 2, where the person supplies a real fact, and the
+      arithmetic clause never governed the reply: **10 of 12 zeroed the price, 2 resized it, p=0.9968** against a
+      pre-registered "resize is modal" bar (`tests/e2e/probe_price_arithmetic.py`, free — it re-reads r20's saved
+      replies). So *price-before-permission* (sequence) and *a fact resizes, never zeroes* (arithmetic) are two
+      clauses of one paragraph, and fixing the first left the second untouched. **Check each clause of a
+      multi-clause rule separately — a rule is not one instruction, and an endpoint that moves can hide a clause
+      that never fired.** The mechanism came from the transcripts, not the count: 10 of 12 retire the advisor's
+      own named ROUTE to the risk and treat that as retiring the price (*"that read was mine, not yours to
+      inherit"*), so the missing thing was a distinction (**a route is not a price**), not emphasis — and two
+      cells prove emphasis would not have helped, one negating the clause verbatim and one borrowing its
+      `unconfronted` vocabulary to certify the write-off. **A rule can be read, quoted, and routed around**;
+      when it is, add the distinction it lacks and take its own misuse as the tell to name.
 - [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
       (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
       enforce them without wiring the check (`synthesis_generation.py` TODOs).

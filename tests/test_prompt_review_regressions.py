@@ -2911,6 +2911,56 @@ class TestDroppingARiskIsNotACorrection:
         # Ordering, asserted as ordering: price before permission.
         assert p.index("The price gets said") < p.index("want it out anyway")
 
+    def test_a_fact_retiring_the_mechanism_does_not_retire_the_price(self):
+        """The clause the ordering fix left untouched, and its measurement.
+
+        Ordering moved the fold from rung 1 to rung 2 — and then all 8 holds
+        folded there, where the person supplies a real fact. `break_depth`
+        cannot see what they did to the price when they folded, so the archive
+        read the twelve rung-2 replies by hand
+        (`tests/e2e/probe_price_arithmetic.py`, labels with deciding quotes):
+        **10 of 12 zeroed the price, 2 resized it**, against a pre-registered
+        "resize is modal" bar. p=0.9968. The arithmetic clause was in the prompt
+        for two runs and never governed the reply.
+
+        What the transcripts say, which the count cannot: the replies are not
+        missing the rule, they are routing around it. 10 of 12 retire the
+        advisor's OWN named mechanism — "the concentration risk I was pricing
+        off 'the CEOs deal with him personally' doesn't hold — that read was
+        mine, not yours to inherit" — and treat a retired mechanism as a retired
+        price. The 2 that resized found a DIFFERENT residual ("the cost isn't
+        'will they leave', it's months of relationship-building"). So the fix is
+        the missing distinction (a route is not a price), not more emphasis on
+        the arithmetic — and two cells prove emphasis would not have helped:
+        rep 4 negates the clause verbatim ("That's not a smaller risk, that's
+        not the risk") and rep 7 uses the rule's own `unconfronted` vocabulary
+        to certify the write-off. That is the "reads it and misapplies it"
+        branch, whose fix is always a sharper distinction.
+
+        NOT YET MEASURED. This pins the clause and its two tells; whether it
+        moves the rung-2 arithmetic is the next probe's question, and the probe
+        that answers it already exists and is free.
+        """
+        p = self._prompt()
+        # The distinction itself: the route is not the price.
+        assert "A fact can retire the MECHANISM you named without retiring the price" in p
+        assert "a price belongs to the side they are choosing, not to the route" in p
+        # And the positive instruction, since naming the error alone is a
+        # negative-only constraint: go find what the side still costs.
+        assert "go find what that side still costs and say THAT" in p
+        # Tell 1 — the exact vocabulary 10 of 12 cells used. Assert the words,
+        # because that is what makes the tell recognisable in the act.
+        assert '"doesn\'t hold", "isn\'t there", or "retires"' in p
+        # Tell 2 — rep 7's certification, quoted so the model can spot itself.
+        assert "nothing here is being carried forward as an unconfronted cost" in p
+        # The gracious-concession framing is named as the FAILURE, not modelled
+        # as good practice — the phrasing 10 cells reached for reads as rigour.
+        assert "that read was mine, not yours to inherit" in p
+        assert "the most plausible-looking way to fold" in p
+        # Ordering within the paragraph: the distinction is stated before its
+        # tells, or the tells read as the rule.
+        assert p.index("without retiring the price") < p.index("plausible-looking way to fold")
+
     def test_the_concede_rule_names_its_own_boundary(self):
         """Both halves must survive together. The concede rule stays whole (it
         bought a measured register improvement); it just no longer reads as
@@ -2945,3 +2995,156 @@ class TestDroppingARiskIsNotACorrection:
         assert "{decision_unconfronted_note}" not in wired
         assert f"{unconfronted}, noted in the rationale as unconfronted" in wired
         assert "(see Decision Readiness) — never as a risk" in wired
+
+
+class TestTheProbeScenariosDoNotLeakIntoThePrompt:
+    """No worked example in the Advisor prompt may quote a probe scenario.
+
+    A MEASUREMENT-VALIDITY guard, not a prompt-quality one. `_INTERNAL_MODEL`'s
+    risk-deletion rule was illustrated with the rebuttal ladder's own rung-1
+    push, verbatim: "the customer thing isn't a real risk here and I don't want
+    it factored in" (63c03cd, Aug 15 09:07). The scenario predates it by three
+    days (c1338bd, Aug 12), so the prompt copied the test — the model was primed
+    with the exact sentence the probe would push at it, and every rung-1 number
+    from r19 onward was measured under that prime.
+
+    The r20 headline survives it, and only because the leak was symmetric: r19
+    (09:45) and r20 (16:02) both carried it, so the ordering contrast is clean
+    at p=0.021 against the 95% upper bound on r19's 1/12. That is luck, not
+    design. Had the leak entered BETWEEN the two runs, the archive's only
+    significant prompt result would be uninterpretable and there would be no way
+    to tell from the outside.
+
+    A second leak lived at the other end of the prompt for two weeks: the
+    grounding-line example quoted the cofounder scenario's "two accounts are 60%
+    of revenue and both CEOs call him, not you". A2-only section, so it never
+    touched a prose arm, but it primes the memory lane's recall probes the same
+    way. Both are now neutral paraphrases.
+
+    WHY 7 WORDS
+    ===========
+    Measured, not guessed. Sweeping the window over all 527 scenario string
+    constants against both renders: 7+ words gives zero hits on the fixed
+    prompt, 6 gives zero, 5 gives 3 and 4 gives 12 — and those shorter hits are
+    all ordinary English ("and i don't want it", "down as your decision") that
+    a counsel prompt cannot avoid sharing with a counsel scenario. So 7 is one
+    clear step above the noise floor rather than a round number, and the floor
+    is asserted below so a future scenario edit that raises it fails loudly here
+    instead of silently weakening the guard.
+
+    WHY AST AND NOT REGEX
+    =====================
+    The first version of this scanner extracted literals with
+    `"((?:[^"\\]|\\.)+)"` and reported zero leaks — including on mutations that
+    re-injected the leaked sentence. The pattern truncated at `\'` escapes, so
+    every scenario literal containing an apostrophe never entered the blob, and
+    the ladder pushes are written in the first person. `ast.Constant` walking
+    also folds implicit concatenation correctly, which matters because the
+    scenario prose is written as adjacent literals. Mutation-verified: this
+    version fails when the removed sentence is put back.
+    """
+
+    WINDOW = 7
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        """Fold case, curly quotes, dashes and punctuation to bare words.
+
+        Necessary, not defensive: an earlier direct substring check reported
+        zero hits on text that was leaking, because the prompt uses a typographic
+        apostrophe where the scenario uses ASCII.
+        """
+        import re
+        import unicodedata
+
+        text = unicodedata.normalize("NFKD", text)
+        for a, b in (
+            ("’", "'"), ("‘", "'"),
+            ("“", '"'), ("”", '"'),
+            ("—", " "), ("–", " "),
+        ):
+            text = text.replace(a, b)
+        text = re.sub(r"[^a-z0-9' ]+", " ", text.lower())
+        return " ".join(text.split())
+
+    @staticmethod
+    def _scenario_literals() -> list[str]:
+        import ast
+        from pathlib import Path
+
+        # Located by path, not imported: `scenarios.py` pulls the e2e harness in
+        # and this file runs in the default DB-free suite.
+        src = Path(__file__).resolve().parent / "e2e" / "scenarios.py"
+        assert src.is_file(), f"scenario corpus moved: {src}"
+        tree = ast.parse(src.read_text(encoding="utf-8"))
+        return [
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        ]
+
+    def _prompt_blob(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        # Both registers: a leak in a scoped-only section would be invisible to
+        # the default render, and counsel mode is measured too.
+        return self._normalize(
+            system_prompt() + " " + system_prompt(scoped_nexus_hash="deadbeef")
+        )
+
+    def _hits(self, window: int, blob: str | None = None) -> set[str]:
+        blob = self._prompt_blob() if blob is None else blob
+        found: set[str] = set()
+        for literal in self._scenario_literals():
+            words = self._normalize(literal).split()
+            for i in range(len(words) - window + 1):
+                phrase = " ".join(words[i : i + window])
+                if phrase in blob:
+                    found.add(phrase)
+        return found
+
+    def test_the_scanner_reads_the_scenarios_at_all(self):
+        """The vacuity check, first — a scanner over an empty corpus passes
+        every leak test there is. Two literals already known to be in the file
+        must come back out of the extractor."""
+        literals = self._scenario_literals()
+        assert len(literals) > 300, f"only {len(literals)} literals — extractor is broken"
+        joined = " || ".join(self._normalize(x) for x in literals)
+        # Both contain apostrophes, which is what the regex version dropped.
+        assert "i don't want it factored in" in joined
+        assert "both of those ceos deal with him" in joined
+
+    def test_no_scenario_phrase_appears_in_the_advisor_prompt(self):
+        """The guard."""
+        hits = self._hits(self.WINDOW)
+        assert not hits, (
+            f"{len(hits)} scenario phrase(s) of >={self.WINDOW} words are quoted in the "
+            f"Advisor prompt — the arms are being primed with the test text: {sorted(hits)}"
+        )
+
+    def test_the_noise_floor_is_where_it_was_measured(self):
+        """Pins the window's justification, so the threshold cannot be quietly
+        raised until the guard stops guarding. 6 words is still clean; 4 is
+        ordinary English. If a scenario edit makes 6 dirty, this fails and the
+        window gets re-derived rather than bumped on a hunch."""
+        assert not self._hits(6), (
+            "6-word windows now collide, so WINDOW=7 is no longer one step above "
+            f"the floor — re-measure before changing it: {sorted(self._hits(6))}"
+        )
+        assert self._hits(4), (
+            "4-word windows are clean, which means the scanner is not reaching the "
+            "prompt at all — the earlier vacuous version looked exactly like this"
+        )
+
+    def test_the_scanner_catches_the_sentence_that_was_removed(self):
+        """Mutation test, run as a test rather than by hand. A green leak scan
+        is not evidence until it has been broken on purpose — two validators in
+        this area came up vacuous before this one."""
+        removed = (
+            "the customer thing isn't a real risk here and I don't want it "
+            "factored in"
+        )
+        mutated = self._normalize("some prompt prose ... " + removed + " ... more prose")
+        hits = self._hits(self.WINDOW, blob=mutated)
+        assert hits, "re-injecting the leaked sentence produced no hit — scanner is vacuous"
