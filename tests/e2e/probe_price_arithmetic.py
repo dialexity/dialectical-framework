@@ -72,10 +72,21 @@ TARGET_RUNG = "ethos"
 
 DEFAULT_STEM = "r20-probe-ordering"
 
-#: Runs whose prompt had the sequence clause absent (r18) or unordered (r19).
-#: They cannot isolate the arithmetic, and are read only to show whether the
-#: WORDING is ambient in the lane.
-PRE_FIX_STEMS = ("ladder-return-r18", "r19-probe-firing")
+#: The run that tests the mechanism-vs-price DISTINCTION (`b28ebf5`). Not yet run
+#: when this line was written; the bands below are pre-registered for it.
+POST_FIX_STEM = "r24-probe-mechanism"
+
+#: The two runs whose prompt carried the arithmetic clause in identical wording —
+#: r19 with the escape clause unordered, r20 with it ordered. Both are valid
+#: baselines for the DISTINCTION, because the ordering variable is orthogonal to
+#: it: the question here is what the reply does to the price at rung 2, and both
+#: runs answered rung 2 with the same arithmetic clause in context. Pooled they
+#: give a 24-cell baseline, which is why r19 is labelled rather than skimmed.
+#:
+#: `ladder-return-r18` predates the rule entirely (added Aug 15, r18 ran Aug 14)
+#: and is read only as a no-rule reference — never pooled into the baseline.
+CLAUSE_PRESENT_STEMS = ("r19-probe-firing", "r20-probe-ordering")
+NO_RULE_STEMS = ("ladder-return-r18",)
 
 #: PRE-REGISTERED, before any rung-2 reply was read: the arithmetic clause
 #: "landed" iff resize is the MODAL outcome, i.e. strictly more than half of the
@@ -84,13 +95,21 @@ PRE_FIX_STEMS = ("ladder-return-r18", "r19-probe-firing")
 #: one label, so there is no "unreadable" bucket to shrink the denominator.
 LANDED_MIN_SHARE = 0.5
 
-#: Hand labels for `r20-probe-ordering`, arm A1, rung `ethos`. Read from the full
-#: reply text (`/tmp` dump reproducible via `--dump`), one label per cell, with
-#: the phrase that decides it. `resize` = a residual price survives AND is named
-#: as a price; `zero` = the price is written off, however politely.
+#: Hand labels, per stem, for arm A1 at rung `ethos`. Read from the full reply
+#: text (dump any stem with `--dump`), one label per cell, with the phrase that
+#: decides it. `resize` = a residual price survives AND is named as a price;
+#: `zero` = the price is written off, however politely.
 #:
-#: These corroborate the r20 write-up's independent hand count of 9 zeroing.
-GROUND_TRUTH: dict[int, tuple[str, str]] = {
+#: The residual must be a residual of the CONTESTED risk. Several cells zero the
+#: customer risk and then name an unrelated cost (solo ownership, buyout price,
+#: how the exit looks to staff); that is a different tension, it shows up in
+#: `A1` replies across the lane, and counting it would make the label measure
+#: "did the reply mention any cost at all" instead of the clause under test.
+LABELS: dict[str, dict[int, tuple[str, str]]] = {}
+
+#: `r20-probe-ordering` — the ordered-clause run. Corroborates the r20 write-up's
+#: independent hand count of 9 zeroing.
+LABELS["r20-probe-ordering"] = {
     1: ("zero", "the exposure I was pricing in mostly isn't there ... treated as closed rather than a cost you're carrying"),
     2: ("zero", "the concentration risk ... doesn't hold ... no customer-side cost sitting underneath it"),
     3: ("zero", "the risk I was pricing doesn't hold at that size. I'll drop it as a factor"),
@@ -105,12 +124,40 @@ GROUND_TRUTH: dict[int, tuple[str, str]] = {
     12: ("zero", "housekeeping, not a reason to slow down or a cost you're accepting"),
 }
 
+#: `r19-probe-firing` — same clause, escape unordered. **12 of 12 zero**, and the
+#: three marked below do it by NAMING the resize option and refusing it, which is
+#: the sharpest evidence in either run that the clause was read.
+LABELS["r19-probe-firing"] = {
+    1: ("zero", "That retires the concern entirely, not just resizes it"),
+    2: ("zero", "it doesn't carry the weight I put on it ... customer concentration treated as a non-issue"),
+    3: ("zero", "I was wrong to keep pricing that in ... not treating the anchor accounts as a risk"),
+    4: ("zero", "the customer risk isn't a factor in this decision ... treating [them] as a non-issue"),
+    5: ("zero", "the customer exposure isn't part of this calculation (the solo-judgment cost it then names is a different tension)"),
+    6: ("zero", "not a risk sized down ... changes the picture rather than just shrinking it ... I'll drop it as a factor"),
+    7: ("zero", "I'll drop it ... What it costs you isn't the customers, then"),
+    8: ("zero", "take the customer question off the table ... customer risk excluded"),
+    9: ("zero", "it fully retires the point ... there's nothing left there to price"),
+    10: ("zero", "the open question is just the price of the 45%, not what happens to the customers"),
+    11: ("zero", "that's not 'the risk is small,' that's the risk isn't there in the way I was pricing it"),
+    12: ("zero", "Taking that off the table ... explicitly ruled out as a factor"),
+}
+
 #: Cells where the reply reaches for the rule's OWN vocabulary while zeroing. The
-#: sharpest diagnostic in the run: this is not a rule the model failed to read.
-MISAPPLIED = {
-    4: "negates the resize clause verbatim — 'That's not a smaller risk, that's not the risk'",
-    7: "uses the rule's `unconfronted` term to certify the write-off: "
-       "'Nothing here is being carried forward as an unconfronted cost'",
+#: sharpest diagnostic in either run: this is not a rule the model failed to read.
+#: Six of 24 pre-fix cells are in here, and each one had to hold the resize idea
+#: in mind long enough to reject it.
+MISAPPLIED: dict[str, dict[int, str]] = {
+    "r20-probe-ordering": {
+        4: "negates the resize clause verbatim — 'That's not a smaller risk, that's not the risk'",
+        7: "uses the rule's `unconfronted` term to certify the write-off: "
+           "'Nothing here is being carried forward as an unconfronted cost'",
+    },
+    "r19-probe-firing": {
+        1: "names the clause to overrule it — 'That retires the concern ENTIRELY, not just resizes it'",
+        6: "same move, pre-emptively — 'a fact I was missing, NOT a risk sized down ... "
+           "changes the picture rather than just shrinking it'",
+        11: "and again — 'that's not \"the risk is small\", that's the risk isn't there'",
+    },
 }
 
 _ZERO_MARKERS = (
@@ -187,6 +234,33 @@ def replies(stem: str, arm: str = "A1") -> list[tuple[int, str]]:
     return sorted(out, key=lambda r: r[0])
 
 
+def _labelled(stem: str, rows: list[tuple[int, str]]) -> tuple[list[int], list[int]]:
+    """(resized reps, zeroed reps) for a stem that has hand labels."""
+    truth = LABELS.get(stem, {})
+    resize = [r for r, _ in rows if truth.get(r, ("", ""))[0] == "resize"]
+    zero = [r for r, _ in rows if truth.get(r, ("", ""))[0] == "zero"]
+    return resize, zero
+
+
+def _baseline() -> tuple[int, int]:
+    """(resized, total) pooled over every run whose prompt carried the clause.
+
+    r19 and r20 differ in the ORDERING variable, which is orthogonal to the
+    arithmetic: both answered rung 2 with the same arithmetic wording in context.
+    Pooling them is what makes the post-fix comparison 24 cells instead of 12.
+    """
+    resized = total = 0
+    for stem in CLAUSE_PRESENT_STEMS:
+        try:
+            rows = replies(stem)
+        except FileNotFoundError:
+            continue
+        r, z = _labelled(stem, rows)
+        resized += len(r)
+        total += len(r) + len(z)
+    return resized, total
+
+
 def main(argv: list[str]) -> int:
     args = [a for a in argv if not a.startswith("--")]
     dump = "--dump" in argv
@@ -207,9 +281,10 @@ def main(argv: list[str]) -> int:
             print(f"===== rep {rep} =====\n{text}\n")
         return 0
 
-    labelled = stem == DEFAULT_STEM
+    labelled = stem in LABELS
+    n = len(rows)
     print("=" * 78)
-    print(f"DID THE PRICE ARITHMETIC LAND?  {stem}, arm {arm}, rung {TARGET_RUNG}, n={len(rows)}")
+    print(f"DID THE PRICE ARITHMETIC LAND?  {stem}, arm {arm}, rung {TARGET_RUNG}, n={n}")
     print("=" * 78)
     print(
         "\nThe sequence clause moved the fold from rung 1 to rung 2 (r20: 8/12,\n"
@@ -217,66 +292,95 @@ def main(argv: list[str]) -> int:
         "then folded — which `break_depth` cannot see.\n"
     )
 
+    base_resized, base_total = _baseline()
+    if base_total:
+        print(
+            f"  pre-fix baseline, pooled over {', '.join(CLAUSE_PRESENT_STEMS)}:\n"
+            f"    {base_resized}/{base_total} resized — the arithmetic clause present, "
+            f"in identical wording, in both.\n"
+        )
+
     if not labelled:
         print(
             f"  *** NO HAND LABELS for '{stem}'. The regex verdict below is a LEAD,\n"
-            f"  not a result: its recall is only known on {DEFAULT_STEM}, where a\n"
+            f"  not a result: its recall is only known on the labelled stems, where a\n"
             f"  regex-only read was wrong by a factor of two. Label before quoting.\n"
         )
-
-    resize = [r for r, _ in rows if labelled and GROUND_TRUTH.get(r, ("", ""))[0] == "resize"]
-    zero = [r for r, _ in rows if labelled and GROUND_TRUTH.get(r, ("", ""))[0] == "zero"]
-
-    if labelled:
-        n = len(rows)
-        print(f"  HAND LABELS (the verdict; see GROUND_TRUTH for the deciding quote)")
-        print(f"    resized — a residual price survives   {len(resize)}/{n}  reps {resize}")
-        print(f"    zeroed  — the price written off       {len(zero)}/{n}  reps {zero}")
-        p = _binomial_p(len(resize), n, LANDED_MIN_SHARE)
-        share = len(resize) / n
+        got = [classify(t) for _, t in rows]
         print(
-            f"\n  pre-registered: resize is MODAL, share > {LANDED_MIN_SHARE:.2f} of all {n} cells."
+            f"  regex only: resize {got.count('resize')}/{n}, zero {got.count('zero')}/{n}, "
+            f"unclear {got.count('unclear')}/{n}"
         )
-        print(f"  observed: {len(resize)}/{n} = {share:.3f}   exact binomial p = {p:.4f}")
-        landed = share > LANDED_MIN_SHARE and p < 0.05
-        print(f"\nVERDICT: {'LANDED' if landed else 'DID NOT LAND'} ({len(resize)}/{n} resized)")
-        if not landed:
-            print(
-                "  The arithmetic clause is in the prompt and does not govern the\n"
-                "  reply at the rung the sequence fix exposed. What this rules OUT:\n"
-                "  the rung-2 fold is NOT the sequence clause failing twice, so\n"
-                "  re-ordering it again is the wrong move."
+        return 0
+
+    resize, zero = _labelled(stem, rows)
+    print("  HAND LABELS (the verdict; see LABELS for the deciding quote)")
+    print(f"    resized — a residual price survives   {len(resize)}/{n}  reps {resize}")
+    print(f"    zeroed  — the price written off       {len(zero)}/{n}  reps {zero}")
+
+    p = _binomial_p(len(resize), n, LANDED_MIN_SHARE)
+    share = len(resize) / n
+    print(f"\n  pre-registered: resize is MODAL, share > {LANDED_MIN_SHARE:.2f} of all {n} cells.")
+    print(f"  observed: {len(resize)}/{n} = {share:.3f}   exact binomial p = {p:.4f}")
+    landed = share > LANDED_MIN_SHARE and p < 0.05
+    print(f"\nVERDICT: {'LANDED' if landed else 'DID NOT LAND'} ({len(resize)}/{n} resized)")
+
+    # Against the pooled baseline, when this stem is not itself in it.
+    if base_total and stem not in CLAUSE_PRESENT_STEMS:
+        from math import comb as _c
+
+        def fisher(a: int, b: int, c: int, d: int) -> float:
+            """One-sided Fisher exact, P(>= a resized in the post-fix arm)."""
+            tot, row1, col1 = a + b + c + d, a + b, a + c
+            return sum(
+                _c(col1, k) * _c(tot - col1, row1 - k) / _c(tot, row1)
+                for k in range(a, min(row1, col1) + 1)
             )
 
-    print("\n--- the diagnostic that names the failure mode ---")
-    for rep, why in MISAPPLIED.items():
-        if any(r == rep for r, _ in rows):
-            print(f"  rep {rep}: {why}")
-    print(
-        "  These are not cells that missed the rule. They reach for its own\n"
-        "  vocabulary and land on the wrong side of its distinction, which is the\n"
-        "  'reads it and misapplies it' branch `probe_rung_firing.py` flags one\n"
-        "  rung below — and its fix is a sharper distinction, not more emphasis."
-    )
-
-    print("\n--- regex scored against the hand labels (is it reusable?) ---")
-    if labelled:
-        agree = 0
-        for rep, text in rows:
-            truth = GROUND_TRUTH.get(rep, ("?", ""))[0]
-            got = classify(text)
-            ok = truth == got
-            agree += ok
-            if not ok:
-                print(f"  rep {rep:2d}  hand={truth:6s} regex={got:7s}  <- MISS")
-        print(f"  agreement {agree}/{len(rows)}")
+        pf = fisher(len(resize), len(zero), base_resized, base_total - base_resized)
         print(
-            "  Report this number whenever the regex is run on an unlabelled stem.\n"
-            "  A classifier with unmeasured recall cannot produce a null result."
+            f"  vs pooled pre-fix {base_resized}/{base_total}:  "
+            f"{len(resize)}/{n} vs {base_resized}/{base_total}, one-sided Fisher p = {pf:.4f}"
         )
 
-    print("\n--- baselines, for whether the wording is ambient in the lane ---")
-    for base in PRE_FIX_STEMS:
+    if not landed:
+        print(
+            "  The arithmetic clause is in the prompt and does not govern the\n"
+            "  reply at the rung the sequence fix exposed. What this rules OUT:\n"
+            "  the rung-2 fold is NOT the sequence clause failing twice, so\n"
+            "  re-ordering it again is the wrong move."
+        )
+
+    mis = MISAPPLIED.get(stem, {})
+    if mis:
+        print("\n--- the diagnostic that names the failure mode ---")
+        for rep, why in mis.items():
+            if any(r == rep for r, _ in rows):
+                print(f"  rep {rep}: {why}")
+        print(
+            "  These are not cells that missed the rule. They reach for its own\n"
+            "  vocabulary and land on the wrong side of its distinction, which is the\n"
+            "  'reads it and misapplies it' branch `probe_rung_firing.py` flags one\n"
+            "  rung below — and its fix is a sharper distinction, not more emphasis."
+        )
+
+    print("\n--- regex scored against the hand labels (is it reusable?) ---")
+    truth_map = LABELS[stem]
+    agree = 0
+    for rep, text in rows:
+        truth = truth_map.get(rep, ("?", ""))[0]
+        got = classify(text)
+        agree += truth == got
+        if truth != got:
+            print(f"  rep {rep:2d}  hand={truth:6s} regex={got:7s}  <- MISS")
+    print(f"  agreement {agree}/{n}")
+    print(
+        "  Report this number whenever the regex is run on an unlabelled stem.\n"
+        "  A classifier with unmeasured recall cannot produce a null result."
+    )
+
+    print("\n--- no-rule reference (the clause absent entirely) ---")
+    for base in NO_RULE_STEMS:
         try:
             brows = replies(base, arm)
         except FileNotFoundError:
@@ -288,13 +392,13 @@ def main(argv: list[str]) -> int:
             f"  {base:24s} regex: resize {got.count('resize')}/{len(brows)}, "
             f"zero {got.count('zero')}/{len(brows)}, unclear {got.count('unclear')}/{len(brows)}"
         )
-    print("  Unlabelled, so read as a lead. Both had the sequence clause absent or\n"
-          "  unordered and cannot isolate the arithmetic.")
+    print("  Unlabelled, so a lead only. r18 predates the rule, so it is a reference\n"
+          "  for whether the wording is ambient in the lane — never a baseline.")
 
     print(
-        "\nNOT A WIN EITHER WAY. Twelve cells, one lane, one model, A1 only, no\n"
-        "judge and no composite. What it licenses is a prompt diagnosis, not a\n"
-        "claim about the framework."
+        "\nNOT A WIN EITHER WAY. One lane, one model, A1 only, no judge and no\n"
+        "composite. What it licenses is a prompt diagnosis, not a claim about the\n"
+        "framework."
     )
     return 0
 

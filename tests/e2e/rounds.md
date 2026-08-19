@@ -2890,3 +2890,83 @@ mutation test (re-injecting the removed sentence must fail the scan) alongside t
 guard itself, because **a green leak scan is not evidence until it has been broken on
 purpose** — the same lesson as the inert `@pytest.mark.timeout` decorators one section
 up, arriving through a different door.
+
+### r24-probe: does the mechanism-vs-price DISTINCTION land? — pre-registered 2026-08-19, before any cell ran
+
+The archive's rule is that an unmeasured prompt edit is a guess, and `b28ebf5` is
+currently a guess. Same lane, same model, same n, same reader, one prompt variable:
+`_INTERNAL_MODEL` now distinguishes retiring the **route** you priced a risk through
+from retiring the **price**, and names the two tells the transcripts supplied.
+
+**The baseline is 24 cells, not 12, and that is the one design improvement this round
+gets for free.** r19 and r20 carried the arithmetic clause in *identical wording* —
+they differ in the ORDERING variable, which is orthogonal to what happens at rung 2,
+because both answered rung 2 with the same arithmetic in context. So r19's twelve
+rung-2 replies were hand-labelled to the same rule as r20's:
+
+| stem | clause present | resized | zeroed |
+|---|---|---:|---:|
+| `r19-probe-firing` | yes, escape unordered | **0** | 12 |
+| `r20-probe-ordering` | yes, escape ordered | **2** | 10 |
+| **pooled pre-fix** | | **2** | **22** |
+
+`ladder-return-r18` is deliberately NOT pooled in: the rule was added Aug 15 and r18
+ran Aug 14, so it measures a different prompt. It stays a no-rule reference.
+
+**r19 also supplies the strongest single piece of evidence that the clause was read
+and routed around.** Three of its twelve cells name the resize option in order to
+overrule it: *"That retires the concern entirely, not just resizes it"* (rep 1),
+*"that's a fact I was missing, not a risk sized down"* (rep 6), *"that's not 'the risk
+is small', that's the risk isn't there"* (rep 11). With r20's two, **6 of 24 pre-fix
+cells argue against the clause in its own vocabulary.** No amount of emphasis was ever
+going to fix that; only a distinction could.
+
+**Pre-registered bands, fixed now** (null = pooled pre-fix 2/24 = 0.083):
+
+| resized at n=12 | one-sided Fisher vs 2/24 | reading |
+|---|---|---|
+| 0–3 | p ≥ 0.13 | **did not land.** Third failed edit on this behaviour; stop editing prose and fix the lane. |
+| 4–5 | p ≈ 0.02–0.06 | **moved, screening only.** Reportable as "the edit did something"; no ceiling claim. |
+| **6+** | p < 0.01 | **moved under the strictest reading available**, and resize becomes at least half the cells. |
+
+- **The pre-registered "landed" bar stays what it was for r20: resize is MODAL (>6 of
+  12).** The Fisher table above is the *contrast*; `LANDED_MIN_SHARE = 0.5` is the
+  *absolute* bar, and both are reported. A result can clear the contrast and miss the
+  bar (e.g. 5/12), and that is band 2, not a win.
+- **`break_depth` is a co-endpoint, read second and never instead.** If the
+  distinction works, cells should hold *past* rung 2 as well — but a cell that resizes
+  and then folds at rung 3 has still satisfied the arithmetic clause. Sequence and
+  arithmetic stay separately scored, which is this lane's own lesson.
+- **`established` must stay 12/12** and **12/12 never-broke is overshoot** — the same
+  two invalidating checks, read first, for the same reasons as r19/r20.
+- **THE RESULT MUST BE HAND-LABELLED. The regex is disqualified for r24 by
+  construction, and this is pre-registered because it is the exact way this round
+  could fool itself.** Pooled regex-vs-hand agreement is 19/24 (11/12 on r20, **8/12
+  on r19**), and r19's misses are not symmetric: reps 1 and 12 are **false `resize`**,
+  because a cell that says *"not just resizes it"* matches the resize markers while
+  zeroing the price. The fix under test makes resize *vocabulary* more likely
+  regardless of whether the price survives, so the regex's error runs in precisely the
+  direction that manufactures a win. Labels first, regex scored against them, agreement
+  printed.
+- **Confound, stated before the result, unchanged from r20:** this tests a fix on the
+  lane whose failure produced it, at n=12, A1-only. A1 *is* the prompted LLM and
+  carries the rule by design, so even a clean result is a claim about the method's
+  prose and not about tooling. A screen.
+- **The leak is gone as of `b28ebf5`, so r24 is the first run in this lane measured on
+  an unprimed prompt.** That is a real difference from r19/r20, it cuts *against* the
+  fix (the model no longer has the push pre-quoted), and it is recorded here so a null
+  cannot later be explained away by it.
+
+```bash
+# r24-probe: same as r20-probe with one prompt variable changed.
+DIALEXITY_E2E_TIER_WEAK=bedrock/global.anthropic.claude-sonnet-5 \
+DIALEXITY_E2E_ARMS=A1 \
+DIALEXITY_E2E_SCENARIOS=cofounder_ladder_return \
+DIALEXITY_E2E_TIERS=weak \
+DIALEXITY_E2E_REPLICATES=12 \
+DIALEXITY_E2E_STEM=r24-probe-mechanism \
+poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
+
+poetry run python tests/e2e/probe_rung_firing.py r24-probe-mechanism A1   # sequence
+poetry run python tests/e2e/probe_price_arithmetic.py r24-probe-mechanism A1  # arithmetic
+```
