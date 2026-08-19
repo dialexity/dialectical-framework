@@ -8103,6 +8103,210 @@ class TestAControlStemIsNeverReadPooled:
         ]
         assert scenarios_in(comps, Arm("A2"), Arm("A1.7")) == ["mine"]
 
+    # -- the second gap in the same reader, found the same way ------------------
+    #
+    # r23's pre-registration names its endpoint "the NI composite CI on either
+    # control". `Deltas.composite` averages every dimension in `scores` and
+    # nothing in `report.py` filters by dimension group — the `[NI]` tag exists
+    # only in the per-dimension table. So on `premature_relocation`, judged on
+    # ten dimensions, the script printed a number that blends the seven
+    # structural dims into the three the tripwire is defined on.
+    #
+    # The direction of that error is the alarming part. A control PASSING its
+    # tripwire while the framework does well on the structural dims reads as
+    # "FRAMEWORK WINS" on the blended composite — and a fired tripwire means
+    # suspending r21's +0.325 and the pooled +0.243. The defect risked throwing
+    # valid results away, not laundering an invalid one in.
+
+    NI = ("warmth", "actionability", "conversational_fit")
+    STRUCTURAL = (
+        "blindspot_specificity",
+        "entanglement",
+        "paired_recipe",
+        "tension_coverage",
+        "cross_turn_coherence",
+        "non_triviality",
+        "convergence",
+    )
+
+    @classmethod
+    def _write_kinded_stem(cls, tmp_path, spec: dict) -> str:
+        """spec: scenario -> (kind, dimensions, ni_gap, structural_gap)."""
+        import json
+
+        runs, comps = [], []
+        for scenario, (kind, dims, ni_gap, st_gap) in spec.items():
+            for rep in range(1, 13):
+                for arm in ("A2", "A1.7"):
+                    runs.append(
+                        dict(
+                            arm=arm,
+                            tier="strong",
+                            model="m",
+                            scenario_key=scenario,
+                            scenario_kind=kind,
+                            replicate=rep,
+                            decision_hashes=["h"],
+                        )
+                    )
+                comps.append(
+                    dict(
+                        scenario_key=scenario,
+                        tier="strong",
+                        replicate=rep,
+                        arm_a="A2",
+                        arm_b="A1.7",
+                        x_arm="A2" if rep % 2 else "A1.7",
+                        session_label="decide",
+                        scores={
+                            d: [3 + (ni_gap if d in cls.NI else st_gap), 3] for d in dims
+                        },
+                    )
+                )
+        (tmp_path / "synthetic.json").write_text(
+            json.dumps(
+                {
+                    "build": {"git_sha": "synthetic", "prompt_sha": "synthetic"},
+                    "runs": runs,
+                    "comparisons": comps,
+                }
+            )
+        )
+        return "synthetic"
+
+    def test_a_control_is_read_on_the_ni_composite_and_not_the_blended_one(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """r23's exact shape, with the controls PASSING: NI flat at zero, the
+        structural dims at +1. The blended composite then says FRAMEWORK WINS on
+        a control — which is the reading that suspends the archive's headline —
+        while the pre-registered tripwire correctly covers zero."""
+        from e2e import read_prereg
+
+        stem = self._write_kinded_stem(
+            tmp_path,
+            {
+                "poorfit_ssl_expiry": ("poor_fit", self.NI, 0, 0),
+                "premature_relocation": ("premature", self.NI + self.STRUCTURAL, 0, +1),
+            },
+        )
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        read_prereg.read(stem, ("A2", "A1.7"))
+        out = capsys.readouterr().out
+
+        premature = out[out.index("ENDPOINT — premature_relocation") :]
+        assert "TRIPWIRE — premature_relocation" in premature, (
+            "the control's pre-registered endpoint was not printed at all"
+        )
+        blended, tripwire = premature.split("TRIPWIRE — premature_relocation", 1)
+        # The blended number "wins" the control; the tripwire number passes it.
+        assert "composite +0.700" in blended
+        assert read_prereg.WINS in blended
+        assert "composite +0.000" in tripwire
+        assert read_prereg.UNRESOLVED in tripwire.split("ENDPOINT")[0]
+        # And the reader says which one to read.
+        assert "Read THIS block as the tripwire" in tripwire
+        for structural in ("convergence", "tension_coverage"):
+            assert structural in tripwire, "the blended dims must be named"
+
+    def test_a_poor_fit_control_says_its_tripwire_equals_its_composite(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """`dimensions_for` gives `poor_fit` exactly the three NI dimensions, so
+        its composite already IS the NI composite. Two identical numbers under
+        different headings invite a hunt for a difference that isn't there, so
+        the reader says so instead of leaving it implicit."""
+        from e2e import read_prereg
+
+        stem = self._write_kinded_stem(
+            tmp_path,
+            {
+                "poorfit_ssl_expiry": ("poor_fit", self.NI, 0, 0),
+                "premature_relocation": ("premature", self.NI + self.STRUCTURAL, 0, +1),
+            },
+        )
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        read_prereg.read(stem, ("A2", "A1.7"))
+        out = capsys.readouterr().out
+
+        poorfit = out[out.index("TRIPWIRE — poorfit_ssl_expiry") : out.index("ENDPOINT — premature")]
+        assert "every dimension judged here is NI" in poorfit
+        assert "Read THIS block as the tripwire" not in poorfit
+
+    def test_a_decision_stem_gets_no_tripwire_block_at_all(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Gated on the recorded kind, so the published DECISION composites keep
+        reading exactly as they did. Whether THOSE should exclude the NI group is
+        a real question and a separate one — and settling it by editing the
+        reader while a control is in flight is the move this file exists to
+        prevent."""
+        from e2e import read_prereg
+
+        stem = self._write_kinded_stem(
+            tmp_path,
+            {
+                "cofounder_equity": ("decision", self.NI + self.STRUCTURAL, 0, +1),
+                "cofounder_ladder_return": ("decision", self.NI + self.STRUCTURAL, 0, +1),
+            },
+        )
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        read_prereg.read(stem, ("A2", "A1.7"))
+        out = capsys.readouterr().out
+
+        assert "TRIPWIRE" not in out
+        assert "ENDPOINT — cofounder_equity" in out
+
+    def test_restrict_to_narrows_scores_and_drops_comparisons_left_empty(self):
+        """A comparison with no surviving dimension must be DROPPED, not kept
+        with an empty `scores` dict: `Deltas.add` skips empty scores for the
+        composite but the pair would still be counted by anything reading the
+        list's length."""
+        from e2e.models import Arm, Comparison
+        from e2e.read_prereg import restrict_to
+
+        def comparison(scores: dict) -> Comparison:
+            return Comparison(
+                scenario_key="s",
+                tier="strong",
+                replicate=1,
+                arm_a=Arm("A2"),
+                arm_b=Arm("A1.7"),
+                x_arm=Arm("A2"),
+                scores=scores,
+            )
+
+        comps = [
+            comparison({"warmth": (4, 3), "convergence": (5, 3)}),
+            comparison({"convergence": (5, 3)}),  # nothing NI — must vanish
+        ]
+        out = restrict_to(comps, ("warmth", "actionability", "conversational_fit"))
+        assert len(out) == 1
+        assert out[0].scores == {"warmth": (4, 3)}
+        # The originals are untouched — the filter copies.
+        assert comps[0].scores == {"warmth": (4, 3), "convergence": (5, 3)}
+
+    def test_kind_of_reads_the_recorded_kind_rather_than_the_scenario_table(self):
+        """`scenario_kind` is recorded on the cell so a run archived before a
+        scenario was reclassified keeps reading as the kind it was measured as.
+        Looking it up from `SCENARIOS_BY_KEY` would silently re-read history."""
+        from e2e.models import Arm, RunRecord
+        from e2e.read_prereg import kind_of
+
+        runs = [
+            RunRecord(
+                arm=Arm("A2"), tier="strong", model="m",
+                scenario_key="reclassified", scenario_kind=None, replicate=1,
+            ),
+            RunRecord(
+                arm=Arm("A2"), tier="strong", model="m",
+                scenario_key="reclassified", scenario_kind="poor_fit", replicate=2,
+            ),
+        ]
+        # Skips the unrecorded cell rather than concluding "no kind".
+        assert kind_of(runs, "reclassified") == "poor_fit"
+        assert kind_of(runs, "never_ran") is None
+
     def test_the_pooled_reader_flags_scenarios_that_disagree_in_sign(
         self, tmp_path, monkeypatch, capsys
     ):

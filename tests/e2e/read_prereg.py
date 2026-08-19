@@ -62,7 +62,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tests.e2e.models import Arm, Comparison, RunRecord  # noqa: E402
+from tests.e2e.models import (  # noqa: E402
+    NON_INFERIORITY_DIMENSIONS,
+    Arm,
+    Comparison,
+    RunRecord,
+)
 from tests.e2e.report import (  # noqa: E402
     collect_deltas,
     drop_invalid,
@@ -103,6 +108,51 @@ def verdict_for(ci: tuple[float, float] | None) -> str:
 
 
 POOLED_HEADER = "POOLED ACROSS {n} SCENARIOS — not a per-control reading"
+
+#: Kinds whose pre-registered endpoint is the NON-INFERIORITY composite rather
+#: than the composite over every judged dimension. Both are controls, and on a
+#: control the target is an interval around zero, not a delta to maximise.
+CONTROL_KINDS = ("poor_fit", "premature")
+
+TRIPWIRE_HEADER = "TRIPWIRE — {scenario} — NI composite ({dims}) — the pre-registered endpoint"
+
+
+def restrict_to(comparisons: list[Comparison], dimensions: tuple[str, ...]) -> list[Comparison]:
+    """Copy comparisons with `scores` narrowed to `dimensions`; drop the empties.
+
+    Needed because `Deltas.add` averages whatever is in `scores` and there is no
+    dimension-group filter anywhere in `report.py` — the `[NI]` tag exists only
+    in the per-dimension table. So the number r23's pre-registration names as its
+    tripwire ("the NI composite CI on either control") was not computable by the
+    script r23's pre-registration tells you to run.
+
+    On `poor_fit` that happened to be harmless: `dimensions_for` gives it exactly
+    the three NI dimensions, so its composite already IS the NI composite. On
+    `premature` it is not — that scenario is judged on ten dimensions, and
+    blending the seven structural ones into the three the tripwire is defined on
+    is how a control gets read against a rubric it was not pre-registered
+    against. Same failure as pooling two scenarios, one axis over: an aggregation
+    key that cannot express the distinction the reading rests on.
+    """
+    out: list[Comparison] = []
+    for c in comparisons:
+        scores = {k: v for k, v in c.scores.items() if k in dimensions}
+        if scores:
+            out.append(c.model_copy(update={"scores": scores}))
+    return out
+
+
+def kind_of(runs: list[RunRecord], scenario: str) -> str | None:
+    """The recorded `scenario_kind` for one scenario, or None if unrecorded.
+
+    Read off the cell rather than looked up from `SCENARIOS_BY_KEY` for the
+    reason the field exists on the record at all: a run archived before a
+    scenario was reclassified must keep reading as the kind it was measured as.
+    """
+    for r in runs:
+        if r.scenario_key == scenario and r.scenario_kind is not None:
+            return r.scenario_kind.value
+    return None
 
 
 def scenarios_in(comparisons: list[Comparison], hi: Arm, lo: Arm) -> list[str]:
@@ -154,6 +204,51 @@ def print_endpoint(
             f"95%CI {ci_s}  pairs n={deltas.composite_n(tier)}"
         )
         print(f"          -> {verdict_for(ci)}")
+
+
+def print_tripwire(
+    comparisons: list[Comparison],
+    runs: list[RunRecord],
+    hi: Arm,
+    lo: Arm,
+    scenario: str,
+) -> None:
+    """The NI-composite block, printed for control scenarios only.
+
+    Gated on the recorded `scenario_kind` rather than on "the stem has more than
+    one scenario" (which would be a coincidence of how r23 was batched) and
+    rather than on every stem (which would silently redefine how the published
+    DECISION-kind composites read — that is a separate question, and changing it
+    while a control is in flight is exactly the move this whole file exists to
+    prevent).
+    """
+    kind = kind_of(runs, scenario)
+    if kind not in CONTROL_KINDS:
+        return
+    ni = restrict_to(comparisons, NON_INFERIORITY_DIMENSIONS)
+    if not ni:
+        print("=" * 74)
+        print(f"TRIPWIRE — {scenario} — no NI dimensions judged")
+        print("=" * 74)
+        print()
+        return
+    judged = {d for c in comparisons for d in c.scores}
+    print_endpoint(
+        ni,
+        runs,
+        hi,
+        lo,
+        TRIPWIRE_HEADER.format(scenario=scenario, dims="/".join(NON_INFERIORITY_DIMENSIONS)),
+    )
+    if judged <= set(NON_INFERIORITY_DIMENSIONS):
+        # Said out loud rather than suppressed: two identical numbers under
+        # different headings invite the reader to hunt for the difference.
+        print("  (identical to the composite above — every dimension judged here is NI)")
+    else:
+        extra = sorted(judged - set(NON_INFERIORITY_DIMENSIONS))
+        print(f"  (composite above also blends {len(extra)} structural dim(s): {', '.join(extra)})")
+        print("   Read THIS block as the tripwire; the composite above is context.")
+    print()
 
 
 def read(stem: str, pair: tuple[str, str] = ("A2", "A1.7")) -> int:
@@ -257,6 +352,7 @@ def read(stem: str, pair: tuple[str, str] = ("A2", "A1.7")) -> int:
                 f"ENDPOINT — {scenario} — composite, {hi.value} vs {lo.value}",
             )
             print()
+            print_tripwire(slice_, runs, hi, lo, scenario)
 
     heading = f"ENDPOINT — composite, {hi.value} vs {lo.value} (the pre-registered one)"
     if len(scenarios) > 1:
