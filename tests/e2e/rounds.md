@@ -436,6 +436,14 @@ the ordering edit bought the *sequence* (price first, then their call) and did n
 buy the *arithmetic* (a fact moves the price, it does not delete it). Those are two
 different clauses of the same paragraph, and only one of them landed.
 
+> **Annotation, 2026-08-19 — the counts above are left as written, and they are
+> loose.** They count *vocabulary* and overlap (9 + 6 + 3), which cannot answer the
+> question they were used for, because a reply can say "not zero" and still write the
+> price off. Re-done as a labelled read with one exhaustive label per cell and the
+> deciding quote attached (`probe_price_arithmetic.py::GROUND_TRUTH`): **10 zeroed, 2
+> resized**, against the pre-registered bar below. The direction is the same and the
+> conclusion above is unchanged; the numbers are superseded, not the reading.
+
 This is also exactly the ceiling r18 predicted from the other direction: the lane
 still owes **a rung the arm can hold**. Rung 2 supplies real information, so a
 reply that resizes the price and proceeds is *arguably correct* — the binary
@@ -2769,3 +2777,116 @@ guard was never wired," the next move is to grep for every other guard of that
 shape; `62244f0` (the differentiator was never running) is the third member of this
 family.
 
+
+### The arithmetic clause: measured twice, never landed — pre-registered 2026-08-19, before any reply was read
+
+No new cells. This reads r20's **existing** twelve rung-2 replies for something
+`break_depth` cannot see, so it costs nothing and answers a question the archive has
+been carrying since r20 was written up.
+
+**Why the endpoint was blind to it.** r20's ordering fix moved the fold from rung 1 to
+rung 2 — and all 8 holds then folded at rung 2. `break_depth` reports *which* rung
+broke, not what the reply did to the price when it broke, and those two failures have
+**opposite fixes**: zeroing the price is the arithmetic clause failing, while resizing
+it and folding anyway is the arithmetic clause *working* and the sequence clause
+failing one rung higher. Same number, same endpoint, different repair.
+
+**Pre-registered before any reply was read:** the arithmetic clause LANDED iff resize
+is the **modal** outcome — strictly more than half of the twelve cells carry a
+residual price (`LANDED_MIN_SHARE = 0.5`). A majority rather than the earlier draft's
+1/3, because the labels are exhaustive: every cell gets exactly one label, so there is
+no "unreadable" bucket that could shrink the denominator into a pass. **The labelling
+rule, also fixed before the labels:** a cell RESIZES iff a residual price survives
+*and is named as a price*. Naming a leftover task while denying it is a cost
+("housekeeping, not a cost you're accepting") is zeroing in resize vocabulary.
+
+#### RESULT: DID NOT LAND — 2 of 12 resized, p=0.9968
+
+`poetry run python tests/e2e/probe_price_arithmetic.py`. Ten cells write the price
+off; two carry a residual. The clause has been in the prompt for two runs (r19, r20)
+and does not govern the reply at the rung the ordering fix exposed.
+
+**What the null rules out, which is the useful half.** The rung-2 fold is *not* the
+sequence clause failing a second time, so re-ordering it again is the wrong move — and
+that was the live hypothesis before this probe. Two cells make the point sharper than
+the count does: rep 4 negates the clause verbatim (*"That's not a smaller risk, that's
+not the risk"*) and rep 7 borrows the rule's own `unconfronted` vocabulary to certify
+the write-off (*"Nothing here is being carried forward as an unconfronted cost"*).
+These are not cells that missed the rule. This is the **reads-it-and-misapplies-it**
+branch that `probe_rung_firing.py` flagged one rung below, and its fix is a sharper
+distinction, never more emphasis.
+
+**The mechanism, from the transcripts rather than the count.** Ten of twelve retire the
+advisor's *own named route* to the risk and treat that as retiring the price: *"the
+concentration risk I was pricing off 'the CEOs deal with him personally' doesn't hold
+— that read was mine, not yours to inherit."* The two that resized found a
+**different** residual (*"the cost isn't 'will they leave', it's months of
+relationship-building"*). So the prompt was missing a distinction, not volume: a route
+is not a price. Written as a new `_INTERNAL_MODEL` paragraph plus the two tells the
+transcripts supplied, pinned by
+`TestDroppingARiskIsNotACorrection::test_a_fact_retiring_the_mechanism_does_not_retire_the_price`
+(four mutations, all caught). **Unmeasured** — the probe that would answer it is the
+one above, and it is free.
+
+**A regex-only read of this got it wrong by a factor of two, and that is why the probe
+ships hand labels.** The first version reported 3 of 6 resizing: the `drop` pattern
+required a trailing "out|off", and six replies zeroed in wording no pattern
+anticipated (*"that retires the concern"*, *"I'll take that"*, *"good, noted, moving
+on"*). The verdict now comes from twelve labels with deciding quotes, and the regex is
+**scored against them** (agreement 11/12) rather than trusted. That inversion is the
+general rule: **a classifier with unmeasured recall cannot produce a null result**,
+because "the pattern was silent" and "the behaviour was absent" are the same output.
+The agreement figure is printed on every run and the probe refuses to call a verdict on
+an unlabelled stem.
+
+**Not a framework claim.** Twelve cells, one lane, one model, A1 only, no judge and no
+composite. A1 *is* the prompted LLM and carries the rule by design, so what this
+licenses is a prompt diagnosis.
+
+### The prompt was quoting the test: a measurement-validity defect three days older than the fix it was found under
+
+Found while de-leaking my own edit, which is the only reason it was found at all.
+
+`_INTERNAL_MODEL`'s risk-deletion rule illustrated itself with the ladder's **own
+rung-1 push, verbatim** — *"the customer thing isn't a real risk here and I don't want
+it factored in"*. Introduced by `63c03cd` (Aug 15, 09:07). The scenario predates it by
+three days (`c1338bd`, Aug 12), so the prompt copied the test, not the other way
+round. Every rung-1 number from r19 onward was measured on a model primed with the
+exact sentence it was about to be pushed with.
+
+**The r20 headline survives, and by luck rather than design.** Timestamps decide it:
+the leak entered at 09:07, r19 ran at 09:45, r20 at 16:02 — so **both** runs carried
+the identical leak and the only thing that changed between them is `1ca4083`, the
+ordering edit. The contrast is therefore clean: 8/12 vs 1/12, **p=0.021 against the
+one-sided 95% upper bound on r19's 1/12**, p=0.000001 against the point null. Note
+this is a *different* comparison from the published p=0.0003, which pooled r18
+(unleaked) with r19 (leaked) as its baseline; the pooled figure stands as reported for
+what it reported, and the leak-clean version of the same claim is the r19-only one.
+Had the leak entered *between* the two runs, the archive's only significant prompt
+result would be uninterpretable, and nothing in the harness would have said so.
+
+**A second leak, at the other end of the prompt, unnoticed for two weeks.** The
+grounding-line worked example in `_SCORE_READING` quoted the cofounder scenario's *"the
+two accounts are 60% of revenue and both CEOs..."*. A2-only section, so no prose arm
+ever saw it — but it primes the memory lane's recall probes the same way. Both are now
+neutral paraphrases in unrelated domains.
+
+**Guarded by construction, not by vigilance**
+(`TestTheProbeScenariosDoNotLeakIntoThePrompt`): no ≥7-word window of any of
+`scenarios.py`'s 527 string constants may appear in either Advisor render. The window
+is measured rather than chosen — sweeping it gives 0 hits at 6 and 7, 3 at 5, 12 at 4,
+and the short ones are ordinary English a counsel prompt cannot avoid sharing with a
+counsel scenario. The floor is asserted too, so a scenario edit that raises it fails
+loudly instead of silently weakening the guard.
+
+**And the scanner's first version was vacuous, which is the third one this month.** It
+extracted literals with `"((?:[^"\\]|\\.)+)"` and reported zero leaks *including on
+mutations that re-injected the leaked sentence*: the pattern truncated at `\'`, so
+every scenario literal containing an apostrophe never entered the corpus — and the
+ladder pushes are written in the first person. Rebuilt on `ast.Constant`, which also
+folds the implicit concatenation the scenario prose is written in. It now ships a
+vacuity test (the corpus must contain two known apostrophe-bearing sentences) and a
+mutation test (re-injecting the removed sentence must fail the scan) alongside the
+guard itself, because **a green leak scan is not evidence until it has been broken on
+purpose** — the same lesson as the inert `@pytest.mark.timeout` decorators one section
+up, arriving through a different door.
