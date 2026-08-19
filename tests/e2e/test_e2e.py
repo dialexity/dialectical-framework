@@ -7934,6 +7934,9 @@ class TestTheVerdictWordComesFromTheInterval:
         from e2e import read_prereg
 
         source = inspect.getsource(read_prereg.read)
+        # `print_endpoint` now owns the aggregation, so guarding `read` alone
+        # would guard the half that no longer does the work.
+        source += inspect.getsource(read_prereg.print_endpoint)
         assert "collect_deltas(" in source
         assert "Deltas(" not in source, (
             "read_prereg constructs a Deltas directly again — `Deltas.add` does "
@@ -7941,6 +7944,182 @@ class TestTheVerdictWordComesFromTheInterval:
         )
         # Gate 2 must filter to the pair being read for the same reason.
         assert "!= (hi, lo)" in source
+
+
+class TestAControlStemIsNeverReadPooled:
+    """The third bug of this shape, caught while r23's own cells were in flight.
+
+    r23 is two controls in one file, and its pre-registration says — in the same
+    breath as the command that invokes `read_prereg` — "read each control
+    SEPARATELY, never pooled into one 'controls' number". The endpoint loop keyed
+    on tier alone, so the script that exists to enforce the pre-registered
+    reading would have printed one composite across both tripwires.
+
+    Synthetic archives on purpose (`results/` is gitignored), and built so
+    pooling actively LIES: one scenario at a clean +1, the other at a clean -1.
+    Pooled that is +0.000 with a tight interval — a confident PASS assembled out
+    of two hard failures in opposite directions.
+    """
+
+    @staticmethod
+    def _write_stem(tmp_path, scenario_gaps: dict[str, int]) -> str:
+        import json
+
+        runs, comps = [], []
+        for scenario, gap in scenario_gaps.items():
+            for rep in range(1, 13):
+                for arm in ("A2", "A1.7"):
+                    runs.append(
+                        dict(
+                            arm=arm,
+                            tier="strong",
+                            model="m",
+                            scenario_key=scenario,
+                            replicate=rep,
+                            # Without a decision hash an A2 cell reads as
+                            # `collapsed_to_a1` and GATE 1 drops every pair.
+                            decision_hashes=["h"],
+                        )
+                    )
+                comps.append(
+                    dict(
+                        scenario_key=scenario,
+                        tier="strong",
+                        replicate=rep,
+                        arm_a="A2",
+                        arm_b="A1.7",
+                        x_arm="A2" if rep % 2 else "A1.7",
+                        session_label="decide",
+                        scores={"d1": [3 + gap, 3], "d2": [3 + gap, 3]},
+                    )
+                )
+        (tmp_path / "synthetic.json").write_text(
+            json.dumps(
+                {
+                    "build": {"git_sha": "synthetic", "prompt_sha": "synthetic"},
+                    "runs": runs,
+                    "comparisons": comps,
+                }
+            )
+        )
+        return "synthetic"
+
+    def test_two_scenarios_print_one_endpoint_each_before_the_pooled_line(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        from e2e import read_prereg
+
+        stem = self._write_stem(tmp_path, {"ctrl_up": +1, "ctrl_down": -1})
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        assert read_prereg.read(stem, ("A2", "A1.7")) == 0
+        out = capsys.readouterr().out
+
+        assert "ENDPOINT — ctrl_up" in out
+        assert "ENDPOINT — ctrl_down" in out
+        # Each control gets its own verdict, and they are the real ones.
+        assert read_prereg.WINS in out and read_prereg.LOSES in out
+        # Order is the point: whichever number prints first is the one read, so
+        # the per-control lines must precede the pooled average of them.
+        pooled_at = out.index("POOLED ACROSS")
+        assert out.index("ENDPOINT — ctrl_up") < pooled_at
+        assert out.index("ENDPOINT — ctrl_down") < pooled_at
+
+    def test_the_pooled_average_of_two_opposing_controls_is_still_printed_but_named(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Kept, not deleted: the r21/r22 baselines were computed pooled, so a
+        reader that refused to pool could not reproduce the numbers it exists to
+        reproduce. Pooling is a legitimate reading; pooling SILENTLY is the bug."""
+        from e2e import read_prereg
+
+        stem = self._write_stem(tmp_path, {"ctrl_up": +1, "ctrl_down": -1})
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        read_prereg.read(stem, ("A2", "A1.7"))
+        out = capsys.readouterr().out
+
+        assert "POOLED ACROSS 2 SCENARIOS — not a per-control reading" in out
+        # The pooled line is exactly the misreading this class exists to prevent:
+        # +0.000, tight, and "unresolved" — assembled from a win and a loss.
+        assert "composite +0.000" in out
+
+    def test_a_single_scenario_stem_reads_exactly_as_it_did_before(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """The regression that protects every published number: r21 and r22 are
+        single-scenario stems, and their composites must not acquire a new
+        heading, a per-scenario block, or a pooled label."""
+        from e2e import read_prereg
+
+        stem = self._write_stem(tmp_path, {"only_one": +1})
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        assert read_prereg.read(stem, ("A2", "A1.7")) == 0
+        out = capsys.readouterr().out
+
+        assert "ENDPOINT — composite, A2 vs A1.7 (the pre-registered one)" in out
+        assert "POOLED ACROSS" not in out
+        assert "ENDPOINT — only_one" not in out
+        assert out.count("composite ") == 1
+
+    def test_gate_two_splits_the_orientation_check_by_scenario_too(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """Bug #2 of the docstring with the scenario axis substituted for the arm
+        axis: a lopsided X/Y split inside ONE scenario averages away against the
+        other one's, and position bias is then invisible in the very gate that
+        exists to catch it."""
+        from e2e import read_prereg
+
+        stem = self._write_stem(tmp_path, {"ctrl_up": +1, "ctrl_down": -1})
+        monkeypatch.setattr(read_prereg, "RESULTS", tmp_path)
+        read_prereg.read(stem, ("A2", "A1.7"))
+        out = capsys.readouterr().out
+        gate2 = out[out.index("GATE 2") : out.index("ENDPOINT")]
+
+        assert "ctrl_up" in gate2 and "ctrl_down" in gate2
+        # One row per scenario, not one row for the file.
+        assert gate2.count("X-arm:") == 2
+
+    def test_scenarios_in_counts_only_the_pair_being_read(self):
+        """A scenario judged only for some other arm pair is not part of this
+        reading; counting it would make the script announce a split it is not
+        about to print, and would relabel a single-scenario endpoint as pooled."""
+        from e2e.models import Arm, Comparison
+        from e2e.read_prereg import scenarios_in
+
+        def comparison(scenario: str, a: str, b: str) -> Comparison:
+            return Comparison(
+                scenario_key=scenario,
+                tier="strong",
+                replicate=1,
+                arm_a=Arm(a),
+                arm_b=Arm(b),
+                x_arm=Arm(a),
+            )
+
+        comps = [
+            comparison("mine", "A2", "A1.7"),
+            comparison("mine", "A2", "A1.7"),
+            comparison("someone_elses", "A1.7", "A1"),
+        ]
+        assert scenarios_in(comps, Arm("A2"), Arm("A1.7")) == ["mine"]
+
+    def test_the_pooled_reader_flags_scenarios_that_disagree_in_sign(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """`read_pooled` pools by design, so it cannot refuse — but it can say
+        when the average it prints is an average of opposing effects."""
+        from e2e import read_pooled
+
+        stem = self._write_stem(tmp_path, {"ctrl_up": +1, "ctrl_down": -1})
+        monkeypatch.setattr(read_pooled, "RESULTS", tmp_path)
+        read_pooled.read([stem], ("A2", "A1.7"))
+        out = capsys.readouterr().out
+
+        assert "scenarios: ctrl_down, ctrl_up" in out
+        assert "SCENARIOS DISAGREE IN SIGN" in out
+        # And the pre-registered flat line stays primary regardless.
+        assert "FLAT (pre-registered unit)" in out
+        assert out.index("FLAT (pre-registered unit)") < out.index("per scenario")
 
 
 class TestR21Result:

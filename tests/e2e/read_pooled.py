@@ -136,6 +136,18 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
             f"  {stem:34} git {git_sha:8} dirty {str(dirty):6} "
             f"prompt_sha {(sha or 'ABSENT')[:7]}"
         )
+        # Scenario provenance, for the reason `build_provenance` exists one axis
+        # over: a pooled estimate that cannot say WHICH SCENARIOS it measured is
+        # not an estimate of anything shippable either. Added after guessing
+        # wrong about this very pool — the r21+r22 headline looked like it
+        # spanned two scenarios (two stems, and the README's known limit is that
+        # `cofounder_equity` + `cofounder_ladder_return` carry 95% of all judged
+        # cells) and in fact both stems are `cofounder_equity` alone. One
+        # command now answers that instead of an inference from the stem names,
+        # which is the whole argument for printing provenance rather than
+        # remembering it.
+        keys = sorted({c.get("scenario_key", "?") for c in payload["comparisons"]})
+        print(f"  {'':34} scenarios: {', '.join(keys) or 'NONE'}")
 
     distinct = {s for s in shas.values() if s}
     missing = [stem for stem, s in shas.items() if not s]
@@ -161,6 +173,7 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
 
     # -- the endpoint ---------------------------------------------------------
     per_replicate: dict[tuple[str, int], list[float]] = defaultdict(list)
+    by_scenario: dict[str, list[float]] = defaultdict(list)
     flat: list[float] = []
     kept_total = dropped_total = 0
     for stem, payload in payloads.items():
@@ -173,6 +186,7 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
                 continue
             cell = st.fmean([a - b for a, b in c.scores.values()])
             flat.append(cell)
+            by_scenario[c.scenario_key].append(cell)
             # Replicate numbers restart per stem, so the key must carry the stem
             # or r21's rep 3 and r22's rep 3 collapse into one cluster.
             per_replicate[(stem, c.replicate)].append(cell)
@@ -194,6 +208,28 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
         f"95%CI [{ci[0]:+.3f},{ci[1]:+.3f}]  n={len(flat)}"
     )
     print(f"          -> {verdict_for(ci)}")
+
+    if len(by_scenario) > 1:
+        # Heterogeneity, printed as a DIAGNOSTIC and never as the endpoint: the
+        # headline stays the flat pooled number that was pre-registered. What
+        # this row is for is the case pooling cannot survive — two scenarios
+        # pulling in opposite directions average to a confident nothing, which
+        # is the reading `read_prereg` now refuses to print alone for a stem
+        # holding a control. Switching to whichever slice reads best is the
+        # forbidden move; seeing that the slices agree is the point.
+        print()
+        print("  per scenario (diagnostic — the pooled line above stays primary):")
+        for scenario in sorted(by_scenario):
+            cells = by_scenario[scenario]
+            s_ci = _ci(cells) if len(cells) > 1 else None
+            ci_s = "n/a" if s_ci is None else f"[{s_ci[0]:+.3f},{s_ci[1]:+.3f}]"
+            print(
+                f"    {scenario:26} {st.fmean(cells):+.3f}  95%CI {ci_s}  n={len(cells)}"
+            )
+        signs = {st.fmean(v) > 0 for v in by_scenario.values()}
+        if len(signs) > 1:
+            print("    !! SCENARIOS DISAGREE IN SIGN — the pooled mean is an average")
+            print("       of opposing effects; say so in the write-up.")
 
     rep_means = [st.fmean(v) for v in per_replicate.values() if v]
     rep_ci = _ci(rep_means)

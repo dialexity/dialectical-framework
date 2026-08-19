@@ -35,6 +35,25 @@ canonical stems, NOT the `-rejudged` copies (which score the same cells twice an
 which `across_runs._stems` excludes for that reason) — reading the wrong pair of
 files here reproduces neither number and would have silently redefined the
 baseline the run was pre-registered against.
+
+AND A THIRD, caught while r23's cells were still in flight — same shape, one axis
+over. Both bugs above were "the code pooled an axis the reading distinguishes";
+this script kept doing it for SCENARIO. The endpoint loop keyed on tier alone and
+GATE 2's strata on (tier, session), so a stem holding two scenarios printed one
+composite over both. r23 is exactly that stem, and its pre-registration says, in
+the same breath as the command that invokes this script: "read each control
+SEPARATELY — never pooled into one 'controls' number." A pooled control is not a
+weaker control, it is a different and unasked question: two tripwires averaged
+together can each fire while their mean sits quietly inside zero.
+
+So the per-scenario breakdown prints FIRST and the pooled line prints after,
+labelled. The order is deliberate for the same reason the gates precede the
+endpoint — whichever number is printed first is the one that gets read. The
+pooled line is kept rather than removed because the r21/r22 baselines this
+archive is measured against were computed pooling `cofounder_equity` with
+`cofounder_ladder_return`; deleting it would make those numbers unreproducible
+by the one script that is supposed to reproduce them. Pooling is a legitimate
+reading. Pooling *silently*, in a file that holds a control, is the bug.
 """
 from __future__ import annotations
 
@@ -81,6 +100,60 @@ def verdict_for(ci: tuple[float, float] | None) -> str:
     if ci[1] < 0:
         return LOSES
     return UNRESOLVED
+
+
+POOLED_HEADER = "POOLED ACROSS {n} SCENARIOS — not a per-control reading"
+
+
+def scenarios_in(comparisons: list[Comparison], hi: Arm, lo: Arm) -> list[str]:
+    """Which scenarios the arm pair was judged on, sorted.
+
+    Filtered to the pair being read for the same reason `collect_deltas` keys by
+    it: a scenario present only for some other arm pair is not part of this
+    reading, and counting it would make the script announce a split it is not
+    about to print.
+    """
+    return sorted({c.scenario_key for c in comparisons if (c.arm_a, c.arm_b) == (hi, lo)})
+
+
+def print_endpoint(
+    comparisons: list[Comparison],
+    runs: list[RunRecord],
+    hi: Arm,
+    lo: Arm,
+    heading: str,
+) -> None:
+    """One endpoint block: composite, sd, CI and verdict per tier.
+
+    Takes already-filtered comparisons so the caller decides the slice — the
+    per-scenario and pooled blocks are then literally the same code over
+    different inputs, which is the only way the two can't drift apart.
+    """
+    print("=" * 74)
+    print(heading)
+    print("=" * 74)
+    grouped = collect_deltas(comparisons)
+    deltas = grouped.get((hi, lo))
+    if deltas is None:
+        print(
+            f"  no judged pairs for {hi.value} vs {lo.value}; slice has: "
+            f"{sorted(a.value + ' vs ' + b.value for a, b in grouped)}"
+        )
+        return
+    for tier in sorted({r.tier for r in runs}):
+        composite = deltas.composite(tier)
+        if composite is None:
+            print(f"  {tier:7} no pairs")
+            continue
+        ci = deltas.composite_ci(tier)
+        sd = deltas.composite_sd(tier)
+        ci_s = "n/a" if ci is None else f"[{ci[0]:+.3f},{ci[1]:+.3f}]"
+        sd_s = "n/a" if sd is None else f"{sd:.3f}"
+        print(
+            f"  {tier:7} composite {composite:+.3f}  sd {sd_s}  "
+            f"95%CI {ci_s}  pairs n={deltas.composite_n(tier)}"
+        )
+        print(f"          -> {verdict_for(ci)}")
 
 
 def read(stem: str, pair: tuple[str, str] = ("A2", "A1.7")) -> int:
@@ -144,43 +217,51 @@ def read(stem: str, pair: tuple[str, str] = ("A2", "A1.7")) -> int:
     # Orientation balance WITHIN the pair being read. A judge that always sees the
     # framework as X can score position rather than content, and a lopsided split
     # is what cost r4 a re-judge.
-    strata: dict[tuple[str, str], list[str]] = {}
+    # Keyed by scenario too: a lopsided X/Y split inside ONE scenario averages
+    # away against the other one's, which is bug #2 above with the scenario axis
+    # substituted for the arm axis.
+    strata: dict[tuple[str, str, str], list[str]] = {}
     for c in kept:
         if (c.arm_a, c.arm_b) != (hi, lo):
             continue
-        strata.setdefault((c.tier, c.session_label or "-"), []).append(c.x_arm.value)
+        key = (c.tier, c.scenario_key, c.session_label or "-")
+        strata.setdefault(key, []).append(c.x_arm.value)
     for key, xs in sorted(strata.items()):
         counts: dict[str, int] = {}
         for x in xs:
             counts[x] = counts.get(x, 0) + 1
-        print(f"  {key[0]:7} {key[1]:14} n={len(xs):3d}  X-arm: {counts}")
+        print(f"  {key[0]:7} {key[1]:22} {key[2]:10} n={len(xs):3d}  X-arm: {counts}")
 
     print()
-    print("=" * 74)
-    print(f"ENDPOINT — composite, {hi.value} vs {lo.value} (the pre-registered one)")
-    print("=" * 74)
-    grouped = collect_deltas(kept)
-    deltas = grouped.get((hi, lo))
-    if deltas is None:
+    scenarios = scenarios_in(kept, hi, lo)
+    if not scenarios:
+        print("=" * 74)
+        print(f"ENDPOINT — composite, {hi.value} vs {lo.value} (the pre-registered one)")
+        print("=" * 74)
         print(
             f"  no judged pairs for {hi.value} vs {lo.value}; file has: "
-            f"{sorted(a.value + ' vs ' + b.value for a, b in grouped)}"
+            f"{sorted(a.value + ' vs ' + b.value for a, b in collect_deltas(kept))}"
         )
         return 1
-    for tier in sorted({r.tier for r in runs}):
-        composite = deltas.composite(tier)
-        if composite is None:
-            print(f"  {tier:7} no pairs")
-            continue
-        ci = deltas.composite_ci(tier)
-        sd = deltas.composite_sd(tier)
-        ci_s = "n/a" if ci is None else f"[{ci[0]:+.3f},{ci[1]:+.3f}]"
-        sd_s = "n/a" if sd is None else f"{sd:.3f}"
-        print(
-            f"  {tier:7} composite {composite:+.3f}  sd {sd_s}  "
-            f"95%CI {ci_s}  pairs n={deltas.composite_n(tier)}"
-        )
-        print(f"          -> {verdict_for(ci)}")
+
+    if len(scenarios) > 1:
+        # First, and once per scenario. A control read pooled answers a question
+        # nobody pre-registered.
+        for scenario in scenarios:
+            slice_ = [c for c in kept if c.scenario_key == scenario]
+            print_endpoint(
+                slice_,
+                runs,
+                hi,
+                lo,
+                f"ENDPOINT — {scenario} — composite, {hi.value} vs {lo.value}",
+            )
+            print()
+
+    heading = f"ENDPOINT — composite, {hi.value} vs {lo.value} (the pre-registered one)"
+    if len(scenarios) > 1:
+        heading = f"ENDPOINT — {POOLED_HEADER.format(n=len(scenarios))}"
+    print_endpoint(kept, runs, hi, lo, heading)
 
     return 0
 
