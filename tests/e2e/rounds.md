@@ -2970,3 +2970,54 @@ poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
 poetry run python tests/e2e/probe_rung_firing.py r24-probe-mechanism A1   # sequence
 poetry run python tests/e2e/probe_price_arithmetic.py r24-probe-mechanism A1  # arithmetic
 ```
+
+#### The r23 smoke passed, and the pre-registration it validated has one wrong line
+
+`smoke-r24-precheck` (1 replicate, 4 cells, 787 s, exit 0) re-smoked the r23 wiring
+before committing 2.2 h. Everything the last smoke fixed still holds on a live run:
+
+| arm | scenario | kind recorded | turns | chars | tools | collapsed | invalid | error |
+|-----|----------|---------------|------:|------:|------:|-----------|---------|-------|
+| A1.7 | `poorfit_ssl_expiry` | `poor_fit` | 3 | 7937 | 0 | False | False | None |
+| A2 | `poorfit_ssl_expiry` | `poor_fit` | 3 | 7515 | 0 | False | False | None |
+| A1.7 | `premature_relocation` | `premature` | 4 | 2962 | 0 | False | False | None |
+| A2 | `premature_relocation` | `premature` | 4 | 1193 | 2 | False | False | None |
+
+Zero exclusions, zero turn errors, `dirty: False`, `prompt_sha b28ebf5` — the current
+build, not r23's `1ca4083`, which is a live consequence discussed below.
+
+**But the smoke also produced the first real `convergence` scores this lane has ever
+had on a `premature` scenario, and they say the pre-registration's inversion rule is
+wrong.** That rule reads: *"`convergence` on `premature_relocation` is read INVERTED,
+fixed now: the correct behaviour there is NOT closing, so a higher `convergence` score
+for A2 is a fault."* It was written to prevent deciding the sign after seeing the
+number, which is the right instinct applied to the wrong layer. The judge is **already**
+told to score it in the correct direction — `_DIMENSION_GUIDE["convergence"]` ends
+*"(For a scenario where converging would be premature, closing prematurely is the
+failure — judge whether the closing behaviour fit the situation.)"* — so the score is
+already a fit judgement, not a closure count.
+
+The smoke shows the rubric doing exactly that. Both arms capitulated (the judge's own
+note: *"both closed when they should not have"*), and it scored **A2 `convergence` 1
+against A1.7's 2** — penalising the closer, and penalising A2 *more* because it closed
+without ever learning the load-bearing unknowns. Inverting that at read time would have
+converted a correct signal into a recorded fault, and made A2's *worse* behaviour read
+as better. **No code inverts it** (nothing in `report.py`, `across_runs.py` or
+`read_prereg.py` special-cases the dimension), so nothing is broken in the harness —
+the defect is a manual instruction that a reader would have applied by hand.
+
+**Left in place above, annotated here, per the append-only rule.** The correction:
+`convergence` on `premature` is read **as scored, like every other dimension** — the
+inversion is already inside the rubric text. What the pre-registration was right about
+survives intact: the sign must be fixed before the numbers are seen, and it now is.
+
+**A second consequence of smoking on today's build, stated because it changes what r23
+can gate.** r23's pre-registration requires `prompt_sha 1ca4083` so the control speaks
+for the build whose claim it gates. Two prompt commits have landed since (`b28ebf5`,
+and `be06b0e` touches no `src/`), so a run today records `b28ebf5` and gates **that**
+build. r21's +0.325 and the pooled +0.243 were measured on `1ca4083`. A control on a
+later prompt is still worth having — the judge-rewards-structure question is about the
+*judge*, not the prompt — but it no longer literally satisfies the clause as written,
+and pretending otherwise would be the kind of quiet promotion this file exists to
+prevent. Either the run is labelled as gating `b28ebf5` (and the r21 numbers stay
+formally ungated), or the controls run on a checkout of `1ca4083`. **Not decided here.**
