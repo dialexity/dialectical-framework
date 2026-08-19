@@ -49,7 +49,7 @@ from dialectical_framework.graph.repositories.perspective_repository import \
     PerspectiveRepository
 from dialectical_framework.graph.scope_context import scope
 
-pytestmark = pytest.mark.real_llm
+pytestmark = [pytest.mark.real_llm, pytest.mark.seam]
 
 #: Kept literal, not read from bench config: this is a framework test and must
 #: not start passing because someone raised the bench's idea of "weak".

@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import pytest
 
-pytestmark = [pytest.mark.real_llm, pytest.mark.llm]
+pytestmark = [pytest.mark.real_llm, pytest.mark.llm, pytest.mark.seam]
 
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,

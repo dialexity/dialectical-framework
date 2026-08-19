@@ -27,7 +27,7 @@ from dialectical_framework.agents.advisor.advisor import Advisor
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
 
-pytestmark = pytest.mark.real_llm
+pytestmark = [pytest.mark.real_llm, pytest.mark.seam]
 
 WEAK_TIER = "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0"
 

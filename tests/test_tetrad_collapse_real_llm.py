@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import pytest
 
-pytestmark = [pytest.mark.real_llm, pytest.mark.llm]
+pytestmark = [pytest.mark.real_llm, pytest.mark.llm, pytest.mark.seam]
 
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
     ExpandPolarity

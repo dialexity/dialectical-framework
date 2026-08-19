@@ -1,9 +1,95 @@
-# Bench — does the framework beat a plain prompted LLM?
+# e2e — an integration harness for a distributed prompt
 
 A falsifiable harness, not a demo. It is built to be *able to report that the
 framework adds nothing* — if it could not, a positive result would mean nothing.
 
 Design spec: `docs/r-n-d/judged-eval-vs-prompted-llm.md` (gitignored).
+
+## What this is for (renamed from `bench`, 2026-08-19)
+
+**Read this before reading the rounds below, because the rounds are written as if
+the judged delta were the point.** It is not, and the commit log says so: of the
+216 commits in the month this harness ran, **122 touched `src/`**. The output was
+framework repair, and the defects were nearly all *seam* defects — a value
+computed and never rendered, rendered and never read, read and never acted on:
+
+| Commit | Defect |
+|---|---|
+| `62244f0` | pathways-before-closing: **the differentiator was never running** |
+| `2c158bc` | closed without grounding on the pathway it just built — 0 of 6, with 42 transformations in hand |
+| `b045d3e` | the two-tension floor kept the seam silent when one tension is enough |
+| `2ae30cc` | a committed Decision was lost when persisting its verdict failed |
+| `672c19d` | aspects deduplicated into their own tetrad's poles |
+| `76495d3` | control-statement attribution contradicted the paper |
+| `b20aaab` | `accepted_cost` grounded on a plus when it is a RISK |
+
+None of those is findable by reading one prompt. The framework IS a distributed
+prompt — a dozen concern prompts, three system prompts, app preambles, tool docs,
+context dumps — and its failure mode lives in the joins. You find them by driving
+the assembled system end to end and checking whether the thing arrived.
+
+### Three lanes, one engine
+
+The lanes are **selectors, not directories**. `models` is imported by 19 of the 32
+modules here; splitting the tree would break 138 imports to relocate a shared
+engine, and the certification code and the diagnostic code read the same records.
+
+| Lane | Selector | Oracle | Output |
+|---|---|---|---|
+| **Seam** | `pytest -m seam --real-llm` (12 tests) | a known-good value | pass/fail |
+| **Search** | `test_e2e_matrix` + `judge_notes.py` | **an opponent arm** | judge rationales naming a flaw |
+| **Archive** | `across_runs.py`, `read_pooled.py`, `read_prereg.py` | pooled history | a defensible number |
+
+**The seam lane already existed, unlabelled** — eight `--real-llm` files in
+`tests/`, each born from a measured defect in this archive, now carrying
+`pytest.mark.seam`. Run it after any prompt or seam change. It is cheap, it needs
+no opponent, and every test in it names the link it guards.
+
+**Why the search lane keeps its judge and its opponent arms.** A regression test
+can only guard a defect someone already found; it cannot answer *"is this worse
+than it should be?"* An opponent arm can, without the defect being specified in
+advance — `2c158bc` was unwritable as a regression test because nobody knew the
+closings weren't grounded, and the comparison is what produced that knowledge.
+`423d88a` ("read the judge's reasons: five prompt gaps") came from reading **531
+judge rationales**, not from reading scores. So the score is the trigger and
+**the rationale is the payload**; `judge_notes.py` is the primary reader.
+
+**What is retired: the certification apparatus, not the comparison.** Pooling,
+bootstrap CIs, pre-registration ceremony, `SUPERSEDED` maps and unit-of-analysis
+arguments exist to defend a population claim to a skeptical reader. Finding a seam
+bug needs one lost cell and a reason, not significance. *"At par or better"* is a
+**fitness function, not a hypothesis test** — conflating the two is what produced
+23 rounds of arguing about whether +0.193 resolved while the useful artifact was
+always the judge's prose. The machinery stays (`archive` lane) for the day a
+number must be published; it is not the loop.
+
+**One measured caution about that loop, from this archive.** On the two ladder
+rounds (`ladder-return-r16`, `ladder-return-r18`; 12 replicates each, SUBSTANCE
+mean gap, bootstrap CI clustered by replicate — `session_1 / ladder / followup`):
+
+| pair | round | pooled | session_1 | ladder | followup |
+|---|---|---|---|---|---|
+| A2−A1 | r16 | **+0.683** [+0.46,+0.90] | −0.217 | −0.267 | **+2.533** [+2.18,+2.88] |
+| A2−A1 | r18 | **+0.739** [+0.59,+0.88] | **−0.433** [−0.80,−0.12] | +0.283 | **+2.367** [+2.10,+2.65] |
+| A2−A1.7 | r16 | +0.083 (covers 0) | −0.367 | −0.467 | **+1.083** [+0.62,+1.55] |
+| A2−A1.7 | r18 | +0.250 (covers 0) | −0.333 | +0.300 | **+0.783** [+0.27,+1.33] |
+
+Bold = CI excludes zero. Three things this says, none of them visible in the
+pooled column alone:
+
+1. **The whole effect is at the return.** Inside session 1, A2 is *behind* — in
+   r18 significantly so. It wins when the user comes back and the record is read.
+2. **A1.7 — a prose journal written by someone who read this framework's design —
+   captures most of that.** Of the followup gain over A1, A1.7 takes 57% (r16)
+   and 67% (r18); the graph adds the rest. That is the honest size of the typed
+   record's edge over good notes, and it is why A1.7 is the opponent, not A1.
+3. **The pooled A2−A1.7 figure covers zero in both rounds.** Anyone quoting a
+   pooled number here is averaging a loss and a win over a design that puts them
+   in fixed proportion (1 followup per 3 sessions). Read per-session.
+
+Both rounds are the same scenario (`cofounder_ladder_return`), one tier, so the
+independent unit is 12 replicates, not 36 comparisons — the unit-shopping error
+`716d124` was committed to catch.
 
 ## The two claims
 
@@ -3129,6 +3215,21 @@ validity changed under a code edit, which is worth an alarm.
 swapping `except asyncio.TimeoutError` for a type that never fires, tightening the
 timeout to 60 s, dropping `error=` from the synthesised record (the silent-hole case),
 and making `drop_invalid` ignore the predicate.
+
+#### The same bug, found immediately afterwards, one directory up
+
+`pytest-timeout` was never a dependency. So all **16** `@pytest.mark.timeout(...)`
+decorators across `tests/` — including the ones on the expensive `--real-llm` seam
+guards — had been inert since the day they were written: an unregistered mark is a
+no-op, and pytest only whispers about it in a warning nobody reads. Every one of
+those tests could hang forever while its source says it cannot.
+
+That is r23's defect exactly — **a stated ceiling that does not exist** — and it
+found by looking for siblings of a bug rather than by another run. Fixed by adding
+`pytest-timeout = "^2.4.0"` to the dev group. When a defect turns out to be "the
+guard was never wired," the next move is to grep for every other guard of that
+shape; `62244f0` (the differentiator was never running) is the third member of this
+family.
 
 ## Files
 

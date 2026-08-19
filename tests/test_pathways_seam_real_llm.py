@@ -32,7 +32,7 @@ from dialectical_framework.graph.repositories.perspective_repository import \
     PerspectiveRepository
 from dialectical_framework.graph.scope_context import scope
 
-pytestmark = pytest.mark.real_llm
+pytestmark = [pytest.mark.real_llm, pytest.mark.seam]
 
 WEAK_TIER = "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0"
 

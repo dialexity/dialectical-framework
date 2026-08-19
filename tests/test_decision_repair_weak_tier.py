@@ -37,7 +37,7 @@ from dialectical_framework.graph.repositories.decision_repository import (
 )
 from dialectical_framework.graph.scope_context import scope
 
-pytestmark = pytest.mark.real_llm
+pytestmark = [pytest.mark.real_llm, pytest.mark.seam]
 
 #: The tier the ceremony provably fails at without the repair. Kept literal
 #: rather than imported from bench config: this is a framework test, and it must

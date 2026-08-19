@@ -64,6 +64,7 @@ isort = "^6.0.1"
 #flake8 = "^7.1.2"
 pytest-asyncio = "^1.1.0"
 autoflake = "^2.3.1"
+pytest-timeout = "^2.4.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -75,6 +76,7 @@ asyncio_default_fixture_loop_scope = "function"
 markers = [
     "llm: tests that exercise LLM code paths (mocked by default, real with --real-llm)",
     "real_llm: tests that require a real LLM endpoint (skipped unless --real-llm)",
+    "seam: guards ONE link in the chain a value travels (computed -> rendered -> read -> acted on). Each reproduces a measured e2e defect; run the lane with `-m seam --real-llm` after any prompt or seam change. See tests/e2e/README.md.",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:pydantic._internal._config",

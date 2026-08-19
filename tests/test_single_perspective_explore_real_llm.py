@@ -38,7 +38,7 @@ import json
 
 import pytest
 
-pytestmark = [pytest.mark.real_llm, pytest.mark.llm]
+pytestmark = [pytest.mark.real_llm, pytest.mark.llm, pytest.mark.seam]
 
 from dialectical_framework.agents.advisor.tools.explore import run_exploration
 from dialectical_framework.agents.analyst.skills.expand_polarities import \

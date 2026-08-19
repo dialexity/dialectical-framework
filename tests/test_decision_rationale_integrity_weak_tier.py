@@ -55,7 +55,7 @@ from dialectical_framework.graph.nodes.decision import Decision
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.scope_context import scope
 
-pytestmark = pytest.mark.real_llm
+pytestmark = [pytest.mark.real_llm, pytest.mark.seam]
 
 #: Same literal, same reason as `test_decision_repair_weak_tier.py`: a framework
 #: test must not start passing because the bench's idea of "weak" moved.
