@@ -3168,3 +3168,64 @@ test. That is the honest next move and it is a code change, not a wording change
 **Unchanged caveats:** one lane, one model, A1 only, n=12, no judge, no composite, and
 A1 *is* the prompted LLM carrying the rule by design — nothing here is a framework
 claim in either direction.
+
+---
+
+#### r23 IS RUNNING — and the reader it will be read with was wrong, fixed at cell 8 of 48
+
+Recorded now, with the run in flight and no result visible, because a tooling change
+made *after* seeing a number cannot be distinguished from a tooling change made *to*
+a number. This one is timestamped by the commit it landed in (`ea857ea`) against a
+launch that had completed 8 of 48 cells and judged none of them.
+
+**What was wrong.** `read_prereg.py`'s endpoint loop keyed on tier alone, and GATE 2's
+X/Y strata on `(tier, session)`. Neither carried `scenario_key`. r23 is the first stem
+in the archive to hold *two* scenarios that must not be averaged — and its own
+pre-registration says so in the same breath as the command that invokes the script:
+"read each control SEPARATELY — never pooled into one 'controls' number." The script
+would have printed one composite over both tripwires and one X/Y row for the file.
+
+**Why it is the same bug twice already documented in that file.** Its docstring records
+two self-caught bugs, both "the code pooled an axis the reading distinguishes" — arm pair
+in `Deltas.add`, arm pair again in the X/Y gate. Scenario is the third instance. The
+lesson is not about scenarios: **when a reading says "separately", the axis it separates
+on has to exist in the aggregation key, and prose in a pre-registration cannot enforce
+that.** The reason this file has a `verdict_for` function at all is the same argument one
+level down.
+
+**Why a pooled control is not merely a weaker control.** It is a different question.
+Demonstrated with a synthetic stem now standing as a test: one scenario at a clean +1
+per cell, the other at a clean −1. Read pooled that is **+0.000, sd 1.022, 95% CI
+[−0.436, +0.436] → UNRESOLVED** — a confident, tight, meaningless PASS assembled out of
+two hard failures pointing opposite ways. Two tripwires averaged together can each fire
+while their mean sits quietly inside zero. For a control specifically, the pooled reading
+is biased *toward* the outcome the experimenter wants.
+
+**What the fix does not do.** The pooled line is still printed, after the per-scenario
+blocks and labelled `POOLED ACROSS n SCENARIOS — not a per-control reading`. Removing it
+would have made r21 and r22 unreproducible by the one script that exists to reproduce
+them. Confirmed untouched, same command, after the change: r21 **+0.325 [−0.003,+0.653]**,
+r22 **+0.141**, pooled **+0.243 [−0.008,+0.494]**. Pooling is a legitimate reading;
+pooling *silently* in a file holding a control is the bug. Order carries the fix, not
+suppression — whichever number prints first is the one that gets read, which is why the
+gates precede the endpoint in the first place.
+
+**One correction to this file's own reasoning, made while writing the sibling fix.** The
+pooled r21+r22 headline was described in the previous session as pooling two stems; I
+assumed from the stem names that meant two scenarios. It does not — **both stems are
+`cofounder_equity` alone.** The `cofounder_equity` (250) + `cofounder_ladder_return` (144)
+= 95.2% figure spans the whole archive, not this pool. So the +0.243 has no scenario
+heterogeneity in it, and its coverage is narrower than the two-scenario reading implied:
+one scenario, two judgings. `read_pooled.py` now prints scenario provenance per stem, so
+that is one command rather than an inference from filenames — and it also warns when
+pooled slices disagree in sign.
+
+**Reading order for r23 is unchanged by any of this**, and is still the order fixed
+before launch: invalidating checks first (any `turn_errors` invalidates the whole
+tripwire, not just the cell — a dead cell biases a control toward a false PASS), then
+each control separately, `convergence` on `premature` read as scored.
+
+**Cost, corrected downward from the pre-registration's own estimate.** 8 cells in 9m17s
+(A1.7 median ~49s, A2 median ~86s) projects the 48-cell matrix at roughly **1h**, not the
+2.2h pre-registered — these two controls carry fewer beats than the decide-lane
+scenarios the estimate was extrapolated from.
