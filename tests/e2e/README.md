@@ -5,6 +5,16 @@ framework adds nothing* — if it could not, a positive result would mean nothin
 
 Design spec: `docs/r-n-d/judged-eval-vs-prompted-llm.md` (gitignored).
 
+**Resuming this work?** Run `/df-e2e` (`.claude/skills/df-e2e/SKILL.md`) — it orients a
+fresh session and routes every figure through `status.py`. And read that script's output
+before this file, because **prose carries judgement and `status.py` carries numbers**:
+
+```bash
+poetry run python tests/e2e/status.py      # coverage / unread / deltas — free
+```
+
+Everything below is history and reasoning. Nothing below is current state.
+
 ## What this is for (renamed from `bench`, 2026-08-19)
 
 **Read this before reading the rounds below, because the rounds are written as if

@@ -67,7 +67,7 @@ from e2e.models import (
     TurnRecord,
     WobbleScore,
 )
-from e2e import probe_readside_reach, round_trend
+from e2e import probe_readside_reach, round_trend, status
 from e2e.report import (
     Deltas,
     drop_invalid,
@@ -1762,6 +1762,179 @@ class TestReadDecisions:
         )
         _h, _c, _p, _pw, _r, verdicts = E2EDriver._read_decisions()
         assert verdicts == ["dec1234:none"]
+
+
+class TestTheResumeSkillStaysWired:
+    """`/df-e2e` is what a fresh session reads to pick this work up.
+
+    A resume skill that points at a renamed script is worse than no skill: it
+    reads as authoritative and sends the session to a dead path. So the paths and
+    commands it advertises are pinned, and — because this whole harness exists to
+    catch stated-guarantees-that-do-not-hold — so is its own central rule, that
+    numbers come from `status.py` rather than from prose.
+    """
+
+    SKILL = "/.claude/skills/df-e2e/SKILL.md"
+
+    def _skill_text(self) -> str:
+        from pathlib import Path
+
+        repo = Path(__file__).resolve().parent.parent.parent
+        path = repo / self.SKILL.lstrip("/")
+        assert path.exists(), f"the resume skill is gone: {self.SKILL}"
+        return path.read_text()
+
+    def test_every_path_it_points_at_exists(self):
+        """The failure mode is a rename elsewhere silently orphaning the skill.
+
+        The character class is deliberately WIDE (`[\\w.-]`). A first version
+        matched only `[a-z_0-9]+\\.py` and therefore did not notice a mutation
+        that renamed a cited script to `judge_notes_OLD.py` — the pattern simply
+        stopped matching the path it was supposed to be checking. A validator
+        whose scope shrinks when its subject changes is the same silent-hole bug
+        this harness keeps finding.
+        """
+        from pathlib import Path
+        import re
+
+        repo = Path(__file__).resolve().parent.parent.parent
+        cited = set(re.findall(r"tests/[\w./-]+\.(?:py|md)", self._skill_text()))
+        assert len(cited) >= 8, (
+            f"only {len(cited)} tests/ path(s) matched in the skill — the scan is "
+            "probably no longer seeing what the skill cites"
+        )
+        missing = sorted(p for p in cited if not (repo / p).exists())
+        assert not missing, f"the resume skill points at missing path(s): {missing}"
+
+    def test_it_tells_the_reader_to_get_numbers_from_the_script(self):
+        """Its one load-bearing rule, and the reason this class exists.
+
+        Every figure quoted from prose in this archive's history was eventually
+        found to be wrong. If a future edit softens this into "see the README for
+        results", the skill starts producing confident stale numbers again.
+        """
+        text = self._skill_text()
+        assert "status.py" in text, "the skill no longer routes numbers through status.py"
+        assert "not a status" in text or "memory, not a status" in text, (
+            "the prose-carries-judgement / script-carries-numbers rule was removed"
+        )
+
+    def test_it_does_not_hardcode_judged_deltas(self):
+        """A delta in the skill text is a number that cannot be re-run.
+
+        Scans for the shape of a judge-point figure (`+0.739`, `-2.45`). Version
+        pins and thresholds are not this shape; deltas are.
+        """
+        import re
+
+        offenders = re.findall(r"[+−-]\d\.\d{2,}", self._skill_text())
+        assert not offenders, (
+            f"the resume skill hardcodes judged figure(s) {offenders} — these rot; "
+            "print them from status.py instead"
+        )
+
+    def test_the_lane_commands_it_advertises_are_real(self):
+        """`-m seam` must be a registered marker, and rejudge must be a real test."""
+        from pathlib import Path
+
+        repo = Path(__file__).resolve().parent.parent.parent
+        text = self._skill_text()
+        assert "-m seam" in text
+        assert '"seam:' in (repo / "pyproject.toml").read_text(), (
+            "the skill advertises -m seam but the marker is unregistered, so the "
+            "command silently selects nothing"
+        )
+        entries = (repo / "tests/e2e/test_e2e_run.py").read_text()
+        for name in ("test_e2e_matrix", "test_e2e_rejudge"):
+            if name in text:
+                assert f"def {name}" in entries, (
+                    f"the skill advertises {name} but it is not in test_e2e_run.py"
+                )
+
+
+class TestTheStatusBoardReadsTheArchiveCorrectly:
+    """`status.py` is what a new session reads first, so its floor is pinned here.
+
+    Two of its three sections re-implement a filter that already exists, and both
+    were got WRONG on the first attempt in exactly the ways this archive has been
+    got wrong before:
+
+    1. counting `payload["comparisons"]` instead of `valid_comparisons` — the
+       inflated-by-dead-cells error `drop_invalid` exists to prevent;
+    2. keying a cell as `(tier, replicate)` — which collapses r16's replicate 1
+       and r18's replicate 1 into one cell and under-reports independent
+       evidence by 4x.
+
+    A status board that overstates coverage is worse than none: it retires
+    questions that were never asked.
+    """
+
+    def test_coverage_counts_only_valid_cells(self):
+        """The board's `valid` column must exclude what `drop_invalid` drops."""
+        raw, dropped = status._raw_and_dropped()
+        assert sum(raw.values()) > 0, "no judged rows found — archive unreadable?"
+        assert sum(dropped.values()) > 0, (
+            "no invalid cells anywhere: either the archive changed or the board "
+            "stopped applying drop_invalid, and only one of those is good news"
+        )
+        valid = len(status._all_valid())
+        assert valid == sum(raw.values()) - sum(dropped.values()), (
+            "the board's valid count does not equal raw minus dropped, so one of "
+            "the two paths is not applying the same filter"
+        )
+
+    def test_a_cell_is_identified_by_its_run_not_just_its_replicate(self):
+        """Replicate 1 of two different rounds is two cells, not one.
+
+        Asks `status.cell_id` — the board's OWN key — rather than rebuilding the
+        tuple here. An earlier version of this test constructed both the wide and
+        narrow keys itself and passed under a mutation that narrowed the board,
+        because it was only ever comparing itself to itself.
+        """
+        ladder = [
+            (stem, c)
+            for stem, c in status._all_valid()
+            if c.scenario_key == "cofounder_ladder_return"
+        ]
+        assert ladder, "the ladder lane vanished from the archive"
+        ids = {status.cell_id(stem, c) for stem, c in ladder}
+        stems = {stem for stem, _c in ladder}
+        assert len(stems) > 1, "the ladder ran in only one round — pin is vacuous"
+        # The key must SEPARATE rounds: distinct ids has to exceed what you would
+        # get if every round's replicate 1 were the same cell.
+        narrow = {(c.tier, c.replicate) for _stem, c in ladder}
+        assert len(ids) > len(narrow), (
+            "status.cell_id ignores which RUN a replicate came from, so multiple "
+            "rounds collapse into one round's worth of evidence"
+        )
+        # And it must be the run that distinguishes them, not something incidental.
+        assert all(cid[0] in stems for cid in ids), (
+            "status.cell_id no longer carries the run stem"
+        )
+
+    def test_every_section_runs_on_the_real_archive(self):
+        """A board that crashes on section 3 is a board nobody finishes reading."""
+        for name, section in status.SECTIONS.items():
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                section()
+            assert buffer.getvalue().strip(), f"section {name!r} printed nothing"
+
+    def test_the_board_names_the_unopened_scenarios(self):
+        """Declared-but-never-judged is the headline, not a footnote.
+
+        The framework's own controls (the poor-fit and premature scenarios) sit
+        in this list, and they are the cells most able to undercut a positive
+        reading. A board that omits them reads as completeness.
+        """
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            status.coverage()
+        text = buffer.getvalue()
+        declared = {s.key for s in ALL_SCENARIOS}
+        judged = {c.scenario_key for _stem, c in status._all_valid()}
+        for key in declared - judged:
+            assert key in text, f"unjudged scenario {key!r} missing from the board"
 
 
 class TestTheSeamLaneRosterIsReal:

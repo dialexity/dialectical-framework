@@ -214,7 +214,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 
 All paths relative to `src/dialectical_framework/`.
 
-**Claude skills:** shared `df-*` skills live in `.claude/skills/df-<name>/SKILL.md` (committed; `disable-model-invocation: true` + scoped `allowed-tools` — mirror a sibling). Personal `local-*` skills are gitignored. DB lifecycle: `/df-memgraph`. After renaming/moving a skill dir, re-run `/reload-skills` — the session's skill list doesn't auto-refresh.
+**Claude skills:** shared `df-*` skills live in `.claude/skills/df-<name>/SKILL.md` (committed; `disable-model-invocation: true`, plus scoped `allowed-tools` **only for run-a-command skills** — a skill whose workflow ends in edits must omit the key, or its documented loop is unexecutable; `df-sync-theory` and `df-e2e` omit it deliberately). Personal `local-*` skills are gitignored. DB lifecycle: `/df-memgraph`. E2E/benchmark work: `/df-e2e` (resume point; numbers come from `tests/e2e/status.py`, never from prose). After renaming/moving a skill dir, re-run `/reload-skills` — the session's skill list doesn't auto-refresh.
 
 ---
 
