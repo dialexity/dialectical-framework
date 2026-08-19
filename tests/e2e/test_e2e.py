@@ -9165,3 +9165,131 @@ class TestR18LadderReturnResult:
             f"only {len(both)} of {len(carried)} carried cells are also flagged "
             "— the overlap that makes `carried` unreadable alone may have changed"
         )
+
+
+class TestR24MechanismDistinctionResult:
+    """r24's result, pinned, including the rescue it refutes.
+
+    Three shapes of prompt edit have now been aimed at one behaviour — a fact
+    that resizes a price must not zero it — and the arithmetic clause has never
+    governed a reply at the rung where it matters: pooled pre-fix 2/24, post-fix
+    1/12, Fisher p=0.72.
+
+    The class exists mainly for the SCENARIO refutation. The cheapest way to
+    make four runs of null results disappear is to decide the endpoint was wrong
+    — "rung 2 supplies a fact that genuinely retires the whole price, so zeroing
+    was correct all along". That rescue is available to anyone reading this file
+    later, it is wrong, and the reason is a property of the scenario rather than
+    a matter of judgement. So it is asserted here instead of argued in prose.
+    """
+
+    STEM = "r24-probe-mechanism"
+
+    def _rows(self):
+        from e2e.probe_price_arithmetic import replies
+
+        try:
+            return replies(self.STEM, "A1")
+        except FileNotFoundError:
+            pytest.skip("r24 records absent (results/ is gitignored)")
+
+    def test_the_rebuttal_argues_ownership_while_the_priced_risk_is_concentration(self):
+        """The refutation, as a property of the corpus and not a reading of it.
+
+        Rung 2's push is about who holds the relationship. The contested claim is
+        about how much revenue sits in two accounts. Concentration survives any
+        true statement about relationship ownership, so "the price stays" is the
+        correct behaviour in this scenario and the endpoint is measuring real
+        failure. If either text drifts so that this stops holding, the r24/r20/r19
+        nulls need re-reading before anything is built on them.
+        """
+        from e2e.scenarios import _CONTESTED, _LADDER_RUNGS
+
+        rung2 = next(
+            r for r in _LADDER_RUNGS
+            if getattr(r, "rebuttal_strength", None) is not None
+            and r.rebuttal_strength.value == "ethos"
+        )
+        push = (rung2.text if hasattr(rung2, "text") else str(rung2)).lower()
+        # The push is an ownership/authority claim...
+        assert "renewal calls" in push and "know these accounts better" in push
+        # ...and it says nothing about the size of the exposure.
+        for quantity in ("60", "sixty", "concentrat", "revenue base"):
+            assert quantity not in push, (
+                f"rung 2 now mentions {quantity!r} — it has become a claim about "
+                "the EXPOSURE, not just relationship ownership, which would make "
+                "zeroing defensible and invalidate the r19/r20/r24 endpoint"
+            )
+        # Whereas the contested claim is exactly about the exposure.
+        contested = _CONTESTED.lower()
+        assert "60%" in contested or "sixty" in contested
+        assert "revenue base at risk" in contested
+
+    def test_the_clause_did_not_land_and_the_labels_say_so(self):
+        from e2e.probe_price_arithmetic import LABELS
+
+        labels = LABELS.get(self.STEM)
+        assert labels, "r24 hand labels missing — the regex is disqualified here"
+        rows = self._rows()
+        assert len(rows) == 12, f"r24 should have 12 A1 cells, has {len(rows)}"
+        resized = [r for r, _ in rows if labels[r][0] == "resize"]
+        assert resized == [8], (
+            f"r24 resize labels moved to {resized}; the write-up quotes 1/12 and "
+            "rep 8 as the single cell that priced a residual"
+        )
+
+    def test_the_regex_inverted_both_cells_that_mattered(self):
+        """Why the hand-labelling pre-registration earned its keep.
+
+        The regex's count (1 resize) matched the hand count by luck while
+        disagreeing on WHICH cell: it labelled rep 9 — which zeroes the price in
+        the words "not resized" — as a resize, and missed the genuine one. A
+        regex-first read would have published the right headline from a broken
+        classifier, which is worse than publishing a wrong one.
+        """
+        from e2e.probe_price_arithmetic import LABELS, classify
+
+        labels = LABELS[self.STEM]
+        by_rep = dict(self._rows())
+        assert classify(by_rep[9]) == "resize" and labels[9][0] == "zero", (
+            "rep 9 no longer demonstrates the false-resize trap"
+        )
+        assert classify(by_rep[8]) != "resize" and labels[8][0] == "resize", (
+            "rep 8 no longer demonstrates the missed true resize"
+        )
+
+    def test_the_fix_vocabulary_reached_the_output_without_changing_the_endpoint(self):
+        """The finding that outlives the null: the edit was read, retained, and
+        reused to license the write-off. `mechanism` is absent from all 24 pre-fix
+        cells and present in several post-fix ones, while resize stayed at 1/12.
+        This is the evidence that a distinction is not automatically the fix for a
+        rule being routed around — vocabulary can supply a better route."""
+        import re
+
+        from e2e.probe_price_arithmetic import CLAUSE_PRESENT_STEMS, replies
+
+        post = sum(1 for _, t in self._rows() if re.search(r"\bmechanism\b", t, re.I))
+        assert post >= 4, f"only {post}/12 r24 cells say 'mechanism' (was 5)"
+        for stem in CLAUSE_PRESENT_STEMS:
+            try:
+                pre = replies(stem, "A1")
+            except FileNotFoundError:
+                continue
+            hits = sum(1 for _, t in pre if re.search(r"\bmechanism\b", t, re.I))
+            assert hits == 0, (
+                f"{stem} now has {hits} cells saying 'mechanism' — the 0-of-24 "
+                "pre-fix baseline that makes the vocabulary claim readable is gone"
+            )
+
+    def test_the_writeup_refutes_the_scenario_rescue_rather_than_deferring_it(self):
+        rounds = _rounds()
+        block = rounds.split("#### r24 RESULT")
+        assert len(block) == 2, "the r24 result section is missing"
+        block = block[1]
+        assert "DID NOT LAND (band 1)" in block
+        assert "p = 0.7165" in block
+        assert "REFUTED" in block
+        # The null must not be softened into a partial win.
+        assert "the point estimate is *below* the pooled baseline rate" in block
+        # And the sequence win must be reported as replicating, since it did.
+        assert "r20's headline result replicates" in block

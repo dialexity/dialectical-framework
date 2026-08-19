@@ -454,10 +454,41 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   *different* residual. So the prompt lacked a **distinction** (a route is not a price), not volume — and two
   cells show emphasis would have failed: rep 4 negates the clause verbatim (*"That's not a smaller risk, that's
   not the risk"*) and rep 7 borrows its `unconfronted` term to certify the write-off. That is the
-  reads-it-and-misapplies-it branch again, one rung up. Fixed by the mechanism-vs-price paragraph in
+  reads-it-and-misapplies-it branch again, one rung up. Addressed by the mechanism-vs-price paragraph in
   `_INTERNAL_MODEL`, which names both tells verbatim so the model can catch itself mid-sentence; pinned by
-  `test_a_fact_retiring_the_mechanism_does_not_retire_the_price` (four mutations). **Unmeasured** — the probe that
-  would answer it is the same free one.
+  `test_a_fact_retiring_the_mechanism_does_not_retire_the_price` (four mutations).
+  **MEASURED, and it did not work — r24-probe, 1 of 12 resized against a pooled pre-fix 2 of 24, one-sided Fisher
+  p=0.72, point estimate below baseline.** The invalidating checks passed (`established` 12/12, overshoot 0/12,
+  zero turn errors) and the sequence win REPLICATED on a different build and an unprimed prompt (8/12, identical
+  depths to r20), so the null is about the arithmetic clause alone. **The instructive part: naming the seam taught
+  a cleaner way to cross it.** "mechanism" appears in **0 of 24** pre-fix cells and **5 of 12** post-fix, the
+  fix's distinguishing phrasings in 7 of 12 — so it was read, retained, reused — and then **four cells inverted it
+  to license the write-off** (*"That retires the RISK I was pricing, **not just the way I was describing it**"*;
+  *"it changes the **mechanism, not just the framing**"*). The rule says the mechanism goes and the price stays;
+  they claim the fact went *deeper* than the mechanism, which reads as compliance. **Generalise: handing a model a
+  distinction hands it the vocabulary to claim the exempt side of it, so a distinction is not automatically the
+  fix for a rule being routed around.** Emphasis, ordering, distinction — three shapes tried on one clause, only
+  ordering moved anything; **after the second failed edit the question is whether the rule has a structural home**
+  (here a `record_decision`-side check that an `accepted_cost` was priced), not what wording to try next.
+  **The rescue was checked and refuted, before any fourth edit.** "Maybe rung 2 retires the whole price, so
+  zeroing was right and the endpoint has been wrong since r19" is the cheap way to make four nulls vanish. Rung 2
+  argues *relationship ownership* (*"I've sat in every one of those renewal calls"*); the priced risk is
+  *concentration* (~60% of revenue in two accounts), a structural fact about the revenue base that no true claim
+  about who knows the CEOs can touch. The residual exists and r24 rep 8 found it (*"removing the person who closed
+  them changes the account's experience ... a smaller cost than the one I opened with"*) — one cell in 36. Pinned
+  as a property of the corpus, not a reading of it: `TestR24MechanismDistinctionResult` asserts rung 2 never
+  mentions the exposure while `_CONTESTED` does, so if either text drifts the nulls get re-read instead of
+  inherited. The transcripts show the elision in one sentence (*"the concentration risk I was pricing **assumed a
+  personal dependency**"* — it assumes nothing of the kind), and the fix's vocabulary made it more frequent: **9
+  of 12 r24 cells name the concentration explicitly against 2 of 12 in each pre-fix run, and 8 of the 9 name it
+  only to dismiss it.**
+  **And the hand-labelling pre-registration paid off in the sharpest possible way.** r24's regex reported the same
+  count as the hand labels (1 resize) while inverting both cells that mattered: it scored rep 9 — *"Dropped, fully
+  — **not resized**, not carried forward at a smaller size"* — as a resize, and scored the one genuine resize (rep
+  8) as zero. Agreement 8/12. A regex-first read publishes the right headline from a broken classifier, which is
+  worse than a wrong one because nothing looks off. **Standing rule: when the fix under test raises the very
+  vocabulary the classifier keys on, its error runs in the direction that manufactures a win — disqualify it in
+  the pre-registration, before the run.**
   **And the count that preceded it was loose in a way worth carrying forward.** The first read counted
   *vocabulary* with overlap (9 zero / 6 resize / 3 both), which cannot answer the question, because a reply can
   say "not zero" and still write the price off. Re-done with **one exhaustive label per cell plus the deciding

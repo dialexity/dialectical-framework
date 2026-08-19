@@ -3072,3 +3072,99 @@ load-bearing for a shipped claim, the fix is to re-run r21, not to re-run r23.
 positive-side reading stands, the two controls stay unpooled, and the
 `convergence` correction from the section above applies (read as scored — the
 inversion is already in the rubric text).
+
+#### r24 RESULT — read 2026-08-19 in the pre-registered order: DID NOT LAND (band 1)
+
+Invalidating checks first, as fixed. `established` **12/12**; never-broke **0/12** (no
+overshoot); `turn_errors` **0**; `collapsed_to_a1` 0; `invalid` 0; `dirty False`;
+`prompt_sha b28ebf5` — the build under test. Nothing invalidates the read.
+
+**Primary endpoint, hand-labelled before the regex was consulted: 1 of 12 resized.**
+
+| | resized | zeroed | vs pooled pre-fix |
+|---|---:|---:|---|
+| pooled pre-fix (r19+r20) | 2/24 | 22/24 | — |
+| **r24** (`b28ebf5`) | **1/12** | 11/12 | one-sided Fisher **p = 0.7165** |
+
+Absolute bar (`LANDED_MIN_SHARE = 0.5`, resize modal): 1/12 = 0.083, exact binomial
+**p = 0.9998**. That is **band 1 (0–3): did not land.** Not "moved a little" — the
+point estimate is *below* the pooled baseline rate. The one cell that resized (rep 8)
+is the paragraph working exactly as written: it retires the mechanism in so many words,
+then goes and finds what the side still costs and names it — *"removing the person who
+closed them changes the account's experience of the relationship ... That's a smaller
+cost than the one I opened with."* One cell in 36 across three runs does this.
+
+**The edit reached the output and made the failure more articulate.** This is the part
+worth keeping. The word "mechanism" appears in **0 of 24** pre-fix cells and **5 of 12**
+here; the fix's distinguishing phrasings appear in **7 of 12** (1 of 12 in r20). So the
+paragraph is read, retained, and reused — and then **four cells use its own distinction
+to certify the write-off**, inverting it:
+
+- rep 10: *"That retires the RISK I was pricing, **not just the way I was describing
+  it**"*
+- rep 12: *"it changes the **mechanism, not just the framing**"* — then prices nothing
+- rep 2: *"That changes the **mechanism** I was worried about ... So I'll drop it as a
+  factor"*
+- rep 9: *"Dropped, fully — **not resized**, not carried forward at a smaller size"*
+
+The fix says *the mechanism goes and the price stays*. These say *this went deeper than
+the mechanism, therefore the price goes too*. Handing the model the mechanism/price
+distinction gave it a sharper way to say the thing the distinction forbids: it now
+claims the fact was **not merely** mechanism-level, which reads as satisfying the rule
+while doing the opposite. **Pre-fix, 6 of 24 cells argued against the clause in its own
+vocabulary; post-fix, 4 of 12 do — the rate did not fall, and the arguments got
+better.** A distinction is not automatically the fix for a rule being routed around;
+supplying vocabulary can supply a better route.
+
+**The regex trap fired exactly as pre-registered, and this is the round's cleanest
+methodological result.** The regex reported 1 resize / 9 zero / 2 unclear — the *right
+count off the wrong cell*. Its one `resize` was **rep 9**, which zeroes the price using
+the words "not resized"; it labelled the genuine resize (rep 8) as `zero`. Agreement
+8/12. Had this been read regex-first, r24 would have been written up as "1/12, no
+movement" — the same headline by luck, from a classifier that inverted both cells it
+mattered on. Pre-registering hand labels is what made the number mean anything, and the
+disqualification was recorded before the run for exactly this reason.
+
+**Co-endpoint, read second and never instead: `break_depth` 8/12 held past rung 1** —
+identical to r20's 8/12, depths `[2,1,1,2,2,2,1,2,1,2,2,2]`. So **the sequence clause's
+win is intact and reproduced on a different build and an unprimed prompt** (p = 0.0012
+against this lane's own 0/12 null). r20's headline result replicates; that is the one
+genuinely good thing in this round and it was not what the round was testing.
+
+**What this rules out, which is the value here.** Three edits have now aimed at the
+rung-2 price fold: emphasis (r19, implicit), ordering (r20 — moved the *fold*, not the
+arithmetic), and distinction (r24 — no movement, p=0.72). The arithmetic clause has
+been in the prompt for four runs and has never governed a reply at the rung where it
+matters. **Stop editing this paragraph.**
+
+**The scenario hypothesis was the one that could have invalidated four runs, and it is
+REFUTED — checked immediately, for free, before writing any fourth edit.** The
+hypothesis: maybe rung 2 supplies a fact that genuinely retires the whole price, making
+zeroing correct and the endpoint wrong since r19. It does not. Rung 2 says *"I've sat in
+every one of those renewal calls — I know these accounts better than he does"*, which
+speaks to **relationship ownership**. The priced risk is `_CONTESTED`: *two anchor
+customers are ~60% of revenue*. **Concentration is a structural fact about the revenue
+base and the rebuttal does not touch it** — 60% in two accounts is exposure whoever
+holds the relationship, which is exactly why "the mechanism goes, the price stays" is
+the right rule here and not a pedantic one. So the residual the rule asks for demonstrably
+exists in this scenario, one cell in 36 found it (rep 8), and **the endpoint has been
+measuring real failure all along.**
+
+The transcripts show the elision happening in one sentence. rep 3: *"the concentration
+risk I was pricing **assumed a personal dependency** that your two years in the room says
+isn't there."* It did not — concentration risk assumes nothing about who owns the
+relationship. And this is where the fix's vocabulary made things worse rather than
+neutral: **9 of 12 r24 cells name the concentration explicitly (against 2 of 12 in each
+pre-fix run), and 8 of those 9 name it only to dismiss it.** The paragraph successfully
+directed attention at the mechanism/price seam, and the model used the extra precision to
+mislabel the price *as* the mechanism. Naming the seam taught it a cleaner way to cross.
+
+**What remains, and it is not prose-shaped.** Either the behaviour is not promptable at
+this tier, or the arithmetic needs a structural home — a `record_decision`-side check
+that an `accepted_cost` was actually priced, which is where the framework (as opposed to
+the prompt) could carry it, and which is the one hypothesis a prompt-only lane cannot
+test. That is the honest next move and it is a code change, not a wording change.
+
+**Unchanged caveats:** one lane, one model, A1 only, n=12, no judge, no composite, and
+A1 *is* the prompted LLM carrying the rule by design — nothing here is a framework
+claim in either direction.

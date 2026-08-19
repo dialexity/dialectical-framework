@@ -141,7 +141,32 @@ anchors.
       inherit"*), so the missing thing was a distinction (**a route is not a price**), not emphasis — and two
       cells prove emphasis would not have helped, one negating the clause verbatim and one borrowing its
       `unconfronted` vocabulary to certify the write-off. **A rule can be read, quoted, and routed around**;
-      when it is, add the distinction it lacks and take its own misuse as the tell to name.
+      when it is, emphasis is definitely not the fix.
+- [ ] **But the distinction was not the fix either — and naming a seam can teach a cleaner way to cross it.**
+      The obvious next move above (*add the distinction it lacks*) was made and measured: `b28ebf5` added "a fact
+      can retire the MECHANISM you named without retiring the price", with the two tells the transcripts supplied.
+      **It did not land: 1 of 12 resized against a pooled pre-fix 2 of 24, one-sided Fisher p=0.72** — the point
+      estimate BELOW baseline (r24-probe; hand-labelled, same lane/model/n). And the failure is instructive rather
+      than merely null: the edit demonstrably reached the output (**"mechanism" appears in 0 of 24 pre-fix cells
+      and 5 of 12 post-fix**) and **four cells used the fix's own distinction to certify the write-off** —
+      *"That retires the RISK I was pricing, not just the way I was describing it"*, *"it changes the mechanism,
+      not just the framing"*. The rule says the mechanism goes and the price stays; they assert the fact went
+      *deeper* than the mechanism, which reads as satisfying the rule while doing the opposite. **Handing a model
+      a distinction hands it the vocabulary to claim the exempt side of it.** Three shapes of edit (emphasis,
+      ordering, distinction) on one behaviour, and only ordering moved anything. So: **after two failed edits on
+      the same clause, stop editing and ask whether the rule has a structural home** — here, a
+      `record_decision`-side check that an `accepted_cost` was actually priced, which prose cannot enforce and a
+      prompt-only lane cannot test. Also pinned: **check the scenario before writing a fourth edit.** The cheap
+      rescue for a repeated null is "the endpoint was wrong all along"; it was checked and REFUTED (rung 2 argues
+      relationship ownership, the priced risk is ~60% revenue concentration — a structural fact no ownership claim
+      touches), and it is now a test rather than a paragraph
+      (`test_e2e.py::TestR24MechanismDistinctionResult`) so it cannot decay back into an open question.
+- [ ] **A hand-labelling pre-registration is worth its cost, and here is the receipt.** r24's regex reported the
+      SAME headline count as the hand labels (1 resize) while inverting both cells that mattered: it scored the
+      cell that says *"Dropped, fully — not resized"* as a resize, and missed the one genuine resize. A
+      regex-first read would have published a correct number from a broken classifier. When a fix under test
+      raises the vocabulary a classifier keys on, the classifier's error runs in the direction that manufactures
+      a win — disqualify it in the pre-registration, before the run, and print its agreement against the labels.
 - [ ] **Do NOT invent enforcement of prompt-absent rules.** Modality balance (R3, zero-sum) and apex coherence
       (R7, convex hull) live only in theory/TODOs — no prompt enforces them. Reject edits that *claim* to
       enforce them without wiring the check (`synthesis_generation.py` TODOs).

@@ -646,6 +646,21 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   second leak that sat in an A2-only section for two weeks, in
   [rounds.md](rounds.md). **General form of the limit: a prompt and a probe that
   are edited by the same hand can converge without either file looking wrong.**
+- **One clause of the risk-deletion rule has resisted three prompt edits, and the
+  archive's advice about it has been wrong twice.** *A fact resizes a price, it
+  cannot zero it* has been in `_INTERNAL_MODEL` for four runs and has never
+  governed a reply at the rung where the person supplies a real fact. Emphasis
+  did nothing; ORDERING moved a different clause (the fold, 8/12, and it
+  replicates); adding the DISTINCTION the transcripts asked for did nothing
+  either (r24, 1/12 vs pooled 2/24, p=0.72) and made the failure more articulate
+  — the word "mechanism" went from 0 of 24 pre-fix cells to 5 of 12, and four
+  cells used the new distinction to certify the write-off. **Naming a seam can
+  teach a cleaner way to cross it.** The scenario rescue ("maybe zeroing is
+  correct here") was checked and refuted and is now a test, not a paragraph, so
+  the nulls cannot be explained away later. What remains is not prose-shaped: a
+  `record_decision`-side check that an `accepted_cost` was actually priced. **Stop
+  editing that paragraph** — and generally, after the second failed edit on one
+  clause, ask whether the rule has a structural home instead of a better wording.
 
 ## What the rounds found
 
