@@ -564,7 +564,27 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   rather than of `_x_is_a` alone, since unit-level cover passed through both
   breaks.
 - **Non-inferiority dimensions** (warmth, actionability, conversational fit) are
-  judged but never folded into the headline. They are the base model's home turf.
+  judged but never folded into the headline. They are the base model's home turf. *One
+  caveat, logged 2026-08-19 and open:* that is the constant's stated rule, but
+  `Deltas.composite` averages every dimension in `scores`, so the published
+  DECISION-kind composites (r21's +0.325, the pooled +0.243) DO fold the three in
+  at a quarter of the weight. Controls now get an explicit NI-only `TRIPWIRE`
+  block (`read_prereg.print_tripwire`, gated on recorded `scenario_kind`);
+  changing the DECISION composites re-reads every published number and needs its
+  own pre-registration.
+- **Confirm some tool prints exactly the number the pre-registration names.** Not
+  a similar one. Two gaps of this shape were found in `read_prereg.py` in one
+  afternoon with r23's cells already in flight: the endpoint keyed on tier alone
+  so two controls that must be read separately were pooled, and the tripwire was
+  defined as an NI composite that nothing computed. Both are one sentence — *a
+  pre-registered reading names a distinction and the aggregation key does not
+  carry it* — and prose cannot enforce an axis the code already averaged away.
+  The second failed toward a **false fire**: at r23's shape with the controls
+  passing, the blended composite reads +0.700 FRAMEWORK WINS on a control whose
+  tripwire is +0.000, and a fired tripwire suspends the archive's two live
+  numbers. A tripwire wired to the wrong number is not a weak safeguard, it is a
+  random one, and its failure direction is not predictable from the direction you
+  were guarding.
 - **Machine scorers that no LLM can flatter** (`scoring.py`) reported beside the
   judge, so disagreement is visible. Where they disagree, trust the machine.
 - **Absence is `None`, never `0`.** An arm that *cannot* record a decision ground
