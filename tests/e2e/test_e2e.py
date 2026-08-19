@@ -1852,6 +1852,152 @@ class TestTheResumeSkillStaysWired:
                 )
 
 
+class TestTheDocumentedMethodMatchesTheCode:
+    """The README's "ablation ladder" section is the method's only findable home.
+
+    Everything it states was previously derivable only by reading `arms.py`'s
+    docstring and `config.py`'s defaults — which is why three sessions in a row
+    re-derived "which model is the judge" from memory. Writing it down creates a
+    NEW failure mode, though, and it is this repo's signature one: documentation
+    that keeps asserting a default after the default moved. So the prose is
+    pinned to the constants it describes.
+
+    Scope note: this pins the *facts a reader would act on* (role defaults, the
+    mother prompt's identity, which sections A1 draws). It deliberately does not
+    pin the surrounding argument — prose carries judgement, and judgement is not
+    testable.
+    """
+
+    def _readme(self) -> str:
+        from pathlib import Path
+
+        path = Path(__file__).resolve().parent / "README.md"
+        return path.read_text()
+
+    def _role_table(self) -> str:
+        """Just the four-row role table, not the whole README.
+
+        Scoping is load-bearing. A first version searched the entire 3400-line
+        file, and a mutation pointing the judge at `claude-opus-5` PASSED —
+        because r18's pre-registration mentions opus in an unrelated env var. In
+        a document this long, "the model name appears somewhere" is satisfied by
+        almost any model name, so a whole-file search is not a drift check at all.
+        """
+        readme = self._readme()
+        heading = "### Which models play which role"
+        assert heading in readme, (
+            f"the role table's heading {heading!r} is gone — either it was "
+            "renamed (update this test) or the method doc lost its model roles"
+        )
+        start = readme.index(heading)
+        end = readme.index("\n## ", start)
+        table = readme[start:end]
+        assert table.count("\n|") >= 5, (
+            "the role table lost rows or moved — this test can no longer see it"
+        )
+        return table
+
+    def test_the_documented_model_roles_are_the_real_defaults(self):
+        """A stale model table sends a reader to the wrong provenance.
+
+        The archive has already been burned once by a model/label mismatch:
+        `ladder-return-r18` ran Sonnet in the weak slot and every pooled
+        weak-tier cut that trusted the label averaged Sonnet into Haiku. A README
+        that names the wrong default is the same error one layer up.
+        """
+        from e2e.config import (
+            DEFAULT_JUDGE,
+            DEFAULT_SIMULATOR,
+            DEFAULT_TIER_STRONG,
+            DEFAULT_TIER_WEAK,
+        )
+
+        import re
+
+        readme = self._role_table()
+        for const in (
+            DEFAULT_TIER_WEAK,
+            DEFAULT_TIER_STRONG,
+            DEFAULT_SIMULATOR,
+            DEFAULT_JUDGE,
+        ):
+            # Documented as the bare model family (`claude-haiku-4-5`), not the
+            # full `bedrock/…-20251001-v1:0` id — a date and version suffix in
+            # prose would be two more things to keep in sync for no reader
+            # benefit. So compare on the family: drop the provider prefix and
+            # the bedrock routing/vendor prefix (`global.anthropic.`), then any
+            # trailing `-<8-digit date>` and/or `-v<n>:<n>` snapshot tag.
+            family = const.split("/")[-1].split(".")[-1]
+            family = re.sub(r"-\d{8}(-v[\d:]+)?$|-v[\d:]+$", "", family)
+            # A first version compared `family[:16]`, which for every default
+            # reduced to the literal "global.anthropic" — present in the
+            # README's env-var examples, so the assert passed without ever
+            # looking at a model name. Pin the shape so it cannot go vacuous
+            # again: a family must start with "claude-" and carry a version.
+            assert family.startswith("claude-") and re.search(r"\d", family), (
+                f"family extraction produced {family!r} — the regex over- or "
+                "under-stripped and this assert is no longer checking a model"
+            )
+            assert family in readme, (
+                f"config default {const!r} (family {family!r}) is not the model "
+                "the README documents — the role table drifted from config.py"
+            )
+
+    def test_the_judge_is_not_a_model_under_test(self):
+        """The rubric's credibility rests on this, so assert it rather than say it."""
+        from e2e.config import DEFAULT_JUDGE, DEFAULT_TIER_STRONG, DEFAULT_TIER_WEAK
+
+        assert DEFAULT_JUDGE not in (DEFAULT_TIER_WEAK, DEFAULT_TIER_STRONG), (
+            "the judge defaults to a model under test — every delta becomes "
+            "self-preference and the README's honesty claim is false"
+        )
+
+    def test_the_named_mother_prompt_exists_and_is_what_a1_draws_from(self):
+        """The README names one file as the engine prompt. Verify it is that file.
+
+        Also verifies the section list it publishes is the section list
+        `method_prompt` actually draws — a reader who wants to know what the
+        baseline was given should not have to trust prose for it.
+        """
+        from pathlib import Path
+
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        readme = self._readme()
+        cited = "src/dialectical_framework/agents/advisor/system_prompts.py"
+        assert cited in readme, "the README no longer names the engine prompt"
+        repo = Path(__file__).resolve().parent.parent.parent
+        assert (repo / cited).exists(), f"the named mother prompt is gone: {cited}"
+
+        # The sections the README lists as the method must all be real
+        # attributes, and must be the ones arms.py imports.
+        for name in (
+            "_INTERNAL_MODEL",
+            "_CONVERSATION_USE",
+            "_DECISION_READINESS",
+            "_HOW_YOU_SPEAK",
+            "_ROLE",
+            "_EAGER",
+        ):
+            assert name in readme, f"the README stopped listing {name}"
+            assert hasattr(sp, name), (
+                f"the README documents {name} but system_prompts.py has no such "
+                "section — it was renamed and the method doc drifted"
+            )
+
+    def test_it_states_a2_has_no_prompt_advantage(self):
+        """The load-bearing fairness claim, and the one a reader will challenge.
+
+        If this sentence goes, the ladder reads as "framework prompt vs. bare
+        model" — a different and much weaker experiment than the one being run.
+        """
+        readme = self._readme()
+        assert "no prompt advantage" in readme, (
+            "the README dropped the claim that A2's prompt is the same engine "
+            "text as A1's — without it the ladder's meaning changes"
+        )
+
+
 class TestTheStatusBoardReadsTheArchiveCorrectly:
     """`status.py` is what a new session reads first, so its floor is pinned here.
 

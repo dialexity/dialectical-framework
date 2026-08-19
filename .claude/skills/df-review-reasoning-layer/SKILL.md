@@ -126,7 +126,7 @@ anchors.
       that was never priced. **Generalise past this rule** — any prompt granting an exception must say what has to
       happen FIRST and on which turn, or the exception becomes the default path. And note the diagnostic that told
       the two failure modes apart: a rule the model never reads and a rule it reads and misapplies fail identically
-      at the endpoint, and have opposite fixes (`bench/probe_rung_firing.py::price_vocabulary`, free).
+      at the endpoint, and have opposite fixes (`tests/e2e/probe_rung_firing.py::price_vocabulary`, free).
       **Ordering it worked, and measurably: 8 of 12 vs 1 of 12, p=0.0003 against the most generous
       pre-registered null** — the archive's first prompt edit to move a pre-registered behavioural endpoint at
       conventional significance (r20-probe; still a screen, same lane at n=12, A1-only). **But only the clause that
@@ -213,6 +213,18 @@ anchors.
   nothing passes the other half and is the bug. Reference: `tests/test_decision_rationale_integrity_weak_tier.py`
   (a risk recorded as refuted vs. the same risk recorded as carried). Watch the fixture, not just the prompt: the
   first run of that test failed on a scope-wide `find_all_active()` duplicate rather than on the rule under test.
+- **The seam lane (real provider) — run this after ANY prompt edit with behavioural reach:**
+  `poetry run pytest -m seam --real-llm` (needs Memgraph up). Each guard reproduces a defect
+  measured end to end in `tests/e2e/results/`, and they exist because **a prompt assertion cannot
+  see a broken join.** `test_prompt_review_regressions.py` was fully green while 6 A2 cells printed
+  framework vocabulary at the person 15 times — the ban was *in* the prompt and absent from the
+  *reply*. Structural net answers "does the prompt say it"; the seam lane answers "did it arrive".
+  Roster and provenance: `tests/e2e/README.md` (pinned by `TestTheSeamLaneRosterIsReal`).
+- **A prompt fix that was never measured is a guess.** Before writing a rule from a judged
+  frequency, count the behaviour (`tests/e2e/probe_five_fixes.py`, free — it disqualified four of
+  five). Before claiming a fix worked, read the rationales, not the delta
+  (`tests/e2e/judge_notes.py --all-cells`, free). Three prompt fixes aimed at "A2 never calls
+  explore" all failed because the flag's cause was elsewhere; `/df-e2e` carries that loop.
 - **Known coverage gaps** (see reference §6): no cross-agent consistency test, agent-prompt hand-typed scales
   untested for agreement, taxonomy dict-vs-table lockstep untested, no app/engine boundary test, personas
   untested. If your edit lands in one of these, add the missing regression rather than relying on manual review.

@@ -600,7 +600,7 @@ class TestAdvisorFloorGuarantee:
         assert "grammatical subject" in block
         assert "opening sentence carries no report" in block
         # Arm-neutral: says nothing that presupposes a graph dump, because
-        # A1.7 renders this same section (bench/arms.py fairness rule 4).
+        # A1.7 renders this same section (tests/e2e/arms.py fairness rule 4).
         for tool_word in ("tool", "graph", "dump", "perspective"):
             assert tool_word not in block.lower(), tool_word
 
@@ -2014,7 +2014,7 @@ class TestDecisionReadiness:
         version of the choice has no arrangement to be read from.
 
         The rule is method, not machinery: a prompt-only arm owes the same
-        reasoning, so `bench/arms.py` rewrites the tool verb rather than
+        reasoning, so `tests/e2e/arms.py` rewrites the tool verb rather than
         dropping the paragraph (asserted there).
 
         The stated floor is ONE, and it was two until `claim2-weak-r15-voice`.
@@ -2797,7 +2797,7 @@ class TestWhatTheJudgeSaidWasWrong:
 class TestDroppingARiskIsNotACorrection:
     """The rebuttal ladder folds at rung 1 in 72 of 72 cells, every arm, both
     runs (`ladder-return-r16` at Haiku 4.5, `-r18` at Sonnet 5 — the tier label
-    was re-pointed, see `bench/across_runs.tier_model`). `established` is 12/12
+    was re-pointed, see `tests/e2e/across_runs.tier_model`). `established` is 12/12
     everywhere, so the position IS taken and then given up to the weakest push
     the protocol has: no authority, no argument, just "I don't want it factored
     in". The stance judge's own rationales say what happened — "sets the
@@ -2818,7 +2818,7 @@ class TestDroppingARiskIsNotACorrection:
     read as instructing the fold. It is not reverted here — the register fix it
     bought was real and separately measured — it is BOUNDED, and the structural
     rule lives in `_INTERNAL_MODEL` because that section renders in every head
-    AND in the prose arms (`bench/arms.py:method_prompt`), so the ceiling claim
+    AND in the prose arms (`tests/e2e/arms.py:method_prompt`), so the ceiling claim
     is testable rather than an A2-only perk.
 
     THEORY, CHECKED BEFORE WRITING (two independent anchors)

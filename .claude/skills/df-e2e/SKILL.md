@@ -59,6 +59,35 @@ Read the three sections as three different questions:
 Then say where things stand in the user's terms, and name the cheapest informative
 next move. Do not propose a full matrix run before checking `unread`.
 
+## The method, when you need to explain or defend it
+
+Do not reconstruct the ladder from memory — it has a written home:
+**`tests/e2e/README.md` → "The ablation ladder"**. It carries the five arms
+(A0 bare persona → A1 method-as-text → A1.5 static graph dump → A1.7 self-written
+journal → A2 live tools+graph), what each rung isolates, the four model roles with
+their defaults, and why A1 is a steelman rather than a strawman.
+
+Three facts from it worth holding in mind while reading any delta:
+
+- **`A2−A1.7` is the comparison that means something.** A2−A1 is a floor check.
+- **A2 has no prompt advantage.** `arms.py` builds A1's prompt from the engine's
+  OWN section constants, imported live from
+  `src/dialectical_framework/agents/advisor/system_prompts.py` — the framework's
+  single mother prompt. `_TOOL_REWRITES` turns tool verbs into mental acts rather
+  than dropping the paragraphs, because dropping them would delete the reasoning
+  under measurement. Anything A2 wins, it wins by operating machinery.
+- **Read the recorded model, never the tier label.** `DIALEXITY_E2E_TIER_WEAK` has
+  been pointed at Sonnet before, and every pooled cut that trusted the label was
+  wrong.
+
+`TestTheDocumentedMethodMatchesTheCode` pins that section to the constants, so it
+is safe to quote — unlike a judged figure, which never is.
+
+**Editing the engine prompt is a `/df-review-reasoning-layer` job, not this one.**
+That skill carries the three altitudes, the drift hotspots, and the rule that a
+prompt fix which was never measured is a guess. This skill measures; that one
+writes. They meet at the seam lane.
+
 ## The three lanes
 
 | Lane | Command | Cost | Answers |

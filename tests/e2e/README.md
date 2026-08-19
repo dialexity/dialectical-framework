@@ -243,6 +243,57 @@ Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools
 and a graph**, not a better prompt or a different decode path.
 
+**Each rung isolates one variable, so a delta names its own cause.** A1−A0 is the
+method as *text*. A1.5−A1 is having the framework's output without having built
+it. A1.7−A1.5 is a memory the model chose the contents of, versus one handed to
+it. **A2−A1.7 is the interesting comparison** — the typed, queryable record
+against the honest prose one. A2−A1 is easy and says little: nobody ships the
+method as a paragraph. Read `A2−A1.7` first, and treat `A2−A1` as a floor check.
+
+### The mother prompt, and why A1 is not a strawman
+
+There is one: `src/dialectical_framework/agents/advisor/system_prompts.py`. It is
+the domain-neutral dialectical engine — `_INTERNAL_MODEL` (how dialectical
+understanding works), `_CONVERSATION_USE`, `_DECISION_READINESS`,
+`_HOW_YOU_SPEAK`, `_ROLE`, `_EAGER`, and a `{dialectical_context}` slot the live
+graph is rendered into. Persona is *not* in it (that comes from `agents/apps.py`),
+which is what makes the same engine text reusable across arms.
+
+`arms.py` imports those section constants **live** and builds A1's prompt from
+them. It does not paraphrase, and it deliberately does not call
+`system_prompt(tool_names=[])` — that function's prose still refers to `anchor` /
+`ingest` / `inspect_node`, so a tool-less arm would be instructed to call tools it
+does not have. Instead `_TOOL_REWRITES` translates tool-operation verbs into
+**mental acts**. The distinction matters: *dropping* those paragraphs also deletes
+the discrimination test, the re-audit rule, and "never dump all insights at once"
+— i.e. the reasoning under measurement. A sandbagged A1 inflates every A2 delta,
+so `test_rewrite_table_has_no_stale_keys` fails if `system_prompts.py` is edited
+and the rewrite table drifts.
+
+Consequence worth stating plainly: **A2 has no prompt advantage over A1.** Its
+prompt is the same engine text plus tool documentation. Anything A2 wins, it wins
+by operating machinery.
+
+### Which models play which role
+
+Four independent slots (`config.py`; every one env-overridable — see "Selective
+runs"). Defaults:
+
+| Role | Default | Why |
+|---|---|---|
+| weak tier | `claude-haiku-4-5` | where structure should help most |
+| strong tier | `claude-sonnet-5` | where the model may already do it unaided |
+| simulator (the person) | `claude-sonnet-5` | held **fixed across arms** — it is the environment, not a contestant |
+| judge | `claude-fable-5` | must not be a model under test |
+
+Both tiers are run because the two answer different questions, and the answers
+have differed: the ceremony was **tier-gated** (6/6 strong, 0/6 weak) and
+prompting did not close it. The judge sits outside both tiers so a win cannot be
+self-preference; the simulator is fixed so an arm cannot be handed an easier
+person. **Read the recorded model, never the tier label** — `ladder-return-r18`
+pointed the weak slot at Sonnet deliberately, and every pooled weak-tier cut that
+trusted the label averaged Sonnet into Haiku.
+
 ## Two lanes are ports of published protocols
 
 Everything above is homegrown: our scenarios, our rubric, our markers. That is
@@ -1861,7 +1912,7 @@ and any one of them left behind reinstates the floor:
 - the `explore` tool doc — same, plus "start with 1-2 perspectives" → "start with
   the first perspective"
 
-Plus `bench/arms.py::_TOOL_REWRITES`, so A1/A1.7 are handed the same floor
+Plus `tests/e2e/arms.py::_TOOL_REWRITES`, so A1/A1.7 are handed the same floor
 (fairness rule 4).
 
 **The lesson worth keeping: a floor stated as a count is a number the model can

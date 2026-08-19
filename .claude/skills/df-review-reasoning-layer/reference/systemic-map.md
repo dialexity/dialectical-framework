@@ -63,6 +63,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   run it after editing these constants and update `_TOOL_REWRITES` in the same change.
   Rule of thumb for what belongs where: rules about **how to talk** (`_HOW_YOU_SPEAK`) must reach every
   arm; only rules about **operating machinery** are the framework arm's. See `tests/e2e/README.md`.
+  **This file is the framework's single "mother prompt"** — the domain-neutral engine every Advisor arm
+  runs on, persona excluded (that is `apps.py`). Which is why the framework arm has **no prompt advantage**
+  in the ladder: its prompt is this same text plus tool docs, so anything it wins it wins by operating
+  machinery. The ladder rungs, the four model roles and their defaults, and the steelman argument are
+  written up in `tests/e2e/README.md` → "The ablation ladder", pinned to the constants by
+  `test_e2e.py::TestTheDocumentedMethodMatchesTheCode` — quote that section rather than re-deriving it,
+  and update it in the same change if you rename a section here. `/df-e2e` measures; this skill writes.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
 - **The structured-extraction slot is a prompt surface in the USER role, and the model reads it as the person.**
@@ -84,7 +91,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   taken; and it must **forbid referring to itself**, because knowing the truth was not enough to stop the phrase
   reaching the reply. It is per-call and must never be persisted into `_messages` — a persisted fake user turn
   replays the misattribution on every later turn. Locked by `test_extraction_request_framing.py`; measured on
-  OUTPUT by `bench/scoring.py::score_internal_prompt_echo` (reported in the bench's **validity** section, not
+  OUTPUT by `tests/e2e/scoring.py::score_internal_prompt_echo` (reported in the bench's **validity** section, not
   the scores — a turn that answers a control message is not counsel at all). Kept **separate** from
   `score_machinery_leak`: a leak is the model choosing the wrong vocabulary and is fixed in the prompt, this is
   the framework mis-speaking in the person's voice and is fixed at the injection site. The detector matches the
@@ -116,12 +123,12 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   `src/`, so no `except: logger.exception(...)` in this codebase ever runs and nothing logs a traceback. The model
   receives the exception *message* as if it were the tool's output. Worse, an error string cannot parse as an
   `ExecutionReport`, so `report=None` — **byte-identical to what `sync` or `inspect_node` produce** — which means the
-  read-only exemption above silently absorbed crashes: `bench/arms.py::last_tool_outcomes` skipped them, and a dead
+  read-only exemption above silently absorbed crashes: `tests/e2e/arms.py::last_tool_outcomes` skipped them, and a dead
   `anchor` recorded as a call in `tool_calls` with *no matching entry* in `tool_outcomes`. That is the forensic
   signature to look for in any bench record saved before this fix (found in `claim2-weak-r11`: three A2 `anchor`
   calls, one in the only cell whose graph stayed at `perspectives=0`, read as "the model chose not to build"). Fixed
   by `ToolResult.error` (`agents/stream_events.py`) plus an ERROR-level log line in `_record_tool_results` — ERROR
-  specifically, because `bench/driver.py::_SwallowedErrorCapture` listens at that level on the `dialectical_framework`
+  specifically, because `tests/e2e/driver.py::_SwallowedErrorCapture` listens at that level on the `dialectical_framework`
   logger; a `warning` would leave the same silence (which is why `_ground_tetrads`' fail-soft `logger.warning` also
   left no trace in r11). The bench surfaces `<tool>:RAISED — <error>` in the **validity** section, above the scores:
   a raised tool is not a weak arm but a broken one, and no score in that run is readable. Rule: any new consumer of
@@ -152,7 +159,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   parallel to `last_tool_calls`, and the bench derives `TurnRecord.grounding_args`
   (`anchor:context=1240c` / `anchor:context=MISSING`) with a validity line that states the attribution in both
   directions. **Presence flag plus length, never the text** — `context` holds the person's whole case, so storing it
-  would put a second copy of the transcript in every record. `_GROUNDING_TOOLS` in `bench/arms.py` must track the
+  would put a second copy of the transcript in every record. `_GROUNDING_TOOLS` in `tests/e2e/arms.py` must track the
   tool signatures: a new grounding-carrying tool missing from it records as if it had no grounding to carry.
   Found in `r12-raise-probe`: two `anchor:ok` calls, two perspectives, ZERO `Grounded in:` lines.
   Locked by `test_conversation_tool_budget.py::TestToolCallArgsAreRecorded` and `test_e2e.py`.
@@ -407,7 +414,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   judged result.** Standing lesson: **a flat floor can be a prompt bug wearing a lane-design costume** — a
   measurement with zero variance in every arm is evidence about the shared prose, not only about the instrument.
 - **…and the first version of that rule was taken as permission, which is the general trap with escape clauses.**
-  The r19 firing probe (`bench/probe_rung_firing.py`, A1-only, 12 cells, ~20 min, pre-registered threshold 3/12)
+  The r19 firing probe (`tests/e2e/probe_rung_firing.py`, A1-only, 12 cells, ~20 min, pre-registered threshold 3/12)
   came back **1 of 12 — DID NOT FIRE**, with `established` 12/12 (denominator intact) and no overshoot. But the
   rule was NOT being ignored: rung-1 replies using its own price vocabulary ran **4/12 against 0/12 in r18's
   pre-rule A1 leg**, and two of those four folded *by invoking it* — offering to record the risk as an
@@ -570,9 +577,9 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    CONTAINS the ban and nothing asserted the reply obeyed it. A concrete counter-example in
    `_HOW_YOU_SPEAK` (the exact bad shape, then the same counsel said plainly) took it 15 → 1; a bare label
    in running prose survives, tracked by `test_machinery_silence_weak_tier.py` (xfail, non-strict). Two
-   standing rules: measure this class on OUTPUT (`bench/scoring.py::score_machinery_leak`, shared by the
+   standing rules: measure this class on OUTPUT (`tests/e2e/scoring.py::score_machinery_leak`, shared by the
    tripwire and the bench so they cannot disagree), and note that `_HOW_YOU_SPEAK` is **shared with the A1
-   baseline arms** (`bench/arms.py`, fairness rule 4) — wording that assumes a graph dump is false there,
+   baseline arms** (`tests/e2e/arms.py`, fairness rule 4) — wording that assumes a graph dump is false there,
    so keep additions arm-neutral. A leak silently corrupts `conversational_fit` (−1.33 in r10, read as the
    framework conversing worse).
    **The counter-example that fixed it then became the leak's source — negative examples prime.**
@@ -588,7 +595,7 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    the grammatical subject of every sent sentence is the person/their situation/you, never a process or a
    count, and the opening sentence carries no report of what just happened. Standing rule for this whole
    class: **any counter-example in a ban is a sentence the model may emit; write it so that copying it is
-   already a violation of something else**, and check `bench/scoring.py::_MACHINERY_TERMS` before claiming a
+   already a violation of something else**, and check `tests/e2e/scoring.py::_MACHINERY_TERMS` before claiming a
    term leaked — "opposition" and "pathway" are NOT in the canonical detector and counting them inflates
    the leak rate roughly 2×. Locked by `test_prompt_review_regressions.py::TestAdvisorFloorGuarantee::
    test_machinery_as_actor_examples_are_not_quotable` and `test_subject_and_opening_checks_are_mechanical`,
@@ -975,7 +982,7 @@ annotation) → **GenerateSynthesis**
   nothing told it to develop what it kept — so pruning read as permission to stop building. Measured: all 6 weak-tier
   A2 runs in `claim1-weak-r1` stopped at `anchor` (1-2 perspectives, zero `explore`) where the strong tier explored in
   4 of 6, leaving the ceremony with no pathway to offer as the `adopted_pathway` ground and no arrangement to read the
-  S- trap version from. Method, not machinery, so `bench/arms.py` REWRITES the tool verb instead of dropping the
+  S- trap version from. Method, not machinery, so `tests/e2e/arms.py` REWRITES the tool verb instead of dropping the
   paragraph (`explore` is deliberately absent from `_TOOL_TOKENS`) — a prompt-only arm owes the same reasoning. Locked
   by `test_decision_mode_closes_on_pathways_not_tensions_alone`. Bench side: `report.py` now flags live A2 runs that
   never explored, because `collapsed_to_a1` clears on a single tool call and the validity section otherwise asserts
@@ -989,7 +996,7 @@ annotation) → **GenerateSynthesis**
   "in their own words" produced a commit reply entirely in the user's first person ("I'm paying the premium now…
   Record it: Buy out cofounder now") — a script of the decision instead of a record of it; now "Their words, YOUR
   voice". An A1 run drifted the same way, so both (a) and (b) belong in the shared section and MUST survive
-  `_strip_tool_prose` (asserted in `bench/arms.py`'s rewrite table + the bench's own tests). (c) *Prose is not
+  `_strip_tool_prose` (asserted in `tests/e2e/arms.py`'s rewrite table + the bench's own tests). (c) *Prose is not
   recording*: 4 of 6 A2 runs never called `record_decision`, 2 having already written the full record out under
   headings. That paragraph names the tool deliberately so prompt-only arms drop it — they record in prose
   legitimately. **RECURRED at the weak tier** (`claim2-weak-r2`, 4 of 6 A2 runs, prompt paragraph verified
@@ -1084,7 +1091,7 @@ annotation) → **GenerateSynthesis**
   each. **Standing caution: a floor stated as a count is a number the model can sit BELOW.** The same "two" lived in
   three places at once — the seam guard, `_DECISION_READINESS`, and the `explore` tool doc — and all three now say
   ONE plus "no minimum to reach"; changing one without the others reinstates the floor
-  (`test_the_explore_threshold_reaches_its_tool_doc_too` asserts the pair, and `bench/arms.py::_TOOL_REWRITES`
+  (`test_the_explore_threshold_reaches_its_tool_doc_too` asserts the pair, and `tests/e2e/arms.py::_TOOL_REWRITES`
   carries the A1/A1.7 rewrite so the baseline is handed the same floor — bench fairness rule 4). Ordering is
   load-bearing: pathways BEFORE
   `RecordDecision`, because the record's grounds are read from the graph — weaving after the write leaves
@@ -1284,7 +1291,7 @@ annotation) → **GenerateSynthesis**
   **The founding measurement is now machine-scored, and it corrected itself.** An earlier hand-read of the same
   transcripts reported "the graph carried 0 of 15 particulars against the journal's 11 of 15" — it compared one arm's
   ARTIFACT against the other arm's REPLIES, because `SessionRecord` stored A1.7's journal text but only
-  `perspectives=N` for A2, and a count says nothing about whether the case is inside. `bench/scoring.py::
+  `perspectives=N` for A2, and a count says nothing about whether the case is inside. `tests/e2e/scoring.py::
   score_particulars` + `SessionRecord.carryover_in` now record what every arm was HANDED on one field and score two
   separate columns — `memory` (was the fact in the artifact?) vs `used` (did the reply reference it?) — because a
   memory that never held the fact is a STORAGE defect and one that held it while the reply generalised is a PROMPT
@@ -1376,7 +1383,7 @@ annotation) → **GenerateSynthesis**
   threshold: **when a prompt rule governs whether to CALL or PASS something, it belongs in the tool doc too** — but
   note the ranking established by the decision-repair fix: a rule governing whether an observable USER EVENT gets
   persisted belongs in code. This one is not that; what goes in `context` is a judgement about relevance, and there
-  is no observable event to classify, so the tool doc is the right layer. Machinery, not method — so `bench/arms.py`
+  is no observable event to classify, so the tool doc is the right layer. Machinery, not method — so `tests/e2e/arms.py`
   correctly does NOT carry it into the A1 baseline (tool docs are absent from `method_prompt`); a prompt-only arm's
   journal is its own equivalent lane.
   **Instruction was not enough either — the fourth instance, and this time the fix is PLACEMENT** (2026-08-12, from
@@ -1434,7 +1441,7 @@ annotation) → **GenerateSynthesis**
   no-context no-op, failure isolation, grounding-before-validation, plus
   `TestAnchorBranchesGroundAlike` — both branches ground, `ingest` still does not), and
   `test_prompt_review_regressions.py::TestAnchorGroundingReachesTheToolDoc` (both docs demand context WITH
-  specifics, the reason is stated, the Field agrees). Measured by `bench/test_e2e.py::TestCarriedParticulars`,
+  specifics, the reason is stated, the Field agrees). Measured by `tests/e2e/test_e2e.py::TestCarriedParticulars`,
   `TestCarryoverIsRecorded`, `TestParticularsAreWellFormed` (a particular form may not collide with a pole marker, or
   the carry probe and the symmetry share agree by construction) and `TestParticularsReporting` (an unrecorded artifact
   renders `--` and a warning, never a zero — the same absence-is-not-failure rule as `cited_record`).
