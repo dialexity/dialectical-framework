@@ -3080,6 +3080,56 @@ poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
 poetry run python tests/e2e/read_prereg.py r23-controls A2 A1.7
 ```
 
+#### r23 never finished: it hung 21 hours on one cell and wrote nothing
+
+**The run was killed, not read.** It logged `poorfit_ssl_expiry r1 A1.7 done: 45.8s`,
+started the A2 cell of the same replicate, and never emitted another line. Killed 21 h
+later at cell 2 of 48. **The controls are still unread** — the section above stands
+exactly as pre-registered, and the reading guide's item 6 is still an instruction with
+nothing to apply it to.
+
+What the hang cost, and why it cost that much:
+
+| | |
+|---|---|
+| Cells completed | 1 of 48 |
+| Wall clock | 21 h 12 min |
+| Records written to `results/` | **0** |
+| Error raised | none — the `await` simply never returned |
+
+The provider call hanging is ordinary; providers hang. **The defect is that the harness
+had no ceiling**, so the failure was silent *and* total: records are saved after the
+matrix loop completes, so a hang before the last cell discards every finished cell too.
+One wedged call therefore destroys an entire run's evidence rather than one cell's.
+
+**Fixed in two halves, because the obvious half alone would have made things worse.**
+
+1. `CELL_TIMEOUT_S` (90 min, `runner.py`) bounds one cell via `asyncio.wait_for`. On
+   expiry the runner synthesises a `RunRecord` carrying `error=...` and **continues the
+   matrix** — a re-raise would have reproduced r23's own failure mode of losing the 47
+   unrun cells. The value is deliberately generous: A2 measures ~176 s/turn, so a
+   3-session cell is ~40 min of honest work, and a tight bound would record a
+   legitimate slow cell as an arm defect.
+2. `RunRecord.invalid_as_evidence` now also returns True when `error` is set. Without
+   this, half 1 would have been a *new* way to corrupt results: an abandoned cell has an
+   empty transcript, an empty transcript judges fine, and it scores like an extremely
+   bad arm. `all_turns_errored` is `bool(turns) and all(...)` — **False for a record with
+   no turns** — and a prose arm is never `collapsed_to_a1`, so neither existing arm of the
+   predicate caught it. This is the `claim2` dead-run mechanism (four cells carrying a
+   −3.13 outlier) arriving by a different route.
+
+**No archived figure moved, and that is pinned rather than asserted:** zero of the 828
+archived records carry `error`, so widening the predicate cannot revalidate or
+invalidate any published number.
+`test_widening_the_predicate_moved_no_archived_figure` fails if a future run ever
+archives an errored record — at which point the archive would contain cells whose
+validity changed under a code edit, which is worth an alarm.
+
+**Five mutations, all caught:** reverting the predicate widening (2 tests fail),
+swapping `except asyncio.TimeoutError` for a type that never fires, tightening the
+timeout to 60 s, dropping `error=` from the synthesised record (the silent-hole case),
+and making `drop_invalid` ignore the predicate.
+
 ## Files
 
 | File | Role |

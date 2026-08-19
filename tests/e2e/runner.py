@@ -24,7 +24,9 @@ finding can be re-checked in isolation without re-spending the matrix. See
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Optional
@@ -74,6 +76,30 @@ JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A2, Arm.A1_7),
     (Arm.A2, Arm.A0),
 )
+
+#: Wall-clock ceiling for ONE cell, after which the cell is abandoned and the
+#: matrix moves on. Policy, not config: no deployment tunes this, it exists so a
+#: wedged provider call cannot eat the run.
+#:
+#: WHY THIS EXISTS (r23, 2026-08-18)
+#: =================================
+#: `r23-controls` was launched as 48 cells and killed 21 hours later having
+#: logged exactly one completed cell. The second cell's first turn never
+#: returned and never raised: no timeout anywhere in the harness, so `await
+#: run_cell(...)` blocked forever. The run wrote NOTHING — records are saved
+#: after the matrix loop, so 21 hours of wall clock produced no archive entry,
+#: no partial report, and no error. The bug is not that a call hung (providers
+#: hang); it is that the harness had no ceiling, so the failure was silent AND
+#: total.
+#:
+#: The value is generous on purpose. The measured worst case is A2 on a
+#: multi-session scenario at ~176 s/turn: `cofounder_ladder_return` runs three
+#: sessions of up to 8 beats, so ~40 min is an ordinary slow cell and anything
+#: past 90 min is wedged rather than slow. Set it too tight and a legitimate
+#: strong-tier A2 cell is recorded as an error, which reads in the archive as an
+#: arm defect — the exact misdiagnosis `4b76891` (retry transient 5xx) and
+#: `a5ae7a8` (thinking shape) were both fixed for.
+CELL_TIMEOUT_S: float = float(os.getenv("DIALEXITY_E2E_CELL_TIMEOUT_S", 5400))
 
 
 class E2ERun:
@@ -126,15 +152,39 @@ class E2ERun:
                                 f"{branch or '-'} {arm.value}"
                             )
                             say(f"{label} ...")
-                            record = await self._driver.run_cell(
-                                arm=arm,
-                                tier=tier,
-                                tier_model=tier_model,
-                                scenario=scenario,
-                                replicate=replicate,
-                                branch=branch,
-                                static_context=static_context,
-                            )
+                            try:
+                                record = await asyncio.wait_for(
+                                    self._driver.run_cell(
+                                        arm=arm,
+                                        tier=tier,
+                                        tier_model=tier_model,
+                                        scenario=scenario,
+                                        replicate=replicate,
+                                        branch=branch,
+                                        static_context=static_context,
+                                    ),
+                                    timeout=CELL_TIMEOUT_S,
+                                )
+                            except asyncio.TimeoutError:
+                                # A synthesised record rather than a re-raise:
+                                # the matrix must continue (r23 lost 47 unrun
+                                # cells to one hang) and the archive must SAY a
+                                # cell was abandoned. Silently skipping it would
+                                # leave a hole that reads as "not run yet".
+                                record = RunRecord(
+                                    arm=arm,
+                                    tier=tier,
+                                    model=tier_model,
+                                    scenario_key=scenario.key,
+                                    scenario_kind=scenario.kind,
+                                    replicate=replicate,
+                                    branch=branch,
+                                    error=(
+                                        f"cell timed out after {CELL_TIMEOUT_S:.0f}s "
+                                        f"(DIALEXITY_E2E_CELL_TIMEOUT_S); abandoned, "
+                                        f"matrix continued"
+                                    ),
+                                )
                             self.runs.append(record)
                             note = record.error or f"{record.duration_s}s"
                             # Turn errors first: they explain a collapse rather

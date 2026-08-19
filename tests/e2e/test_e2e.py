@@ -75,7 +75,7 @@ from e2e.report import (
     position_bias,
     render_report,
 )
-from e2e.runner import E2ERun, JUDGED_PAIRS, score_machine_over
+from e2e.runner import CELL_TIMEOUT_S, E2ERun, JUDGED_PAIRS, score_machine_over
 from e2e.scenarios import ALL_SCENARIOS, scenarios_for
 
 # The bench needs neither the DB nor the mock brain.
@@ -1762,6 +1762,114 @@ class TestReadDecisions:
         )
         _h, _c, _p, _pw, _r, verdicts = E2EDriver._read_decisions()
         assert verdicts == ["dec1234:none"]
+
+
+class TestAnAbandonedCellIsMissingDataNotAWeakArm:
+    """r23 hung 21h on one cell and wrote nothing. Two halves to the fix.
+
+    The timeout stops the hang; this class pins that an abandoned cell is
+    EXCLUDED rather than scored. Both halves are needed: a timeout that
+    synthesises an empty record would feed the judge an empty transcript, which
+    scores like an extremely bad arm — the `claim2` dead-run mechanism reached by
+    a new route (see `RunRecord.invalid_as_evidence`).
+    """
+
+    def _timed_out(self, arm: Arm = Arm.A2) -> RunRecord:
+        """What the runner synthesises: no sessions, `error` set."""
+        return RunRecord(
+            arm=arm,
+            tier="strong",
+            model="m",
+            scenario_key="probe",
+            replicate=1,
+            error="cell timed out after 5400s (DIALEXITY_E2E_CELL_TIMEOUT_S)",
+        )
+
+    def test_a_cell_with_no_turns_at_all_is_invalid_as_evidence(self):
+        """The gap the timeout would otherwise have opened.
+
+        `all_turns_errored` is `bool(turns) and all(...)`, so a record with zero
+        turns is not "all errored"; a prose arm is never `collapsed_to_a1`. Both
+        old arms of the predicate return False here.
+        """
+        run = self._timed_out(Arm.A1_7)
+        assert run.all_turns_errored is False
+        assert run.collapsed_to_a1 is False
+        assert run.invalid_as_evidence is True
+
+    def test_a_partway_timeout_is_invalid_even_though_its_turns_are_real(self):
+        """Session 1 completed, session 2 hung: real turns, truncated cell.
+
+        Every endpoint the multi-session lane exists for reads ACROSS sessions,
+        so a truncated cell is missing data for all of them.
+        """
+        run = _run(Arm.A1_7, "strong")
+        assert run.invalid_as_evidence is False
+        run.error = "cell timed out after 5400s"
+        assert run.all_turns_errored is False
+        assert run.invalid_as_evidence is True
+
+    def test_an_abandoned_cell_is_dropped_from_judged_comparisons(self):
+        """The predicate is only worth having if `drop_invalid` acts on it."""
+        good = _run(Arm.A1_7, "strong")
+        dead = self._timed_out(Arm.A2)
+        comparison = Comparison(
+            scenario_key="probe",
+            tier="strong",
+            replicate=1,
+            arm_a=Arm.A2,
+            arm_b=Arm.A1_7,
+            x_arm=Arm.A2,
+            session_label="decide",
+            scores={"warmth": (1, 5)},
+        )
+        kept, dropped = drop_invalid([comparison], [good, dead])
+        assert kept == []
+        assert dropped == 1
+
+    def test_the_runner_bounds_each_cell_and_keeps_going(self):
+        """A re-raise would lose the remaining cells — r23 lost 47 of 48."""
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        assert "asyncio.wait_for" in source
+        assert "CELL_TIMEOUT_S" in source
+        assert "except asyncio.TimeoutError" in source
+        # The synthesised record must SAY it was abandoned: a hole in the
+        # matrix reads as "not run yet" rather than "ran and was thrown away".
+        assert "error=" in source
+
+    def test_the_timeout_is_generous_enough_for_a_real_slow_cell(self):
+        """A2 measures ~176 s/turn; a 3-session cell is ~40 min of honest work.
+
+        Too tight and a legitimate strong-tier cell records as an error, which
+        reads in the archive as an arm defect rather than a harness one.
+        """
+        assert CELL_TIMEOUT_S >= 3600
+
+    def test_widening_the_predicate_moved_no_archived_figure(self):
+        """Pinned because it is what made the change safe to make at all.
+
+        No archived record carries `error`, so adding it to the predicate cannot
+        revalidate or invalidate any published number. If a future run archives
+        an errored record, this test failing is the correct alarm: the archive
+        would then contain cells whose validity changed under a code edit.
+        """
+        import json
+        from pathlib import Path
+
+        results = Path(__file__).resolve().parent / "results"
+        stems = [p for p in results.glob("*.json") if not p.name.endswith("-runs.json")]
+        assert stems, "archive is empty — this pin would pass vacuously"
+        errored = 0
+        for path in stems:
+            payload = json.loads(path.read_text())
+            if not isinstance(payload, dict):
+                continue
+            for raw in payload.get("runs", []):
+                if raw.get("error"):
+                    errored += 1
+        assert errored == 0
 
 
 class TestRecords:

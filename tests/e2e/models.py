@@ -814,8 +814,26 @@ class RunRecord(BaseModel):
         scenario and `smoke-strong` is a smoke stem, so both were already outside
         the pooled line for unrelated reasons — the guard was one ordinary round
         away from mattering, which is why it is a predicate and not a note.
+
+        A CELL THAT NEVER PRODUCED A TURN (added 2026-08-18 with the timeout)
+        ====================================================================
+        `all_turns_errored` is `bool(turns) and all(...)`, so it is False for a
+        record with NO turns — the `bool(turns)` guard is deliberate (a record
+        still being built must not read as dead) but it means an abandoned cell
+        was not caught by either arm of this predicate: a timed-out A1.7 cell is
+        not `collapsed_to_a1` (that is A2-only) and has no turns to have errored.
+        Its transcript is empty, and an empty transcript judges fine while
+        scoring like an extremely bad arm — the same mechanism as `claim2`'s
+        four dead runs above, arriving by a different route.
+
+        `error` is checked rather than `not self.sessions` because a cell can
+        also time out PART-WAY: session 1 completes, session 2 hangs, and the
+        record carries real turns plus an abandonment. Those turns are real but
+        the cell is truncated, so it is missing data for any endpoint that reads
+        across sessions (`score_particulars`, `score_survival`) — which is every
+        endpoint the multi-session lane exists for.
         """
-        return self.all_turns_errored or self.collapsed_to_a1
+        return bool(self.error) or self.all_turns_errored or self.collapsed_to_a1
 
     def session(self, label: str) -> Optional[SessionRecord]:
         for s in self.sessions:
