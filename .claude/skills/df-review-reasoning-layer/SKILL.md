@@ -110,8 +110,10 @@ anchors.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
 - [ ] **A risk the person wants dropped stays priced (R1 dialogical + R5.1).** `_INTERNAL_MODEL` distinguishes a
-      correction about their SITUATION (take it — they are the authority) from an instruction to delete T− (their
-      fact resizes the price, never zeroes it). Deleting T− strips the `accepted_cost` a decision is priced on AND
+      correction about their SITUATION (take it — they are the authority) from an instruction to delete T−. Their
+      fact resizes the price, or it dissolves the tension and takes that side's pull with it — **"never zeroes it"
+      was the wording for three runs and it was wrong; see the fork entry below**. Deleting T− strips the
+      `accepted_cost` a decision is priced on AND
       Ac+'s source term (T−→A+), so the loop has nothing to transform → S−. `_HOW_YOU_SPEAK`'s "concede in the
       first clause" must keep pointing at that boundary — the two read as contradictory otherwise, and the ladder
       measured every arm folding to the weakest possible push (72/72 cells at rung 1) when only the concede rule
@@ -133,7 +135,7 @@ anchors.
       was ordered landed.** All 8 holds then folded at rung 2, where the person supplies a real fact, and the
       arithmetic clause never governed the reply: **10 of 12 zeroed the price, 2 resized it, p=0.9968** against a
       pre-registered "resize is modal" bar (`tests/e2e/probe_price_arithmetic.py`, free — it re-reads r20's saved
-      replies). So *price-before-permission* (sequence) and *a fact resizes, never zeroes* (arithmetic) are two
+      replies). So *price-before-permission* (sequence) and *what a fact does to the price* (arithmetic) are two
       clauses of one paragraph, and fixing the first left the second untouched. **Check each clause of a
       multi-clause rule separately — a rule is not one instruction, and an endpoint that moves can hide a clause
       that never fired.** The mechanism came from the transcripts, not the count: 10 of 12 retire the advisor's
@@ -161,6 +163,35 @@ anchors.
       relationship ownership, the priced risk is ~60% revenue concentration — a structural fact no ownership claim
       touches), and it is now a test rather than a paragraph
       (`test_e2e.py::TestR24MechanismDistinctionResult`) so it cannot decay back into an open question.
+- [ ] **Three failed edits later, the check that should have run first was the THEORY check — the rule itself was
+      wrong.** Emphasis, ordering and distinction all tried to make the model obey *"a fact cannot make the price
+      zero"*. Nobody asked whether that absolute is a framework claim. It is not:
+      `docs/theory/generative-rules.md` labels the dialogical reading of T− as the price *"the framework author's
+      gloss, 2026-08 — not a paper claim"* — the same species as "structurally blind", and the second time an
+      application gloss hardened into a prompt rule and then into a measured null. Sometimes a fact really does
+      kill a risk, so 11 of 12 cells were arguing with an absolute the theory does not support, and **a rule the
+      model is right to resist cannot be rescued by wording.** What theory carries is Rule 3.2, `M(T+) = -M(T-)`:
+      a genuinely zeroed price does not yield a cheaper tetrad, it DISSOLVES the tension and takes that side's pull
+      with it. So the rule is now a **fork with two priced exits** — name the smaller price, or say the tension is
+      gone and give up the recommendation that rested on it — plus a discriminator that is deliberately NOT a depth
+      judgement ("is there still a reason to want this side?"), because depth is the axis four r24 cells claimed in
+      order to fold. **Generalise: before the second wording attempt on any rule, check that the rule states a
+      theory claim and not a gloss** — `docs/theory/` marks its own glosses, so this is a grep, not a judgement
+      call. And note the shape: the previous three edits all assumed the rule was right and the wording wrong.
+      **Knowingly crossing this file's own "stop editing after two" guidance**, on the argument that changing what
+      a rule SAYS is not a fourth attempt at making the same rule land, and that the structural home named above
+      (a `record_decision`-side priced-`accepted_cost` check) does not reach this behaviour at all — the rung-2
+      lane is a conversation about a risk with no record in it. Pre-committed before the run: **if the fork nulls
+      too, the conclusion is that this rule is not prose-enforceable, and no fifth wording gets written.**
+      Pinned by `test_a_corrected_fact_has_two_exits_and_both_cost_something`; uses modality balance as reasoning
+      only and wires no check (R3.2 status: diverges, deliberate non-enforcement).
+      Two further transfers. **An absolute with no legitimate exit gets argued with — price the escape instead of
+      forbidding it.** The write-off was free because the prompt offered no priced way out, and "never" is the
+      wording most likely to be the gloss rather than the claim. And **when you add a legitimate exit, add the
+      check for it being abused, and read that check BEFORE the endpoint** — a model that takes the new exit to
+      avoid the obligation has found a cheaper route, which is a finding against the fix however good the endpoint
+      looks (`DISSOLVE_OVERSHOOT_MIN` in `probe_price_arithmetic.py`; the label requires both halves of the exit,
+      so the failure shape it replaces cannot relabel itself into a pass).
 - [ ] **A hand-labelling pre-registration is worth its cost, and here is the receipt.** r24's regex reported the
       SAME headline count as the hand labels (1 resize) while inverting both cells that mattered: it scored the
       cell that says *"Dropped, fully — not resized"* as a resize, and missed the one genuine resize. A

@@ -224,7 +224,16 @@ class TestMethodPrompt:
         """
         prompt = " ".join(method_prompt().split())
         assert "an instruction to drop a risk is not a correction" in prompt
-        assert "What it cannot do is make the price zero" in prompt
+        assert (
+            "What it cannot do is leave the side costless while the case for that "
+            "side still stands"
+        ) in prompt
+        # Both exits of the r25 fork, in the baseline: `probe_price_arithmetic`
+        # measures this rule on A1 ONLY, so a fork that reached A2 alone would make
+        # the probe unable to see the thing it is scored on.
+        assert "The cost is smaller, so name the smaller one" in prompt
+        assert "Or the tension is dissolved" in prompt
+        assert "You do not get to keep the recommendation and drop its cost" in prompt
         # and the person's call still wins, in the baseline as well
         assert "want it out anyway, that is theirs to have" in prompt
         # ...but ordered behind the price, which is what r19-probe fixed. The
@@ -9583,30 +9592,48 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
         assert "scenario_kind" in RunRecord.model_fields
 
     def test_the_prompt_delta_is_symmetric_across_the_measured_contrast(self):
-        """Fact 2: `b28ebf5`'s paragraph enters A1.7 AND A2 in identical wording.
+        """Fact 2: the risk-deletion paragraph enters A1.7 AND A2 identically.
 
         r23 measures A1.7-vs-A2. An edit present in both arms moves the shared
         floor, not the contrast — the opposite of the case the frozen-sha clause
         was written to catch. `_INTERNAL_MODEL` reaches the prose arms through
         `method_prompt()`, so this is a property of the harness, not a promise.
+
+        **Derived from the constant, not a phrase list.** The first version pinned
+        six hand-typed sentences from the `b28ebf5` wording and broke on the r25
+        rewrite — which is a false alarm, because symmetry is a property of how
+        the arms are assembled and has nothing to do with what the paragraph
+        says. Slicing the live constant tests the actual claim and survives every
+        future re-wording; the r19–r25 lane has now re-worded this paragraph four
+        times, so a hand-typed copy is guaranteed to rot.
         """
-        from dialectical_framework.agents.advisor.system_prompts import system_prompt
+        import re
+
+        from dialectical_framework.agents.advisor.system_prompts import (
+            _INTERNAL_MODEL,
+            system_prompt,
+        )
 
         from e2e.arms import method_prompt
 
+        start = _INTERNAL_MODEL.index("**A correction about their situation")
+        end = _INTERNAL_MODEL.index("**Control statements are your internal test")
+        block = _INTERNAL_MODEL[start:end]
+        assert len(block) > 2000, f"risk-deletion block suspiciously short: {len(block)}"
+
         prose_arm = " ".join(method_prompt().split())
         advisor_arm = " ".join(system_prompt().split())
-        for phrase in (
-            "A fact can retire the MECHANISM you named without retiring the price",
-            "a price belongs to the side they are choosing, not to the route",
-            "go find what that side still costs and say THAT",
-            "the most plausible-looking way to fold",
-            "that read was mine, not yours to inherit",
-            "nothing here is being carried forward as an unconfronted cost",
-        ):
-            needle = " ".join(phrase.split())
-            assert needle in prose_arm, f"A1/A1.7 lost: {phrase!r}"
-            assert needle in advisor_arm, f"A2 lost: {phrase!r}"
+        # `{decision_unconfronted_note}` is substituted per render, so compare the
+        # fragments around it rather than the raw template.
+        fragments = [
+            " ".join(f.split())
+            for f in re.split(r"\{[a-z_]+\}", block)
+            if len(f.split()) >= 8
+        ]
+        assert len(fragments) >= 2, "the placeholder split found nothing to compare"
+        for fragment in fragments:
+            assert fragment in prose_arm, f"A1/A1.7 lost: {fragment[:80]!r}…"
+            assert fragment in advisor_arm, f"A2 lost: {fragment[:80]!r}…"
 
     def test_the_judge_and_rubric_r21_was_measured_against_are_unchanged(self):
         """What r23 actually gates is the JUDGE, and the judge is frozen.
@@ -9817,6 +9844,198 @@ class TestR18LadderReturnResult:
             f"only {len(both)} of {len(carried)} carried cells are also flagged "
             "— the overlap that makes `carried` unreadable alone may have changed"
         )
+
+
+class TestR25ForkPreRegistration:
+    """r25's readings, pinned before a cell runs.
+
+    This round is the one most exposed to being re-narrated after the fact, for
+    two reasons that have nothing to do with the numbers. It is the FOURTH edit
+    aimed at one behaviour, in open contradiction of the previous round's own
+    "Stop editing this paragraph" — so a null invites the reading "we already knew
+    that" and a win invites "of course, we finally got the wording right", and
+    both are stories rather than results. And it adds a second legitimate exit to
+    a rule, which is exactly the shape that lets a failure relabel itself as a
+    success.
+
+    So the clauses that cost something are asserted while still hypothetical: the
+    pre-commitment that a null ENDS prose attempts, the overshoot check that runs
+    against the fix, and the unchanged endpoint.
+    """
+
+    @staticmethod
+    def _block() -> str:
+        rounds = _rounds()
+        after = rounds.split("### r25-probe:")
+        assert len(after) == 2, "the r25 pre-registration block is missing"
+        block = after[1].split("### ")[0]
+        assert 4_000 < len(block) < 40_000, (
+            f"the r25 block is {len(block)} chars — the slice is no longer bounded "
+            "by its own section, so these asserts may be scanning the wrong round"
+        )
+        return block
+
+    def test_the_pre_commitment_that_a_null_ends_prose_attempts(self):
+        """The costly clause, and the only one that constrains a future session.
+
+        Four wordings is already past the point where "try another wording" is a
+        method. Writing the stopping rule down before the result is what stops the
+        fifth from looking reasonable in the moment.
+        """
+        block = self._block()
+        assert "no fifth wording" in block
+        assert "PRE-COMMITMENT" in block
+        # And it must name what happens INSTEAD, or it is a mood, not a plan.
+        assert "`record_decision`-side" in block and "accepted_cost" in block
+
+    def test_the_overshoot_check_is_read_before_the_endpoint(self):
+        """A new legitimate exit needs its own abuse check, ordered first.
+
+        `dissolve` is a correct answer in general and a WRONG one on this
+        scenario, so a run that scores well on the endpoint by dissolving has
+        found a cheaper way out. If that reading were written after the number, it
+        would read as excuse-making.
+        """
+        block = self._block()
+        assert "read BEFORE the endpoint" in block
+        assert "trading one cheap exit for another" in block
+        # Both halves of the label, or the r24 failure shape passes as a success.
+        assert "requires BOTH halves" in block
+        assert "must not be laundered" in block
+        # An overshoot caps the claim rather than cancelling the endpoint.
+        assert "does **not** cancel a resize-modal result, it caps the claim" in block
+
+    def test_the_endpoint_is_unchanged_so_the_baselines_still_mean_something(self):
+        """Per SITE, because the pooled null is stated three times.
+
+        The first version of this test grepped `"3/36"` once and SURVIVED a
+        mutation that reverted the section heading to "The baseline is 24 cells"
+        — the table and the bands line still carried 3/36, so a single grep
+        passed while the prose said something else. Same failure `mutate23a.py`
+        already documents twice ("a pin that asserts a phrase ONCE is satisfied
+        by any of its copies"). Each site is checked on its own wording.
+        """
+        block = self._block()
+        # Site 1: the heading that states WHICH runs pool and why.
+        assert "The baseline is 36 cells and pools r24 in." in block
+        # Site 2: the table's pooled row.
+        assert "**pooled pre-fork**" in block
+        for stem in ("r19-probe-firing", "r20-probe-ordering", "r24-probe-mechanism"):
+            assert stem in block, f"{stem} missing from the pooled pre-fork baseline"
+        # Site 3: the bands table's null, which is what the p-values are computed
+        # against — and the absolute bar alongside it.
+        assert "null = pooled pre-fork 3/36" in block
+        assert "LANDED_MIN_SHARE = 0.5" in block
+
+    def test_the_probe_agrees_with_the_pre_registered_baseline(self):
+        """Prose and code must name the same null.
+
+        The archive's recurring bug is a reading that separates an axis the
+        aggregation pools (three instances in `read_prereg.py` alone). Here the
+        risk is the mirror: a pre-registration quoting 3/36 while the script
+        computes 2/24, which would be invisible until someone re-derived it.
+        """
+        from e2e.probe_price_arithmetic import (
+            FORK_STEM,
+            POST_FIX_STEM,
+            PRE_FORK_STEMS,
+            baseline_stems,
+        )
+
+        assert baseline_stems(FORK_STEM) == PRE_FORK_STEMS
+        assert POST_FIX_STEM in PRE_FORK_STEMS, (
+            "r24 must be IN the fork's null — it ran under the rule r25 replaces"
+        )
+        # ...and NOT in its own, or r24's archived Fisher p=0.7165 changes.
+        assert POST_FIX_STEM not in baseline_stems(POST_FIX_STEM)
+        assert f"`{FORK_STEM}`" in _rounds() or FORK_STEM in _rounds()
+
+    def test_the_overshoot_threshold_is_reachable_and_not_a_hair_trigger(self):
+        """A check whose threshold exceeds n can never fire, and reads as passing.
+
+        This is the inert-guard failure the archive has already met twice (the
+        `@pytest.mark.timeout` decorators with no plugin, the leak scanner whose
+        regex silently emptied its corpus). Both looked green. So the bound is
+        asserted against the run size it will actually be read at.
+        """
+        from e2e.probe_price_arithmetic import DISSOLVE_OVERSHOOT_MIN
+
+        assert 2 <= DISSOLVE_OVERSHOOT_MIN <= 12, (
+            f"DISSOLVE_OVERSHOOT_MIN={DISSOLVE_OVERSHOOT_MIN}: above 12 it cannot "
+            "fire on a 12-cell run, at 1 it fires on a single cell"
+        )
+        assert f"= {DISSOLVE_OVERSHOOT_MIN}`" in self._block(), (
+            "the pre-registration and the code disagree on the overshoot threshold"
+        )
+
+    def test_the_endpoint_bar_did_not_move_with_the_prompt(self):
+        """Changing the prompt and the bar in one commit measures nothing.
+
+        1/12 and 3/36 are only comparable to r25 if `LANDED_MIN_SHARE` is what it
+        was for r20 and r24. This is the cheapest possible way to fake a win, so
+        it is the one most worth pinning.
+        """
+        from e2e.probe_price_arithmetic import LANDED_MIN_SHARE
+
+        assert LANDED_MIN_SHARE == 0.5
+
+    def test_a_dissolution_counts_against_the_endpoint_not_for_it(self):
+        """The label must partition, and `dissolve` sits on the failure side.
+
+        On this scenario the residual provably survives, so a dissolution is a
+        wrong answer — folding it into `resize` would let the fork raise its own
+        estimate by relabelling, which is the exact move r24's "mechanism"
+        vocabulary made available in prose.
+        """
+        from e2e import probe_price_arithmetic as p
+
+        rows = [(1, "a"), (2, "b"), (3, "c")]
+        stem = "synthetic-label-partition-check"
+        p.LABELS[stem] = {
+            1: ("resize", "…"),
+            2: ("dissolve", "…"),
+            3: ("zero", "…"),
+        }
+        try:
+            buckets = p._labelled(stem, rows)
+            assert buckets == {"resize": [1], "dissolve": [2], "zero": [3]}
+            # Everything not resized is the failure side of the 2x2.
+            assert len(rows) - len(buckets["resize"]) == 2
+            p.LABELS[stem][2] = ("dissolved", "…")  # a typo must not vanish
+            with pytest.raises(ValueError):
+                p._labelled(stem, rows)
+        finally:
+            del p.LABELS[stem]
+
+    def test_the_theory_finding_is_what_justifies_a_fourth_edit(self):
+        """Without the gloss finding this round is just persistence.
+
+        The defensible claim is narrow: the previous three edits re-worded a rule,
+        this one replaces it, because the rule asserted an absolute
+        `docs/theory/` marks as the author's gloss. If that sentence ever leaves
+        the block, the round loses its justification and the "stop editing" verdict
+        stands unopposed.
+        """
+        block = self._block()
+        assert "gloss" in block and "not a paper claim" in block
+        assert "states a different rule" in block
+        # The discriminator must stay off the depth axis — depth is how r24 folded.
+        assert "not depth" in block or "**not depth**" in block
+        assert "is there still a reason to want this side" in block
+
+    def test_the_previous_rounds_verdict_carries_the_forward_pointer(self):
+        """The archive must not read as if r24's conclusion still stands alone.
+
+        r24 ends with "Stop editing this paragraph." A later round contradicting
+        that silently is how a log becomes unreliable, so the overturning is
+        recorded AT the overturned sentence, not only in the new section.
+        """
+        rounds = _rounds()
+        after = rounds.split("**Stop editing this paragraph.**")
+        assert len(after) == 2, "r24's verdict sentence is gone or duplicated"
+        # The pointer must be adjacent — within the same paragraph block.
+        assert "Overturned the next day" in after[1][:800]
+        assert "check the theory" in after[1][:1200]
 
 
 class TestR24MechanismDistinctionResult:

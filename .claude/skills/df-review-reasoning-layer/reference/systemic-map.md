@@ -444,7 +444,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   it (*"retires the specific risk I was pricing"*). Measured separately and pre-registered before any reply was
   read (`tests/e2e/probe_price_arithmetic.py`, free — it re-reads r20's own saved replies): **the arithmetic
   clause DID NOT LAND, 10 of 12 zeroed the price against 2 that resized, p=0.9968** on a "resize is modal" bar.
-  Sequence (price first) and arithmetic (a fact resizes, never zeroes) are separate clauses of one paragraph;
+  Sequence (price first) and arithmetic (what a fact does to the price) are separate clauses of one paragraph;
   ordering fixed the first and left the second. So: **verify each clause of a multi-clause rule separately,
   because a moved endpoint can hide a clause that never fired.** What the null RULES OUT is the useful half — the
   rung-2 fold is not the sequence clause failing twice, so re-ordering it again is the wrong move.
@@ -498,6 +498,41 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   The probe now scores its regex **against** the hand labels (agreement 11/12), prints that figure on every run,
   and refuses a verdict on an unlabelled stem: **a classifier with unmeasured recall cannot produce a null
   result**, since "the pattern was silent" and "the behaviour was absent" are the same output.
+  **THE RULE ITSELF WAS WRONG, and that is the check nobody ran for three edits** (rewritten 2026-08-20; r25 is
+  the measurement, not yet run). Emphasis, ordering and distinction all tried to make the model obey *"a fact
+  cannot make the price zero"*, and none of them asked whether that absolute is a framework claim. It is not:
+  `docs/theory/generative-rules.md` labels the dialogical reading of T− as the price **"the framework author's
+  gloss, 2026-08 — not a paper claim"** — the second time an application gloss hardened into a prompt rule and
+  then into a measured null (the first was "structurally blind"). A fact sometimes DOES kill a risk, so 11 of 12
+  cells were arguing with an absolute the theory does not support, and **a rule the model is right to resist
+  cannot be rescued by wording.** What theory carries instead is Rule 3.2, `M(T+) = -M(T-)`: a genuinely zeroed
+  price does not yield a cheaper tetrad, it **dissolves** the tension and takes that side's pull with it. So
+  `_INTERNAL_MODEL` now states a **fork with two priced exits** — (a) name the smaller price, or (b) say the
+  tension is gone and give up the recommendation that rested on it, since you do not get to keep the
+  recommendation and drop its cost. Both exits SPEAK; the failure being fixed is silence, not a wrong branch. The
+  discriminator is deliberately **not** a depth judgement — *"is there still a reason to want this side?"* —
+  because depth is precisely the axis four r24 cells claimed in order to fold, and the coined word they inverted
+  ("MECHANISM") is now absent from the render entirely, asserted as absent rather than merely demoted.
+  Three general lessons, in descending order of reach: **(1) before the second wording attempt on any rule, check
+  that the rule states a theory claim and not a gloss** — `docs/theory/` marks its own glosses, so it is a grep,
+  not a judgement call; **(2) an absolute with no legitimate exit gets argued with, so give the escape a price
+  instead of forbidding it** (the write-off was free because the prompt offered no priced way out); **(3) the
+  three prior edits all assumed the rule was right and the wording wrong — that assumption is the thing to
+  surface early.** Knowingly crossing this file's own "after the second failed edit, look for a structural home"
+  guidance, on two arguments: changing what a rule SAYS is not a fourth attempt at making the same rule land, and
+  the structural home named above (a `record_decision`-side priced-`accepted_cost` check) does not reach this
+  behaviour at all — the rung-2 lane is a conversation about a risk with no record in it. **Pre-committed before
+  the run: if the fork nulls too, this rule is not prose-enforceable and no fifth wording gets written.**
+  New overshoot condition, and it matters as much as the endpoint: a model that declares DISSOLUTION to escape
+  pricing has found a cheaper exit than the one it had, which is a finding AGAINST the fix — so r25 reads
+  dissolution-count before it reads resize-count (`DISSOLVE_OVERSHOOT_MIN = 3` in `probe_price_arithmetic.py`,
+  pre-registered in `rounds.md` with the endpoint left UNCHANGED so the 1/12 and pooled 3/36 comparisons still
+  mean something; the `dissolve` label needs BOTH halves — tension gone AND recommendation withdrawn — or the r24
+  failure shape would relabel itself into a pass, and it is not expressible as a keyword at all, so a stem with
+  dissolutions in it can only be read by hand). Uses modality balance as reasoning inside a conversational rule
+  and wires NO check (R3.2 status: diverges, deliberate non-enforcement). Pinned by
+  `test_a_corrected_fact_has_two_exits_and_both_cost_something` (replaces
+  `test_a_fact_retiring_the_mechanism_does_not_retire_the_price`).
   Note also that rung 2 is where the lane's own debt bites — a fact makes resizing *defensible*, and the binary
   held/abandoned judge cannot separate "correctly resized" from "capitulated", which is why this had to be
   labelled by hand at all.

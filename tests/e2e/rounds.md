@@ -2891,6 +2891,128 @@ guard itself, because **a green leak scan is not evidence until it has been brok
 purpose** — the same lesson as the inert `@pytest.mark.timeout` decorators one section
 up, arriving through a different door.
 
+### r25-probe: the rule itself was wrong — pre-registered 2026-08-20, before any cell ran
+
+**This round exists in direct violation of the previous round's own conclusion, which
+reads "Stop editing this paragraph." That instruction was right about what it had seen
+and was reached one check too early.** r24 diagnosed three failed edits and concluded the
+behaviour is not promptable. What it never did was run the check this project's own
+mandate puts first: *check the theory*. Doing so afterwards found the defect one level
+above the wording.
+
+**`docs/theory/generative-rules.md` labels the dialogical reading of T− as the price
+"the framework author's gloss, 2026-08 — not a paper claim"** — the same species of
+artefact as the retired "structurally blind", which the archive already caught converting
+straight into bad output. Rule 3.2 carries `M(T+) = −M(T−)` with status *diverges*
+(deliberate non-enforcement; `rectangularity` is the implemented form). Read together:
+**a side's pull and its price are the same size, so a price that genuinely goes to zero
+does not leave a cheaper tetrad — it dissolves the tension**. "Their fact resizes the
+price, never zeroes it" therefore asserted an absolute the theory does not support, and
+**11 of 12 r24 cells argued with it**, six of 24 pre-fix cells in its own vocabulary.
+They were not evading a correct rule; they were right about the thing the rule got wrong,
+and wrong about what follows from it (they kept the recommendation).
+
+So r25 does not re-word the old rule a fourth time. It **states a different rule**: a
+corrected fact leaves exactly two exits, and both cost something —
+
+1. **the cost is smaller, so name the smaller one** (the price belongs to the side they
+   are choosing, not to the route you guessed it would travel), or
+2. **the tension is dissolved, and then the case for that side goes with it** — you do
+   not get to keep the recommendation and drop its cost.
+
+The discriminator is deliberately **not depth**. "How deep did their correction go" is
+the axis four r24 cells claimed in order to fold (*"it changes the mechanism, not just
+the framing"*, then price nothing), so the fork asks instead: **is there still a reason
+to want this side?** The words "mechanism" and "not just the framing" are removed from
+the prompt, and their absence is asserted structurally
+(`TestDroppingARiskIsNotACorrection`).
+
+**PRE-COMMITMENT, recorded before the run and binding: if this nulls, no fifth wording
+gets written.** The conclusion then is that the rule is not prose-enforceable at this
+tier and the next move is the structural one r24 already named — a `record_decision`-side
+check that an `accepted_cost` was actually priced. Also recorded on both surfaces of
+`df-review-reasoning-layer`, whose own "stop after two edits" guidance this crosses
+knowingly, on the one argument that makes crossing it defensible: the first three edits
+re-worded a claim, this one replaces it.
+
+**Invalidating checks, read FIRST, unchanged from r19/r20/r24:** `established` must stay
+12/12, and 12/12 never-broke is **overshoot**, not a win.
+
+**NEW invalidating check, and it is read BEFORE the endpoint** (`DISSOLVE_OVERSHOOT_MIN
+= 3`, in the probe as of this commit): the fork adds a second legitimate exit, and a
+second exit is a second thing to abuse. **`dissolve` ≥ 3 of 12 is reported as the fix
+trading one cheap exit for another, whatever the resize count says.** This is a real
+check rather than a decorative one because **on this scenario a dissolution is a factually
+wrong answer**: rung 2 argues relationship ownership while the priced risk is ~60% of
+revenue in two accounts, and that residual was checked and confirmed to survive
+(`TestR24MechanismDistinctionResult` pins the refutation). The label requires BOTH halves
+— tension declared gone AND the recommendation withdrawn — so a reply that says the
+tension is gone while its recommendation stands scores `zero`, which is the r24 failure
+shape and must not be laundered by the new vocabulary. Joint reading, fixed now: an
+overshoot does **not** cancel a resize-modal result, it caps the claim — "the rule landed
+and created a new failure mode" is the write-up, not a clean win.
+
+**The baseline is 36 cells and pools r24 in.** r19, r20 and r24 all ran with *the rule
+r25 replaces* — the arithmetic absolute — differing only in ordering (r19→r20) and in
+whether the mechanism distinction was supplied (r20→r24). All three answered rung 2 under
+the same "never zeroes" claim, so all three are pre-fork:
+
+| stem | build | resized | zeroed |
+|---|---|---:|---:|
+| `r19-probe-firing` | pre-`1ca4083` | **0** | 12 |
+| `r20-probe-ordering` | pre-`1ca4083` | **2** | 10 |
+| `r24-probe-mechanism` | `b28ebf5` | **1** | 11 |
+| **pooled pre-fork** | | **3** | **33** |
+
+Pooling across builds is legitimate *for this endpoint* and not for a judged one: this is
+a hand-labelled read of one rung's reply text, with no composite, no `carried`, and no
+pairwise comparison — the thing `read_pooled.py` refuses across `prompt_sha` is a judged
+delta, whose baselines shift with the whole prompt. The one build difference that could
+bias it (r19/r20 ran with the scenario prose leaking into the prompt, r24 did not) already
+cut *against* the fix and is preserved here: r25 runs leak-free too, guarded by
+`TestTheProbeScenariosDoNotLeakIntoThePrompt`.
+
+**Pre-registered bands, fixed now** (null = pooled pre-fork 3/36 = 0.083; one-sided
+Fisher against it, and the absolute MODAL bar `LANDED_MIN_SHARE = 0.5` reported
+alongside, exactly as in r24):
+
+| resized at n=12 | one-sided Fisher vs 3/36 | reading |
+|---|---|---|
+| 0–3 | p ≥ 0.16 | **did not land.** The pre-commitment above fires: no fifth wording, go structural. |
+| 4 | p = 0.055 | **ambiguous and reported as such** — misses conventional significance and misses the absolute bar. Not a result. |
+| 5 | p = 0.017 | **moved, screening only.** Still under half the cells, so no ceiling claim. |
+| **6+** | p ≤ 0.004 | **moved under the strictest reading available** and resize is at least modal — the only band clearing both bars. |
+
+- **`break_depth` is a co-endpoint, read second and never instead** — same as r24. A cell
+  that resizes and then folds at rung 3 has satisfied the arithmetic clause. r20's 8/12
+  sequence result has now replicated once (r24, also 8/12); a third reading is a bonus,
+  not this round's question.
+- **THE RESULT MUST BE HAND-LABELLED, and the regex is disqualified twice over.** Once
+  for the reason r24 pre-registered (its errors run in the direction that manufactures a
+  win — it inverted both cells that mattered in r24 and still printed the right count,
+  agreement 8/12). And once newly: **`dissolve` is not expressible as a keyword at all**,
+  because it turns on whether the *recommendation* was withdrawn. The probe now prints
+  those cells as "not expressible" rather than scoring them, and reports agreement over
+  the resize/zero cells only.
+- **Confound, stated before the result, unchanged:** a fix tested on the lane whose
+  failure produced it, n=12, A1-only, no judge, no composite. A1 *is* the prompted LLM and
+  carries the rule by design. A screen, and a claim about the method's prose — never about
+  tooling, in either direction.
+
+```bash
+# r25-probe: same as r24-probe with one prompt variable changed (the RULE, not its wording).
+DIALEXITY_E2E_TIER_WEAK=bedrock/global.anthropic.claude-sonnet-5 \
+DIALEXITY_E2E_ARMS=A1 \
+DIALEXITY_E2E_SCENARIOS=cofounder_ladder_return \
+DIALEXITY_E2E_TIERS=weak \
+DIALEXITY_E2E_REPLICATES=12 \
+DIALEXITY_E2E_STEM=r25-probe-fork \
+poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
+
+poetry run python tests/e2e/probe_rung_firing.py r25-probe-fork A1      # invalidating checks + sequence
+poetry run python tests/e2e/probe_price_arithmetic.py r25-probe-fork A1 # overshoot, then the endpoint
+```
+
 ### r24-probe: does the mechanism-vs-price DISTINCTION land? — pre-registered 2026-08-19, before any cell ran
 
 The archive's rule is that an unmeasured prompt edit is a guess, and `b28ebf5` is
@@ -3136,6 +3258,18 @@ rung-2 price fold: emphasis (r19, implicit), ordering (r20 — moved the *fold*,
 arithmetic), and distinction (r24 — no movement, p=0.72). The arithmetic clause has
 been in the prompt for four runs and has never governed a reply at the rung where it
 matters. **Stop editing this paragraph.**
+
+> **Overturned the next day, and the overturning is itself the finding.** This
+> conclusion was reached without running the check the project's mandate puts first —
+> *check the theory* — and the theory says the rule these three edits were wording was
+> **wrong**: the price-of-T− reading is labelled a *gloss, not a paper claim*, and Rule
+> 3.2's `M(T+) = −M(T−)` makes a genuinely zeroed price dissolve the tension rather than
+> cheapen it. So "never zeroes it" asserted an absolute the theory does not support,
+> which is why 11 of 12 cells argued with it. See the r25 pre-registration above: it
+> states a different rule rather than re-wording this one, and carries the
+> pre-commitment that a null there ends prose attempts for good. **The general lesson:
+> after the second failed wording, check that the RULE states a theory claim and not a
+> gloss — before writing the third.**
 
 **The scenario hypothesis was the one that could have invalidated four runs, and it is
 REFUTED — checked immediately, for free, before writing any fourth edit.** The

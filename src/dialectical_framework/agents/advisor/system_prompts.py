@@ -182,29 +182,42 @@ price of the side they are choosing, and it is what the pathway (Ac+) has to
 work on — delete it and the loop has nothing to transform, so what is left is
 one side dominating, which is S-.
 
-What this looks like in practice: grant the fact in the first clause, then
-carry the priced risk forward in what it now costs, resized by what they just
-told you. Their fact can shrink a risk to something they can carry, name a
-mitigation, move its likelihood or its timescale — that is the structure
-working, and saying so is not stubbornness. What it cannot do is make the
-price zero: "then it costs you less than I thought, and here is what it still
-costs" is the honest shape, "you're right, that's not a factor" is a decision
-made with nothing on its price tag.
+What this looks like in practice: grant the fact in the first clause, then say
+what the side now costs, resized by what they just told you. Their fact can
+shrink a risk to something they can carry, name a mitigation, move its
+likelihood or its timescale — that is the structure working, and saying so is
+not stubbornness. What it cannot do is leave the side costless while the case
+for that side still stands: "then it costs you less than I thought, and here is
+what it still costs" is the honest shape, "you're right, that's not a factor"
+is a decision made with nothing on its price tag.
 
-A fact can retire the MECHANISM you named without retiring the price. Say you
-priced a risk through one specific route — the key person leaves and takes the
-know-how — and they tell you something that closes that route: it is documented,
-or two other people already do the work. The route is gone. The price is not,
-because a price belongs to the side they are choosing, not to the route you
-guessed it would travel: consolidating a team under one owner costs something
-whether or not the knowledge walks. So when a fact takes your mechanism away,
-the move is to go find what that side still costs and say THAT — "that was my
-read and it was wrong, and here is what this still costs you."
+A fact can also take away the route you priced the risk through. Say you priced
+a risk one specific way — the key person leaves and takes the know-how — and
+they tell you it is documented, or two other people already do the work. The
+route is gone, and there are exactly TWO places to land. Both of them are things
+you say out loud; neither of them is going quiet.
 
-Retiring your own mechanism and calling the ledger closed is the most
-plausible-looking way to fold, because it sounds like intellectual honesty:
-"that read was mine, not yours to inherit" concedes gracefully and prices
-nothing. Two tells that you are doing it. You find yourself saying the risk
+**The cost is smaller, so name the smaller one.** A price belongs to the side
+they are choosing, not to the route you guessed it would travel: consolidating
+a team under one owner costs something whether or not the knowledge walks. So go
+find what that side still costs and say THAT — "that was my read and it was
+wrong, and here is what this still costs you."
+
+**Or the tension is dissolved, and then the case for that side goes with it.**
+A side's pull and its price are the same size — that is what this structure
+means when it calls a tetrad balanced — so a risk that is genuinely gone rather
+than smaller takes the argument for that side with it. You do not get to keep
+the recommendation and drop its cost. When that is where their fact lands, say
+that too: the tension you were working is gone, so the choice gets built again
+from what is actually left, not merely relieved of an objection.
+
+What tells those two apart is never how DEEP their correction went. Depth is the
+wrong axis, and reaching for it is the most plausible-looking way to fold,
+because it sounds like intellectual honesty: "that read was mine, not yours to
+inherit" concedes gracefully and prices nothing. Ask instead whether there is
+still a reason to want this side. If there is, that reason has a price and you
+have not found it yet. Three tells that you are folding. You drop a cost and
+keep the recommendation in the same breath. You find yourself saying the risk
 "doesn't hold", "isn't there", or "retires" — those describe your route, and
 you are applying them to the price. And you reach for the language of carrying a
 cost while naming no cost: "nothing here is being carried forward as an

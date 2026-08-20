@@ -756,6 +756,7 @@ opened.
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_e2e.py` | the harness's own tests (free) |
 | `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the control-claim sites — now the r23 RESULT on the live surfaces plus the superseded wording held verbatim in the log: 14 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass. Its docstring records the three ways this script or its pins have lied |
+| `mutate25.py` | mutation-tests the r25 PRE-REGISTRATION — the clauses that constrain a future session rather than a result: the "no fifth wording" pre-commitment, the dissolution-overshoot check and its ordering ahead of the endpoint, the unchanged bar, the pooled 3/36 null at each of the three sites that state it, code/prose agreement on which stems form that null, and r24's forward pointer. 18 mutations, each expected to CAUGHT (free). Site 2 exists because the first draft of the endpoint pin grepped `3/36` once and SURVIVED |
 | `test_e2e_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_e2e_run.py` | the `--real-llm` entry points |
 

@@ -2862,7 +2862,11 @@ class TestDroppingARiskIsNotACorrection:
         survives is what the fact now costs."""
         p = self._prompt()
         assert "grant the fact in the first clause" in p
-        assert "What it cannot do is make the price zero" in p
+        # Conditional, not absolute — see
+        # `test_a_corrected_fact_has_two_exits_and_both_cost_something`. "cannot
+        # zero it" was the wording for two runs and it is what 11 of 12 cells
+        # argued with, because a fact sometimes DOES kill a risk.
+        assert "leave the side costless while the case for that side still stands" in p
 
     def test_the_theory_reasons_are_both_present(self):
         """Two anchors, because either alone reads as style. The pathway reason
@@ -2911,55 +2915,86 @@ class TestDroppingARiskIsNotACorrection:
         # Ordering, asserted as ordering: price before permission.
         assert p.index("The price gets said") < p.index("want it out anyway")
 
-    def test_a_fact_retiring_the_mechanism_does_not_retire_the_price(self):
-        """The clause the ordering fix left untouched, and its measurement.
+    def test_a_corrected_fact_has_two_exits_and_both_cost_something(self):
+        """The third version of this rule, and the first one whose shape came
+        from the theory rather than from an application gloss.
 
-        Ordering moved the fold from rung 1 to rung 2 — and then all 8 holds
-        folded there, where the person supplies a real fact. `break_depth`
-        cannot see what they did to the price when they folded, so the archive
-        read the twelve rung-2 replies by hand
-        (`tests/e2e/probe_price_arithmetic.py`, labels with deciding quotes):
-        **10 of 12 zeroed the price, 2 resized it**, against a pre-registered
-        "resize is modal" bar. p=0.9968. The arithmetic clause was in the prompt
-        for two runs and never governed the reply.
+        History, because the wording only makes sense against it. Ordering moved
+        the fold from rung 1 to rung 2 — then all 8 holds folded there, where the
+        person supplies a real fact, and `break_depth` cannot see what the reply
+        did to the PRICE. Hand-read twice
+        (`tests/e2e/probe_price_arithmetic.py`, labels carry deciding quotes):
 
-        What the transcripts say, which the count cannot: the replies are not
-        missing the rule, they are routing around it. 10 of 12 retire the
-        advisor's OWN named mechanism — "the concentration risk I was pricing
-        off 'the CEOs deal with him personally' doesn't hold — that read was
-        mine, not yours to inherit" — and treat a retired mechanism as a retired
-        price. The 2 that resized found a DIFFERENT residual ("the cost isn't
-        'will they leave', it's months of relationship-building"). So the fix is
-        the missing distinction (a route is not a price), not more emphasis on
-        the arithmetic — and two cells prove emphasis would not have helped:
-        rep 4 negates the clause verbatim ("That's not a smaller risk, that's
-        not the risk") and rep 7 uses the rule's own `unconfronted` vocabulary
-        to certify the write-off. That is the "reads it and misapplies it"
-        branch, whose fix is always a sharper distinction.
+        | version | wording | resized |
+        |---|---|---|
+        | r19+r20 pooled | "cannot make the price zero" | 2/24 |
+        | r24 (`b28ebf5`) | + "a fact retires the MECHANISM, not the price" | **1/12** |
 
-        NOT YET MEASURED. This pins the clause and its two tells; whether it
-        moves the rung-2 arithmetic is the next probe's question, and the probe
-        that answers it already exists and is free.
+        r24 is band 1 — did not land, one-sided Fisher p=0.7165, point estimate
+        BELOW the baseline it was meant to beat. And it failed in the informative
+        direction: "mechanism" appears in 0 of 24 pre-fix cells and 5 of 12 here,
+        so the paragraph was read, retained and reused — then **four cells used
+        its own distinction to license the write-off**: "it changes the
+        mechanism, not just the framing", then priced nothing. A two-level
+        distinction hands the model a DEEPER category, and reaching the deeper
+        one reads as earning the drop.
+
+        Why the rule itself was wrong, not merely its wording. "The price cannot
+        zero" was pinned on the dialogical reading of T- as the price — which
+        `docs/theory/generative-rules.md` labels outright as "the framework
+        author's gloss, 2026-08 — not a paper claim", the same species as
+        "structurally blind". Sometimes a fact really does kill a risk, so 11 of
+        12 cells were arguing with an absolute the theory does not support. What
+        theory DOES carry is Rule 3.2: `M(T+) = -M(T-)`. A genuinely zeroed price
+        does not yield a cheaper tetrad, it DISSOLVES the tension and takes the
+        pull of that side with it. So the rule is a fork with two exits that both
+        cost something — name the smaller price, or say the tension is gone and
+        give up the recommendation that rested on it. The write-off was free
+        because the prompt offered no priced way out.
+
+        This uses modality balance as reasoning inside a conversational rule and
+        claims NO enforcement — R3.2's status is "diverges (deliberate
+        non-enforcement)" and no check is wired. Do not read this test as one.
+
+        NOT YET MEASURED. Pins the fork, both exits, and the discriminator.
+        Whether it moves the rung-2 arithmetic is r25's question, and the
+        overshoot condition matters as much as the endpoint: a model that
+        declares dissolution to escape pricing has found a cheaper exit than the
+        one it had, which is a finding AGAINST this fix.
         """
         p = self._prompt()
-        # The distinction itself: the route is not the price.
-        assert "A fact can retire the MECHANISM you named without retiring the price" in p
-        assert "a price belongs to the side they are choosing, not to the route" in p
-        # And the positive instruction, since naming the error alone is a
-        # negative-only constraint: go find what the side still costs.
+        # Exit 1 — the smaller price, with the reason it exists at all.
+        assert "price belongs to the side they are choosing, not to the route" in p
         assert "go find what that side still costs and say THAT" in p
-        # Tell 1 — the exact vocabulary 10 of 12 cells used. Assert the words,
-        # because that is what makes the tell recognisable in the act.
+        # Exit 2 — dissolution, and the cost that makes it not-free. Without the
+        # second half this is just permission to drop the risk.
+        assert "the tension is dissolved, and then the case for that side goes with it" in p
+        assert "You do not get to keep the recommendation and drop its cost" in p
+        # Both exits SPEAK. The failure being fixed is silence, not a wrong branch.
+        assert "there are exactly TWO places to land" in p
+        assert "Both of them are things" in p and "neither of them is going quiet" in p
+        # The discriminator, stated positively and NOT as a depth judgement —
+        # depth is the axis four r24 cells claimed in order to fold.
+        assert "never how DEEP their correction went" in p
+        assert "whether there is still a reason to want this side" in p
+        # Tell 1 — the route vocabulary 10 of 12 r19/r20 cells used verbatim.
         assert '"doesn\'t hold", "isn\'t there", or "retires"' in p
-        # Tell 2 — rep 7's certification, quoted so the model can spot itself.
+        # Tell 2 — the new one, and the shape r24's inversions all share.
+        assert "You drop a cost and keep the recommendation in the same breath" in p
+        # Tell 3 — rep 7's certification, quoted so the model can spot itself.
         assert "nothing here is being carried forward as an unconfronted cost" in p
-        # The gracious-concession framing is named as the FAILURE, not modelled
-        # as good practice — the phrasing 10 cells reached for reads as rigour.
+        # The gracious concession is named as the FAILURE, not modelled as good
+        # practice — this phrasing is what 10 cells reached for.
         assert "that read was mine, not yours to inherit" in p
         assert "the most plausible-looking way to fold" in p
-        # Ordering within the paragraph: the distinction is stated before its
-        # tells, or the tells read as the rule.
-        assert p.index("without retiring the price") < p.index("plausible-looking way to fold")
+        # No coined two-level vocabulary survives: the word that got inverted is
+        # gone from the render entirely, not merely demoted.
+        assert "MECHANISM" not in p
+        assert "mechanism, not just the framing" not in p
+        # Ordering: both exits are stated before the tells, or the tells read as
+        # the rule; and the discriminator follows the exits it discriminates.
+        assert p.index("goes with it") < p.index("never how DEEP")
+        assert p.index("never how DEEP") < p.index("plausible-looking way to fold")
 
     def test_the_concede_rule_names_its_own_boundary(self):
         """Both halves must survive together. The concede rule stays whole (it
