@@ -689,7 +689,10 @@ _TOOL_DOCS: dict[str, str] = {
   4am. Every aspect hash you need is in reach: the anchoring result carries one
   per position alongside its text, and the understanding dump renders them on
   every aspect line — so the Perspective's own hash is never the closest thing
-  available, it is a different ground (the tension). Use
+  available, it is a different ground (the tension). Send that one too, role
+  omitted: the same risk wording often belongs to several adjacent tensions,
+  and a price nobody located reads later as a bare bad outcome instead of one
+  they chose. Use
   "adopted_pathway" for the pathway adopted as their ongoing
   recipe — that hash is a Transformation's, listed in `pathways` by whichever
   explore/deepen call built it and on the pathway lines in the understanding

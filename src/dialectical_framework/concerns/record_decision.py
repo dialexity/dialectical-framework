@@ -7,7 +7,10 @@ confirmed wording, never as instructions to interpret. The concern:
 
 1. Resolves ground hashes (refuses on unknown/uncommitted/non-assessable —
    fail-closed for grounds, since a dangling or reader-invisible ground
-   would break the record's value)
+   would break the record's value), then checks the set: an `accepted_cost`
+   must sit at a price position (`_accepted_cost_misplacement`) and the
+   grounds must agree on which tension was decided
+   (`_ground_set_inconsistency`)
 2. Commits the Decision (question rides intent, stance frozen in hash)
 3. Attaches the distilled why as a Rationale carrying the confirming
    principal's provenance (agent="human" only when a person confirmed;
@@ -194,6 +197,17 @@ class RecordDecision(ReasonableConcern[str | None]):
                     return None
             resolved.append((node, g.role))
 
+        # 1b. One record, one tetrad. Each ground carries its own implicit
+        # claim about which tension the decision concerns, and until now
+        # nothing reconciled them (see _ground_set_inconsistency). Checked on
+        # the whole set, so it runs after the loop and still before anything
+        # is written.
+        inconsistency = self._ground_set_inconsistency(resolved)
+        if inconsistency:
+            self._report.ok = False
+            self._report.summary = f"Cannot record: {inconsistency}"
+            return None
+
         # Grounding on an already-discarded node is allowed (the ledger will
         # flag it), but silent acceptance would surprise the agent — warn.
         discarded_grounds = [
@@ -377,6 +391,189 @@ class RecordDecision(ReasonableConcern[str | None]):
             "be a plain ground (omit the role)."
         )
         return message
+
+    @classmethod
+    def _ground_set_inconsistency(
+        cls, resolved: list[tuple[AssessableEntity, str | None]]
+    ) -> str | None:
+        """Why this ground SET cannot describe one decision, or None if it can.
+
+        A Decision carries up to three independent claims about which tetrad it
+        concerns, and every reader assumes they agree:
+
+            (Decision) -[GROUNDED_IN role="accepted_cost"]-> (Statement T-/A-)
+                     |- [GROUNDED_IN role=None]-----------> (Perspective)
+                     `- [GROUNDED_IN role="adopted_pathway"]-> (Transformation)
+
+        The price locates 1..N perspectives (a minus aspect is shared whenever
+        `commit()` dedup finds the same wording), the plain ground names exactly
+        one, the pathway belongs to a Nexus of them. Nothing checked that the
+        three overlap, so a record could be priced in one tetrad and managed in
+        another — reproduced: with P1's `T-` cited as the price and P2 cited as
+        the tension, the ledger renders `— arises when Control is held without
+        Autonomy builds responsibility` (both P1's) on a record that names P2,
+        silently, because `accepted_cost_condition` consulted the decision's
+        other grounds only when the minus was ambiguous.
+
+        Two rules, and they are genuinely two. The design note for this check
+        claimed the second fell out of the first for free; it does not — an
+        unlocated price puts no constraint on anything, so Rule A never sees it.
+
+        **A. Disagreement.** A ROLED ground must share a perspective with the
+        frame the other grounds name. Plain grounds define that frame and are
+        never themselves checked — weighing two adjacent tensions and pricing
+        the choice in one of them is a legitimate record, and a strict
+        all-grounds intersection would refuse it.
+
+        **B. An unlocated price.** An `accepted_cost` whose wording sits at a
+        price position in several tetrads, narrowed by no other ground, is
+        refused. The ledger derives the condition that makes the price legible
+        ("... — arises when X is held without Y") off that one tetrad, so a
+        shared price nobody located renders as a bare bad outcome: measured on
+        the live anchor path, 5 adjacent tensions shared 7 of 10 minus aspects
+        and `claim2-weak-r5` recorded 5 risk-grounded costs with 0 conditions.
+        The framework-derived path already grounds the perspective alongside
+        (`Advisor._accepted_cost_ground`), so this refuses hand-assembled sets
+        only, and names the perspectives so the retry is an addition.
+
+        Refuse rather than downgrade or guess, for the reason in
+        `_accepted_cost_misplacement`: decisions with no `accepted_cost` passed
+        17 of 19 archive-wide against 68 of 120 with one, so any silent repair
+        that drops or mislocates the price is the cheapest way to clear the
+        re-audit. Fail-OPEN on a repository fault, same reason.
+        """
+        frames = [
+            (node, role, cls._perspective_frame(node, role))
+            for node, role in resolved
+        ]
+
+        def others_of(index: int) -> dict[str, object]:
+            union: dict[str, object] = {}
+            for j, (_n, _r, frame) in enumerate(frames):
+                if j != index and frame:
+                    union.update(frame)
+            return union
+
+        # A. A roled ground pointing outside the frame the record names.
+        for i, (node, role, frame) in enumerate(frames):
+            if role is None or not frame:
+                continue
+            others = others_of(i)
+            if others and not (frame.keys() & others.keys()):
+                return (
+                    f"the grounds disagree about which tension this decision "
+                    f"concerns. The {role.replace('_', ' ')} [[{node.short_hash}]] "
+                    f"belongs to {cls._pp_refs(frame)}, while the other grounds "
+                    f"name {cls._pp_refs(others)}. A decision cannot be priced "
+                    "in one tetrad and managed in another — the price, the "
+                    "tension and the pathway must share a reading. Re-record "
+                    "with grounds that overlap, or record two decisions."
+                )
+
+        # B. A shared price no other ground locates.
+        for i, (node, role, frame) in enumerate(frames):
+            if role != "accepted_cost" or not frame or len(frame) == 1:
+                continue
+            narrowed = {k: v for k, v in frame.items() if k in others_of(i)}
+            if len(narrowed) == 1:
+                continue
+            return (
+                f"ground [[{node.short_hash}]] is the accepted cost, but that "
+                f"same wording is a price in {len(frame)} tensions and no other "
+                f"ground says which one was decided: {cls._pp_refs(frame)}. The "
+                "ledger reads the condition that produces the price (\"— arises "
+                "when ... is held without ...\") off that one tension, so an "
+                "unlocated price is later unreadable. Add the tension decided "
+                "on as a plain ground (omit the role) beside the price."
+            )
+        return None
+
+    @classmethod
+    def _perspective_frame(
+        cls, node: AssessableEntity, role: str | None = None
+    ) -> dict[str, object] | None:
+        """Which tetrads this ground could be about — key → Perspective.
+
+        `None` is NOT the empty dict. A ground that locates no perspective
+        (a free-standing statement, an Input-shaped node, a wheel whose nexus
+        cannot be reached) makes no claim about which tension the decision
+        concerns and must therefore constrain nothing; an empty dict would make
+        every such ground refuse the whole record.
+
+        Resolution, widest reading each time, because a frame that is too broad
+        only fails to catch an inconsistency while one that is too narrow refuses
+        a valid record:
+        - Perspective → itself
+        - Statement → every perspective it sits in, restricted to the price
+          positions when the role is `accepted_cost` (a wording that is `T-`
+          here and neutral `T` there is not ambiguous AS A PRICE)
+        - Transformation / Wheel / Synthesis → the whole owning Nexus, including
+          discarded members
+        - anything else → None
+
+        `role` is passed rather than re-derived: the same node yields a different
+        frame depending on the claim it is making.
+        """
+        from dialectical_framework.graph.nodes.perspective import Perspective
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.graph.nodes.synthesis import Synthesis
+        from dialectical_framework.graph.nodes.transformation import Transformation
+        from dialectical_framework.graph.nodes.wheel import Wheel
+        from dialectical_framework.graph.rendering import (
+            find_nexus_for_transformation, find_nexus_for_wheel)
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        try:
+            if isinstance(node, Perspective):
+                return cls._keyed([node]) or None
+            if isinstance(node, Statement):
+                found = PerspectiveRepository().find_by_statement(node)
+                if role == "accepted_cost":
+                    cost_edges = {edge for _l, _a, edge in COST_POSITIONS}
+                    found = [(pp, e) for pp, e in found if e in cost_edges]
+                return cls._keyed([pp for pp, _edge in found]) or None
+
+            nexus = None
+            if isinstance(node, Transformation):
+                nexus = find_nexus_for_transformation(node)
+            elif isinstance(node, Wheel):
+                nexus = find_nexus_for_wheel(node)
+            elif isinstance(node, Synthesis):
+                target = node.target.get()
+                if target:
+                    nexus = find_nexus_for_wheel(target[0])
+            if nexus is None:
+                return None
+            return cls._keyed([pp for pp, _rel in nexus.perspectives.all()]) or None
+        except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
+            return None
+
+    @staticmethod
+    def _keyed(perspectives: list) -> dict[str, object]:
+        """Perspectives by identity key, dropping any that cannot be identified.
+
+        Hash first (grounds are committed by the time this runs, and hash is
+        what dedup made equal); `_id` as the fallback so a nexus member that is
+        somehow still uncommitted widens the frame instead of narrowing it.
+        """
+        out: dict[str, object] = {}
+        for pp in perspectives:
+            key = getattr(pp, "hash", None) or (
+                f"id:{pp._id}" if getattr(pp, "_id", None) is not None else None
+            )
+            if key:
+                out.setdefault(key, pp)
+        return out
+
+    @staticmethod
+    def _pp_refs(frame: dict[str, object]) -> str:
+        """`[[hash]]` references for a frame, in a stable order."""
+        refs = sorted(
+            f"[[{pp.short_hash}]]" if getattr(pp, "hash", None) else f"[[{key}]]"
+            for key, pp in frame.items()
+        )
+        return ", ".join(refs)
 
     @staticmethod
     def _cost_candidates(perspectives: list) -> list[str]:

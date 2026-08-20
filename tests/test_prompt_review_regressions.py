@@ -2180,6 +2180,32 @@ class TestDecisionReadiness:
             assert "chosen side's own `-` aspect" in prompt
             assert "is a remedy" in prompt
 
+    def test_the_priced_tension_rides_along_as_a_plain_ground(self):
+        """Which tension the price came from is part of the record.
+
+        The doc told the model at length that a Perspective hash is NOT the
+        accepted cost, and never that it is worth sending anyway — so the
+        hand-assembled path recorded the price alone. That is unreadable later
+        whenever the wording is shared, which is the common case, not the
+        exception: measured on the live anchor path, 5 adjacent tensions shared
+        7 of 10 minus aspects, and `claim2-weak-r5` recorded 5 risk-grounded
+        costs with 0 rendered conditions.
+
+        The enforcement is structural (`RecordDecision._ground_set_inconsistency`
+        refuses an unlocated shared price, naming the candidates), and the
+        derived path already sends both (`Advisor._accepted_cost_ground`). This
+        clause is not a restatement of the check — it is the one thing the doc
+        never said, so that the refusal stays a backstop rather than a routine
+        turn tax.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            _TOOL_DOCS
+
+        doc = " ".join(_TOOL_DOCS["record_decision"].split())
+        assert "Send that one too, role omitted" in doc
+        # Positive spec plus the consequence, not a bare instruction.
+        assert "several adjacent tensions" in doc
+
     def test_materialised_risk_is_not_the_risk_resurfacing(self):
         """The re-audit must not file an EVENT as the cost it already priced.
 

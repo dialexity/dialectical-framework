@@ -1271,6 +1271,294 @@ class TestAcceptedCostMustBeAPrice:
         assert src.count("COST_POSITIONS") >= 4
 
 
+def _separate_perspective():
+    """A perspective sharing NO aspect wording with the default fixture.
+
+    `_create_perspective_with_aspects` keeps its default aspect texts when only
+    the poles are overridden, so two "different" tensions silently share all
+    four aspects through `commit()` dedup — which is the ambiguous case, not the
+    disagreeing one. Four of these tests read as passing for the wrong reason
+    until the wording was separated too.
+    """
+    from test_dialectical_context import _create_perspective_with_aspects
+
+    return _create_perspective_with_aspects(
+        thesis_text="Speed",
+        antithesis_text="Care",
+        t_plus_text="Momentum compounds",
+        t_minus_text="Haste breaks things",
+        a_plus_text="Craft earns trust",
+        a_minus_text="Deliberation stalls",
+    )
+
+
+class TestGroundsMustAgreeOnOneTension:
+    """Three claims about which tetrad, and nothing reconciled them.
+
+    A Decision can carry the price (`accepted_cost` → a minus Statement, which
+    locates 1..N perspectives), the tension (`role=None` → exactly one
+    Perspective), and the recipe (`adopted_pathway` → a Transformation, hence a
+    whole Nexus of them). Every reader assumes the three agree; nothing checked
+    it, and `DecisionCoherenceCheck` could not — all five of its checks are
+    semantic, while this is a graph walk.
+
+    The inconsistency is not hypothetical: with P1's `T-` cited as the price and
+    P2 cited as the tension, `accepted_cost_condition` rendered P1's own poles
+    ("Control ... without Autonomy builds responsibility") on a record naming P2,
+    silently. Reproduced with a throwaway before the guard was written; pinned
+    here, plus the renderer half that stops archived records from doing it.
+
+    The false-positive tests matter as much as the refusals. A strict
+    all-grounds intersection would refuse a record that weighs two adjacent
+    tensions and prices the choice in one of them, which is a perfectly good
+    record — so plain grounds define the frame and only ROLED grounds are
+    checked against it.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_price_from_one_tension_and_a_different_tension_cited(self):
+        """The reproduced case: refused, with both readings named."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            p2 = _separate_perspective()
+            price, _ = p1.t_minus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[
+                    GroundLink(hash=price.hash, role="accepted_cost"),
+                    GroundLink(hash=p2.hash),  # the tension the record names
+                ],
+            )
+
+            assert result is None
+            assert concern.report.ok is False
+            summary = concern.report.summary
+            assert "disagree about which tension" in summary
+            # Both readings are named, so the retry is a substitution.
+            assert p1.short_hash in summary
+            assert p2.short_hash in summary
+            assert DecisionRepository().find_all() == []
+
+    @pytest.mark.asyncio
+    async def test_a_pathway_from_another_exploration(self):
+        """The third claim: the recipe must manage the tension being priced."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+        from test_selective_input import _build_transformation_with_nexus
+
+        with scope(_new_sid()):
+            decided = _create_perspective_with_aspects()
+            # A real pathway in a real exploration — of a DIFFERENT perspective.
+            other_nexus, pathway, _ac = _build_transformation_with_nexus("elsewhere")
+            elsewhere, _rel = other_nexus.perspectives.all()[0]
+
+            price, _ = decided.t_minus.get()
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[
+                    GroundLink(hash=price.hash, role="accepted_cost"),
+                    GroundLink(hash=decided.hash),
+                    GroundLink(hash=pathway.hash, role="adopted_pathway"),
+                ],
+            )
+
+            assert result is None, concern.report.summary
+            assert "adopted pathway" in concern.report.summary
+            assert elsewhere.short_hash in concern.report.summary
+            assert DecisionRepository().find_all() == []
+
+    @pytest.mark.asyncio
+    async def test_a_shared_price_that_no_ground_locates(self):
+        """Rule B: the ledger cannot read a condition off "one of two"."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            shared, _ = p1.t_minus.get()
+            p2 = _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,  # commit() dedup → the same node
+            )
+            assert p2.t_minus.get()[0].hash == shared.hash
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=shared.hash, role="accepted_cost")],
+            )
+
+            assert result is None
+            summary = concern.report.summary
+            assert "no other ground says which one" in summary
+            assert p1.short_hash in summary and p2.short_hash in summary
+            assert DecisionRepository().find_all() == []
+
+    @pytest.mark.asyncio
+    async def test_a_shared_price_with_its_tension_cited_records(self):
+        """Rule B is satisfied by the citation the framework path already makes."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            shared, _ = p1.t_minus.get()
+            _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[
+                    GroundLink(hash=shared.hash, role="accepted_cost"),
+                    GroundLink(hash=p1.hash),
+                ],
+            )
+
+            assert result is not None, concern.report.summary
+            assert concern.report.ok is True
+
+    @pytest.mark.asyncio
+    async def test_two_tensions_weighed_and_one_of_them_priced_records(self):
+        """The false positive a strict intersection would produce.
+
+        Weighing an adjacent tension and paying the price in only one of them is
+        a legitimate record. Plain grounds DEFINE the frame; they are not
+        themselves checked against each other.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            p2 = _separate_perspective()
+            price, _ = p1.t_minus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Both tensions pull on this; structure wins.",
+                grounds=[
+                    GroundLink(hash=price.hash, role="accepted_cost"),
+                    GroundLink(hash=p1.hash),
+                    GroundLink(hash=p2.hash),
+                ],
+            )
+
+            assert result is not None, concern.report.summary
+            assert concern.report.ok is True
+
+    @pytest.mark.asyncio
+    async def test_an_unambiguous_price_alone_records(self):
+        """One ground makes one claim; there is nothing to reconcile."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            price, _ = pp.t_minus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=price.hash, role="accepted_cost")],
+            )
+
+            assert result is not None, concern.report.summary
+            assert concern.report.ok is True
+
+    @pytest.mark.asyncio
+    async def test_a_ground_that_locates_no_tension_constrains_nothing(self):
+        """"No claim" is not "the empty claim".
+
+        A free-standing statement sits in no perspective. Treating that as an
+        empty frame instead of an absent one would make every record citing
+        outside material refuse itself.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            price, _ = pp.t_minus.get()
+            loose = _committed_statement("A note from outside any tension")
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[
+                    GroundLink(hash=price.hash, role="accepted_cost"),
+                    GroundLink(hash=pp.hash),
+                    GroundLink(hash=loose.hash),
+                ],
+            )
+
+            assert result is not None, concern.report.summary
+            assert concern.report.ok is True
+
+    def test_the_cited_tension_is_authoritative_for_the_condition(self):
+        """The reader half: no condition beats a condition from the wrong tetrad.
+
+        The guard above refuses to WRITE the mismatch; records written before it
+        still exist. `accepted_cost_condition` used to consult the decision's
+        other grounds only when the minus was ambiguous, so a UNIQUE minus
+        rendered its own tetrad's poles under the cited tetrad's name.
+        """
+        from dialectical_framework.graph.rendering import decision_ground_line
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            p2 = _separate_perspective()
+            price, _ = p1.t_minus.get()
+
+            mismatched = decision_ground_line(
+                price, "accepted_cost", siblings=[p2]
+            )
+            consistent = decision_ground_line(
+                price, "accepted_cost", siblings=[p1]
+            )
+
+        assert "arises when" not in mismatched, (
+            f"rendered a condition from a tetrad the record does not cite: "
+            f"{mismatched}"
+        )
+        # The same aspect, correctly cited, still renders its condition — the
+        # fix narrows the reading, it does not disable it.
+        assert "arises when" in consistent
+        assert "Control" in consistent
+
+
 class TestUnpricedAspectsResolution:
     """What check 5 gets handed, resolved from the citation and nothing wider.
 

@@ -51,7 +51,16 @@ on a Statement sitting at `T/T-`. The guard is deliberately the structural half 
 minus at all", decidable by graph walk); WHICH minus — the chosen side's rather than the risk the
 choice avoided — needs the stance read against the poles and stays with `DecisionCoherenceCheck`,
 since a false refusal costs a confirmed decision. `TestAcceptedCostMustBeAPrice` pins both the guard
-and that boundary. Consistent with Rule 3.3's
+and that boundary. A second structural guard, `RecordDecision._ground_set_inconsistency`, keeps the
+record's *set* of grounds on one tetrad: the price locates 1..N perspectives, a plain Perspective
+ground names exactly one, an `adopted_pathway` belongs to a whole Nexus of them, and nothing
+reconciled the three — so a decision could be priced in one tetrad and managed in another, which
+the ledger then renders as one tetrad's poles under another's name. Roled grounds must land inside
+the frame the plain grounds define (plain grounds are never checked against each other — weighing
+two adjacent tensions and pricing one is a legitimate record), and a shared price that no other
+ground locates is refused rather than guessed, because the neutral-T control statement the ledger
+derives from it (`rendering.accepted_cost_condition`, Rule 3.3) is only readable off a single
+tetrad. `TestGroundsMustAgreeOnOneTension`. Consistent with Rule 3.3's
 truth criterion, which is the same asymmetry stated normatively: T is sound only insofar as it
 fosters A+ — i.e. only insofar as the T-sayer takes on the obligation the opponent names.
 

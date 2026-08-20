@@ -325,12 +325,13 @@ def accepted_cost_condition(node, siblings: Optional[list] = None) -> str:
     live anchor path, 3 well-separated tensions shared nothing (6/6 conditions
     rendered) but 5 adjacent ones shared 7 of 10 minus aspects (0 of those 7
     rendered) — which is why `claim2-weak-r5` recorded 5 risk-grounded costs and
-    not one condition. So `siblings` (the decision's OTHER grounds) is consulted
-    first: if exactly one of the candidate perspectives is itself a ground of
-    this decision, that is the tension the person decided on, and no guessing is
-    involved. Only when the siblings settle nothing does the single-candidate
-    rule apply.
+    not one condition. So `siblings` (the decision's OTHER grounds) decides:
+    when the record grounds a Perspective, THAT is the tension the person
+    decided on and the condition comes from it or from nowhere. The
+    single-candidate rule applies only to records that name no perspective at
+    all.
     """
+    from dialectical_framework.graph.nodes.perspective import Perspective
     from dialectical_framework.graph.nodes.statement import Statement
 
     if not isinstance(node, Statement):
@@ -350,18 +351,22 @@ def accepted_cost_condition(node, siblings: Optional[list] = None) -> str:
             for pp, rel_type in PerspectiveRepository().find_by_statement(node)
             if rel_type in ("T_MINUS", "A_MINUS")
         ]
-        if len(found) != 1:
-            # Shared minus: let the decision's own other grounds pick the
-            # perspective. A decision grounded on both a tension and its price
-            # names them together, so the overlap is evidence, not a heuristic.
-            sibling_ids = {
-                s._id for s in (siblings or []) if getattr(s, "_id", None) is not None
-            }
-            found = [
-                (pp, rel_type)
-                for pp, rel_type in found
-                if pp._id in sibling_ids
-            ] or found
+        # A decision grounded on both a tension and its price names them
+        # together, so a cited Perspective is EVIDENCE, not a heuristic — and it
+        # is authoritative, not a tie-breaker. Consulting siblings only when the
+        # minus was ambiguous meant a unique minus rendered its own tetrad's
+        # condition even when the record cited a different one: with P1's `T-`
+        # as the price and P2 as the tension, the ledger read out P1's poles
+        # under P2's name. `RecordDecision._ground_set_inconsistency` refuses to
+        # WRITE that now; archived records still exist, and a condition drawn
+        # from a tetrad the record does not name is worse than none.
+        sibling_pp_ids = {
+            s._id
+            for s in (siblings or [])
+            if isinstance(s, Perspective) and getattr(s, "_id", None) is not None
+        }
+        if sibling_pp_ids:
+            found = [(pp, rel_type) for pp, rel_type in found if pp._id in sibling_pp_ids]
         if len(found) != 1:
             return ""
         pp, rel_type = found[0]

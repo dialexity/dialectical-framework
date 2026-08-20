@@ -1170,13 +1170,42 @@ annotation) → **GenerateSynthesis**
   level because what the person committed to is the SIDE, not its idealised plus. Do NOT collapse the two forms:
   different developmental levels, different jobs (CC/DV score aspect coherence; this states the condition under
   which a committed side extracts its price). Third encoding site of the same variant: `ASPECT_DEFINITIONS`
-  (`concerns/scoring_scales.py`) — all three move together. Ambiguity is a
-  non-event: a Statement that is the minus of two perspectives renders plain, since picking one would attribute
-  the accepted price to a tension they never decided on. Bench side, `scoring._ground_content` imports
+  (`concerns/scoring_scales.py`) — all three move together. **Ambiguity is resolved by the record's OWN other
+  grounds, and their citation is authoritative rather than a tie-breaker.** A minus is shared whenever `commit()`
+  dedup finds the same wording, and that is the common case, not the exception: measured on the live anchor path, 3
+  well-separated tensions shared nothing (6/6 conditions rendered) while 5 adjacent ones shared 7 of 10 minus
+  aspects (0 of those 7 rendered) — which is why `claim2-weak-r5` recorded 5 risk-grounded costs and not one
+  condition. So when the decision grounds a Perspective, the condition comes from THAT tetrad or from nowhere.
+  Consulting siblings only when the minus was ambiguous (the first version) left a *unique* minus rendering its own
+  tetrad's poles under the cited tetrad's name — reproduced: P1's `T-` priced with P2 cited as the tension printed
+  "— arises when Control is held without Autonomy builds responsibility" on a record naming P2, silently. With no
+  perspective cited at all, the single-candidate rule still applies and ambiguity renders plain. Bench side, `scoring._ground_content` imports
   `ACCEPTED_COST_CONDITION_MARKER` and strips the clause before the citation overlap — the derived clause roughly
   triples a ground's word count, so leaving it in the denominator would score a reply that names the price exactly
   as "not cited". Locked by `test_decision.py::TestDecisionRendering` (both sides, role-scoping, ambiguity,
   loose-statement fail-soft).
+  **The role is CHECKED at the write, not only taught** (2026-08). The general lesson first: *documented at five
+  sites and enforced at zero is a bug, not a convention* — every site above stated "the chosen side's minus" while
+  `RecordDecision` attached whatever hash the model handed it, and the archive shows the model taking every wrong
+  branch available (one bench round put EVERY `accepted_cost` on the Perspective; another on a Statement sitting at
+  `T/T-`). Only `Advisor._accepted_cost_ground`, which DERIVES the ground, ever got it right — so a prompt
+  restatement was never the missing piece. Two structural guards, both graph walks, both fail-OPEN on a repository
+  fault (a confirmed decision must not be lost to a lookup that could not run):
+  `_accepted_cost_misplacement` refuses a cost that is not at a minus position, and `_ground_set_inconsistency`
+  refuses a ground SET whose members disagree about which tetrad the decision concerns — a Decision carries up to
+  three independent such claims (`accepted_cost`→Statement locating 1..N perspectives, `role=None`→Perspective,
+  `adopted_pathway`→Transformation→whole Nexus) and nothing reconciled them.
+  Three boundaries worth generalising: (1) **structural half only** — "is this a minus at all" is decidable by
+  walking the graph, "is it the CHOSEN side's" needs the stance read against the poles and stays semantic, in
+  `DecisionCoherenceCheck`; a guard that reaches for the semantic half refuses valid records. (2) **Refuse, don't
+  downgrade** — attaching with `role=None` is the obvious repair and is wrong, because decisions with no
+  `accepted_cost` passed 17 of 19 archive-wide against 68 of 120 with one, so any silent drop is the cheapest way
+  to clear the re-audit; refusal costs a turn, and since the ceremony already happened in conversation the wording
+  survives it. (3) **Only ROLED grounds are checked against the frame** — plain grounds DEFINE it, since weighing
+  two adjacent tensions and pricing the choice in one of them is a good record that a strict all-grounds
+  intersection would refuse. And `None` from the frame resolver means "names no tetrad", never "the empty set":
+  a free-standing statement must constrain nothing. Locked by `TestAcceptedCostMustBeAPrice` and
+  `TestGroundsMustAgreeOnOneTension` (both refusals, plus the four false-positive cases and the renderer half).
   **The open-naming carve-out is about CONTENT, not storage** (fixed 2026-08): `{decision_speech_note}` exempts the
   decision record from the machinery ban, and bounding only the *naming* let the model recite the record's SCHEMA in
   plain words. Measured: an A2 wobble turn in `claim1-weak-r2` said "the validation on your decision already failed…

@@ -51,6 +51,14 @@ class GroundedInRelationship(AnalyticalStructure, type="GROUNDED_IN"):
     Perspective (the tension rather than its price). Whether it is the CHOSEN
     side's minus stays with `DecisionCoherenceCheck`: that half needs the stance
     read against the poles, and a false refusal costs a confirmed decision.
+
+    One decision, one tetrad. These roles make overlapping claims about which
+    tension is at issue — the cost locates 1..N perspectives (a minus is shared
+    whenever `commit()` dedup finds the same wording), a plain Perspective ground
+    names exactly one, an `adopted_pathway` belongs to a whole Nexus of them.
+    Readers assume they agree; `RecordDecision._ground_set_inconsistency` is what
+    makes that true, refusing a set that is priced in one tetrad and managed in
+    another, or a shared price no other ground locates.
     """
 
     role: Optional[str] = None
