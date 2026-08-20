@@ -140,7 +140,13 @@ here. I sized the run on a 40% base rate; the observed rate was **3.1% in BOTH
 strata** — lower than the archive's 18%, on new text. Consequences, stated plainly:
   * Power for a proportional halving at the observed base (3.1% -> 1.55%) is **0.01**.
     The `sizing input for a future parentage A/B` block correctly printed NOTHING,
-    because a rate that low cannot size anything at n=64.
+    because a rate that low cannot size anything at n=64. Concretely: reaching 0.80
+    would need **n = 1600 per arm**, 25x this run — i.e. the proportional question is
+    not affordable on this population at all, and no amount of care in the
+    write-up changes that. (Reproduce with
+    `min_n_for(0.031, 0.0155, cap=6000, step=200)`; deliberately NOT pinned in a
+    test — a single `fisher_power` call at n=1600 runs for minutes, so the pin was
+    declined for cost, not overlooked.)
   * So `power.py` was not wrong — it was **conditional on a premise I had not
     measured.** A power figure inherits the uncertainty of the base rate fed into
     it, and I fed it a hope. This is the direct successor to the 0.28 lesson and it

@@ -175,7 +175,16 @@ def mcnemar_power(
 def min_n_for(
     p1: float, p2: float, target: float = 0.80, cap: int = 600, step: int = 12
 ) -> int | None:
-    """Smallest per-arm n reaching `target` power, or None if `cap` is hit."""
+    """Smallest per-arm n reaching `target` power, or None if `cap` is hit.
+
+    Cost note, learned the expensive way: this is cubic in n, so the default cap of
+    600 is a usability limit and not an opinion about designs. Very low base rates
+    push the answer far past it — halving 3.1% needs n=1600/arm, and evaluating a
+    SINGLE `fisher_power` at that n runs for minutes. If you find yourself raising
+    `cap` into the thousands, the tool is telling you the honest answer already:
+    that endpoint is not affordable, and the design needs a different endpoint or a
+    denser population rather than a bigger n.
+    """
     for n in range(step, cap + 1, step):
         if fisher_power(n, p1, p2) >= target:
             return n
