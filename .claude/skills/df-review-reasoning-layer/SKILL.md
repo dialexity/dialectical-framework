@@ -218,7 +218,8 @@ anchors.
       opposite pole went unmeasured until a control scenario looked: on `premature_relocation`, whose
       pre-registered right answer is "you do not have enough to decide yet", **12 of 12 A2 cells recorded anyway**
       (26 Decision nodes, `DecisionCoherenceCheck` 25 passed / 1 failed) and A2 **lost** that control's blended
-      composite. UNFIXED on purpose — decision *timing* appears nowhere in the eight generative rules, so this is
+      composite. Left unfixed by product decision (2026-08-20) — the check still stands: before hardening a
+      ceremony, look at what the opposite failure costs, because here nobody had. UNFIXED on purpose — decision *timing* appears nowhere in the eight generative rules, so this is
       a design conflict rather than a defect against spec, and a prompt-only fix could not bind anyway (the
       code seam repairs an unrecorded confirmation back in). Do not write the restraining rule as a prompt patch;
       see the `r23-controls` entry under Decision lifecycle in reference §4 for the three constraints on any fix.

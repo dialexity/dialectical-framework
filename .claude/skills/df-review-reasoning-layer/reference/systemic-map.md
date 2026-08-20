@@ -1245,7 +1245,9 @@ annotation) → **GenerateSynthesis**
   revert-verified 4/45 failing on the three call sites alone. Still NOT verified at the behaviour layer: whether
   grounding the pathway moves `paired_recipe` (-0.58) or `decision_closure` (-0.75) needs r17.
   **The decision was not decidable yet and got recorded anyway, 12 of 12** (measured 2026-08-19,
-  `r23-controls`; UNFIXED, and deliberately so — the direction is the product owner's call, not this map's).
+  `r23-controls`; UNFIXED, and deliberately so — **the product owner's call, made 2026-08-20: leave it.** A
+  premature record is the cheaper of the two errors, per (3) below. Do not reopen this as a prompt patch without
+  a new measurement; the entry stays because the constraints below outlive the decision.)
   `premature_relocation` is a control scenario whose pre-registered right answer is "you do not have enough to
   decide yet", and **every one of the 12 strong-tier A2 cells called `record_decision`**, committing 26 Decision
   nodes; `DecisionCoherenceCheck` returned 25 passed / 1 failed. That is the exact mirror of the whole
