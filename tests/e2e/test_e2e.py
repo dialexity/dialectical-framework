@@ -9704,7 +9704,13 @@ class TestRationaleIntegrityProbe:
             if run.arm.value == "A2":
                 dump.add(run)
         per_scenario: dict[str, list[int]] = {}
-        for why, _v, _c, scenario in dump.rows.values():
+        # Indexed rather than unpacked: this class already learned once that a
+        # pin must not break when the archive grows, and the same applies to the
+        # probe growing a column. Widening `rows` to carry the omission-reach
+        # fields (2026-08-20) broke a 4-way unpack here for no reason connected
+        # to what is under test.
+        for values in dump.rows.values():
+            why, scenario = values[0], values[3]
             row = per_scenario.setdefault(scenario, [0, 0])
             row[0] += 1
             if probe._VOID.search(why):

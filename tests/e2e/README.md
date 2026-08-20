@@ -66,7 +66,7 @@ no opponent, and every test in it names the link it guards:
 | `test_pathways_before_closing_weak_tier` | a confirmed decision AND its arrangement on the same turn | `explore` fired 6/55 weak vs 17/25 strong |
 | `test_single_perspective_explore_real_llm` | ONE perspective is enough to explore | 5/6 A2 runs never called `explore`; 3 prompt fixes failed |
 | `test_decision_repair_weak_tier` | a weak model still leaves a record | 0/6 weak vs 6/6 strong recorded a decision |
-| `test_decision_rationale_integrity_weak_tier` | a REFUTED risk is not recorded as a CARRIED one | 4/12 A2 rationales swallowed a fabricated dismissal |
+| `test_decision_rationale_integrity_weak_tier` | a REFUTED risk is not recorded as a CARRIED one, and a SILENT one is not recorded at all | 4/12 A2 rationales swallowed a fabricated dismissal; priceless decisions passed the audit 17/19 |
 | `test_machinery_silence_weak_tier` | the REPLY, not the prompt, keeps the machinery quiet | 15 vocabulary leaks in 6 cells, every prompt test green |
 | `test_tetrad_collapse_real_llm` | no aspect deduplicates into its own pole | `672c19d`; an `accepted_cost` ground sitting at `T/T-` |
 | `test_condition_ambiguity_live_probe` | the accepted-cost condition renders (0/6 live) | duplicate directed edges vs genuine ambiguity |

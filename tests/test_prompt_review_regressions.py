@@ -2195,7 +2195,9 @@ class TestDecisionReadiness:
         grounds are absent, and a risk that has been argued away is precisely
         the risk nobody records as a cost. Archive-wide that shows up as
         no-`accepted_cost` decisions passing 11/12 against 41/80 with one —
-        recording no cost was the reliable way to pass the audit.
+        recording no cost was the reliable way to pass the audit. Check 3 reads
+        what the rationale ARGUED, so it narrowed that without closing it; the
+        silent case needed check 5 (see below).
 
         Both renders: counsel mode debriefs the person's own deliverable and
         writes the same records. Prose arms keep it too (no tool token in the
@@ -2237,7 +2239,7 @@ class TestDecisionReadiness:
         from dialectical_framework.concerns import decision_coherence_check
 
         prompt = " ".join(decision_coherence_check.SYSTEM_PROMPT.split())
-        assert "You check exactly four things" in prompt
+        assert "You check exactly five things" in prompt
         assert "A RISK RECORDED AS REFUTED" in prompt
         # Independence from check 2, stated where the model reads it.
         assert "this is the case check 2 cannot see" in prompt
@@ -2279,15 +2281,94 @@ class TestDecisionReadiness:
             stance = "Yes, buy out now."
 
         rendered = " ".join(
-            DecisionCoherenceCheck()._prompt(_D(), [], [], "because the data says so").split()
+            DecisionCoherenceCheck()
+            ._prompt(_D(), [], [], "because the data says so", [])
+            .split()
         )
-        assert "Apply the four checks" in rendered
+        assert "Apply the five checks" in rendered
         assert "it is the record you are judging" in rendered
         assert "not whether you believe it" in rendered
         assert "not being asked if the claim is true in the world" in rendered
         # No grounds recorded is not itself a finding — the rendered section
         # must still say so plainly.
         assert "None recorded." in rendered
+
+    def test_the_auditor_can_see_a_price_nobody_recorded(self):
+        """Check 5 catches SILENCE, which is what checks 2 and 3 both clear.
+
+        Check 2 reads the cost that WAS cited and skips when none was; check 3
+        reads what the rationale ARGUED and a silent rationale argues nothing. So
+        a record that simply never says what the choice costs passed both by
+        construction — archive-wide, decisions with no `accepted_cost` passed 17
+        of 19 against 68 of 120 with one (`probe_rationale_integrity.py`;
+        earlier sites quote 11/12 and 41/80, the same asymmetry on a smaller
+        archive). Omitting the price was the cheapest way to clear the audit,
+        which is an incentive pointing the wrong way.
+
+        Two boundaries are asserted, because check 5's plausible over-fits are
+        both worse than not checking:
+
+        * priced IN PROSE must pass, or the check audits bookkeeping and — given
+          the incentive above — teaches the model to attach a cost ground it
+          never weighed;
+        * the CHOSEN side's minus is the price. The other side's is what the
+          choice avoids, and reading it as a cost is the category error the
+          `accepted_cost` role was corrected for once already.
+
+        Behavioural half (does a weak model actually discriminate) is the pair in
+        `tests/test_decision_rationale_integrity_weak_tier.py`; the resolution
+        half is `TestUnpricedAspectsResolution` in `tests/test_decision.py`.
+        """
+        from dialectical_framework.concerns import decision_coherence_check
+
+        prompt = " ".join(decision_coherence_check.SYSTEM_PROMPT.split())
+        assert "AN AVAILABLE PRICE LEFT OFF THE RECORD" in prompt
+        # The trigger is silence, and "priced" is defined generously.
+        assert "IN ITS OWN WORDS is priced and passes" in prompt
+        assert "says nothing anywhere about what the choice costs" in prompt
+        # The position mapping — the A- answer, stated where it is read.
+        assert "the CHOSEN side's overdevelopment" in prompt
+        assert "what this choice AVOIDS" in prompt
+        # No double-flagging with check 3, and relevance is judged first.
+        assert "one omission must not be reported as two failures" in prompt
+        assert "does not bear on the question is not an omission" in prompt
+
+        from dialectical_framework.concerns.decision_coherence_check import \
+            CoherenceVerdictDto
+
+        described = CoherenceVerdictDto.model_fields["incoherent"].description
+        assert "leaves the choice unpriced" in described
+
+    def test_check_five_is_silent_when_no_price_was_recoverable(self):
+        """The absent section must not read as an empty accusation.
+
+        9 of the archive's 19 priceless decisions cite nothing at all — check 2's
+        documented exemption, and they stay exempt. If the rendered prompt showed
+        an empty overdevelopments heading, the auditor would be invited to flag a
+        decision for citing no tension, which is not a defect.
+        """
+        from dialectical_framework.concerns.decision_coherence_check import \
+            DecisionCoherenceCheck
+
+        class _D:
+            intent = "Buy out the cofounder now?"
+            stance = "Yes, buy out now."
+
+        check = DecisionCoherenceCheck()
+        bare = " ".join(check._prompt(_D(), [], [], "because it is time", []).split())
+        assert "Overdevelopments" not in bare
+        assert "applies only if an overdevelopments section appears above" in bare
+        assert "not incoherent for citing none" in bare
+
+        withheld = " ".join(
+            check._prompt(
+                _D(), [], [], "because it is time",
+                [("T-", "Sole ownership makes you the single point of failure")],
+            ).split()
+        )
+        assert "priced none of them" in withheld
+        # The label is expanded, so the auditor need not know the notation.
+        assert "the price of taking the thesis side" in withheld
 
     def test_accepted_cost_tool_schema_matches_the_prompt(self):
         """The Field description is a second, independent prompt surface."""

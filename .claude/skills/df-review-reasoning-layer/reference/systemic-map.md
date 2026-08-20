@@ -1423,6 +1423,40 @@ annotation) → **GenerateSynthesis**
   reuses the archive loader or it inherits none of its fixes**; promote it under `tests/` while the number is
   still being quoted, not after (`tests/e2e/probe_rationale_integrity.py` is where this one lives now, and it
   reports the graph-captured side and the dump proxy side apart, never merged).
+- **A price nobody recorded — check 5** (`DecisionCoherenceCheck.SYSTEM_PROMPT` check 5 +
+  `RecordDecision._unpriced_aspects`, live since 2026-08-20): check 3 above narrowed the blind spot without
+  closing it, and the residue is the general lesson. **Check 2 reads the cost that WAS cited; check 3 reads what
+  the rationale ARGUED. A record that is simply SILENT about its price does neither, so it cleared both by
+  construction** — recounted on the grown archive, decisions with no `accepted_cost` passed **17 of 19 against 68
+  of 120** with one, so omitting the price stayed the cheapest way to pass the audit. That is an incentive
+  pointing the wrong way, and no wording of checks 2/3 reaches it: the fix is STRUCTURAL. `RecordDecision` now
+  resolves the overdevelopment aspects the cited tensions carry and the record did not cite, and passes them in
+  as `unpriced=` — the auditor cannot find an omission it was never shown.
+  **The A- mapping is stated in the check, because getting it backwards is the failure mode with precedent:**
+  the price of a choice is the CHOSEN side's overdevelopment (T- for a thesis stance, A- for an antithesis one);
+  the other side's minus is what the choice AVOIDS, never a cost it carries. `_unpriced_aspects` therefore
+  returns **[]** as soon as any `accepted_cost` is attached — a structural guard, not a negative condition in the
+  prompt, since the leftover would otherwise be exactly that opposite-side minus handed over as an unpaid price
+  (cf. the role's own correction: asking for the plus got remedies recorded as costs in 4 of 6 runs).
+  **Two over-fits are worse than not checking, and both are pinned.** Flagging every record with no
+  `accepted_cost` edge would audit bookkeeping, punish a person who priced their choice in plain words, and —
+  given the incentive above — teach the model to attach a cost ground it never weighed. So "priced" is defined
+  generously (**"IN ITS OWN WORDS is priced and passes"**), relevance is judged before flagging (a tension can be
+  cited for context, not as the fork), and check 3's case is explicitly not re-flagged here (*"one omission must
+  not be reported as two failures"*).
+  **The reach is a quarter of the gap and the probe prints the shortfall on every run.** Of the 19 priceless
+  decisions, 5 cite a tension (reachable), 5 cite only a pathway, 9 cite nothing at all — check 2's documented
+  exemption, still exempt. Resolving from SCOPE instead of from the citation would reach all 19 and would also
+  fire on decisions about an unrelated question. General form: **a check motivated by a big asymmetry and
+  reaching a slice of it must publish the slice**, or the write-up silently annexes the rest of the gap; and
+  **an omission check needs the omitted thing supplied to it** — no prompt wording substitutes for the
+  structural seam, which is why "the auditor is structurally blind to what was left out" was the diagnosis
+  before a word of prompt was written. Locked by `test_prompt_review_regressions.py::TestDecisionReadiness::
+  test_the_auditor_can_see_a_price_nobody_recorded` / `::test_check_five_is_silent_when_no_price_was_recoverable`
+  (the absent section must not render an empty accusation), resolution by
+  `tests/test_decision.py::TestUnpricedAspectsResolution`, behaviourally by the third PAIR in
+  `tests/test_decision_rationale_integrity_weak_tier.py` (SILENT — verbatim archive decision `a58da2e` — vs the
+  same facts priced in prose with no ground attached).
 - **Multi-nexus dump cross-references** (`DialecticalContext._build_cross_nexus_refs`, live since 2026-08):
   when >1 nexus exists — or one-plus nexus with unexplored standalone tensions beside it — the unscoped
   dump (a) prepends an index-disambiguation note when >1 nexus ("indices are per-exploration — qualify

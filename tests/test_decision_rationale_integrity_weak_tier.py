@@ -29,6 +29,12 @@ audit's blind spot lines up exactly with the failure. Archive-wide that shows up
 as decisions with no `accepted_cost` passing 11/12 against 41/80 with one:
 recording no cost was the reliable way to pass the audit.
 
+Check 3 narrowed that blind spot without closing it, which is what the third pair
+below is for. It reads what the rationale ARGUED, so a record that argues a risk
+away is caught and one merely SILENT about a price is not — the asymmetry held as
+the archive grew (17/19 against 68/120). Check 5 is handed the overdevelopments
+the cited tensions carry so silence has something to be silent ABOUT.
+
 These are real-LLM tests because the check is one LLM call and the mock brain
 fills `incoherent=False` — a mocked run cannot show the check firing, and cannot
 show it declining to fire either, which is the half that costs more if it breaks.
@@ -87,7 +93,44 @@ CARRIED = (
 )
 
 
-async def _verdict(container, rationale: str, grounds=None):
+#: Check 5's pair. The stance takes the thesis side (buy out), so the price of
+#: the choice is T- — the chosen side's overdevelopment.
+UNPRICED = [
+    (
+        "T-",
+        "Sole ownership concentrates every customer relationship on one person "
+        "— arises when Buy him out and run it myself is held without Keep him "
+        "engaged to preserve the revenue relationships",
+    )
+]
+
+#: Verbatim from the archive (`a58da2e`, rendered into a returning session): a
+#: rationale that argues the buyout entirely on what is WRONG with the status
+#: quo and never once says what the buyout costs. It does not refute a risk, so
+#: check 3 has nothing to find; it recorded no cost, so check 2 skips. Silence,
+#: which is the shape both existing checks clear.
+SILENT = (
+    "I'm doing 80% of the work for 55% of the company. Every decision requires "
+    "looping him in and waiting, or overriding him and eating friction. He's a "
+    "cofounder in name but a ghost in practice. Decision speed and equity "
+    "fairness require buying him out and running it myself."
+)
+
+#: The twin. Same facts, same stance, still NO accepted_cost ground — the price
+#: is named in the person's own words instead. Check 5 must pass this, or it has
+#: become "attach a ground or be flagged", which audits bookkeeping rather than
+#: whether the choice was priced.
+PRICED_IN_PROSE = (
+    "I'm doing 80% of the work for 55% of the company. Every decision requires "
+    "looping him in and waiting, or overriding him and eating friction. What it "
+    "costs me is that afterwards every one of those customer relationships runs "
+    "through me alone — if I'm out for a month, there's nobody else who knows "
+    "those accounts. I'm taking that on knowingly. Decision speed and equity "
+    "fairness are worth it."
+)
+
+
+async def _verdict(container, rationale: str, grounds=None, unpriced=None):
     """Run the audit on one rationale in its OWN scope, returning (passed, reasons).
 
     A fresh `sid` per verdict is not tidiness. Both rationales here answer the
@@ -106,7 +149,10 @@ async def _verdict(container, rationale: str, grounds=None):
         decision.commit()
         ground_pairs = [(_committed(text), role) for text, role in (grounds or [])]
         verdict = await DecisionCoherenceCheck().resolve(
-            decision=decision, grounds=ground_pairs, rationale=rationale
+            decision=decision,
+            grounds=ground_pairs,
+            rationale=rationale,
+            unpriced=unpriced,
         )
     # None means the check could not run (fail-soft). That is correct production
     # behaviour and a useless test result, so it is a failure here.
@@ -186,4 +232,52 @@ async def test_a_recorded_cost_is_not_flagged_as_a_refuted_risk(di_container):
     assert passed, (
         "A decision that names its risk, prices it, and grounds it as the "
         f"accepted cost was flagged incoherent: {reasons}"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(600)
+async def test_the_audit_separates_an_unpriced_choice_from_one_priced_in_prose(
+    di_container,
+):
+    """Check 5's pair — and the false-positive half is the one that matters here.
+
+    Silence about a price cleared checks 2 and 3 by construction: 2 reads the
+    cost that WAS cited and skips when none was, 3 reads what the rationale
+    ARGUED and a silent rationale argues nothing. Archive-wide that is decisions
+    with no `accepted_cost` passing 17 of 19 against 68 of 120 with one, so the
+    cheapest way to pass the audit was to leave the price off.
+
+    The twin exists because the obvious over-fit is to flag every record with no
+    `accepted_cost` edge. That would audit bookkeeping, punish a person who
+    priced their choice in plain words, and — given the incentive above — teach
+    the model to attach a cost ground it never weighed, which is the failure the
+    `accepted_cost` role was already corrected for once.
+    """
+    silent_passed, silent_reasons = await _verdict(
+        di_container, SILENT, unpriced=UNPRICED
+    )
+    prose_passed, prose_reasons = await _verdict(
+        di_container, PRICED_IN_PROSE, unpriced=UNPRICED
+    )
+
+    print(f"\nSILENT          -> passed={silent_passed} reasons={silent_reasons}")
+    print(f"PRICED_IN_PROSE -> passed={prose_passed} reasons={prose_reasons}")
+
+    assert not silent_passed, (
+        "A rationale that argues the buyout entirely on what is wrong with the "
+        "status quo, never says what the choice costs, and records no accepted "
+        "cost still passes — with the chosen side's overdevelopment handed to "
+        f"the auditor. Verbatim from archive decision a58da2e. {silent_reasons}"
+    )
+    said = " ".join(silent_reasons).lower()
+    assert any(
+        word in said
+        for word in ("cost", "price", "unpriced", "overdevelop", "risk", "sole")
+    ), f"flagged, but the reason does not name the unpriced price: {silent_reasons}"
+
+    assert prose_passed, (
+        "The twin — same facts, same stance, same missing ground, price named in "
+        "the person's own words — was flagged. Check 5 has become 'attach a "
+        f"ground or be flagged', which is not what it measures. {prose_reasons}"
     )

@@ -75,6 +75,29 @@ rendered with NO accepted cost, 11 of 12 nonetheless carried
 clearing exactly the records this failure produces — which is why a fourth
 coherence criterion was added rather than the existing three being retuned.
 
+WHICH OF THOSE A FIFTH CRITERION COULD REACH (2026-08-20)
+=========================================================
+The asymmetry held as the archive grew — 17 of 19 priceless decisions passed
+against 68 of 120 with a cost — so omitting the price stayed the cheapest way
+to clear the audit, and check 3 does not close it: a rationale that ARGUES a
+risk away is caught, one merely SILENT about it is not.
+
+Check 5 resolves the prices that WERE available from what the record cites
+(`RecordDecision._unpriced_aspects`). The reach table below is why that scope
+was chosen and what it costs, and it is printed on every run so the shortfall
+cannot be quietly dropped:
+
+  5 of 19  cite a tension — REACHABLE, and 4 of the 5 passed the audit
+  5 of 19  cite only a pathway; no aspect hangs off it
+  9 of 19  cite nothing at all — check 2's documented exemption, still exempt
+
+So the fix addresses about a quarter of the measured gap. Resolving from SCOPE
+instead of from the citation would reach all 19 and would also fire on a
+decision about an unrelated question — the false-positive direction an auditor
+cannot afford, since a check that flags everything is worth less than no check.
+**Stated as a fraction on purpose:** a fifth criterion motivated by 17-of-19
+and reaching 5 of them is easy to write up as having closed the whole thing.
+
 WHAT IT CANNOT SEE
 ==================
 Voidness is matched by regex over the rationale's first sentence. It catches the
@@ -132,6 +155,15 @@ _VOID = re.compile(
 #: One rendered `## Decision [[hash]]` block, up to the next `## ` header.
 _BLOCK = re.compile(r"^## Decision \[\[(\w+)\]\].*?(?=^## |\Z)", re.M | re.S)
 
+#: Any rendered ground line at all, whatever its role.
+_ANY_GROUND = re.compile(r"^- (ground|accepted cost|adopted pathway|\w+): ", re.M)
+
+#: A ground that renders a whole tetrad — `T- = ..., T = ..., T+ = ..., A- = ...`.
+#: This is the only ground shape from which an omitted price is RECOVERABLE: it
+#: names the minus aspects, so an auditor handed it can ask why none was paid.
+#: A decision citing only a pathway (`Ac = a → b`) carries no price to omit.
+_TETRAD_GROUND = re.compile(r"^- ground: .*\bT- =.*\bA- =", re.M)
+
 #: The rationale line inside a rendered block ("Why: ...", "Why now: ...").
 _WHY = re.compile(r"^Why[^:]*:\s*(.*)$", re.M)
 
@@ -165,8 +197,8 @@ class _Dump:
     """
 
     def __init__(self) -> None:
-        #: hash -> (rationale, validation, has_cost, scenario)
-        self.rows: dict[str, tuple[str, str, bool, str]] = {}
+        #: hash -> (rationale, validation, has_cost, scenario, tetrad_cited, n_grounds)
+        self.rows: dict[str, tuple[str, str, bool, str, bool, int]] = {}
 
     def add(self, run: RunRecord) -> None:
         for session in run.sessions:
@@ -184,6 +216,8 @@ class _Dump:
                     validation,
                     "accepted cost:" in block,
                     run.scenario_key,
+                    bool(_TETRAD_GROUND.search(block)),
+                    len(_ANY_GROUND.findall(block)),
                 )
 
 
@@ -194,7 +228,7 @@ def _dump_side(runs: list[RunRecord], *, show: bool) -> None:
             dump.add(run)
 
     per_scenario: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-    for why, _validation, _cost, scenario in dump.rows.values():
+    for why, _validation, _cost, scenario, _tetrad, _n in dump.rows.values():
         per_scenario[scenario][0] += 1
         if _VOID.search(why):
             per_scenario[scenario][1] += 1
@@ -208,22 +242,63 @@ def _dump_side(runs: list[RunRecord], *, show: bool) -> None:
 
     # The audit's pre-fix agreement: did "no accepted cost" predict a flag?
     table: dict[tuple[bool, str], int] = defaultdict(int)
-    for _why, validation, has_cost, _scenario in dump.rows.values():
+    for _why, validation, has_cost, _scenario, _tetrad, _n in dump.rows.values():
         table[(has_cost, validation)] += 1
     print("\n  Did the pre-fix audit already see it? (rendered blocks only)")
     print(f"  {'accepted cost named':>21}{'validation':>12}{'decisions':>11}")
     for (has_cost, validation), count in sorted(table.items()):
         print(f"  {str(has_cost):>21}{validation:>12}{count:>11}")
 
+    _omission_reach(dump)
+
     if show:
         print("\n  Every void-assertion, so the regex floor stays auditable:")
-        for short_hash, (why, validation, has_cost, scenario) in sorted(
+        for short_hash, (why, validation, has_cost, scenario, _tetrad, _n) in sorted(
             dump.rows.items()
         ):
             if not _VOID.search(why):
                 continue
             print(f"    [[{short_hash}]] {scenario} validation={validation} cost={has_cost}")
             print(f"        {why[:220]}")
+
+
+def _omission_reach(dump: _Dump) -> None:
+    """How many priceless decisions could an OMISSION check even have seen?
+
+    `DecisionCoherenceCheck` check 2 reads the accepted cost that WAS cited, and
+    skips entirely when grounds are absent. So a rationale that argues a risk
+    away is caught (check 3) while one that is simply SILENT about it is not —
+    the auditor is handed only what the assistant chose to attach.
+
+    The fix under consideration resolves the minus aspects the decision did NOT
+    cite and passes them in. That is only possible where a tetrad ground is
+    present, so this splits the no-cost decisions into REACHABLE (a tetrad is
+    cited, its minus aspects are recoverable) and BLIND (nothing to recover
+    from). Reporting the reachable share is the honest version of the fix's
+    claim: it cannot be sold as closing the whole gap.
+    """
+    reachable = reachable_passed = some_grounds = no_grounds = 0
+    for _why, validation, has_cost, _scenario, tetrad, n_grounds in dump.rows.values():
+        if has_cost:
+            continue
+        if tetrad:
+            reachable += 1
+            reachable_passed += validation == "passed"
+        elif n_grounds:
+            some_grounds += 1
+        else:
+            no_grounds += 1
+
+    print("\n  Could an OMISSION check have reached them? (no accepted cost only)")
+    print(f"  {'a tetrad ground is cited (REACHABLE)':>44}{reachable:>7}")
+    print(f"  {'of those, the audit passed them':>44}{reachable_passed:>7}")
+    print(f"  {'grounds cited but no tetrad among them':>44}{some_grounds:>7}")
+    print(f"  {'NO grounds at all (check 2 exempts these)':>44}{no_grounds:>7}")
+    if not reachable:
+        print(
+            "  !! every priceless decision cited no tetrad — resolving uncited\n"
+            "     minus aspects would fire on NOTHING. The fix would be inert."
+        )
 
 
 def _captured_side(runs: list[RunRecord], *, show: bool) -> None:

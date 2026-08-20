@@ -22,9 +22,15 @@ standard Discard concern (reason like "superseded by [[new_hash]]").
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+
+if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.assessable_entity import \
+        AssessableEntity
 
 
 class GroundLink(BaseModel):
@@ -217,11 +223,16 @@ class RecordDecision(ReasonableConcern[str | None]):
         # 5. Coherence review — non-blocking flag (PerspectiveValidation pattern).
         # Guarded here too: no failure mode of the check may block the record.
         # Judged against ATTACHED grounds only — the persisted verdict must
-        # describe the record as it exists in the graph, not as proposed.
+        # describe the record as it exists in the graph, not as proposed —
+        # plus the prices those grounds carried and the record did NOT cite,
+        # which the attached list cannot express (see _unpriced_aspects).
         try:
             checker = DecisionCoherenceCheck()
             verdict = await checker.resolve(
-                decision=decision, grounds=attached, rationale=rationale
+                decision=decision,
+                grounds=attached,
+                rationale=rationale,
+                unpriced=self._unpriced_aspects(attached),
             )
         except Exception:
             verdict = None
@@ -271,3 +282,59 @@ class RecordDecision(ReasonableConcern[str | None]):
                 {"hash": node.short_hash, "role": role} for node, role in attached
             ]
         return decision.hash
+
+    @staticmethod
+    def _unpriced_aspects(
+        attached: list[tuple[AssessableEntity, str | None]],
+    ) -> list[tuple[str, str]]:
+        """Overdevelopment aspects the cited tensions carry and the record did not.
+
+        `DecisionCoherenceCheck` sees only what was ATTACHED, so a record that
+        argues a risk away is caught (check 3) while one merely SILENT about it
+        is not — check 2 has no cost to cohere against and skips. Measured
+        archive-wide: decisions with no accepted_cost passed 17 of 19 against 68
+        of 120 with one, so omitting the price was the reliable way to clear the
+        audit. This recovers the prices that WERE available, so check 5 can ask
+        why none was paid.
+
+        Reach is deliberately limited to minus aspects hanging off a cited
+        Perspective — the only ones the record itself points at. Of 19 priceless
+        decisions in the archive, 5 cite a tension (reachable here), 5 cite only
+        a pathway, and 9 cite nothing at all; the last 9 are check 2's
+        documented exemption and stay exempt. Resolving from scope instead of
+        from the citation would reach them and would also fire on decisions
+        about an unrelated question, which is the false-positive direction an
+        auditor cannot afford (`tests/e2e/probe_rationale_integrity.py`
+        --omission reach table).
+
+        Returns (position label, aspect text) pairs, deduplicated by hash —
+        sibling perspectives on one polarity share most minus aspects.
+        """
+        from dialectical_framework.graph.nodes.perspective import Perspective
+
+        # A record that priced its choice at all is not check 5's business, and
+        # the guard is structural rather than a negative condition in the
+        # prompt: the leftover here would otherwise be the OTHER side's minus —
+        # what the choice avoids — and offering it to an auditor invites exactly
+        # the category error the `accepted_cost` role was corrected for (asking
+        # for the wrong position got remedies recorded as costs in 4 of 6 runs).
+        if any(role == "accepted_cost" for _node, role in attached):
+            return []
+
+        out: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for node, _role in attached:
+            if not isinstance(node, Perspective):
+                continue
+            for label, accessor in (("T-", "t_minus"), ("A-", "a_minus")):
+                try:
+                    aspects = getattr(node, accessor).all()
+                except Exception:  # noqa: BLE001 - an audit input, never a blocker
+                    continue
+                # RelationshipManager.all() yields (node, relationship) pairs.
+                for aspect, _rel in aspects:
+                    if aspect.hash in seen:
+                        continue
+                    seen.add(aspect.hash)
+                    out.append((label, str(aspect)))
+        return out

@@ -206,6 +206,22 @@ anchors.
       measure the record, and expect the fix to be a tool-side check rather than a better paragraph. The
       `record_decision`-side priced-`accepted_cost` check is now the next move on evidence, with three real replies
       it must refuse. Sequence clause, third reading: 11/12 (was 8/12, 8/12).
+      **BUILT (2026-08-20): check 5 in `DecisionCoherenceCheck`, and the shape of the fix is the lesson.** The gap
+      was not a missing rule — checks 2 and 3 already say a price must be named and must not be argued away — it
+      was that **the auditor was never shown the price it should have looked for.** Check 2 reads the cost that WAS
+      cited and check 3 what the rationale ARGUED, so a record merely SILENT about its price cleared both by
+      construction (archive-wide: no-`accepted_cost` decisions pass **17 of 19** against 68 of 120 with one). So
+      `RecordDecision._unpriced_aspects` resolves the overdevelopments the cited tensions carry and the record did
+      not, and passes them in. **Generalise: an omission check needs the omitted thing supplied to it — diagnose
+      whether the auditor CAN SEE the failure before writing more prompt at it.** Two further transfers, both about
+      not over-claiming: reach is **5 of the 19** (5 cite only a pathway, 9 cite nothing at all and stay check 2's
+      documented exemption), and the probe prints that shortfall on every run, because *a check motivated by a big
+      asymmetry and reaching a slice of it must publish the slice*. And the false-positive half is pinned harder
+      than the true-positive one — flagging every record with no cost EDGE would audit bookkeeping and, given the
+      incentive above, teach the model to attach a cost it never weighed, so "priced **in its own words**" passes.
+      Details, including why `_unpriced_aspects` returns nothing once any cost is attached (the leftover would be
+      the *opposite* side's minus, i.e. what the choice avoids), in the reference map under "A price nobody
+      recorded".
 - [ ] **A hand-labelling pre-registration is worth its cost, and here is the receipt.** r24's regex reported the
       SAME headline count as the hand labels (1 resize) while inverting both cells that mattered: it scored the
       cell that says *"Dropped, fully — not resized"* as a resize, and missed the one genuine resize. A

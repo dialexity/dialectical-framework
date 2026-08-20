@@ -1025,3 +1025,105 @@ class TestRepairGroundsTheTensionItMatched:
             f"grounding its own perspective: {cost_lines}"
         )
         assert any("Control" in ln for ln in cost_lines)
+
+
+class TestUnpricedAspectsResolution:
+    """What check 5 gets handed, resolved from the citation and nothing wider.
+
+    `DecisionCoherenceCheck` sees only ATTACHED grounds, so a record silent about
+    its price cleared check 2 (which skips with no cost) and check 3 (which reads
+    what the rationale argued). Archive-wide that is decisions with no
+    `accepted_cost` passing 17 of 19 against 68 of 120 with one
+    (`tests/e2e/probe_rationale_integrity.py`). `_unpriced_aspects` recovers the
+    prices that were available so the check can ask why none was paid.
+
+    Pinned structurally because the resolution is graph-walking, not judgement —
+    the judgement half is a real-LLM pair in
+    `tests/test_decision_rationale_integrity_weak_tier.py`. Both halves are
+    needed: the walk can return the right aspects to a check that ignores them,
+    and the check can reason perfectly over an empty list.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_cited_tension_yields_both_minus_aspects_labelled(self):
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            unpriced = RecordDecision._unpriced_aspects([(pp, None)])
+
+        by_label = {label: text for label, text in unpriced}
+        assert set(by_label) == {"T-", "A-"}, (
+            "check 5 must see both sides' overdevelopments so it can tell the "
+            f"price of the chosen side from what the choice avoids: {unpriced}"
+        )
+        assert "Rigidity and micromanagement" in by_label["T-"]
+        assert "Chaos without boundaries" in by_label["A-"]
+
+    @pytest.mark.asyncio
+    async def test_a_recorded_price_switches_the_check_off_entirely(self):
+        """The guard is structural, not a negative condition in the prompt.
+
+        Left ungated, a record that cited T- as its accepted cost would hand the
+        auditor A- — what the choice AVOIDS — as an unpaid price. That is the
+        category error the `accepted_cost` role was already corrected for once
+        (asking for the plus aspect got remedies recorded as costs in 4 of 6
+        runs), and it would arrive dressed as a coherence finding.
+        """
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            t_minus, _ = pp.t_minus.get()
+            unpriced = RecordDecision._unpriced_aspects(
+                [(pp, None), (t_minus, "accepted_cost")]
+            )
+
+        assert unpriced == [], (
+            "a decision that priced its choice is not check 5's business, and "
+            f"the leftover here is the other side's minus: {unpriced}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_decision_citing_no_tension_stays_out_of_reach(self):
+        """The documented limit, asserted so it is not mistaken for a bug.
+
+        9 of the archive's 19 priceless decisions cite nothing at all and 5 cite
+        only a pathway; none is reachable from the citation. Resolving from scope
+        instead would reach them AND fire on decisions about an unrelated
+        question, so the reach stays narrow and the probe reports the shortfall
+        rather than the fix claiming the whole gap.
+        """
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        with scope(_new_sid()):
+            stmt = _committed_statement("Buy him out now")
+            assert RecordDecision._unpriced_aspects([]) == []
+            assert RecordDecision._unpriced_aspects([(stmt, None)]) == []
+
+    @pytest.mark.asyncio
+    async def test_a_shared_minus_is_offered_once(self):
+        """Sibling tensions share most minus aspects — 7 of 10, measured live.
+
+        A duplicated price reads to the auditor as two omissions and inflates the
+        reasons list on a single failure.
+        """
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            first = _create_perspective_with_aspects()
+            shared, _ = first.t_minus.get()
+            second = _create_perspective_with_aspects(
+                thesis_text="Speed",
+                antithesis_text="Care",
+                t_minus_text=shared.text,
+            )
+            unpriced = RecordDecision._unpriced_aspects(
+                [(first, None), (second, None)]
+            )
+
+        texts = [text for _label, text in unpriced]
+        assert len(texts) == len(set(texts)), f"a price offered twice: {unpriced}"
