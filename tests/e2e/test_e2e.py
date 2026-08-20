@@ -1737,7 +1737,10 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "e2e.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        hashes, costs, positions, pathways, _r, _v = E2EDriver._read_decisions()
+        read = E2EDriver._read_decisions()
+        hashes, costs, positions, pathways = (
+            read.hashes, read.costs, read.positions, read.pathways
+        )
 
         assert hashes == ["dec1234"]
         assert len(costs) == 1 and "Accounts may follow" in costs[0]
@@ -1745,6 +1748,37 @@ class TestReadDecisions:
         # The cost's position is still tracked; a pathway has no position slot
         # because a pathway is never a cost — it is what you do about one.
         assert len(positions) == 1
+
+    def test_two_costs_sharing_a_position_stay_pairable(self, monkeypatch):
+        """The defect `accepted_cost_pairs` exists for.
+
+        `driver` set-unions `accepted_cost_grounds` and
+        `accepted_cost_positions` independently, so two costs both grounded at
+        "A-" collapse to ONE position and no consumer can tell which ground it
+        belonged to — 35 archived runs have unequal lengths for this reason, and
+        `probe_cost_side` had to define its population by the rendered condition
+        clause instead. The pair field must survive the same de-duplication.
+        """
+        pairs = [
+            (self._Ground("Accounts may follow him out"), self._Rel("accepted_cost")),
+            (self._Ground("Solo rule with no accountability"), self._Rel("accepted_cost")),
+        ]
+        monkeypatch.setattr(
+            "e2e.driver.DecisionRepository", self._fake_repo(pairs)
+        )
+        read = E2EDriver._read_decisions()
+
+        # Two grounds, and both pairs kept — even though `set(positions)` will
+        # collapse to one entry when the caller unions it.
+        assert len(read.costs) == 2
+        assert len(read.cost_pairs) == 2
+        assert len(set(read.positions)) <= len(read.cost_pairs)
+        for pair in read.cost_pairs:
+            position, line = pair.split("\t", 1)
+            assert position in read.positions
+            assert line in read.costs
+        # Distinct grounds must not collapse: this is the whole point.
+        assert len(set(read.cost_pairs)) == 2
 
     def test_a_cost_with_no_pathway_yields_an_empty_pathway_list(self, monkeypatch):
         """The shape a decision closed without `explore` produces."""
@@ -1754,7 +1788,8 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "e2e.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        _h, costs, _p, pathways, _r, _v = E2EDriver._read_decisions()
+        read = E2EDriver._read_decisions()
+        costs, pathways = read.costs, read.pathways
         assert costs and pathways == []
 
     def test_unknown_roles_are_ignored(self, monkeypatch):
@@ -1763,7 +1798,8 @@ class TestReadDecisions:
         monkeypatch.setattr(
             "e2e.driver.DecisionRepository", self._fake_repo(pairs)
         )
-        _h, costs, _p, pathways, _r, _v = E2EDriver._read_decisions()
+        read = E2EDriver._read_decisions()
+        costs, pathways = read.costs, read.pathways
         assert costs == [] and pathways == []
 
     def test_the_rationale_text_and_the_verdict_are_read_off_the_graph(
@@ -1783,7 +1819,8 @@ class TestReadDecisions:
                 validation="failed: records a risk as refuted",
             ),
         )
-        _h, _c, _p, _pw, rationales, verdicts = E2EDriver._read_decisions()
+        read = E2EDriver._read_decisions()
+        rationales, verdicts = read.rationales, read.verdicts
 
         assert rationales == [
             "dec1234: Not material in this B2B structure, so not a real exposure."
@@ -1800,7 +1837,7 @@ class TestReadDecisions:
             "e2e.driver.DecisionRepository",
             self._fake_repo([], rationale="Because it is time.", validation=None),
         )
-        _h, _c, _p, _pw, _r, verdicts = E2EDriver._read_decisions()
+        verdicts = E2EDriver._read_decisions().verdicts
         assert verdicts == ["dec1234:none"]
 
 
@@ -9638,11 +9675,29 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
     def test_the_judge_and_rubric_r21_was_measured_against_are_unchanged(self):
         """What r23 actually gates is the JUDGE, and the judge is frozen.
 
-        `judge.py`, `scoring.py` and `scenarios.py` must be byte-identical to
-        `1ca4083` modulo the bench→e2e rename. If a real edit lands in any of
-        them, r23 no longer inherits r21's rubric and the inference recorded in
-        `rounds.md` ("a fired tripwire suspends r21") needs re-argument.
+        `judge.py`, `scoring.py` and `scenarios.py` must match `1ca4083` modulo
+        the bench→e2e rename, and may differ only by ADDED lines. If a real edit
+        lands in any of them — any line deleted or changed — r23 no longer
+        inherits r21's rubric and the inference recorded in `rounds.md` ("a fired
+        tripwire suspends r21") needs re-argument.
+
+        Additive-only rather than byte-identical, and the distinction is the whole
+        point of the guard. What the inference actually requires is that no
+        scenario, marker list or scorer r21 was measured against has MOVED. A new
+        scenario appended to `ALL_SCENARIOS` cannot change how an existing
+        scenario is driven or judged, so it does not touch the inference — while a
+        one-word edit to an existing scenario's `favoured_markers` silently
+        invalidates it. Byte-identity conflates the two: it forbids the harmless
+        case and, since the only way to satisfy it is to never extend the file,
+        it pushes new scenarios into a separate module where the ~118
+        `ALL_SCENARIOS` invariant tests would not see them. Insertion-only keeps
+        the protection exactly and drops the collateral ban.
+
+        `REVERSAL_COFOUNDER` is the first scenario admitted under this reading
+        (added 2026-08-20, +0 deletions). Verify with
+        `git diff tests/e2e/scenarios.py | grep '^-'` — empty is the bar.
         """
+        import difflib
         import subprocess
 
         root = self._root()
@@ -9663,10 +9718,24 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
             )
             assert old.returncode == 0, f"cannot read {name} at {self.PROMPT_SHA}"
             new = (self._root() / "tests" / "e2e" / name).read_text(encoding="utf-8")
-            assert _normalize(old.stdout) == _normalize(new), (
-                f"tests/e2e/{name} has diverged from {self.PROMPT_SHA} by more "
-                "than the bench→e2e rename. r23's inference to r21 assumed an "
-                "identical rubric — re-read the decision in rounds.md"
+            old_lines = _normalize(old.stdout).splitlines(keepends=True)
+            new_lines = _normalize(new).splitlines(keepends=True)
+
+            # Every original line must still be present, in order. `difflib` opcodes
+            # other than "equal"/"insert" mean a line was deleted or rewritten.
+            touched = [
+                (tag, old_lines[i1:i2])
+                for tag, i1, i2, _j1, _j2 in difflib.SequenceMatcher(
+                    None, old_lines, new_lines
+                ).get_opcodes()
+                if tag in ("replace", "delete")
+            ]
+            assert not touched, (
+                f"tests/e2e/{name} CHANGED lines present at {self.PROMPT_SHA} "
+                f"(not merely added to): {touched[0][0]} "
+                f"{[l.strip()[:60] for l in touched[0][1][:3]]}. r23's inference "
+                "to r21 assumed the rubric r21 was measured against is intact — "
+                "re-read the decision in rounds.md"
             )
 
     def test_the_decision_records_both_facts_and_does_not_hedge(self):

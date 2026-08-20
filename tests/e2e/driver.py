@@ -42,6 +42,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import Iterator, Optional
 
 from dialectical_framework.concerns.dialectical_context import DialecticalContext
@@ -76,6 +77,28 @@ from .modelctx import using_model
 from .simulator import UserSimulator
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DecisionReadout:
+    """What `E2EDriver._read_decisions` found in the graph.
+
+    A dataclass rather than a tuple: this return value has grown three times
+    (pathways, then rationales+verdicts, then `cost_pairs`), and each growth
+    silently broke every positional unpack at the call sites — including one
+    that surfaced only as `ValueError: too many values to unpack`. Named fields
+    make an added field free.
+    """
+
+    hashes: list[str]
+    costs: list[str]
+    #: Aligned with `costs` HERE, but the caller set-unions the two
+    #: independently, so use `cost_pairs` for anything that needs the pairing.
+    positions: list[str]
+    cost_pairs: list[str]
+    pathways: list[str]
+    rationales: list[str]
+    verdicts: list[str]
 
 
 class _SwallowedErrorCapture(logging.Handler):
@@ -276,9 +299,7 @@ class E2EDriver:
         return "/".join(positions) if positions else "Statement"
 
     @classmethod
-    def _read_decisions(
-        cls,
-    ) -> tuple[list[str], list[str], list[str], list[str], list[str], list[str]]:
+    def _read_decisions(cls) -> DecisionReadout:
         """Committed decisions + their grounds, rationales and audit verdicts.
 
         Requires an active scope. The typed ground is what the wobble scorer
@@ -310,6 +331,7 @@ class E2EDriver:
         hashes: list[str] = []
         costs: list[str] = []
         positions: list[str] = []
+        cost_pairs: list[str] = []
         pathways: list[str] = []
         rationales: list[str] = []
         verdicts: list[str] = []
@@ -335,12 +357,22 @@ class E2EDriver:
                     for node, rel in all_grounds:
                         role = getattr(rel, "role", None)
                         if role == "accepted_cost":
-                            costs.append(
-                                decision_ground_line(
-                                    node, "accepted_cost", siblings=ground_nodes
-                                )
+                            line = decision_ground_line(
+                                node, "accepted_cost", siblings=ground_nodes
                             )
-                            positions.append(cls._ground_position(node))
+                            position = cls._ground_position(node)
+                            costs.append(line)
+                            positions.append(position)
+                            # The pair, kept as ONE value. `costs` and `positions`
+                            # are correctly aligned here but the caller set-unions
+                            # them independently, so a run with two decisions can
+                            # emit 2 costs and 1 position (both grounded at "A-")
+                            # and nothing downstream can re-pair them — 35
+                            # archived runs have unequal lengths for exactly that
+                            # reason. TAB separates: a rendered ground line is
+                            # single-line and a position label is "T-"/"A/A-", so
+                            # neither can contain one.
+                            cost_pairs.append(f"{position}\t{line}")
                         elif role == "adopted_pathway":
                             pathways.append(
                                 decision_ground_line(node, "adopted_pathway")
@@ -349,7 +381,15 @@ class E2EDriver:
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001
             logger.exception("Reading decisions failed")
-        return hashes, costs, positions, pathways, rationales, verdicts
+        return DecisionReadout(
+            hashes=hashes,
+            costs=costs,
+            positions=positions,
+            cost_pairs=cost_pairs,
+            pathways=pathways,
+            rationales=rationales,
+            verdicts=verdicts,
+        )
 
     @staticmethod
     def _graph_summary() -> str:
@@ -550,31 +590,31 @@ class E2EDriver:
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model
                 )
-                (
-                    hashes,
-                    costs,
-                    positions,
-                    pathways,
-                    rationales,
-                    verdicts,
-                ) = self._read_decisions()
+                read = self._read_decisions()
                 record.decision_hashes = sorted(
-                    set(record.decision_hashes) | set(hashes)
+                    set(record.decision_hashes) | set(read.hashes)
                 )
                 record.accepted_cost_grounds = sorted(
-                    set(record.accepted_cost_grounds) | set(costs)
+                    set(record.accepted_cost_grounds) | set(read.costs)
                 )
                 record.accepted_cost_positions = sorted(
-                    set(record.accepted_cost_positions) | set(positions)
+                    set(record.accepted_cost_positions) | set(read.positions)
+                )
+                # Kept ALONGSIDE the two unpaired fields, not replacing them:
+                # `report.py` and `probe_rationale_integrity` read them, and
+                # every archived run has them, so re-pointing would silently
+                # change what published numbers mean.
+                record.accepted_cost_pairs = sorted(
+                    set(record.accepted_cost_pairs) | set(read.cost_pairs)
                 )
                 record.adopted_pathway_grounds = sorted(
-                    set(record.adopted_pathway_grounds) | set(pathways)
+                    set(record.adopted_pathway_grounds) | set(read.pathways)
                 )
                 record.decision_rationales = sorted(
-                    set(record.decision_rationales) | set(rationales)
+                    set(record.decision_rationales) | set(read.rationales)
                 )
                 record.decision_verdicts = sorted(
-                    set(record.decision_verdicts) | set(verdicts)
+                    set(record.decision_verdicts) | set(read.verdicts)
                 )
                 session.graph_summary = self._graph_summary()
             return session, journal

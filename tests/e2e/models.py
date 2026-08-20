@@ -500,6 +500,17 @@ class RunRecord(BaseModel):
     #: names a goal or an obligation. So the report states the position rather
     #: than making a reader infer it from the text.
     accepted_cost_positions: list[str] = Field(default_factory=list)
+    #: `"<position>\t<ground line>"` — the SAME two facts as the two fields
+    #: above, kept joined. Those two are set-unioned independently per session,
+    #: so a run with two decisions both grounded at "A-" emits 2 grounds and 1
+    #: position and no consumer can re-pair them; 35 archived runs have unequal
+    #: lengths for exactly that reason. `probe_cost_side` had to define its
+    #: population by the rendered condition clause instead, which works but is a
+    #: workaround. Added alongside rather than replacing: `report.py` and
+    #: `probe_rationale_integrity` read the unpaired fields and every archived
+    #: run has them, so re-pointing would silently change what published
+    #: numbers mean. Empty on every run archived before 2026-08-20.
+    accepted_cost_pairs: list[str] = Field(default_factory=list)
     #: The other half of the record: what the person adopted to LIVE WITH the
     #: cost. A cost without a pathway is a price named and no recipe for paying
     #: it, and the wobble re-audit's reassurance ("here is what you adopted for

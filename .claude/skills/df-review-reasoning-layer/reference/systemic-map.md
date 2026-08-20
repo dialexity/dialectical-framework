@@ -746,7 +746,7 @@ Where each rule is encoded, and whether it is single-sourced (robust) or duplica
 
 | Rule | Encoded in | Sourcing |
 |------|-----------|----------|
-| **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. |
+| **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. R1's *parent-pole* half (a `−` overdevelops ITS OWN pole) is **stated correctly and symmetrically in the constant** but only ever cued per-field by one adjective in `TetradDto` ("exaggerated thesis"), so compliance is a behavioural question, not a text question — measured by `tests/e2e/probe_tetrad_pole.py` (see §6). Note `POSITION_TO_PARENT` (`aspect_generation.py` ~L85) already encodes the mapping in code; no prompt makes the model use it. |
 | **R2 Circular causality** (Ac+ = T-→A+, Re+ = A-→T+) | `transformation_generation` SYSTEM_PROMPT; `positive_ac_re_apex_derivation`; `action_extraction`; `synthesis_generation`; comments in `ac_re_taxonomy.py` | **Duplicated prose across 4+ prompts, no single owner.** Directionality is theory-critical. |
 | **R3 Modality balance** (Eq (1) chain: M(T+)=−M(T-)=M(A+)=−M(A-); NOT the zero-sum form — that is identically true under the paper's `M(X) ≈ Ks(X) − Ks_avg` and thus vacuous) | *Nowhere in a generation/scoring prompt* — deliberately: the paper's own tests found Ks-derived balance criteria "not useful" [P1 S1.6-3]. Measurable as `rectangularity` = 0 (exact algebraic identity under the approximation — see generative-rules.md R3.2). Only surfaced in `NAVIGATOR_APP_ADVANCED_TOGGLE` ("modality alignment"). Mode scale in `antithesis_classification` is a DIFFERENT concept (thesis-lessness ladder). | **Prompt-absent by design.** Reject edits that claim to enforce it OR that dress rectangularity's empirical bands in R3.2 theory authority. |
 | **R4 Complementarity K** (Ks = (K_T+K_A)/2) | `COMPLEMENTARITY_SCALE` in `scoring_scales.py`, consumed by aspect concerns; thresholds in `concerns/perspective_validation.py` | **Single-source (good).** |
@@ -1766,6 +1766,31 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   Covers recovery-by-hash for `count()`/`all()`/`Perspective.t`/`.a`/`is_complete()`, id caching, the WARNING
   log, the still-legitimate silent empty read for an unsaved node, the pre-commit `save()`→connect build path
   (where `_id` is the only identity), and the `_id`/`hash`/`sid` identity in both T and A error messages.
+
+### A `real_llm`-marked test can be broken for months and look green
+
+`tests/test_aspect_axis_real_llm.py` carries a module-level `pytestmark =
+[pytest.mark.real_llm, pytest.mark.llm]`, so the default suite reports it as **skipped**, not failed.
+It was failing on **every** pair — `ValueError: Parent meaning 'tree' has no known taxonomy branch` —
+and had been since the apex lookup started raising instead of falling back to the generic Apex row.
+Nothing surfaced it because nobody ran `--real-llm` on that file.
+
+The break was in the FIXTURE, not the framework: it built statements with `meaning=t_text.lower()`.
+That cannot work, and the reason generalises to any test that constructs a Polarity by hand —
+
+> `AspectGeneration._tetrad_prompt` interpolates `StatementClassification.lookup_aspect_apex(parent,
+> position)` for all four positions, and that lookup **raises** on a meaning that does not parse to a
+> known taxonomy branch. A hand-written meaning therefore fails *in the prompt builder, before the
+> provider is called* — so the failure looks like a fixture error, not a prompt result.
+
+Two consequences worth carrying:
+- **Classify both poles through the real `StatementClassification`** (as `anchor`'s
+  `IntroducePolarity._resolve_statement` does), never a hand-picked branch. The branch **selects the
+  apex row the prompt teaches from**, so choosing it by hand silently changes the prompt under test.
+  Classification is role-independent, which is what lets one classification per distinct text be
+  reused across a T/A swap.
+- CLAUDE.md's "`meaning="test"` is fine only on paths that never reach taxonomy lookups" has a sharp
+  edge: **tetrad generation is such a path**, and it reaches it before the LLM call.
 
 ### Coverage gaps a systemic review should close (add a regression when you touch these)
 - **Cross-agent HS-band parity now tested** (`TestCrossAgentHsBandParity`: Analyst/Advisor HS-on-A

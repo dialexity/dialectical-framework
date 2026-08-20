@@ -316,6 +316,26 @@ anchors.
   nothing passes the other half and is the bug. Reference: `tests/test_decision_rationale_integrity_weak_tier.py`
   (a risk recorded as refuted vs. the same risk recorded as carried). Watch the fixture, not just the prompt: the
   first run of that test failed on a scope-wide `find_all_active()` duplicate rather than on the rule under test.
+- **A control arm must be able to come out clean.** Check that before spending the run, by asking what
+  answer the control gives when nothing is wrong. `probe_tetrad_pole.py` audited the tetrad's `+`
+  aspects as a control on its `−` endpoint, using one verdict field whose vocabulary was minus-only
+  (`overdevelops_own_pole` / `misparented` / `no_exaggeration`). The control returned **4 defects of 4**
+  — because `no_exaggeration` is the *correct* answer for a constructive aspect and the tally counted it
+  as a failure. The auditor said so in its own rationale ("as an exaggeration audit it registers none").
+  A control pinned at 100% cannot distinguish an over-flagging auditor from a real defect, which is the
+  only thing it was there to do. **The fix was to split the one verdict into the question that IS shared
+  between the arms and the question that is not** — parentage (asked in identical words of `T+` and `T−`,
+  so the rates are comparable) vs. valence (position-specific, reported separately). Generalise: when a
+  control and an endpoint are scored by one instrument, only the sub-question phrased identically for
+  both is a control; the rest is two different measurements sharing a number.
+- **An endpoint defined over a name that is free to be swapped measures the naming, not the behaviour.**
+  The T/A labels are assigned per perspective, so "defects concentrate at T−" can be a fact about which
+  statement got called T. Make the label a manipulated variable: generate each tension twice with T and A
+  swapped and cross-tabulate defect-by-position against defect-by-content (`probe_tetrad_pole.py`
+  `_TENSIONS` × `forward`/`swapped`). If the defect follows the POSITION across both orderings the
+  asymmetry is real; if it follows the CONTENT it is naming only. Note the archive could not answer this
+  at all — `probe_cost_side.py` measured `opened_against = 0` of 88 because every bench scenario pins one
+  `favoured_side` for its whole run, so the convention was never once stressed.
 - **The seam lane (real provider) — run this after ANY prompt edit with behavioural reach:**
   `poetry run pytest -m seam --real-llm` (needs Memgraph up). Each guard reproduces a defect
   measured end to end in `tests/e2e/results/`, and they exist because **a prompt assertion cannot

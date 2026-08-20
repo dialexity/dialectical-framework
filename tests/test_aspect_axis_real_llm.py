@@ -20,6 +20,8 @@ from conftest import traced
 
 from dialectical_framework.concerns.aspect_generation import (AspectGeneration,
                                                               TetradDto)
+from dialectical_framework.concerns.statement_classification import \
+    StatementClassification
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.nodes.polarity import Polarity
@@ -39,13 +41,27 @@ PAIRS = [
 
 
 async def _generate_tetrad_capturing_axis(t_text: str, a_text: str) -> TetradDto:
-    """Run the real full-tetrad generation and return the raw DTO (with axes)."""
+    """Run the real full-tetrad generation and return the raw DTO (with axes).
+
+    Both poles are classified through the real `StatementClassification`, as
+    `anchor`'s `IntroducePolarity._resolve_statement` does. This is not optional
+    fixture polish: `AspectGeneration._tetrad_prompt` interpolates
+    `lookup_aspect_apex()` for all four positions, and that lookup raises on a
+    meaning that does not parse to a known taxonomy branch. This test previously
+    passed `meaning=t_text.lower()` and so raised `ValueError: Parent meaning
+    'tree' has no known taxonomy branch` in the prompt builder, before reaching the
+    provider — it failed on every pair and, being `real_llm`-marked, was skipped in
+    the default suite where that would have been noticed.
+    """
     pp = Perspective()
     pp.save()
 
-    t = Statement(text=t_text, meaning=t_text.lower())
+    t_class = await StatementClassification().resolve(statement=t_text)
+    a_class = await StatementClassification().resolve(statement=a_text)
+
+    t = Statement(text=t_text, meaning=t_class.meaning)
     t.commit()
-    a = Statement(text=a_text, meaning=a_text.lower())
+    a = Statement(text=a_text, meaning=a_class.meaning)
     a.commit()
 
     polarity = Polarity()
