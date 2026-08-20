@@ -112,6 +112,52 @@ CLEAN. Mitigated by running the audit on the JUDGE model
 auditor to quote which pole it read the exaggeration as belonging to — a verdict
 with no named pole is not usable evidence.
 
+POST-FIX PRE-REGISTRATION (written before the post-fix run, 2026-08-20)
+======================================================================
+The baseline below is now the control arm for a prompt change, so the bar for
+"the fix worked" is registered here, in the same commit as the fix, before the
+re-run.
+
+What changed, in `aspect_generation.py`: the numbered procedure. The root cause
+was not weak compliance with a stated rule — `ASPECT_DEFINITIONS` states
+parentage correctly and symmetrically — but a procedure that OMITTED it.
+`_tetrad_prompt` told the model, in two numbered steps, to (1) name the axis and
+(2) place each aspect at an opposite end of it. Neither step mentions the parent,
+and the model complied. The fix orders derivation-from-parent as step 1, demotes
+the axis to a test applied to the finished pair, annotates parentage on all eight
+worked-example aspects (Courage/Fear were bare nouns teaching only the axis), and
+names the parent in each of the four aspect field descriptions.
+
+Held fixed: population (same 6 tensions, both orderings, 3 replicates), generator
+tier, auditor model, and the audit prompt — verbatim. Only the generation prompt
+moves, so a change in the endpoint is attributable to it.
+
+Baseline to beat, from the run in RESULT below:
+  raw misparented minuses   13/72   (adjudicated 11/72)
+  A- 12/36 raw vs T- 1/36   gap 11
+
+Primary endpoint, unchanged: raw MISPARENTED out of 72, same auditor, tested
+against 13/72 by Fisher's exact two-sided test.
+  * FIX WORKED   p < 0.05, which at this n requires <= 4/72 — the same count as
+                 the CLEAN band already registered above, so the two thresholds
+                 agree rather than one being tuned to the other.
+  * NO EFFECT    >= 13/72.
+  * PARTIAL      5..12/72. Reported as partial, with the count, NOT rounded up to
+                 a win: 13/72 vs 5/72 is p ~ 0.08, and a halving that misses the
+                 registered bar is a halving that misses the bar.
+Secondary: the A-/T- gap, expected to narrow to <= 3 if the mechanism really was
+the axis-first procedure (A- sits furthest from its own parent in field order).
+
+Pre-declared risk of a FALSE win, and what was done about it: a worked
+counter-example teaches by being concrete, and the first draft of it used the
+`freedom_security` A- from THIS population (3 of the 13 baseline defects). That
+makes a clean post-fix run unattributable — recitation and rule-learning look
+identical at the endpoint. It was rewritten onto Courage/Fear, a pair already in
+the prompt and in none of the six probed tensions
+(`TestTetradParentage::test_system_prompt_carries_a_counter_example_from_outside_the_probe_set`
+pins that). The per-tension breakdown stays in the readout regardless, because
+`freedom_security`'s defect content was still diagnostic input.
+
 Run:
   poetry run pytest tests/e2e/probe_tetrad_pole.py -s --real-llm    (needs Memgraph)
   poetry run pytest tests/e2e/probe_tetrad_pole.py -s              (free: prints

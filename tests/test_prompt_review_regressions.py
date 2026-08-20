@@ -165,6 +165,113 @@ class TestTetradDiagonalStructure:
         assert "Ensure T+ contradicts A-" not in src
 
 
+class TestTetradParentage:
+    """R1 parentage: every aspect derives from ITS OWN parent, and the axis is a
+    test applied to the finished pair — not the recipe for either half.
+
+    Guards a measured defect, not a hypothetical one. On the weak tier, 11 of 72
+    minuses carried the OTHER pole's exaggeration, concentrated at A- (10/36 vs
+    T- 1/36, Fisher two-sided p=0.0013), because `_tetrad_prompt`'s procedure had
+    exactly two steps — "name the axis", then "place each aspect at an opposite
+    end of it" — and neither one was "derive it from the parent".
+    `ASPECT_DEFINITIONS` stated the rule correctly the whole time; it was
+    context, while the numbered procedure was the instruction. Baseline, method
+    and per-cell rationales: `tests/e2e/probe_tetrad_pole.py`.
+    """
+
+    def test_tetrad_prompt_derives_from_parent_before_naming_the_axis(self):
+        from dialectical_framework.concerns import aspect_generation
+
+        src = inspect.getsource(aspect_generation.AspectGeneration._tetrad_prompt)
+        # parentage is stated as fixed, not left to the axis to imply
+        assert "T+ and T- develop T; A+ and A- develop A" in src
+        # and it is ORDERED FIRST: a procedure whose step 1 is the axis gets
+        # followed literally, which is what produced the 11/72 baseline
+        assert src.index("Derive each aspect from ITS OWN parent") < src.index(
+            "name the **axis**"
+        ), "the axis step must come after derivation, or the axis becomes the recipe"
+
+    @pytest.mark.parametrize(
+        "field,parent,forbidden_source",
+        [
+            ("a_minus", "Derive it from A", "never by negating T+"),
+            ("t_minus", "Derive it from T", "never by negating A+"),
+        ],
+    )
+    def test_minus_fields_name_their_parent_and_refuse_negation(
+        self, field, parent, forbidden_source
+    ):
+        """The minus slots are where the defect landed; both must name the parent
+        as the source and rule out deriving from the facing plus."""
+        from dialectical_framework.concerns.aspect_generation import TetradDto
+
+        desc = TetradDto.model_fields[field].description
+        assert parent in desc
+        assert forbidden_source in desc
+
+    def test_plus_fields_also_name_their_parent(self):
+        from dialectical_framework.concerns.aspect_generation import TetradDto
+
+        assert "Derive it from T" in TetradDto.model_fields["t_plus"].description
+        assert "Derive it from A" in TetradDto.model_fields["a_plus"].description
+
+    def test_worked_examples_annotate_parentage_on_every_aspect(self):
+        """`/df-review-reasoning-layer`: rewrite the worked examples WITH the rule.
+        Courage/Fear used to be bare nouns (`T+ = Trust ⟷ A- = Paranoia`), which
+        teaches the axis and nothing about where either end came from."""
+        from dialectical_framework.concerns.aspect_generation import SYSTEM_PROMPT
+
+        for annotated in (
+            "T+ = Bonding (Love developed)",
+            "A- = Alienation (Indifference overdeveloped)",
+            "A+ = Autonomy (Indifference developed)",
+            "T- = Enmeshment (Love overdeveloped)",
+            "T+ = Trust (Courage developed)",
+            "A- = Paranoia (Fear overdeveloped)",
+            "A+ = Prudence (Fear developed)",
+            "T- = Foolhardiness (Courage overdeveloped)",
+        ):
+            assert annotated in SYSTEM_PROMPT, f"unannotated worked example: {annotated}"
+
+    def test_system_prompt_carries_a_counter_example_from_outside_the_probe_set(self):
+        """The negation trap needs a concrete WRONG answer, not just the rule.
+
+        It is deliberately built on Courage/Fear — the pair already worked above —
+        and NOT on any of the six tensions `probe_tetrad_pole.py` measures. The
+        first draft used `freedom_security`, which is 3 of the 13 baseline
+        defects; a post-fix run could then come back clean by reciting the
+        counter-example instead of applying the rule, and the probe could not tell
+        the two apart.
+        """
+        from dialectical_framework.concerns.aspect_generation import SYSTEM_PROMPT
+
+        # substrings kept within one source line — the prompt is hard-wrapped
+        assert "recklessness is" in SYSTEM_PROMPT
+        assert "COURAGE overdeveloped" in SYSTEM_PROMPT
+        # it must say what the right answer IS, not only what is wrong
+        assert "A- must be FEAR overdeveloped: Paranoia" in SYSTEM_PROMPT
+        # and it must not be drawn from the measured population
+        for probed in ("Freedom", "Security", "cofounder"):
+            assert probed not in SYSTEM_PROMPT, (
+                f"counter-example leaks the probe's own tension ({probed}): a "
+                "post-fix win becomes unattributable"
+            )
+
+    def test_pair_prompt_interpolates_the_parents_it_already_computes(self):
+        """Sibling path, same rule. `positive_aspect`/`negative_aspect` cannot
+        name a fixed parent (positions are dynamic), so the prompt states the
+        assignment from the `pos_parent`/`neg_parent` it already resolves for the
+        apex lookup — structural, not a re-typed prose copy."""
+        from dialectical_framework.concerns import aspect_generation
+
+        src = inspect.getsource(
+            aspect_generation.AspectGeneration._contradiction_pair_prompt
+        )
+        assert "{pos_parent.prompt_text}" in src
+        assert "{neg_parent.prompt_text}" in src
+        assert "Derive each aspect from its own parent above" in src
+
+
 # --- H1: transformation worked example ---------------------------------------
 
 

@@ -102,15 +102,27 @@ Your task is to generate aspects (T+, T-, A+, A-) for a thesis-antithesis pair.
 
 Each tetrad resolves into two diagonal contradiction pairs. A pair shares one
 **axis** — a single dimension on which its two aspects sit at opposite ends, so
-they cannot both hold at once. Name the axis first, then place each pole on it.
+they cannot both hold at once.
+
+Derive each aspect from its own parent first, then name the axis and place the
+pair on it. The axis is a test that the finished pair genuinely contradicts; it
+is not the recipe for building either half. A minus is never obtained by
+negating the plus it faces — both poles can supply a negative end of the same
+axis, so negation alone leaves the parent undetermined.
 
 T = Love, A = Indifference:
-- Axis "closeness": T+ = Bonding (love that makes room for autonomy) ⟷ A- = Alienation (independence severing the bond)
-- Axis "self-standing": A+ = Autonomy (independence that deepens the bond) ⟷ T- = Enmeshment (love smothering autonomy)
+- Axis "closeness": T+ = Bonding (Love developed) ⟷ A- = Alienation (Indifference overdeveloped)
+- Axis "self-standing": A+ = Autonomy (Indifference developed) ⟷ T- = Enmeshment (Love overdeveloped)
 
 T = Courage, A = Fear:
-- Axis "risk-taking": T+ = Trust ⟷ A- = Paranoia
-- Axis "caution": A+ = Prudence ⟷ T- = Foolhardiness
+- Axis "risk-taking": T+ = Trust (Courage developed) ⟷ A- = Paranoia (Fear overdeveloped)
+- Axis "caution": A+ = Prudence (Fear developed) ⟷ T- = Foolhardiness (Courage overdeveloped)
+
+The mistake to avoid, on that same Courage/Fear pair. Given the axis
+"risk-taking" and T+ = Trust, writing A- = "recklessness that ignores every
+warning" is wrong. It does sit opposite Trust on that axis — but recklessness is
+COURAGE overdeveloped, so that content belongs at T- (Foolhardiness), and A- is
+left with nothing. A- must be FEAR overdeveloped: Paranoia.
 
 Generate aspect statements that fit the semantic structure."""
 
@@ -154,8 +166,18 @@ class ContradictionPairDto(BaseModel):
             "exists, the pair is not a genuine contradiction — say so here."
         )
     )
-    positive_aspect: AspectDto = Field(description="The positive aspect (T+ or A+)")
-    negative_aspect: AspectDto = Field(description="The negative aspect (A- or T-)")
+    positive_aspect: AspectDto = Field(
+        description=(
+            "The positive aspect (T+ or A+): the constructive development of the "
+            "parent assigned to it in the prompt."
+        )
+    )
+    negative_aspect: AspectDto = Field(
+        description=(
+            "The negative aspect (A- or T-): the one-sided overdevelopment of the "
+            "parent assigned to it in the prompt — not a negation of positive_aspect."
+        )
+    )
 
 
 class TetradDto(BaseModel):
@@ -176,8 +198,20 @@ class TetradDto(BaseModel):
             "is not a genuine contradiction — say so here."
         )
     )
-    t_plus: AspectDto = Field(description="T+ - constructive thesis (positive end of the axis)")
-    a_minus: AspectDto = Field(description="A- - exaggerated antithesis (negative end of the axis)")
+    t_plus: AspectDto = Field(
+        description=(
+            "T+ - the THESIS developed constructively, so that it also strengthens "
+            "what A offers. Derive it from T, then place it at the positive end of "
+            "the axis above."
+        )
+    )
+    a_minus: AspectDto = Field(
+        description=(
+            "A- - the ANTITHESIS overdeveloped: A pushed one-sidedly with T "
+            "underdeveloped, i.e. what A itself degenerates into. Derive it from A, "
+            "never by negating T+, then place it at the negative end of the axis above."
+        )
+    )
 
     # --- Pair 2: A+ vs T- (antithesis-constructive axis) ---
     a_plus_vs_t_minus_axis: str = Field(
@@ -187,8 +221,20 @@ class TetradDto(BaseModel):
             "two unrelated aspects."
         )
     )
-    a_plus: AspectDto = Field(description="A+ - constructive antithesis (positive end of the axis)")
-    t_minus: AspectDto = Field(description="T- - exaggerated thesis (negative end of the axis)")
+    a_plus: AspectDto = Field(
+        description=(
+            "A+ - the ANTITHESIS developed constructively, so that it also strengthens "
+            "what T offers. Derive it from A, then place it at the positive end of "
+            "the axis above."
+        )
+    )
+    t_minus: AspectDto = Field(
+        description=(
+            "T- - the THESIS overdeveloped: T pushed one-sidedly with A "
+            "underdeveloped, i.e. what T itself degenerates into. Derive it from T, "
+            "never by negating A+, then place it at the negative end of the axis above."
+        )
+    )
 
 
 # --- Result ---
@@ -629,9 +675,11 @@ Taxonomy apex concepts for reference:
 - A- apex: {a_minus_apex}
 {existing_section}{avoid_section}
 Build the tetrad as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
+Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
 For each pair:
-1. First name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
-2. Then place each aspect at an opposite end of that axis.
+1. Derive each aspect from ITS OWN parent — a plus develops that parent so it also takes up what the other pole offers; a minus overdevelops that parent one-sidedly, with the other pole absent.
+2. Then name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
+3. Re-read both aspects against step 1. If one of them is really the OTHER parent developed, rewrite it from its own parent; opposing the facing aspect well is not a reason to keep the wrong parentage.
 If T and A do not admit a genuine shared axis of opposition, say so in the pair's `axis` field rather than inventing two unrelated aspects.
 
 Generate each aspect (1-{max_words} words) with:
@@ -687,7 +735,12 @@ Generate each aspect (1-{max_words} words) with:
 {COMPLEMENTARITY_SCALE}
 
 The positive_aspect is {positive_pos}, the negative_aspect is {negative_pos}.
-First name the **axis** — the single dimension on which they are opposite ends — then place each at an opposite end of it. They cannot both hold at once. If no such shared axis exists, say so in the `axis` field rather than inventing two unrelated aspects."""
+
+Each one has a fixed parent:
+- {positive_pos} develops "{pos_parent.prompt_text}" constructively, so that it also takes up what the opposing pole offers.
+- {negative_pos} overdevelops "{neg_parent.prompt_text}" one-sidedly, with the opposing pole absent.
+
+Derive each aspect from its own parent above. Then name the **axis** — the single dimension on which they are opposite ends — and check that each sits at an opposite end of it. They cannot both hold at once. Do not build {negative_pos} by negating {positive_pos}: both poles can supply a negative end of the same axis, so negation alone leaves the parent undetermined. If no such shared axis exists, say so in the `axis` field rather than inventing two unrelated aspects."""
 
     def _single_aspect_prompt(self, position: str, existing_context: str) -> str:
         """Build prompt for single aspect generation."""
