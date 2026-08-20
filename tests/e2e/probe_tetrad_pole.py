@@ -240,6 +240,87 @@ Two instrument defects were found and fixed BEFORE this run, both worth carrying
      unparseable meaning, before the provider call. Both poles now go through the
      real `StatementClassification`. See `_classify` for why a hand-PICKED branch
      would be worse than a wrong one.
+
+POST-FIX RESULT, run 1 (prompt at ae10a32, same population/tier/auditor, 2026-08-20)
+====================================================================================
+                        baseline   post-fix   Fisher two-sided
+  misparented minuses     13/72      4/72     p = 0.036   <- REGISTERED PRIMARY
+  total minus defects     13/72      5/72     p = 0.076
+  adjudicated             11/72      4/72     p = 0.099
+  A- misparented          12/36      4/36     p = 0.045
+  T- misparented           1/36      0/36
+  plus arm (control)       6/72      6/72     p = 1.0
+
+The registered primary endpoint is MET, and by exactly zero margin: the bar was
+<= 4/72 and it came in at 4/72. One cell adjudicated the other way is 5/72 and
+p = 0.076, which the registration already named PARTIAL. So:
+
+  THE HONEST HEADLINE. The fix cleared its pre-registered bar on the endpoint as
+  registered (raw, 13 -> 4). The same comparison on ADJUDICATED counts (11 -> 4)
+  does NOT clear, p = 0.099. Both comparisons are defensible and they disagree,
+  so this is "probably real, not established" — a 3x reduction whose n is too
+  small to pin at this defect rate. Not a win to bank yet.
+
+I adjudicated all 4 residual cases and upheld all 4, holding the baseline's own
+standard. Worth recording because one of them LOOKS like a case I rejected there:
+baseline rejected "cofounder exits abruptly" as A- when A was "run the company
+solo" (an abrupt exit IS going-solo pushed one-sidedly, so the auditor was being
+over-clever). Post-fix has the mirror — "Sudden cofounder exit" as A- when A is
+"RETAIN the cofounder" — where an exit is retention's opposite, not its
+overdevelopment. Same rule, opposite verdict, and applying it asymmetrically
+would have manufactured a cleaner number.
+
+What survived the fix, unchanged in shape: all 4 residual misparented minuses sit
+at A-, none at T-, and all 4 are still the minus that negates its facing plus.
+The mechanism is 3x rarer, not gone. The gap (4 vs 0) is no longer demonstrable
+at this n and the probe says UNTESTED rather than claiming symmetry.
+
+The plus arm did not move at all: 6/72 both runs, p = 1.0, despite the plus
+fields getting the same parentage clause. Two readings, both worth keeping:
+  * As an auditor-stability check it is the strongest single number here — the
+    auditor flagged exactly as many pluses before and after, so the 13 -> 4 drop
+    on the minuses is not the auditor going soft between runs.
+  * As a control it is now IMPURE, and by my own edit: I changed `t_plus`/`a_plus`
+    descriptions too, so "untouched arm" no longer describes it. Registering an
+    arm as a control and then editing it is exactly the mistake instrument defect
+    1 was about, committed in the other direction.
+  * 4 of the 8 residual plus defects are `cofounder_sequencing`, the option-pair
+    tension. For mutually exclusive courses of action a plus that "also takes up
+    what the other pole offers" reads as the other pole's plan — CLAUDE.md already
+    flags named options as a fork that is not the tension. That is the next target,
+    and it is not a parentage bug.
+
+CONFOUND I registered as absent and was wrong about. I wrote "held fixed:
+population, tier, auditor, audit prompt — only the generation prompt moves." The
+classification drifted between the two runs, and it is upstream of the prompt:
+  "Secure the anchor accounts"  Integrity   -> Resilience
+  Freedom                       Water       -> Air
+  "Decide now and commit"       Flexibility -> Fire
+  "Wait until unknowns resolve" Fidelity    -> Integrity
+`StatementClassification` is itself a non-deterministic LLM call, and the branch
+it returns SELECTS THE APEX ROW interpolated into the generation prompt. So the
+two runs are not a matched pair: 4 of 12 poles taught from a different apex. No
+reason a Resilience apex fixes parentage where an Integrity one does not, so this
+probably does not explain the direction — but "probably" is the whole point, and I
+cannot claim my edit was the only difference. It also means run-to-run variance in
+this pipeline is larger than the comparison assumed, which is the second reason to
+replicate rather than bank 4/72.
+
+REPLICATION PRE-REGISTRATION (written before run 2, after seeing run 1)
+=======================================================================
+Replicating the POST-FIX arm only, n = 36, identical config and prompt. Pooling is
+declared HERE, before run 2, so it is not a post-hoc choice:
+  * Primary: baseline raw 13/72 vs pooled post-fix raw (run1 + run2) / 144.
+  * CONFIRMED     pooled p < 0.05 AND run-2 raw <= 8/72 (run 2 independently in
+                  the same neighbourhood, so the pooled p is not carried by run 1).
+  * NOT CONFIRMED run-2 raw >= 13/72. Run 1 was noise; the fix is unproven and
+                  says so, prompt edit notwithstanding.
+  * Between 9 and 12: reported as such, pooled p reported either way.
+Adjudicated pooled vs adjudicated baseline 11/72 is reported alongside, never
+instead of.
+Secondary, free and independent of my edit: run 2 gives a second reading of the
+12 pole classifications, so branch stability becomes a measured quantity (how
+many of 12 agree across runs) rather than an anecdote about 4 that moved.
 """
 
 from __future__ import annotations
