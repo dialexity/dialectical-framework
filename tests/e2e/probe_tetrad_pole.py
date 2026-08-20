@@ -321,6 +321,78 @@ instead of.
 Secondary, free and independent of my edit: run 2 gives a second reading of the
 12 pole classifications, so branch stability becomes a measured quantity (how
 many of 12 agree across runs) rather than an anecdote about 4 that moved.
+
+REPLICATION RESULT, run 2 — NOT CONFIRMED (2026-08-20)
+======================================================
+  misparented minuses   baseline 13/72 | run 1 4/72 | run 2 9/72 | pooled 13/144
+  total minus defects   baseline 13/72 | run 1 5/72 | run 2 13/72 | pooled 18/144
+
+  POOLED misparented 13/144 vs 13/72 : p = 0.075   <- registered primary
+  POOLED total       18/144 vs 13/72 : p = 0.306
+  run 2 alone         9/72  vs 13/72 : p = 0.488
+  run 1 vs run 2      4/72  vs  9/72 : p = 0.244
+
+BOTH prongs of CONFIRMED fail. The registration required run-2 <= 8/72 (it is 9,
+missing by one cell) AND pooled p < 0.05 (it is 0.075). The bar stays where it was
+written; run 1's 4/72 was the favourable tail of a noisy distribution, and the
+9-to-12 band I registered for exactly this case is where it landed.
+
+  THE FIX IS UNPROVEN. Point estimate: 18.1% -> 9.0% misparented, a halving that
+  does not reach significance at n = 144. Direction is consistent across both runs
+  (4 and 9, each below 13) and no comparison suggests harm, but consistency of
+  direction across two runs I chose to pool is not the endpoint I registered.
+
+Kept anyway, and the reason is not statistical: the procedure at `_tetrad_prompt`
+omitted the parentage rule outright — two numbered steps, "name the axis" and
+"place each aspect at an opposite end", neither mentioning the parent. That is a
+defect in the instruction as written, readable in the source without any run, and
+worth repairing whether or not this population can resolve the effect size. What
+is NOT established is that repairing it fixes the behaviour.
+
+One nominally-clearing secondary, reported and deliberately NOT promoted:
+POOLED A- misparented 11/72 vs baseline 12/36, p = 0.045. The primary failed, and
+this is one of seven tests run on the same data. Reading it as the result would be
+picking the test that agrees with me after the registered one did not.
+
+Where the residual defect lives, consistent across all three runs:
+  * A- carries it: pooled 11 of 13 misparented minuses are at A-, T- has 2.
+  * `cofounder_retention` is untouched by the fix — 3 forward + 3 swapped in the
+    BASELINE and 3 + 3 again in run 2. Six of run 2's nine sit there. Whatever
+    breaks that pair is not the missing derivation step.
+  * `process_autonomy` and `decide_wait` went to 0 minus defects in run 2 and
+    0/1 in run 1, from 2 and 0 in the baseline.
+
+UPSTREAM INSTABILITY, measured across the three runs and independent of my edit
+==============================================================================
+The 12 pole classifications, read three times (baseline | run 1 | run 2). The
+branch SELECTS the apex row interpolated into the generation prompt, so this is
+prompt content, not metadata:
+
+  Buy the cofounder out now       Integrity   Integrity   Integrity    stable
+  Retain the cofounder            Integrity   Integrity   Integrity    stable
+  Take full ownership solo        Integrity   Integrity   Integrity    stable
+  Collective                      Integrity   Integrity   Integrity    stable
+  Mandate uniform process         Integrity   Integrity   Integrity    stable
+  Let teams own their process     Flexibility Flexibility Flexibility  stable
+  Individual                      SIMPLE      SIMPLE      SIMPLE       stable
+  Secure the anchor accounts      Integrity   Resilience  Integrity    wobbles
+  Security                        Integrity   Integrity   Resilience   wobbles
+  Wait until unknowns resolve     Fidelity    Integrity   Fidelity     wobbles
+  Decide now and commit           Flexibility Fire        Fire         CROSSES
+  Freedom                         Water       Air         Fire         3 for 3
+
+7 of 12 stable, 5 wobble, and the split is by FORM not domain: every long concrete
+course-of-action is stable, every short abstract noun is not. Two cases are worse
+than a wobble — "Decide now and commit" crossed from SYSTEMIC (Flexibility) to
+ELEMENTAL (Fire), changing the apex vocabulary wholesale, and "Freedom" returned a
+different element on all three readings. Per CLAUDE.md the same branch also feeds
+HS, so this reaches `_rank_polarities` (HS_THRESHOLD = 0.7), not just this probe.
+
+This is very likely part of why the same prompt gave 4/72 and 9/72: for 4-5 of 12
+poles the generation prompt was not the same prompt. It is a separate defect from
+the one this probe was built for, it is upstream of it, and it should be measured
+on its own (n readings of one pole set, no generation) before anything downstream
+of the classifier is measured again.
 """
 
 from __future__ import annotations
