@@ -3096,6 +3096,35 @@ the direction that manufactures a win. It stays disqualified for this endpoint, 
 design; n=12, one lane, one model, no judge, no composite, and the lane is the one whose failure
 produced the fix. What r25 licenses is a prompt diagnosis and a structural target.
 
+**FOLLOW-UP, 2026-08-20: the structural target already existed, and it fires.** The next move above
+was written as if the record-side check had to be built. It did not — `DecisionCoherenceCheck` check
+3 ("a risk recorded as REFUTED") is that check, and its prompt already names *immaterial* verbatim
+and already says the split is on the verdict rather than on where the evidence came from. So the
+question was never "write it", it was "does it catch THIS shape", where the shape is new: both the
+other REFUTED cases in the archive deny the risk from the first sentence, while r25 reps 1/2/9
+*concede the residual, price it, and then void it in the record*. A model that reads the body could
+plausibly call that carried.
+
+Measured rather than assumed, as a fourth PAIR in
+`tests/test_decision_rationale_integrity_weak_tier.py`, weak tier, rep 9's record line against rep
+6's on a byte-identical body so the only difference is the last clause. Pre-registered at ~65% that
+the write-off would be flagged and ~85% that the twin would pass. **Both held.** The flag's reason
+quotes the deciding clause and names the check: *"records the customer-relationship risk as refuted
+… treating it as void rather than as a carried cost … a verdict of refutation, not a record of
+bearing the risk."* The twin passed clean, so the audit is not simply forbidding the resize — which
+is the error that would have cost more, since a person correcting the advisor about their own
+situation is the authority on it.
+
+**What this licenses, stated narrowly.** The shape r25 measured in the reply is caught at the record
+on the framework path and is uncaught on the bare-prompt path, because A1 has no record to audit —
+the reply *is* the artifact. So this is the first thing in this lane pointing at a difference between
+arms rather than at a prompt diagnosis. It is still a MECHANISM claim, not a lane result: measured on
+the audit in isolation (2 calls, one model, one shape), not on an A2 cell, and the check is fail-soft
+by design — the decision is recorded and the write-off is named on it, so the person is handed a flag
+instead of a settled fact, not prevented from deciding. Two gaps stay open and neither is closed by
+this: nothing in A2 forces the turn to CALL `record_decision` on such a reply, and a flag the person
+never reads is worth what any unread flag is worth.
+
 ### r24-probe: does the mechanism-vs-price DISTINCTION land? — pre-registered 2026-08-19, before any cell ran
 
 The archive's rule is that an unmeasured prompt edit is a guess, and `b28ebf5` is

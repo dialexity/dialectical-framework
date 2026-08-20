@@ -1529,6 +1529,24 @@ annotation) → **GenerateSynthesis**
   reuses the archive loader or it inherits none of its fixes**; promote it under `tests/` while the number is
   still being quoted, not after (`tests/e2e/probe_rationale_integrity.py` is where this one lives now, and it
   reports the graph-captured side and the dump proxy side apart, never merged).
+  **Check 3 reaches the shape four prompt rounds could not (2026-08-20), and the finding is that it was already
+  built.** r25 ended by naming a `record_decision`-side check as "the next move, with three real replies it must
+  refuse" — the fourth failed attempt at a paragraph telling the model a corrected fact resizes a price without
+  zeroing it. The check existed: check 3 names *immaterial* verbatim and splits on the verdict. But the shape was
+  genuinely new, and worth measuring rather than assuming, because every other REFUTED case in the archive denies
+  the risk from the first sentence while r25 reps 1/2/9 **concede the residual, price it in the body, and void it
+  in the record offered in the same reply** — the prompt's own examples run price-then-carry, and this inverts the
+  order. Measured as the FOURTH PAIR in `tests/test_decision_rationale_integrity_weak_tier.py` (rep 9's record
+  line against rep 6's on a byte-identical body, so only the last clause differs; pre-registered ~65% / ~85%):
+  **the write-off flags with the deciding clause quoted, the resize passes clean.** The second half is the one
+  that had to hold — a check that read "the risk got smaller" as "the risk got argued away" would forbid the
+  person's own correction from ever landing, which is the more expensive error and the one `_INTERNAL_MODEL`'s
+  fork exists to permit. Provenance is weaker than pairs 1-3 and labelled as such in the file: r25 cells are **A1**
+  (prompt-only, no tools, no record), so this asks a FORWARD question — the shape ships unchallenged on the bare
+  prompt path and is caught at the record on the framework path — and it is a mechanism claim from 2 isolated
+  calls, not a lane result. The check is fail-soft, so the person is handed a named flag on the record, not
+  stopped. General form: **when a probe names a tool-side fix, spend the two calls asking the existing check
+  before building a new one** — and coverage of a case's vocabulary is not coverage of the case.
 - **A price nobody recorded — check 5** (`DecisionCoherenceCheck.SYSTEM_PROMPT` check 5 +
   `RecordDecision._unpriced_aspects`, live since 2026-08-20): check 3 above narrowed the blind spot without
   closing it, and the residue is the general lesson. **Check 2 reads the cost that WAS cited; check 3 reads what

@@ -35,6 +35,16 @@ away is caught and one merely SILENT about a price is not — the asymmetry held
 the archive grew (17/19 against 68/120). Check 5 is handed the overdevelopments
 the cited tensions carry so silence has something to be silent ABOUT.
 
+The fourth pair is the one case here that looks FORWARD rather than back, and it
+is labelled as such where it is defined. Pairs 1-3 reproduce records the audit
+saw and passed. Pair 4 comes from `r25-probe-fork`, whose cells are A1 — no
+framework tools, so no record and nothing for the audit to miss — and asks the
+question four rounds of prompt work leave open: the paragraph telling the model a
+fact resizes a price without zeroing it now reaches the PROSE, and 3 of 12
+replies still deny the cost in the decision record offered in the same breath. A
+prompt rule is read by the turn that writes the reply; the audit is read by the
+turn that writes the record. Only one of them sees both halves.
+
 These are real-LLM tests because the check is one LLM call and the mock brain
 fills `incoherent=False` — a mocked run cannot show the check firing, and cannot
 show it declining to fire either, which is the half that costs more if it breaks.
@@ -127,6 +137,60 @@ PRICED_IN_PROSE = (
     "through me alone — if I'm out for a month, there's nobody else who knows "
     "those accounts. I'm taking that on knowingly. Decision speed and equity "
     "fairness are worth it."
+)
+
+
+#: The fourth pair, and the hardest, because BOTH halves concede a real fact and
+#: BOTH resize the risk downward. Only the verdict differs.
+#:
+#: Provenance is `r25-probe-fork` (`tests/e2e/probe_price_arithmetic.py::LABELS`),
+#: and it is weaker than the other three pairs here — say so rather than imply
+#: parity. Those reproduce a record the audit SAW and passed. These are A1 cells:
+#: the prompt-only arm, no framework tools, so there was no `record_decision` call
+#: and nothing for the audit to miss. What the probe measured is the shape — 3 of
+#: 12 replies (1, 2, 9) price a residual in the BODY and write it off in the
+#: decision record they offer in the SAME reply, a shape absent from all 36
+#: pre-fork cells (`BODY_PRICES_RECORD_DENIES`). So this pair answers a forward
+#: question, not a backward one: if that reply arrives through the tool instead of
+#: as prose, does the audit catch it? A miss here is a real gap; a catch is the
+#: framework covering a defect the bare prompt produced and could not police.
+#:
+#: The residual sentence is IDENTICAL in both, verbatim from rep 9 — the deciding
+#: clause is the last one and nothing else may vary, or the contrast measures
+#: wording instead of verdict.
+_RESIZED_BODY = (
+    "He closed both anchor accounts and they call him personally, but I have "
+    "been in every renewal call with both CEOs for two years, so the "
+    "relationship is not a single thread running through him. What is left once "
+    "you subtract my own standing with them is small: there can be a difference "
+    "between a CEO who trusts me in the room and a CEO who would pick up the "
+    "phone to me first when something goes wrong, and the buyout is the moment "
+    "that gets tested, because he stops having any reason to smooth it over. "
+)
+
+#: Rep 9's own record line. Note what it is NOT: it is not `REFUTED` above, which
+#: denies the risk exists. This one has just conceded the residual is real ("it's
+#: not nothing", in the reply it came from) and then records it as no cost —
+#: priced in the body, void in the ledger. It also reaches for the risk-deletion
+#: rule's own `unconfronted` vocabulary to certify the write-off, which is why the
+#: probe flagged it as read-and-misapplied rather than never-read.
+RESIZED_THEN_ZEROED = _RESIZED_BODY + (
+    "Customer-relationship risk assessed by me directly, from two years of "
+    "renewal-call contact, as immaterial — not something I am carrying forward "
+    "as an unconfronted cost."
+)
+
+#: The twin, rep 6's record line on rep 9's body. Same fact, same concession, the
+#: same smaller size — and the residual recorded as a price. If the auditor flags
+#: this one too it has learned "never resize", which is the opposite failure and
+#: the more expensive one: a fact the person supplies about their own situation
+#: MUST be allowed to shrink the price (`_INTERNAL_MODEL`, and Rule 3.1's
+#: dialogical reading — they are the authority on their situation, never on
+#: whether their choice has a price).
+RESIZED_AND_CARRIED = _RESIZED_BODY + (
+    "I am accepting that gap as the price of this: a short, soft adjustment "
+    "period with the two anchor CEOs while the relationship visibly shifts to "
+    "me, carried rather than solved."
 )
 
 
@@ -280,4 +344,77 @@ async def test_the_audit_separates_an_unpriced_choice_from_one_priced_in_prose(
         "The twin — same facts, same stance, same missing ground, price named in "
         "the person's own words — was flagged. Check 5 has become 'attach a "
         f"ground or be flagged', which is not what it measures. {prose_reasons}"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(600)
+async def test_the_audit_separates_a_resized_price_from_one_resized_then_zeroed(
+    di_container,
+):
+    """A residual priced in the body and written off in the verdict.
+
+    The three pairs above split cases that disagree from the first sentence.
+    This one does not: both rationales concede the same fact, both shrink the
+    risk, both are right to — a person correcting the advisor about their own
+    situation IS the authority on it, and a check that punished the shrinking
+    would be enforcing the failure `_INTERNAL_MODEL` was written to prevent from
+    the other direction. Everything up to the last clause is byte-identical. Only
+    the verdict differs, which is exactly what check 3 claims to split on ("the
+    split is on the VERDICT, not on where the evidence came from").
+
+    Why this is the case worth a fourth pair: it is the one the risk-deletion
+    rule provably does NOT reach. Four probe rounds moved the prose and left the
+    ledger — r25's fork put price-vocabulary in 6 of 12 bodies, and 3 of those 6
+    then denied the cost in the decision record offered in the same reply, a
+    shape absent from all 36 pre-fork cells. A prompt paragraph is read by the
+    turn that writes the prose; the audit is read by the turn that writes the
+    record, and this is the only one of the two that sees both.
+
+    A miss here is not a test failure to route around — it is the located bug,
+    and the fix belongs in check 3 (the verdict is what the record keeps), not in
+    this file.
+    """
+    zeroed_passed, zeroed_reasons = await _verdict(
+        di_container, RESIZED_THEN_ZEROED
+    )
+    carried_passed, carried_reasons = await _verdict(
+        di_container, RESIZED_AND_CARRIED
+    )
+
+    print(f"\nRESIZED_THEN_ZEROED -> passed={zeroed_passed} reasons={zeroed_reasons}")
+    print(f"RESIZED_AND_CARRIED -> passed={carried_passed} reasons={carried_reasons}")
+
+    assert not zeroed_passed, (
+        "The record prices a residual ('there can be a difference between a CEO "
+        "who trusts me in the room and a CEO who would pick up the phone to me "
+        "first') and then records that same residual as 'immaterial — not "
+        "something I am carrying forward as an unconfronted cost'. Both halves "
+        "in one rationale, and the audit kept the wrong one. Verbatim from "
+        "`r25-probe-fork` rep 9; 3 of 12 cells took this shape. "
+        f"{zeroed_reasons}"
+    )
+    said = " ".join(zeroed_reasons).lower()
+    assert any(
+        word in said
+        for word in (
+            "immaterial",
+            "carry",
+            "carried",
+            "carrying",
+            "cost",
+            "price",
+            "void",
+            "refut",
+            "dismiss",
+            "risk",
+        )
+    ), f"flagged, but the reason does not name the write-off: {zeroed_reasons}"
+
+    assert carried_passed, (
+        "The twin — same fact conceded, same residual named, same smaller size, "
+        "recorded as a price rather than written off — was flagged. That makes "
+        "the audit read 'a risk that got smaller' as 'a risk that got argued "
+        "away', which forbids the person's own correction from ever landing and "
+        f"is the more expensive of the two errors. {carried_reasons}"
     )

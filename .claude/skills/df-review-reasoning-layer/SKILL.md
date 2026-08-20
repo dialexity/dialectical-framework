@@ -269,6 +269,23 @@ anchors.
       Details, including why `_unpriced_aspects` returns nothing once any cost is attached (the leftover would be
       the *opposite* side's minus, i.e. what the choice avoids), in the reference map under "A price nobody
       recorded".
+      **AND THE NEXT MOVE TURNED OUT TO BE ALREADY BUILT (2026-08-20) — check whether the structural home exists
+      before building it.** "The `record_decision`-side check … is now the next move, with three real replies it
+      must refuse" was written as a build order. It was a MEASUREMENT order: check 3 already names *immaterial*
+      verbatim and already splits on the verdict rather than on the evidence, so the open question was never
+      *write it* but *does it reach this shape* — and the shape genuinely was new, because every other REFUTED
+      case in the archive denies the risk from the first sentence while these concede the residual, price it, and
+      void it in the record. Measured as a fourth pair in
+      `tests/test_decision_rationale_integrity_weak_tier.py` (rep 9's record line against rep 6's on a
+      **byte-identical body**, weak tier, pre-registered at ~65%/~85%): **both halves held**, the flag quoting the
+      deciding clause and the twin passing clean. Two transfers. **When a probe names a tool-side fix, spend the
+      two calls asking the existing check first** — four prompt rounds on this clause cost far more than the pair
+      that answered it. And **a "new shape" is worth testing even against a check whose prompt appears to cover it
+      in words**: coverage of the vocabulary is not coverage of the case, and the case here inverts the order the
+      prompt's examples assume (price first, void second). Note precisely what this does and does not license: the
+      shape is caught at the record on the framework path and cannot be caught on the prompt-only path, which has
+      no record — but it is a **mechanism** claim from 2 isolated calls, not a lane result, and the check is
+      fail-soft, so the person is handed a named flag rather than stopped.
 - [ ] **A hand-labelling pre-registration is worth its cost, and here is the receipt.** r24's regex reported the
       SAME headline count as the hand labels (1 resize) while inverting both cells that mattered: it scored the
       cell that says *"Dropped, fully — not resized"* as a resize, and missed the one genuine resize. A
@@ -370,8 +387,12 @@ anchors.
   neither firing nor declining to fire). Test it as a PAIR built from the same facts, at the WEAK tier, and assert
   the contrast in one test — an auditor that flags everything passes half the bar and is useless; one that flags
   nothing passes the other half and is the bug. Reference: `tests/test_decision_rationale_integrity_weak_tier.py`
-  (a risk recorded as refuted vs. the same risk recorded as carried). Watch the fixture, not just the prompt: the
-  first run of that test failed on a scope-wide `find_all_active()` duplicate rather than on the rule under test.
+  (four pairs now: refuted vs carried, cost-grounded, silent vs priced-in-prose, and **resized vs
+  resized-then-zeroed**, whose two halves differ only in the LAST CLAUSE — the sharpest form of the technique, and
+  the one that proves the check splits on the verdict rather than on tone). Watch the fixture, not just the prompt:
+  the first run of that test failed on a scope-wide `find_all_active()` duplicate rather than on the rule under
+  test. And keep the provenance of each pair visible: three reproduce a record the audit saw and passed; the fourth
+  asks a forward question about an arm that has no record at all, which licenses less.
 - **A control arm must be able to come out clean.** Check that before spending the run, by asking what
   answer the control gives when nothing is wrong. `probe_tetrad_pole.py` audited the tetrad's `+`
   aspects as a control on its `−` endpoint, using one verdict field whose vocabulary was minus-only

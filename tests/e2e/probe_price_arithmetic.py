@@ -303,6 +303,14 @@ LABELS["r25-probe-fork"] = {
 #: says where the remaining defect lives: not in the risk-deletion paragraph, which
 #: evidently reached the prose, but at the seam between what the reply says and what
 #: it writes down.
+#:
+#: GUARDED, 2026-08-20. Rep 9's record line is now a weak-tier pair in
+#: `tests/test_decision_rationale_integrity_weak_tier.py`, against rep 6's record
+#: line on a byte-identical body: `DecisionCoherenceCheck` check 3 flags the
+#: write-off and passes the twin that carries the same residual as a price. These
+#: cells are A1, so nothing audited them in the run itself — the guard says the
+#: shape is caught when the same reply arrives through `record_decision`, which is
+#: a claim about the framework path and not about this lane's numbers.
 BODY_PRICES_RECORD_DENIES: dict[str, dict[int, str]] = {
     "r25-probe-fork": {
         1: "body 'what I'd still say costs something' -> record 'the "
