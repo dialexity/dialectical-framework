@@ -779,16 +779,24 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    **1a. The branch itself is unstable, which makes it a measurement hazard as well as a drift
    hazard.** `StatementClassification` is a non-deterministic LLM call, and its branch selects the
    apex row interpolated into `_tetrad_prompt` / `_contradiction_pair_prompt` (and feeds HS →
-   `_rank_polarities` at 0.7). Measured over three readings of one 12-pole set
-   (`probe_tetrad_pole.py`, "UPSTREAM INSTABILITY"): **7 of 12 stable, 5 wobble**, and the split is by
-   **form, not domain** — every long concrete course-of-action was stable across all three readings;
-   the short abstract nouns were not. Two cases beyond a wobble: `"Decide now and commit"` crossed
-   SYSTEMIC→ELEMENTAL (`Flexibility` → `Fire`), swapping the apex vocabulary wholesale, and `"Freedom"`
-   returned `Water`, `Air`, `Fire` on three readings. Consequences: (a) **no pre/post prompt
-   measurement downstream of the classifier is a matched pair** — record the per-pole branch in any
-   readout; (b) an abstract single-word thesis gets a different apex taught to the generator run to
-   run, so HS on it is not reproducible either. Not yet measured on its own; the clean design is
-   N repeat readings of one pole set with no generation.
+   `_rank_polarities` at 0.7). Measured properly in `probe_classifier_stability.py` (47 texts × 6
+   readings, weak tier, no generation and no graph): **6 of 12 branch-unanimous on the replicated
+   pole set**, and folding in domain — also an apex-lookup argument — only **18 of 47 texts (38%)
+   return the same (family, domain, branch) six times.** Two mode counts matter more than the
+   headline: **SIMPLE/COMPLEX flips 0 of 47** (the leverage-dense boundary is the solid part — nothing
+   silently forced HS to 1.0), and **taxonomy crosses 5 of 47** (`Freedom` Water/Flexibility,
+   `Speed` Fire/Exchange, `Caution` Water/Resilience, …) which swap the apex vocabulary wholesale.
+   Consequences: (a) **no pre/post prompt measurement downstream of the classifier is a matched
+   pair** — record the per-text branch AND domain in any readout, or pin the classification;
+   (b) HS on an unstable thesis is not reproducible either.
+   **The cause is unidentified, and one plausible-looking cause is dead:** a pre-registered
+   three-arm test (bare noun / 3–4-word action / 9–14-word course of action, domains matched) put
+   the earlier "it's about FORM — long concrete stable, short abstract not" reading at
+   **6/12 vs 5/12 vs 7/12, gap 1, p = 1.0.** That hypothesis came from staring at the same 12 rows
+   it was then going to be checked on; it did not survive text written to test it. Do not justify a
+   `statement_classification.py` edit by statement form. (An untested successor is banked in the
+   probe's docstring — taxonomy CROSSES may concentrate in short text even though frequency does
+   not — explicitly labelled post-hoc and owed its own pre-registered run.)
 2. **Insight/Proactiveness ladders re-typed 3×** — hand-typed prose in `transformation_generation.py`,
    `positive_ac_re_apex_derivation.py`, `action_extraction.py` (all three *import* `INSIGHT_SCALE`/
    `PROACTIVENESS_SCALE` but use them only numerically, while pasting the ladder as prose).

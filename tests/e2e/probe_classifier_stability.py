@@ -96,6 +96,79 @@ Pre-declared non-confound: no graph is touched and no generation runs, so there
 is no ordering, no scope, and no shared cache. Each reading constructs a fresh
 `StatementClassification`. The only variance is the provider's.
 
+RESULT (2026-08-20, 288 classifications over 47 unique texts, weak tier)
+=======================================================================
+"Security" appears in both sets verbatim, so 48 rows resolve to 47 texts.
+
+E1, Set A replication: 6/12 branch-unanimous. INSTABILITY CONFIRMED — the bar
+was <= 8/12 and it cleared with margin. The 3-reading table above understated
+it: 7 of those 12 looked stable across 3 readings, 6 survive 6. Nothing here
+was an unlucky sample.
+
+E2, the form hypothesis: REFUTED on the registered endpoint.
+
+  SHORT_ABSTRACT   6/12 unanimous
+  SHORT_CONCRETE   5/12
+  LONG_CONCRETE    7/12
+  gap = 1 (needed >= 6), Fisher two-sided p = 1.0000 (needed < 0.05)
+
+Both prongs missed, and gap <= 2 is the pre-registered NO FORM EFFECT band, so
+this is a positive null and not an underpowered miss: 12 fresh long concrete
+courses of action are no more stably classified than 12 bare nouns. The Set A
+pattern that generated this hypothesis was me reading form onto 12 rows that
+happened to line up. It does not reproduce on text written to test it, which is
+exactly what the non-circular Set B was for. The SHORT_CONCRETE discriminator is
+therefore uninterpretable by construction and the readout now says so instead of
+naming a winner.
+
+Severity secondaries:
+
+  * SIMPLE/COMPLEX FLIP: 0 of 47. The highest-severity mode does not occur. The
+    boundary CLAUDE.md calls "the most leverage-dense prompt in the extraction
+    pipeline" is the one thing here that is solid — no statement was SIMPLE on
+    one reading and COMPLEX on another, so nothing silently forced HS to 1.0.
+    This is the load-bearing reassurance in the whole run.
+
+  * TAXONOMY CROSS: 5 of 47 — Freedom (Water/Flexibility), Decide now and commit
+    (Flexibility/Fire), Speed (Fire/Exchange), Growth (Flexibility/Fire),
+    Caution (Water/Resilience). All five are short: four bare nouns and one
+    4-word phrase. By arm within Set B: SHORT_ABSTRACT 3/12, SHORT_CONCRETE
+    0/12, LONG_CONCRETE 0/12.
+
+  * DOMAIN DRIFT: 12 of 47, spread across all three arms (Freedom and Autonomy
+    and Transparency General/Institutions, Security Engineering/General,
+    Pair-program every feature Engineering/Institutions, ...). This is why it
+    was kept out of branch unanimity: folding branch and domain together, only
+    18 of 47 texts (38%) return the SAME (family, domain, branch) on all six
+    readings. Per arm, any-instability: Set A 8/12, SHORT_ABSTRACT 8/12,
+    SHORT_CONCRETE 8/12, LONG_CONCRETE 6/12 (Set A vs LONG_CONCRETE p = 0.68).
+    The taught apex is less stable than the primary endpoint alone suggests.
+
+A hypothesis GENERATED HERE, banked as untested, not as a finding
+----------------------------------------------------------------
+Form failed on how OFTEN a statement is unstable, but every taxonomy cross in
+the run is a short statement. Pooling the two comparison arms gives 3/12 vs 0/24,
+p = 0.0308 — and that number must not be reported as a result. The pooling was
+chosen after seeing which grouping reached significance; the unpooled comparison
+that was equally available (SHORT_ABSTRACT 3/12 vs SHORT_CONCRETE 0/12) is
+p = 0.2174; no threshold was pre-registered on this channel; and it is one of
+several secondary comparisons on one dataset. It is the same "stare at the rows
+until a pattern appears" move that produced the hypothesis this run just killed,
+so it gets the same treatment: written down, owed a pre-registered test on new
+text before anyone acts on it. If it survives one, the readable mechanism is
+that a bare noun gives the classifier nothing to anchor a family on, so it
+crosses System/Elements rather than picking a neighbouring branch — a severity
+effect, not a frequency one.
+
+What this run does and does not license
+--------------------------------------
+Licensed: `probe_tetrad_pole.py`'s "held fixed, only the generation prompt moves"
+was wrong, and quantifiably so — half its population changes branch across
+readings and 62% changes the taught apex. Any future measurement downstream of
+this classifier must either pin the classification or report it as a confound.
+NOT licensed: any claim about which statements are unstable, or any prompt edit
+to `statement_classification.py` justified by form. The cause is unidentified.
+
 Run:
   poetry run pytest tests/e2e/probe_classifier_stability.py -s --real-llm
   poetry run pytest tests/e2e/probe_classifier_stability.py -s   (free: prints the
@@ -475,7 +548,14 @@ async def test_the_same_text_classifies_the_same_way_six_times(di_container) -> 
     sc_uni, sc_n = by_arm["SHORT_CONCRETE"]
     print(f"\nSHORT_CONCRETE discriminator: {sc_uni}/{sc_n} unanimous, against "
           f"LONG_CONCRETE {long_uni}/{long_n} and SHORT_ABSTRACT {abs_uni}/{abs_n}.")
-    if abs(sc_uni - long_uni) < abs(sc_uni - abs_uni):
+    # Gated on E2 firing. "Which arm does SHORT_CONCRETE sit nearer" is only a
+    # discriminator if there is an effect to attribute; when the outer arms are
+    # a gap of 1 apart it is noise-vs-noise, and an ungated version of this
+    # block printed "LENGTH drives stability" off that gap at p=1.0.
+    if gap < _PREREG_E2_GAP or p_form >= 0.05:
+        print("  -> not interpreted: E2 did not establish a form effect, so there "
+              "is nothing for this arm to discriminate between.")
+    elif abs(sc_uni - long_uni) < abs(sc_uni - abs_uni):
         print("  -> tracks LONG_CONCRETE: CONCRETENESS drives stability, not length.")
     elif abs(sc_uni - abs_uni) < abs(sc_uni - long_uni):
         print("  -> tracks SHORT_ABSTRACT: LENGTH drives stability, not concreteness.")
