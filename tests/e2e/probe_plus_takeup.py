@@ -106,9 +106,89 @@ COST
 before audits. `PROBE_PLUS_TAKEUP_LIMIT=n` truncates and says so loudly; a
 truncated run does not carry the registered bands.
 
-RESULT
-======
-Not yet run.
+RESULT (2026-08-20, 192/192 tetrads generated, 0 failures, 768 audits, weak tier
+        generation / fable-5 auditor — the same auditor as the 13.3% measurement)
+====================================================================
+Manipulation check, exact: **96/96 baseline renders downgraded, 96/96 fixed
+renders verified.** No cell in either arm ran the other arm's prompt.
+
+PRIMARY — plus valence failure:
+    baseline  31/192 = 16.1%  [95% Wilson 11.6-22.0]
+    fixed     15/192 =  7.8%  [95% Wilson  4.8-12.5]
+    Fisher two-sided p = 0.0176
+**Registered verdict: INDETERMINATE.** The reduction is significant at the
+registered alpha on the registered endpoint — a 52% relative cut — and 7.8% sits
+between the 4.4% CONFIRMED ceiling and the 9.0% NOT-CONFIRMED floor. So the
+registered word is INDETERMINATE and the finding is "the check roughly halves
+plus-restatement", stated together and not traded for each other.
+
+And the band was not missed for lack of power: at the baseline rate this run
+actually observed (16.1%), the design had **0.97** power to detect a drop to the
+4.4% ceiling and 0.63 for a halving. The two-thirds cut is therefore ruled out
+about as firmly as this lane rules anything out. The effect is real and smaller
+than the ceiling I registered.
+
+Which exposes a design error worth more than the result: **I picked the ceiling
+off the power table, not off what would matter.** 4.4% was "the effect 192 slots
+can see at 0.85", not "the smallest improvement worth shipping". A band chosen for
+detectability answers a question about the instrument; a band chosen for
+consequence answers a question about the fix. When those two differ — and they
+did — the honest move is to register the consequential band and say up front that
+the run is a screen for anything smaller.
+
+GUARD (registered WEAK) — minus misparentage:
+    baseline  18/192 = 9.4%   fixed 14/192 = 7.3%   p = 0.5803
+No harm detected, and the guard turned out STRONGER than registered because its
+base rate came in high: at the observed 9.4% it had 0.71 power for a doubling
+(registered 0.22, computed at the 3.1% base rate the archive had). It still has
+only 0.25 for a +50% drift, so "no harm" reaches a doubling and stops there.
+
+THE FINDING THAT OUTRANKS THE PRIMARY: THE BASE RATES DID NOT REPRODUCE
+======================================================================
+Same 16 tensions, same generation tier, same auditor model, same endpoint code,
+baseline prompt verified byte-identical to the pre-fix commit, four hours apart:
+    minus misparentage   3.1% (4/128, option-pair run)  ->  9.4% (18/192)
+                         Fisher two-sided p = 0.0406
+    plus valence failure 13.3% (17/128)                 ->  16.1% (31/192)
+                         p = 0.5257  (this one reproduced)
+So the endpoint the archive spent three runs and a replication chasing moved 3x
+between two runs of the same instrument, at conventional significance, with no
+intervention between them. Consequences, in order of importance:
+  1. **Cross-run rate comparisons in this archive are not safe.** Any verdict
+     resting on "this run's rate vs that run's rate" — including this probe's own
+     sizing input — inherits a variance nobody has bounded. Only within-run arms
+     are comparable. Registering the baseline arm rather than borrowing 13.3%
+     turned out to be the load-bearing decision of the design.
+  2. It adds a second explanation for `probe_tetrad_pole`'s two irreconcilable
+     runs (4/72 then 9/72). `power.py` attributed them to 0.28 power, which was
+     true; this says the base rate itself may also have moved.
+  3. A mechanism is available and was NOT measured here: `StatementClassification`
+     runs fresh each run, and the branch it lands on selects the apex row
+     interpolated into the tetrad prompt (`probe_classifier_stability.py` exists
+     because that classifier drifts). A pole classifying differently is a
+     different prompt, not noise. **This run did not print the per-pole
+     classification, so drift cannot be told apart from sampling variance.** The
+     readout is now in the run (added after the fact, so it is empty for this
+     result) — the next run can check it, and no future probe in this lane should
+     omit it.
+
+LIMITATIONS OF THIS RUN, STATED RATHER THAN IMPLIED
+==================================================
+  * Arms alternate every cell, but the ORDER WITHIN a pair is always
+    baseline-then-fixed. Strict alternation controls slow drift; it does not
+    control a position-within-pair effect, which would align with the arm. Not
+    reordered mid-flight (that would have invalidated the run) and not corrected
+    afterwards, so it stands as a limitation. Counter-balancing the within-pair
+    order is the first change any replication should make.
+  * The fix is TWO changes measured as one: the interpolated check and the worked
+    example both landed. Which one carries the effect is unseparated.
+  * Weak tier only. Nothing here says a stronger model needs the check.
+  * The secondaries are descriptive and unpowered. For the record: the plus defect
+    fell at both positions (T+ 14->5, A+ 17->10); the over-correction the worked
+    example warns about did not appear as a net drift into the other pole
+    (baseline other_pole+neither 17, fixed 13); and no arm's rate rides on one or
+    two tensions, though `roadmap_weighting` is the one tension that went the
+    wrong way (3/12 -> 5/12).
 
 Run:
   poetry run pytest tests/e2e/probe_plus_takeup.py -s --real-llm
@@ -120,6 +200,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import inspect
 import os
 import time
 from typing import Iterator
@@ -143,7 +224,7 @@ from e2e.power import fisher_exact_two_sided, fisher_power, mcnemar_power
 from e2e.probe_option_pair_tetrads import (OPPOSITION,  # noqa: F401
                                            OPTION_PAIR, _TENSIONS, _wilson)
 from e2e.probe_tetrad_pole import (_Cell, _PoleVerdict,  # noqa: F401
-                                   _audit_prompt, _generate)
+                                   _audit_prompt, _branch_of, _generate)
 
 pytestmark = [pytest.mark.llm]
 
@@ -173,6 +254,8 @@ _PREFIX_STEP3 = (
     "well is not a reason to keep the wrong parentage."
 )
 _STEP3_PREFIX_MARKER = "3. Re-read both aspects"
+#: The commit the baseline arm reconstructs — the one before the fix landed.
+_PREFIX_COMMIT = "84ef6bd"
 _PLUS_EXAMPLE_MARKER = "The mistake to avoid on a plus."
 
 
@@ -428,6 +511,78 @@ class TestThePreRegistrationIsAuditable:
             < _PREREG_BASELINE_RATE
         )
 
+    def test_the_baseline_arm_is_byte_identical_to_the_pre_fix_commit(self):
+        """Stronger than "the marker is gone": the reconstructed baseline prompt
+        must be the prompt that actually produced the archive's numbers.
+
+        Checked because the RESULT leans on it — the base rates not reproducing is
+        only a statement about run-to-run variance if the two runs really ran the
+        same prompt. Compares the SYSTEM_PROMPT source literal rather than exec'ing
+        the old module: the interpolated constants are unchanged, and importing a
+        detached copy of the module breaks dataclass resolution.
+        """
+        import subprocess  # noqa: PLC0415
+
+        path = "src/dialectical_framework/concerns/aspect_generation.py"
+        try:
+            old_source = subprocess.run(
+                ["git", "show", f"{_PREFIX_COMMIT}:{path}"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+        except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+            pytest.skip(f"pre-fix commit not reachable: {exc}")
+
+        def literal(source: str) -> str:
+            opener = 'SYSTEM_PROMPT = f"""'
+            start = source.index(opener)
+            return source[start : source.index('"""', start + len(opener))]
+
+        assert _strip_plus_example(literal(inspect.getsource(aspect_generation))) == (
+            literal(old_source)
+        ), "the baseline arm is NOT the pre-fix prompt"
+
+    def test_the_recorded_primary_is_the_number_the_docstring_states(self):
+        """The RESULT's arithmetic. Its whole value is that "significant" and
+        "INDETERMINATE" are both true of the same table, so neither can be dropped
+        in a later retelling."""
+        assert fisher_exact_two_sided(31, 161, 15, 177) == pytest.approx(
+            0.0176, abs=0.001
+        )
+        assert 31 / 192 == pytest.approx(0.161, abs=0.001)
+        assert 15 / 192 == pytest.approx(0.078, abs=0.001)
+        # significant, and still above the CONFIRMED ceiling: hence INDETERMINATE
+        assert _PREREG_FIXED_CEILING < 15 / 192 < _PREREG_NULL_FLOOR
+
+    def test_the_registered_band_was_not_missed_for_lack_of_power(self):
+        """What licenses "the effect is real and smaller than the ceiling" instead
+        of "the run could not see the ceiling"."""
+        assert fisher_power(192, 0.161, _PREREG_FIXED_CEILING) == pytest.approx(
+            0.97, abs=0.03
+        )
+        assert fisher_power(192, 0.161, 0.0805) == pytest.approx(0.63, abs=0.03)
+
+    def test_the_recorded_guard_and_its_real_sensitivity(self):
+        """The guard came back clean AND stronger than registered, because its base
+        rate came in high. Both halves pinned: 0.71 for a doubling, 0.25 for +50%,
+        so "no harm" reaches a doubling and stops."""
+        assert fisher_exact_two_sided(18, 174, 14, 178) == pytest.approx(
+            0.5803, abs=0.001
+        )
+        assert fisher_power(192, 0.094, 0.188) == pytest.approx(0.71, abs=0.03)
+        assert fisher_power(192, 0.094, 0.141) == pytest.approx(0.25, abs=0.03)
+
+    def test_the_base_rates_did_not_reproduce_across_runs(self):
+        """The finding that outranks the primary, pinned because every future
+        cross-run comparison in this lane is constrained by it: the minus endpoint
+        moved 3x between two runs of one instrument at p=0.04, while the plus
+        endpoint reproduced."""
+        assert fisher_exact_two_sided(4, 124, 18, 174) == pytest.approx(
+            0.0406, abs=0.001
+        ), "minus misparentage 3.1% (option-pair) vs 9.4% (this baseline)"
+        assert fisher_exact_two_sided(17, 111, 31, 161) == pytest.approx(
+            0.5257, abs=0.001
+        ), "plus valence 13.3% (option-pair) vs 16.1% (this baseline)"
+
 
 # --- the run ------------------------------------------------------------------
 
@@ -492,6 +647,20 @@ async def test_the_check_reduces_plus_restatement(di_container) -> None:
         "prompt and the comparison is contaminated"
     )
     assert render_counts["fixed_verified"] >= n_fixed
+
+    # --- what the classifier did this run ------------------------------------
+    #
+    # ADDED AFTER the 2026-08-20 run, so it is empty for that result. Its absence
+    # is why that run cannot tell classifier drift apart from sampling variance
+    # after its minus base rate came in 3x the archive's (p=0.0406) on a prompt
+    # verified byte-identical to the pre-fix commit. The branch selects the apex
+    # row interpolated into the tetrad prompt, so a pole classifying differently
+    # is a DIFFERENT PROMPT, not noise — and both arms share these meanings within
+    # a run, so this readout is about run-to-run comparability, not about the A/B.
+    print("\n=== how each pole classified (branch selects the apex in the prompt) "
+          "===", flush=True)
+    for text, classification in sorted(class_cache.items()):
+        print(f"  {_branch_of(classification):12s} {text}", flush=True)
 
     # --- audit ---------------------------------------------------------------
     judge_model = config.judge_model

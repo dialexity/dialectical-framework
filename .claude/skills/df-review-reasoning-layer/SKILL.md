@@ -149,9 +149,13 @@ anchors.
       statement was not the difference; being verified was. So `PLUS_RESTATEMENT_CHECK` is stated ONCE and
       interpolated into all three generation paths (`test_prompt_review_regressions.py::TestPlusTakeUpIsChecked`
       pins that, including that it is absent for minus positions — asking a minus not to develop its parent
-      one-sidedly would invert R1). Whether it works is pre-registered, not assumed:
-      `tests/e2e/probe_plus_takeup.py`, powered 0.85 for a two-thirds cut and **0.52 for a halving, so a null
-      there bounds the effect and does not refute the check**.
+      one-sidedly would invert R1). **Measured: 16.1% → 7.8%, Fisher p=0.0176 on 192 plus slots per arm
+      (`tests/e2e/probe_plus_takeup.py`) — a check beat four restatements of the same rule.** Registered verdict
+      is INDETERMINATE anyway (the 4.4% ceiling was not reached), and the run had 0.97 power to see that ceiling,
+      so the honest statement is "roughly halves it". Two caveats travel with the number: the interpolated check
+      and the worked example landed together, so the mechanism is unseparated; and **that run also found the
+      archive's minus base rate moving 3x between two runs of one instrument (p=0.0406), so do not size or judge
+      anything here on another run's rate — use a within-run arm.**
 - [ ] **A risk the person wants dropped stays priced (R1 dialogical + R5.1).** `_INTERNAL_MODEL` distinguishes a
       correction about their SITUATION (take it — they are the authority) from an instruction to delete T−. Their
       fact resizes the price, or it dissolves the tension and takes that side's pull with it — **"never zeroes it"
@@ -434,6 +438,23 @@ anchors.
   a different costume: **every pre-registered gate needs a threshold it could realistically miss**,
   and an invalidating gate needs one most of all, because it is the only thing standing between a
   null and an overclaim. Check any `if x < y:` acceptance test for an implied magnitude of zero.
+- **A band picked off the power table is not a band picked off what matters.** `probe_plus_takeup.py`
+  registered "CONFIRMED iff the fixed arm reaches 4.4%" because 4.4% was what 192 slots could see at
+  0.85 power. The fix then produced a significant halving (16.1% → 7.8%, p=0.0176) and the registered
+  verdict came out **INDETERMINATE** — not for lack of power (0.97 to see the 4.4% ceiling at the
+  observed baseline) but because the ceiling encoded the instrument's reach instead of the effect worth
+  shipping. Register the CONSEQUENTIAL threshold, then state plainly whether the run can see it; a
+  design that can only confirm effects larger than the ones you would act on will keep returning
+  INDETERMINATE on real wins.
+- **Two runs of one instrument are not two measurements of one rate.** Same 16 tensions, same weak
+  tier, same auditor model, baseline prompt verified byte-identical to the pre-fix commit, four hours
+  apart: minus misparentage went **3.1% → 9.4% (p=0.0406)** while the plus endpoint reproduced
+  (13.3% → 16.1%, p=0.53). So a cross-run rate comparison in this lane can be significant with no
+  intervention between the runs. **Every arm you intend to compare must live inside one run**, and a
+  probe that borrows a historical rate as its baseline is measuring the archive's variance as much as
+  its fix. A live mechanism, not just noise: `StatementClassification` re-runs each time and the branch
+  it picks selects the apex row interpolated into the generation prompt — so print the per-pole
+  classification in any probe whose rates will be compared to another run's.
 - **One run cannot tell a fix from the favourable tail. Replicate before banking.** The
   parentage fix measured 4/72 on the first post-fix run — clearing its pre-registered
   `<= 4/72` bar by exactly zero margin, p=0.036 — and 9/72 on a replication with the same

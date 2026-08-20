@@ -840,7 +840,9 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    "Intentional preservation of organizational identity" on stay-independent — the auditor's words:
    "restates rather than constructively develops". Compare **3.1% minus-misparentage** in the same
    audit output, which is the defect the `probe_tetrad_pole` lane spent three runs and a replication
-   on: **the plus-restatement defect is ~4× more common than the one being chased.** So when editing
+   on: **the plus-restatement defect is ~4× more common than the one being chased.** (Both of those
+   rates are single-run numbers and the minus one did not reproduce — see the base-rate warning below;
+   the *ordering* holds within every run measured, the 4× multiple does not.) So when editing
    `aspect_generation.py`, treat the "takes up what the opposition offers" half as the load-bearing
    clause and check it carries a positive specification plus an example — a bare "develops T" is
    satisfied by a restatement. A second, rarer shape appears when the two poles are not one axis:
@@ -853,14 +855,25 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    aligned standards") hands the generative act to the other parent, so a fix for restatement can
    manufacture drift. Any future edit here must measure BOTH directions.
 
-   **Why the fix is a check and not a fifth restatement** — the generalisable finding. The take-up clause
-   was already asserted 4× (`ASPECT_DEFINITIONS`, `TetradDto` plus fields, `_tetrad_prompt` step 1, both
-   sibling prompts) and ran at 13.3%; minus-parentage had a RE-READ STEP in the numbered procedure and ran
-   at 3.1%. **A rule asserted more times is not a rule enforced more; the one with a verification step was
-   the one that held.** So `PLUS_RESTATEMENT_CHECK` is one constant interpolated into all three generation
-   paths, plus-positions only (`TestPlusTakeUpIsChecked`). Reach for a re-read step before reaching for
-   emphasis — and note this is the same shape as §6's "a guard in a `probe_*.py` file is not in the net at
-   all": stating a rule and checking a rule are different acts, in prompts and in tests alike.
+   **Why the fix is a check and not a fifth restatement** — the generalisable finding, now measured. The
+   take-up clause was already asserted 4× (`ASPECT_DEFINITIONS`, `TetradDto` plus fields, `_tetrad_prompt`
+   step 1, both sibling prompts) and ran at 13.3%; minus-parentage had a RE-READ STEP in the numbered
+   procedure and ran at 3.1%. **A rule asserted more times is not a rule enforced more; the one with a
+   verification step was the one that held.** So `PLUS_RESTATEMENT_CHECK` is one constant interpolated into
+   all three generation paths, plus-positions only (`TestPlusTakeUpIsChecked`). **The A/B ran and the check
+   won: 31/192 (16.1%) → 15/192 (7.8%), Fisher two-sided p = 0.0176 — a ~52% relative cut, and the
+   archive's first measured win for "add a verification step" over "restate the rule again".** The
+   over-correction guard did not fire (9.4% → 7.3%, p = 0.58, but with only 0.71 power for a doubling — that
+   is a screen, not a clearance). Manipulation check exact (96/96 per arm; the baseline arm is verified
+   byte-identical to the pre-fix commit `84ef6bd`). Two caveats that travel with the number: the
+   **registered verdict is INDETERMINATE** because I pre-registered the CONFIRMED ceiling at 4.4% — a
+   number picked off the power table rather than off what would matter — so a real halving landed between
+   the ceiling and the null floor; and the run's own **base rates did not reproduce** the earlier lane's
+   (minus 3.1% → 9.4%, p = 0.0406, with no intervention and an identical prompt), which is why the probe
+   carries a within-run baseline arm instead of borrowing the historical rate. Reach for a re-read step
+   before reaching for emphasis — and note this is the same shape as §6's "a guard in a `probe_*.py` file is
+   not in the net at all": stating a rule and checking a rule are different acts, in prompts and in tests
+   alike.
 7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 
