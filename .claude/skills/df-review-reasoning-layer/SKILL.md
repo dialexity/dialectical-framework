@@ -328,6 +328,10 @@ anchors.
       4 of 4 A0 cells too), and a judged frequency can pass the won-vs-lost selectivity check while its wording
       points at a **narrower behaviour than the notes describe**. A rule whose behaviour cannot be counted is still
       worth writing — but say so, because a null result on it will be uninterpretable.
+- [ ] **Then size the run before you register a bar** — `tests/e2e/power.py`, free and exact. Counting the
+      behaviour tells you the base rate; power tells you whether the n you can afford could see the change.
+      Both are prerequisites, and the second is the one this archive skipped (see Verify: the parentage
+      probe ran at 0.28).
 
 ---
 
@@ -377,6 +381,22 @@ anchors.
   five). Before claiming a fix worked, read the rationales, not the delta
   (`tests/e2e/judge_notes.py --all-cells`, free). Three prompt fixes aimed at "A2 never calls
   explore" all failed because the flag's cause was elsewhere; `/df-e2e` carries that loop.
+- **An endpoint and a pre-registered bar with no power calculation is a coin-flip dressed as a
+  hypothesis test.** Size the run with `tests/e2e/power.py` (free, exact, no provider) BEFORE
+  registering a bar. The parentage probe was pre-registered, replicated, and honestly reported
+  NOT CONFIRMED at n=72/arm — and its **power for the effect its own point estimate implies was
+  0.28.** A design that misses a real effect 7 times in 10 produces that verdict whether or not the
+  fix works, so neither run carried much evidence, and the run that DID clear the bar was the
+  favourable tail by construction. Pre-registration stops you moving the goalposts; it does nothing
+  about goalposts too small to hit. Three rules fall out. (1) If the affordable n cannot reach ~0.8,
+  say up front that the run is a **screen** and that a null will be uninterpretable — do not report
+  the number as a finding later. (2) **Enrich rather than enlarge**: power responds to the base rate
+  faster than to n (0.80 needed n=252/arm at 18%→9%, or n=96/arm at 40%→20%), but enrichment must
+  select on a property known in ADVANCE, never on which cells failed in the runs you are comparing
+  against — that bakes the selection into the baseline arm's rate. (3) **Pairing is not a free win**:
+  running both prompts on the same cells doubles power only if the fix acts near-monotonically, and
+  falls below unpaired Fisher once generation noise dominates the discordance. The same parentage
+  prompt gave 4/72 and 9/72 on identical inputs, so plan against the noise-dominated row.
 - **One run cannot tell a fix from the favourable tail. Replicate before banking.** The
   parentage fix measured 4/72 on the first post-fix run — clearing its pre-registered
   `<= 4/72` bar by exactly zero margin, p=0.036 — and 9/72 on a replication with the same

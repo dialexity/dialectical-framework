@@ -381,18 +381,62 @@ prompt content, not metadata:
   Decide now and commit           Flexibility Fire        Fire         CROSSES
   Freedom                         Water       Air         Fire         3 for 3
 
-7 of 12 stable, 5 wobble, and the split is by FORM not domain: every long concrete
-course-of-action is stable, every short abstract noun is not. Two cases are worse
-than a wobble — "Decide now and commit" crossed from SYSTEMIC (Flexibility) to
-ELEMENTAL (Fire), changing the apex vocabulary wholesale, and "Freedom" returned a
-different element on all three readings. Per CLAUDE.md the same branch also feeds
-HS, so this reaches `_rank_polarities` (HS_THRESHOLD = 0.7), not just this probe.
+7 of 12 stable, 5 wobble. Two cases are worse than a wobble — "Decide now and
+commit" crossed from SYSTEMIC (Flexibility) to ELEMENTAL (Fire), changing the apex
+vocabulary wholesale, and "Freedom" returned a different element on all three
+readings. Per CLAUDE.md the same branch also feeds HS, so this reaches
+`_rank_polarities` (HS_THRESHOLD = 0.7), not just this probe.
 
 This is very likely part of why the same prompt gave 4/72 and 9/72: for 4-5 of 12
 poles the generation prompt was not the same prompt. It is a separate defect from
 the one this probe was built for, it is upstream of it, and it should be measured
 on its own (n readings of one pole set, no generation) before anything downstream
 of the classifier is measured again.
+
+  RETRACTED from this section: I originally wrote that the split is "by FORM not
+  domain — every long concrete course-of-action stable, every short abstract noun
+  not." That was read off these same 12 rows and it is false.
+  `probe_classifier_stability.py` tested it on 36 statements written for the
+  purpose (bare noun / short action / long course of action, domains matched
+  across arms): 6/12, 5/12, 7/12 unanimous, gap 1, p = 1.0 — inside the
+  pre-registered no-effect band. The instability is real and worse than this table
+  shows (only 38% of 47 texts are stable on family+domain+branch over 6 readings);
+  its CAUSE is unidentified.
+
+RETROSPECTIVE POWER — why the verdict above carries less than it looks like
+==========================================================================
+Computed after the fact with `tests/e2e/power.py`, which did not exist when this
+probe was designed. It should have.
+
+  this design, aspect-level, n = 72/arm, 18% -> 9%   POWER = 0.28
+  0.80 would have needed n = 252/arm (126 tetrads/arm, 3.5x what was run)
+
+So the design had roughly a 1-in-4 chance of detecting exactly the effect its
+point estimate suggests. Three consequences, and they revise the reading above
+rather than the numbers:
+
+  1. NOT CONFIRMED was close to preordained. A 72%-likely outcome under a REAL
+     effect cannot be evidence against it. The verdict stands as written — the fix
+     is unproven — but "unproven" here means the instrument was too small to look,
+     not that the fix was weighed and found wanting.
+  2. The replication did not overturn run 1. I framed 4/72 as "the favourable tail
+     of a noisy distribution", which is right, and 9/72 as the correction. Both are
+     draws from a distribution this design cannot resolve; the honest statement is
+     that the two runs are mutually consistent AND consistent with no effect.
+  3. Enlarging THIS population is the wrong repair. Reaching 0.80 by brute n costs
+     3.5x; reaching it by enrichment costs less than the original run, because
+     power responds to the base rate faster than to n (`power.py::enrichment`).
+     The enrichment must select on a property known in advance — e.g. "the two
+     poles are mutually exclusive named options rather than opposites", which
+     CLAUDE.md already flags structurally and which the residual-defect
+     concentration in `cofounder_*` is consistent with — and NOT on which cells
+     failed in the runs being compared against, which would bake the selection
+     into the baseline arm's rate.
+
+General lesson, now in `power.py`'s module docstring and the review skill: an
+endpoint and a pre-registered bar with no power calculation is a coin-flip dressed
+as a hypothesis test. Pre-registration prevents moving the goalposts; it does
+nothing about goalposts too small to hit.
 """
 
 from __future__ import annotations

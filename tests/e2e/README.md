@@ -762,6 +762,7 @@ opened.
 | `noise_floor.py` | measures this bench's own noise floor from every saved run (free) |
 | `judge_variance.py` | splits that floor into judge noise vs cell variation (free) |
 | `endpoint_power.py` | composite endpoint vs its subscales, over every saved run (free) |
+| `power.py` | exact power/MDE for COUNT endpoints (Fisher, McNemar) — the sizing tool the `probe_*.py` lane never had, where `noise_floor.py`/`endpoint_power.py` size the judged lane's continuous scores. Run it BEFORE registering a bar. Its docstring carries the retrospective that reframed r-parentage: that probe ran at **power 0.28**, so its pre-registered, replicated NOT CONFIRMED verdict was close to preordained either way. Also tabulates why enrichment beats brute-force n, and why paired designs collapse once generation noise dominates discordance (free) |
 | `across_runs.py` | pools the whole archive: the standing composite/dimension result, the two loss shapes (`dimension_shape`), the opponent-rung split (`rung_rows`), the record-integrity win and why it did not convert (`visibility_rows`), the two refuted explanations, the ladder-return lane's pre-registered co-primary analysis (`ladder_cells`/`sign_flip_p`), and the claim-killing check for any new split (free) |
 | `judge_notes.py` | extracts the judge's own per-dimension rationale for the cells an arm LOST, X/Y de-randomised (free) |
 | `probe_five_fixes.py` | counts the behaviours the five r17 prompt fixes target, before paying for a judged run; its docstring records the four that are NOT measurable and why (free) |
@@ -784,7 +785,11 @@ opened.
    subscales and cannot be read as 12 independent findings. A row whose interval
    covers zero was not measured — comparing its mean against a previous run's
    mean is how r15 and r16 were read as a movement when they overlap heavily.
-   `noise_floor.py` and `endpoint_power.py` print what is resolvable at a given n.
+   `noise_floor.py` and `endpoint_power.py` print what is resolvable at a given n;
+   `power.py` does the same for count endpoints (defect rates out of n slots).
+   Size the run BEFORE registering its bar — a bar with no power calculation is a
+   coin-flip dressed as a hypothesis test, and the parentage probe's 0.28 is what
+   that costs.
 3. **Before writing up any split, run `across_runs.py`.** A run is 3 replicates,
    and both of r16's headline splits — the durability loss (−1.22) and the
    question-ending flip (+0.34) — evaporated when the archive was stacked against
