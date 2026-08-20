@@ -746,7 +746,7 @@ Where each rule is encoded, and whether it is single-sourced (robust) or duplica
 
 | Rule | Encoded in | Sourcing |
 |------|-----------|----------|
-| **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. R1's *parent-pole* half (a `−` overdevelops ITS OWN pole) is **stated correctly and symmetrically in the constant** but only ever cued per-field by one adjective in `TetradDto` ("exaggerated thesis"), so compliance is a behavioural question, not a text question — measured by `tests/e2e/probe_tetrad_pole.py` (see §6). Note `POSITION_TO_PARENT` (`aspect_generation.py` ~L85) already encodes the mapping in code; no prompt makes the model use it. |
+| **R1 Tetrad structure** (T+/T-/A+/A- defs) | `ASPECT_DEFINITIONS` in `concerns/scoring_scales.py`, imported by `aspect_generation`, `aspect_classification`, `positive_ac_re_apex_derivation` | Def block **single-source (good)**. But the "T+ contradicts A-" diagonal rule is ALSO re-stated in prose in `aspect_generation`, `aspect_classification`, and coded in `statement_classification.get_contradiction_pair()` — **duplicated**. R1's *parent-pole* half (a `−` overdevelops ITS OWN pole) is **stated correctly and symmetrically in the constant** and, as of `ae10a32`, is also step 1 of `_tetrad_prompt`'s numbered procedure and named in all four `TetradDto` aspect descriptions ("Derive it from A, never by negating T+"). Before that the procedure had two steps — name the axis, place each aspect at an opposite end — and mentioned no parent, which measured 13/72 misparented minuses, 12 of them at A- (`tests/e2e/probe_tetrad_pole.py`, see §6). The fix is **unproven**: 4/72 then 9/72 on replication, pooled p=0.075 against a registered p<0.05. Pinned by `TestTetradParentage`. Note `POSITION_TO_PARENT` (`aspect_generation.py` ~L85) encodes the mapping in code; the prompt now states it in prose but still does not derive the prose from the dict. |
 | **R2 Circular causality** (Ac+ = T-→A+, Re+ = A-→T+) | `transformation_generation` SYSTEM_PROMPT; `positive_ac_re_apex_derivation`; `action_extraction`; `synthesis_generation`; comments in `ac_re_taxonomy.py` | **Duplicated prose across 4+ prompts, no single owner.** Directionality is theory-critical. |
 | **R3 Modality balance** (Eq (1) chain: M(T+)=−M(T-)=M(A+)=−M(A-); NOT the zero-sum form — that is identically true under the paper's `M(X) ≈ Ks(X) − Ks_avg` and thus vacuous) | *Nowhere in a generation/scoring prompt* — deliberately: the paper's own tests found Ks-derived balance criteria "not useful" [P1 S1.6-3]. Measurable as `rectangularity` = 0 (exact algebraic identity under the approximation — see generative-rules.md R3.2). Only surfaced in `NAVIGATOR_APP_ADVANCED_TOGGLE` ("modality alignment"). Mode scale in `antithesis_classification` is a DIFFERENT concept (thesis-lessness ladder). | **Prompt-absent by design.** Reject edits that claim to enforce it OR that dress rectangularity's empirical bands in R3.2 theory authority. |
 | **R4 Complementarity K** (Ks = (K_T+K_A)/2) | `COMPLEMENTARITY_SCALE` in `scoring_scales.py`, consumed by aspect concerns; thresholds in `concerns/perspective_validation.py` | **Single-source (good).** |
@@ -775,6 +775,20 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    SYSTEM_PROMPT is what the LLM reads to pick a branch. Maintained separately. Divergence → LLM classifies
    against one vocabulary while `lookup_aspect_apex` scores HS against another → **silent HS corruption.**
    *Grep:* `SYSTEMIC_TAXONOMY = {` and the `| Integrity |` table row.
+
+   **1a. The branch itself is unstable, which makes it a measurement hazard as well as a drift
+   hazard.** `StatementClassification` is a non-deterministic LLM call, and its branch selects the
+   apex row interpolated into `_tetrad_prompt` / `_contradiction_pair_prompt` (and feeds HS →
+   `_rank_polarities` at 0.7). Measured over three readings of one 12-pole set
+   (`probe_tetrad_pole.py`, "UPSTREAM INSTABILITY"): **7 of 12 stable, 5 wobble**, and the split is by
+   **form, not domain** — every long concrete course-of-action was stable across all three readings;
+   the short abstract nouns were not. Two cases beyond a wobble: `"Decide now and commit"` crossed
+   SYSTEMIC→ELEMENTAL (`Flexibility` → `Fire`), swapping the apex vocabulary wholesale, and `"Freedom"`
+   returned `Water`, `Air`, `Fire` on three readings. Consequences: (a) **no pre/post prompt
+   measurement downstream of the classifier is a matched pair** — record the per-pole branch in any
+   readout; (b) an abstract single-word thesis gets a different apex taught to the generator run to
+   run, so HS on it is not reproducible either. Not yet measured on its own; the clean design is
+   N repeat readings of one pole set with no generation.
 2. **Insight/Proactiveness ladders re-typed 3×** — hand-typed prose in `transformation_generation.py`,
    `positive_ac_re_apex_derivation.py`, `action_extraction.py` (all three *import* `INSIGHT_SCALE`/
    `PROACTIVENESS_SCALE` but use them only numerically, while pasting the ladder as prose).

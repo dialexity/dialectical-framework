@@ -60,8 +60,32 @@ Craft/quality of the prompt in front of you. (Original checklist — still neces
 | Oscillates between behaviors | **Competing signals** | Two sections contradict |
 | Invents wrong structure | **Missing example** | No concrete output example |
 | Does the opposite | **Negative-only constraint** | "don't X" without "do Y instead" |
+| Ignores a rule the prompt clearly states | **Rule is context, not a step** | A numbered procedure exists and the rule is not one of its steps |
 
-Fix, first applicable wins: (1) add one concrete example; (2) positive specification; (3) reduce polysemy; (4) consolidate competing sections.
+Fix, first applicable wins: (1) add one concrete example; (2) positive specification; (3) reduce polysemy; (4) consolidate competing sections; (5) move the rule into the procedure.
+
+**Check the procedure before concluding "weak compliance."** These two look identical
+at the output and have opposite fixes: a rule the model *under-weights* (fix: consolidate,
+make it proximate) versus a rule the numbered procedure *omits* (fix: make it a step —
+emphasis does nothing). `aspect_generation.py` stated R1 parentage correctly and
+symmetrically in the shared `ASPECT_DEFINITIONS` constant the whole time, while
+`_tetrad_prompt` told the model to (1) name the axis, (2) place each aspect at an opposite
+end of it. Neither step mentions the parent. The model complied exactly, and 10 of 36 A-
+slots took the other pole's exaggeration. **A numbered procedure outranks every
+non-procedural layer in the same context** — if a rule matters, it is a step.
+
+**A verification criterion stated where a derivation rule belongs becomes the derivation
+rule.** "A- contradicts T+" is a CHECK on a finished A-, never a recipe for building one:
+both poles can supply a negative end of one axis, so negation alone leaves the parent
+undetermined. That prompt supplied the check three times (axis field, diagonal pairing,
+"opposite ends") and the recipe zero times. When you write a constraint, say whether it
+builds the thing or tests it.
+
+**A bare-noun worked example teaches only the relation it annotates.** The same file's
+Love/Indifference examples annotated parentage (`T+ = Bonding (Love developed)`) while
+Courage/Fear were bare (`T+ = Trust ⟷ A- = Paranoia`) — teaching the axis and nothing
+about where either end came from, in the example set nearest the output. Annotate every
+worked example with every relation it is supposed to teach.
 
 ---
 
@@ -348,6 +372,35 @@ anchors.
   five). Before claiming a fix worked, read the rationales, not the delta
   (`tests/e2e/judge_notes.py --all-cells`, free). Three prompt fixes aimed at "A2 never calls
   explore" all failed because the flag's cause was elsewhere; `/df-e2e` carries that loop.
+- **One run cannot tell a fix from the favourable tail. Replicate before banking.** The
+  parentage fix measured 4/72 on the first post-fix run — clearing its pre-registered
+  `<= 4/72` bar by exactly zero margin, p=0.036 — and 9/72 on a replication with the same
+  prompt, config and auditor. Pooled: p=0.075, and the registered CONFIRMED band missed on
+  both prongs. At a base rate near 15% with n=72, the run-to-run spread is about as wide as
+  the effect you are hunting. Register the pooling rule BEFORE the second run so pooling is
+  not a post-hoc rescue, and report the adjudicated comparison alongside the raw one — those
+  two disagreed here (raw 13→4 p=0.036, adjudicated 11→4 p=0.099), and the raw one was the
+  registered endpoint only by luck of how it was written.
+- **"Same prompt" is not the same prompt when a classifier sits upstream.** `_tetrad_prompt`
+  and `_contradiction_pair_prompt` interpolate `lookup_aspect_apex(parent, position)`, and
+  the branch comes from `StatementClassification` — a non-deterministic LLM call. Measured
+  over three readings of one 12-pole set: 7 stable, 5 wobble, split by FORM not domain (every
+  long concrete course-of-action stable; short abstract nouns not). "Decide now and commit"
+  crossed SYSTEMIC→ELEMENTAL (Flexibility→Fire), changing the apex vocabulary wholesale;
+  "Freedom" returned Water, Air and Fire on three readings. **Any pre/post measurement
+  downstream of the classifier is not a matched pair** — record the per-pole branch in the
+  readout so drift is visible instead of being absorbed into the endpoint. Same branch feeds
+  HS, so this reaches `_rank_polarities` (0.7), not just probes.
+- **Never draw a worked counter-example from the population you measure on.** Recitation and
+  rule-learning are indistinguishable at the endpoint. The parentage counter-example was
+  first drafted on `freedom_security` — 3 of the 13 baseline defects — and rebuilt on
+  Courage/Fear, which appears in no probed tension
+  (`TestTetradParentage::test_system_prompt_carries_a_counter_example_from_outside_the_probe_set`
+  pins the probe's tensions out of the prompt).
+- **Do not edit the arm you registered as a control.** The same fix added the parentage clause
+  to `t_plus`/`a_plus` as well as the minuses, which destroyed the plus arm as a control while
+  leaving it useful only as an auditor-stability check (6/72 both runs). Decide which arms are
+  under treatment before editing, not after reading the result.
 - **Known coverage gaps** (see reference §6): no cross-agent consistency test, agent-prompt hand-typed scales
   untested for agreement, taxonomy dict-vs-table lockstep untested, no app/engine boundary test, personas
   untested. If your edit lands in one of these, add the missing regression rather than relying on manual review.
