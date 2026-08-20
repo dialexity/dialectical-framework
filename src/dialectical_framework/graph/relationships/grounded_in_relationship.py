@@ -43,6 +43,14 @@ class GroundedInRelationship(AnalyticalStructure, type="GROUNDED_IN"):
     then had nothing to reassure from, and the judge marked the commitment
     turn down against a plain-prose baseline on `earned_confidence` in all six
     (`tests/e2e`).
+
+    This definition is ENFORCED at the write, not only documented:
+    `RecordDecision._accepted_cost_misplacement` refuses an `accepted_cost` on
+    anything that is not a minus aspect — the role was stated at five sites and
+    checked at none, and a bench round duly recorded every cost on the
+    Perspective (the tension rather than its price). Whether it is the CHOSEN
+    side's minus stays with `DecisionCoherenceCheck`: that half needs the stance
+    read against the poles, and a false refusal costs a confirmed decision.
     """
 
     role: Optional[str] = None

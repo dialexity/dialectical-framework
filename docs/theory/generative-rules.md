@@ -43,7 +43,15 @@ the CHOSEN side's minus (a price is a risk) and never a plus — a plus is a goa
 so asking for one yields a remedy, something to DO. Encoded in
 `graph/relationships/grounded_in_relationship.py` (owning definition, with the measurement that
 forced the correction) and taught to the model in `_TOOL_DOCS["record_decision"]`,
-`_DECISION_READINESS`, `GroundLink.role`, and `DecisionCoherenceCheck`. Consistent with Rule 3.3's
+`_DECISION_READINESS`, `GroundLink.role`, and `DecisionCoherenceCheck`. **Enforced, not only
+taught**, in `RecordDecision._accepted_cost_misplacement`: the role was documented at five sites and
+checked at none, and the concern attached whatever hash the model supplied — measured as a bench
+round recording every `accepted_cost` on the *Perspective* (the tension, not its price) and another
+on a Statement sitting at `T/T-`. The guard is deliberately the structural half only ("is this a
+minus at all", decidable by graph walk); WHICH minus — the chosen side's rather than the risk the
+choice avoided — needs the stance read against the poles and stays with `DecisionCoherenceCheck`,
+since a false refusal costs a confirmed decision. `TestAcceptedCostMustBeAPrice` pins both the guard
+and that boundary. Consistent with Rule 3.3's
 truth criterion, which is the same asymmetry stated normatively: T is sound only insofar as it
 fosters A+ — i.e. only insofar as the T-sayer takes on the obligation the opponent names.
 

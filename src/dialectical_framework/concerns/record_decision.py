@@ -32,6 +32,17 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import \
         AssessableEntity
 
+#: The two positions a price can occupy: (display label, Perspective accessor,
+#: edge type). A cost is a MINUS — `GroundedInRelationship` owns why, with the
+#: measurement that forced the correction. Owned here because three consumers
+#: read it and a hand-typed fourth copy would drift: the omission recovery
+#: (`_unpriced_aspects`), the misplacement guard (`_accepted_cost_misplacement`),
+#: and that guard's repair suggestion.
+COST_POSITIONS: tuple[tuple[str, str, str], ...] = (
+    ("T-", "t_minus", "T_MINUS"),
+    ("A-", "a_minus", "A_MINUS"),
+)
+
 
 class GroundLink(BaseModel):
     """One grounding reference for a decision."""
@@ -172,6 +183,15 @@ class RecordDecision(ReasonableConcern[str | None]):
                     "a decision can only rest on committed nodes."
                 )
                 return None
+            if g.role == "accepted_cost":
+                # A price the reader cannot read is worse than no price at all
+                # (see _accepted_cost_misplacement). Refused HERE, in step 1,
+                # so nothing is half-built and the retry is clean.
+                misplacement = self._accepted_cost_misplacement(node)
+                if misplacement:
+                    self._report.ok = False
+                    self._report.summary = f"Cannot record: {misplacement}"
+                    return None
             resolved.append((node, g.role))
 
         # Grounding on an already-discarded node is allowed (the ledger will
@@ -283,6 +303,104 @@ class RecordDecision(ReasonableConcern[str | None]):
             ]
         return decision.hash
 
+    @classmethod
+    def _accepted_cost_misplacement(cls, node: AssessableEntity) -> str | None:
+        """Why `node` cannot be an `accepted_cost`, or None if it can be.
+
+        The role has been documented as "the CHOSEN side's minus" in five places
+        (`GroundedInRelationship`, `GroundLink.role`, `GRAPH_SCHEMA`,
+        `_TOOL_DOCS["record_decision"]`, `_DECISION_READINESS`) and enforced in
+        none, so the concern attached whatever hash the model handed it. Twice
+        measured: one bench round recorded EVERY `accepted_cost` on the
+        Perspective — the tension rather than its price, which is why
+        `claim2-weak-r5` rendered no condition clauses — and another put one on a
+        Statement sitting at `T/T-`. Only the framework-derived path
+        (`Advisor._accepted_cost_ground`) ever got the position right.
+
+        **Structural half only.** A cost is a minus (Rule 3.1's dialogical
+        reading: T− is the risk of what is said, a plus is a goal or an
+        obligation), and *that* is decidable by walking the graph. WHICH minus —
+        the chosen side's, not the one the choice avoided — needs the stance read
+        against the poles, so it stays with `DecisionCoherenceCheck`. This guard
+        deliberately accepts either minus rather than reaching for a semantic
+        call it cannot make reliably.
+
+        **Refuse, not downgrade.** Attaching the ground with `role=None` was the
+        obvious alternative and is wrong: archive-wide, decisions with no
+        `accepted_cost` passed 17 of 19 against 68 of 120 with one, so quietly
+        dropping the role turns a mis-citation into the cheapest way to clear the
+        audit. Refusal costs a turn and keeps the price; the message names the
+        candidate hashes so the retry is a substitution, not a re-derivation.
+        The ceremony already happened in conversation, so the wording survives
+        the refusal — nothing is asked of the person again.
+
+        Fail-OPEN on a repository fault: a confirmed decision must not be lost to
+        a lookup that could not run. The audit still sees the ground.
+        """
+        from dialectical_framework.graph.nodes.perspective import Perspective
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        cost_edges = {edge for _label, _accessor, edge in COST_POSITIONS}
+        try:
+            if isinstance(node, Statement):
+                found = PerspectiveRepository().find_by_statement(node)
+                if any(edge in cost_edges for _pp, edge in found):
+                    return None
+                held = sorted({edge for _pp, edge in found})
+                was = (
+                    f"sits at {'/'.join(held)}, not at a price position"
+                    if held
+                    else "sits at no position in any tension"
+                )
+                candidates = cls._cost_candidates([pp for pp, _edge in found])
+            elif isinstance(node, Perspective):
+                was = "is the tension itself, not the price of resolving it"
+                candidates = cls._cost_candidates([node])
+            else:
+                was = f"is a {node.__class__.__name__}, which names no price"
+                candidates = []
+        except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
+            return None
+
+        message = (
+            f"ground [[{node.short_hash}]] is marked accepted_cost but {was}. "
+            "The accepted cost is the chosen side's overdevelopment — the risk "
+            "that side's one-sidedness carries (T- or A-), never a plus and "
+            "never the tension as a whole."
+        )
+        if candidates:
+            message += f" Available here: {', '.join(candidates)}."
+        message += (
+            " Re-record with the risk actually confronted; this node can still "
+            "be a plain ground (omit the role)."
+        )
+        return message
+
+    @staticmethod
+    def _cost_candidates(perspectives: list) -> list[str]:
+        """`T- [[hash]]` references for the minus aspects of `perspectives`.
+
+        Turns a refusal into a substitution: the model is told which hashes WOULD
+        be prices, from the very node it mis-cited. Deduplicated by hash —
+        sibling perspectives share most minus aspects (7 of 10, measured live).
+        """
+        out: list[str] = []
+        seen: set[str] = set()
+        for pp in perspectives:
+            for label, accessor, _edge in COST_POSITIONS:
+                try:
+                    aspects = getattr(pp, accessor).all()
+                except Exception:  # noqa: BLE001 - a hint, never a blocker
+                    continue
+                for aspect, _rel in aspects:
+                    if not aspect.is_committed or aspect.hash in seen:
+                        continue
+                    seen.add(aspect.hash)
+                    out.append(f"{label} [[{aspect.short_hash}]]")
+        return out
+
     @staticmethod
     def _unpriced_aspects(
         attached: list[tuple[AssessableEntity, str | None]],
@@ -326,7 +444,7 @@ class RecordDecision(ReasonableConcern[str | None]):
         for node, _role in attached:
             if not isinstance(node, Perspective):
                 continue
-            for label, accessor in (("T-", "t_minus"), ("A-", "a_minus")):
+            for label, accessor, _edge in COST_POSITIONS:
                 try:
                     aspects = getattr(node, accessor).all()
                 except Exception:  # noqa: BLE001 - an audit input, never a blocker

@@ -139,9 +139,15 @@ class TestRecordDecisionConcern:
             RecordDecision,
         )
 
+        from test_dialectical_context import _create_perspective_with_aspects
+
         sid = _new_sid()
         with scope(sid):
-            ground = _committed_statement()
+            # A REAL minus aspect, not a bare statement: `accepted_cost` is the
+            # chosen side's overdevelopment and the concern now enforces the
+            # position (see TestAcceptedCostMustBeAPrice).
+            pp = _create_perspective_with_aspects()
+            ground, _ = pp.t_minus.get()
 
             concern = RecordDecision()
             decision_hash = await concern.resolve(
@@ -455,9 +461,14 @@ class TestRecordDecisionToolBoundary:
             record_decision,
         )
 
+        from test_dialectical_context import _create_perspective_with_aspects
+
         sid = _new_sid()
         with scope(sid):
-            ground = _committed_statement()
+            # A real minus aspect: the position guard runs on this path too, so a
+            # bare statement here would fail for a reason that is not the
+            # boundary under test (it did, before the fixture was corrected).
+            ground, _ = _create_perspective_with_aspects().t_minus.get()
             result = await record_decision(
                 question="Which job offer to take?",
                 stance="Accept the startup offer",
@@ -1025,6 +1036,239 @@ class TestRepairGroundsTheTensionItMatched:
             f"grounding its own perspective: {cost_lines}"
         )
         assert any("Control" in ln for ln in cost_lines)
+
+
+class TestAcceptedCostMustBeAPrice:
+    """The `accepted_cost` role, documented in five places and enforced in none.
+
+    `RecordDecision` attached whatever hash the model handed it. Measured twice:
+    one bench round recorded EVERY `accepted_cost` on the Perspective — the
+    tension rather than its price, which is why `claim2-weak-r5` rendered 0
+    condition clauses from 6 recorded costs — and another put one on a Statement
+    sitting at `T/T-`. A record claiming a cost was weighed when the cited node
+    names no cost is worse than one with no cost at all, because the wobble
+    re-audit reassures from it.
+
+    Scope of the guard, asserted here so it is not mistaken for the whole fix:
+    it decides "is this a minus at all", which is graph-walking. WHICH minus —
+    the chosen side's, not the risk the choice AVOIDED — needs the stance read
+    against the poles and stays with `DecisionCoherenceCheck`. So this class
+    accepts A- on a thesis decision (last test): over-reaching into semantics is
+    the false-positive direction that would refuse valid records.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_tension_itself_is_refused_with_its_prices_named(self):
+        """The measured failure: `accepted_cost` on the Perspective.
+
+        The refusal must be a substitution, not a re-derivation — it names the
+        T-/A- hashes of the very node that was mis-cited, so a weak model can
+        retry by swapping one hash.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink,
+            RecordDecision,
+        )
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            t_minus, _ = pp.t_minus.get()
+            a_minus, _ = pp.a_minus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="Going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=pp.hash, role="accepted_cost")],
+            )
+
+            assert result is None and not concern.report.ok
+            summary = concern.report.summary
+            assert "the tension itself" in summary, summary
+            assert t_minus.short_hash in summary, (
+                f"the retry must be a substitution, not a search: {summary}"
+            )
+            assert a_minus.short_hash in summary, summary
+            # Nothing half-built: the refusal happens before the commit.
+            assert DecisionRepository().find_all() == []
+
+    @pytest.mark.asyncio
+    async def test_a_plus_aspect_is_refused_and_the_position_is_named(self):
+        """A plus is a goal or an obligation, so asking for one yields a remedy.
+
+        This is the error the role was already corrected for once — it recorded
+        "Bind CEO with retention-linked exit clause" as a price in 4 of 6 runs.
+        The message states the position found, because "not a price" without
+        "you cited T+" leaves the model guessing which way to move.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink,
+            RecordDecision,
+        )
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            t_plus, _ = pp.t_plus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="Going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=t_plus.hash, role="accepted_cost")],
+            )
+
+            assert result is None and not concern.report.ok
+            assert "T_PLUS" in concern.report.summary, concern.report.summary
+
+    @pytest.mark.asyncio
+    async def test_a_statement_in_no_tetrad_is_refused(self):
+        """A free-standing statement carries no position, so it prices nothing.
+
+        The pre-guard fixture in `test_records_with_human_rationale_and_grounds`
+        was exactly this shape — the sloppiness was in the test too.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink,
+            RecordDecision,
+        )
+
+        with scope(_new_sid()):
+            loose = _committed_statement("Buy him out now")
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Buy out or keep?",
+                stance="Buy him out",
+                rationale="The partnership is not recoverable.",
+                grounds=[GroundLink(hash=loose.hash, role="accepted_cost")],
+            )
+
+            assert result is None and not concern.report.ok
+            assert "no position in any tension" in concern.report.summary
+
+    @pytest.mark.asyncio
+    async def test_the_same_node_is_accepted_as_a_plain_ground(self):
+        """The refusal is about the ROLE, never about the node's admissibility.
+
+        Downgrading to `role=None` is the repair the message offers, so it has to
+        work — and the guard must not leak into plain grounds, which are how a
+        decision cites the tension it resolved.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink,
+            RecordDecision,
+        )
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="Going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=pp.hash, role=None)],
+            )
+
+            assert result is not None and concern.report.ok
+
+    @pytest.mark.asyncio
+    async def test_the_framework_derived_ground_passes_unchanged(self):
+        """The one path that always got the position right must stay unblocked.
+
+        `Advisor._accepted_cost_ground` resolves the chosen side's minus plus the
+        perspective as a plain ground. A guard that refused its own framework's
+        output would be a regression dressed as a fix, so the derived pair is
+        run through `resolve()` end to end rather than inspected.
+        """
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.concerns.decision_confirmation_check import \
+            ConfirmationVerdictDto
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            polarity, _ = pp.polarity.get()
+            grounds = Advisor._accepted_cost_ground(
+                ConfirmationVerdictDto(
+                    confirmed=True,
+                    question="Control or freedom?",
+                    stance="I'm going with control",
+                    chosen_polarity_hash=polarity.hash,
+                    chosen_side="T",
+                )
+            )
+            assert grounds, "the derived ground did not resolve — fixture drift"
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=grounds,
+            )
+
+            assert result is not None, concern.report.summary
+            recorded = DecisionRepository().find_all_active()[0]
+            roles = {rel.role for _node, rel in recorded.grounds.all()}
+            assert roles == {"accepted_cost", None}, roles
+
+    @pytest.mark.asyncio
+    async def test_the_unchosen_side_minus_is_allowed_through(self):
+        """The deliberate limit: this guard does not read the stance.
+
+        Recording A- as the price of choosing the thesis is wrong — that is the
+        risk the choice AVOIDED — but telling it from the right answer needs the
+        stance matched against the poles, which is a semantic call. Refusing it
+        structurally would mean guessing, and a false refusal costs a confirmed
+        decision. `DecisionCoherenceCheck` owns this half; asserted so the
+        boundary is a decision on record, not an oversight.
+        """
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink,
+            RecordDecision,
+        )
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            pp = _create_perspective_with_aspects()
+            a_minus, _ = pp.a_minus.get()
+
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="Going with control",  # chose T, so the price is T-
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=a_minus.hash, role="accepted_cost")],
+            )
+
+            assert result is not None and concern.report.ok
+
+    def test_the_cost_positions_constant_has_one_owner(self):
+        """Three consumers read it; a hand-typed fourth copy would drift.
+
+        `_unpriced_aspects` carried the (label, accessor) pair inline before the
+        guard needed the same pair plus its edge type.
+        """
+        import inspect
+
+        from dialectical_framework.concerns import record_decision as module
+
+        assert module.COST_POSITIONS == (
+            ("T-", "t_minus", "T_MINUS"),
+            ("A-", "a_minus", "A_MINUS"),
+        )
+        src = inspect.getsource(module)
+        assert src.count('"t_minus"') == 1, (
+            "the accessor is re-typed somewhere — read COST_POSITIONS instead"
+        )
+        assert src.count("COST_POSITIONS") >= 4
 
 
 class TestUnpricedAspectsResolution:
