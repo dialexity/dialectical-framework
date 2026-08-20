@@ -2222,6 +2222,65 @@ class TestTheStatusBoardReadsTheArchiveCorrectly:
                 section()
             assert buffer.getvalue().strip(), f"section {name!r} printed nothing"
 
+    def test_the_unread_list_is_debt_and_nothing_else(self):
+        """"Unjudged" is not "unread", and the section that says what is owed
+        must not pad the list with work that is done.
+
+        Two padding sources, both real before this pin: `unread()` globbed
+        `results/*.json` itself instead of using `_stems()`, so the `smoke*`
+        exclusion that `across_runs`, `probe_cell_cost`, `probe_five_fixes` and
+        `probe_rationale_integrity` all apply was missing; and the four probe
+        rounds were listed as debt though every cell of them was hand-labelled
+        (labels pinned against the saved text elsewhere in this file). Eleven
+        rows, two of them real. The failure mode is not cosmetic — it buries the
+        lane that IS owed a judge pass among rows that are finished, and the
+        first thing a new session reads is this board.
+
+        Asserted from the archive rather than from a literal list, so a new probe
+        round or a new smoke run cannot age the pin out.
+        """
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            status.unread()
+        text = buffer.getvalue()
+
+        debt_table, _, hand_block = text.partition("READ BY HAND-LABEL")
+
+        hand = status._hand_labelled()
+        assert hand, "no probe stems are hand-labelled — the pin is vacuous"
+        for stem in hand:
+            assert stem not in debt_table, (
+                f"{stem} is listed as unread debt, but the probe read every one "
+                "of its cells by hand — that IS the reading for a probe round"
+            )
+            assert stem in hand_block, (
+                f"{stem} vanished from the board entirely; a hand-read round must "
+                "still be visible, just not as debt"
+            )
+
+        smokes = sorted(
+            p.stem for p in RESULTS.glob("*.json") if p.stem.startswith("smoke")
+        )
+        assert smokes, "no smoke runs on disk — the exclusion pin is vacuous"
+        for stem in smokes:
+            assert stem not in text, (
+                f"{stem} is on the unread board: a 1-2 cell harness check is not "
+                "evidence anybody owes a reading of, and every other reader in "
+                "this package already excludes `smoke*` via `_stems()`"
+            )
+
+        # And the section must still print the debt it exists for.
+        owed = [
+            stem
+            for stem in _stems()
+            if stem not in hand
+            and (load_records(RESULTS / f"{stem}.json").get("runs") or [])
+            and not (load_records(RESULTS / f"{stem}.json").get("comparisons") or [])
+        ]
+        assert owed, "no unjudged runs left on disk — nothing to pin"
+        for stem in owed:
+            assert stem in debt_table, f"genuinely unjudged {stem} is not listed"
+
     def test_the_board_names_the_unopened_scenarios(self):
         """Declared-but-never-judged is the headline, not a footnote.
 

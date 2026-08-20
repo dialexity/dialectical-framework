@@ -145,25 +145,46 @@ def coverage() -> None:
               f"{sum(dropped.values())} dropped as invalid — see valid_comparisons)")
 
 
+def _hand_labelled() -> set[str]:
+    """Stems a PROBE read cell by cell, rather than the judge.
+
+    Imported from the probe that owns the labels, never re-typed here, so a
+    fifth probe round cannot silently reappear as debt.
+    """
+    from e2e.probe_price_arithmetic import LABELS
+
+    return set(LABELS)
+
+
 def unread() -> None:
-    """Runs that exist on disk but were never judged, and controls never run.
+    """Runs that exist on disk but were never READ, and controls never run.
 
     The dangerous item is not a missing scenario, it is a scenario whose RUNS
-    are saved and whose judging never happened: its transcripts are paid for and
+    are saved and whose reading never happened: its transcripts are paid for and
     re-judging is minutes instead of hours (`DIALEXITY_E2E_REJUDGE`).
+
+    "Unjudged" is not "unread", and conflating them broke this section in the one
+    way that matters. It scanned `RESULTS.glob` directly instead of `_stems()`,
+    so the `smoke*` exclusion every other reader applies was missing, and it
+    counted the four hand-labelled probe rounds as debt — each of which was read
+    cell by cell, with the labels pinned against the saved text in `test_e2e.py`.
+    Eleven rows, of which two were real: the one lane genuinely owed a judge pass
+    (`claim2-weak-r11-particulars`, 12 cells) sat buried among rows that were
+    done. A board that overstates debt is read as noise, which costs the same as
+    one that overstates coverage.
     """
     print("## Unread — paid for, not yet read\n")
-    rows = []
-    for path in sorted(RESULTS.glob("*.json")):
-        stem = path.stem
-        if stem.endswith("-runs"):
-            continue
-        payload = load_records(path)
+    hand = _hand_labelled()
+    rows: list[tuple[str, int, str]] = []
+    probed: list[tuple[str, int, str]] = []
+    for stem in _stems():
+        payload = load_records(RESULTS / f"{stem}.json")
         runs = payload.get("runs") or []
         comparisons = payload.get("comparisons") or []
-        if runs and not comparisons:
-            scen = sorted({r.get("scenario_key") for r in runs})
-            rows.append((stem, len(runs), ",".join(scen)))
+        if not runs or comparisons:
+            continue
+        scen = ",".join(sorted({r.get("scenario_key") for r in runs}))
+        (probed if stem in hand else rows).append((stem, len(runs), scen))
     if rows:
         print(f"{'stem':38} {'runs':>5}  scenarios")
         print("-" * 84)
@@ -173,7 +194,15 @@ def unread() -> None:
         print("  DIALEXITY_E2E_REJUDGE=<stem> poetry run pytest \\")
         print("    tests/e2e/test_e2e_run.py::test_e2e_rejudge --real-llm -s")
     else:
-        print("(none — every saved run has been judged)")
+        print("(none — every saved run has been judged or hand-read)")
+
+    if probed:
+        print("\nREAD BY HAND-LABEL, not by the judge (not debt — this is how a "
+              "probe reads):")
+        for stem, n, scen in probed:
+            print(f"  {stem:36} {n:>5}  {scen}")
+        print("  Labels and their deciding quotes: "
+              "probe_price_arithmetic.py::LABELS")
 
     if SUPERSEDED:
         print(f"\nSUPERSEDED (excluded from every pooled cut): "
