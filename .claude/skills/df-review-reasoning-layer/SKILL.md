@@ -142,7 +142,16 @@ anchors.
       three runs is **four times rarer** than the one sitting beside it in the same audit output. When editing
       `aspect_generation.py`, the load-bearing clause is the "takes up what the opposition offers" half, NOT the
       parentage half; check it is a positive specification with an example, since "develops T" alone is
-      satisfied by a restatement. Its own endpoint, not yet a probe primary.
+      satisfied by a restatement. **The fix shipped as a CHECK, not a fifth restatement, and that choice is the
+      transferable part:** the take-up clause was already asserted four times (`ASPECT_DEFINITIONS`, the
+      `TetradDto` plus fields, `_tetrad_prompt` step 1, both sibling prompts) and ran at 13.3%, while
+      minus-parentage — the one rule with a re-read step in the numbered procedure — ran at 3.1%. Forcefulness of
+      statement was not the difference; being verified was. So `PLUS_RESTATEMENT_CHECK` is stated ONCE and
+      interpolated into all three generation paths (`test_prompt_review_regressions.py::TestPlusTakeUpIsChecked`
+      pins that, including that it is absent for minus positions — asking a minus not to develop its parent
+      one-sidedly would invert R1). Whether it works is pre-registered, not assumed:
+      `tests/e2e/probe_plus_takeup.py`, powered 0.85 for a two-thirds cut and **0.52 for a halving, so a null
+      there bounds the effect and does not refute the check**.
 - [ ] **A risk the person wants dropped stays priced (R1 dialogical + R5.1).** `_INTERNAL_MODEL` distinguishes a
       correction about their SITUATION (take it — they are the authority) from an instruction to delete T−. Their
       fact resizes the price, or it dissolves the tension and takes that side's pull with it — **"never zeroes it"

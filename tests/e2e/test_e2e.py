@@ -10450,3 +10450,17 @@ class TestOptionPairProbeGuardsRunInTheDefaultSuite(_OptionPairGuards):
     Inherited rather than duplicated: a copy would drift from the probe, and the
     thing being protected is that the probe's docstring numbers stay true.
     """
+
+
+from e2e.probe_plus_takeup import \
+    TestThePreRegistrationIsAuditable as _PlusTakeUpGuards
+
+
+class TestPlusTakeUpProbeGuardsRunInTheDefaultSuite(_PlusTakeUpGuards):
+    """The plus-take-up A/B's free guards, re-collected.
+
+    These carry more weight than a population pin: one of them IS that probe's
+    manipulation check. It renders both arms and asserts the baseline actually
+    subtracts the fix, so a silent no-op patch — which would produce a null that
+    reads as evidence — fails here, in the default suite, without a provider call.
+    """

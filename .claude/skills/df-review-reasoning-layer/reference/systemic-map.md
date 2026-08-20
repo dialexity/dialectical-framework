@@ -845,8 +845,22 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    clause and check it carries a positive specification plus an example — a bare "develops T" is
    satisfied by a restatement. A second, rarer shape appears when the two poles are not one axis:
    the plus becomes a **hybrid of both poles** ("Intentional hub-and-spoke model", "Developing
-   internal talent while filling urgent gaps"), scored `neither`. Neither shape has been a probe
-   PRIMARY yet; both need one before any prompt edit is justified by them.
+   internal talent while filling urgent gaps"), scored `neither`. **The restatement shape is now a probe
+   PRIMARY** — `tests/e2e/probe_plus_takeup.py`, an A/B of `PLUS_RESTATEMENT_CHECK` against the
+   subtracted-fix baseline, sized on the measured 13.3% (0.85 for a two-thirds cut, 0.52 for a halving).
+   The hybrid/`neither` shape still has none, and the over-correction it represents is the registered
+   secondary of that run: bolting the opposition on as a constraint ("Teams choose within centrally
+   aligned standards") hands the generative act to the other parent, so a fix for restatement can
+   manufacture drift. Any future edit here must measure BOTH directions.
+
+   **Why the fix is a check and not a fifth restatement** — the generalisable finding. The take-up clause
+   was already asserted 4× (`ASPECT_DEFINITIONS`, `TetradDto` plus fields, `_tetrad_prompt` step 1, both
+   sibling prompts) and ran at 13.3%; minus-parentage had a RE-READ STEP in the numbered procedure and ran
+   at 3.1%. **A rule asserted more times is not a rule enforced more; the one with a verification step was
+   the one that held.** So `PLUS_RESTATEMENT_CHECK` is one constant interpolated into all three generation
+   paths, plus-positions only (`TestPlusTakeUpIsChecked`). Reach for a re-read step before reaching for
+   emphasis — and note this is the same shape as §6's "a guard in a `probe_*.py` file is not in the net at
+   all": stating a rule and checking a rule are different acts, in prompts and in tests alike.
 7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 
