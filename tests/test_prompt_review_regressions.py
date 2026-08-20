@@ -272,6 +272,123 @@ class TestTetradParentage:
         assert "Derive each aspect from its own parent above" in src
 
 
+class TestPlusTakeUpIsChecked:
+    """R1 take-up: a plus must develop its parent so the parent's result ALSO
+    supplies what the other pole is for. A plus that only restates its own pole's
+    native benefit fails the rule.
+
+    Guards the more common of the two measured tetrad defects, not the rarer one.
+    `tests/e2e/probe_option_pair_tetrads.py` audited 128 plus slots on the weak
+    tier: 17 of them (13.3%) restated their own pole, against 3.1% minus-parentage
+    failures in the same audit output — 4x. The take-up clause was already
+    ASSERTED four times (`ASPECT_DEFINITIONS`, the `TetradDto` plus fields,
+    `_tetrad_prompt` step 1, and both sibling prompts) and still ran at 13.3%,
+    while minus-parentage — the one rule with a re-read step — ran at 3.1%. The
+    difference was not how forcefully each rule was stated; it was that only one
+    of them was CHECKED. So the fix is a verification step, stated once as
+    `PLUS_RESTATEMENT_CHECK` and interpolated into every generation path — a
+    fifth restatement of the rule would have been the thing already measured to
+    not work.
+    """
+
+    def test_the_check_is_stated_once_and_interpolated_not_re_typed(self):
+        """One constant, three call sites. Re-typed prose is how the other four
+        assertions of this rule drifted apart in the first place."""
+        from dialectical_framework.concerns import aspect_generation
+
+        assert "Restated parent:" in aspect_generation.PLUS_RESTATEMENT_CHECK
+
+        for method in (
+            aspect_generation.AspectGeneration._tetrad_prompt,
+            aspect_generation.AspectGeneration._contradiction_pair_prompt,
+            aspect_generation.AspectGeneration._single_aspect_prompt,
+        ):
+            src = inspect.getsource(method)
+            assert "{PLUS_RESTATEMENT_CHECK}" in src, (
+                f"{method.__name__} does not interpolate the check — a generation "
+                "path with no verification step is the 13.3% baseline"
+            )
+
+        # the constant's own wording must exist in exactly one place
+        module_src = inspect.getsource(aspect_generation)
+        assert module_src.count("if a plus only names what its own parent") == 1
+
+    def test_tetrad_prompt_re_read_step_covers_both_failures_distinctly(self):
+        """Step 3 used to be parentage-only. Both defects are re-read failures of
+        step 1, and they are NOT the same failure: one is wrong parentage, the
+        other is correct parentage with no take-up."""
+        from dialectical_framework.concerns import aspect_generation
+
+        src = inspect.getsource(aspect_generation.AspectGeneration._tetrad_prompt)
+        assert "two distinct failures" in src
+        assert "(a) Wrong parent:" in src
+        assert "(b) {PLUS_RESTATEMENT_CHECK}" in src
+
+    def test_system_prompt_teaches_the_plus_failure_and_its_over_correction(self):
+        """The one worked "mistake to avoid" covered only the minus defect — the
+        rarer one. The plus example must show BOTH ways to get it wrong, because
+        the obvious repair produces the other defect: bolting the opposition on as
+        a constraint hands the generative act to the other parent, and the
+        probe's auditor scored a real instance of that as `other_pole`."""
+        from dialectical_framework.concerns.aspect_generation import SYSTEM_PROMPT
+
+        assert "The mistake to avoid on a plus." in SYSTEM_PROMPT
+        # failure 1: own-pole benefit restated, nothing taken up
+        assert "taking up nothing standardisation is for" in SYSTEM_PROMPT
+        # failure 2: the over-correction — T+ wearing A's clothes
+        assert "hands the generative act to T and is T+ in A's clothes" in SYSTEM_PROMPT
+        # and the repair, stated positively: parent still generative, result takes
+        # up (substrings kept within one source line — the prompt is hard-wrapped)
+        assert "A+ keeps team choice as" in SYSTEM_PROMPT
+        assert "the generative act AND yields what standardisation is for" in SYSTEM_PROMPT
+        assert "interoperability arrives as its result" in SYSTEM_PROMPT
+        # drawn from outside the measured population, same rule as the minus
+        # counter-example above: a post-fix win must stay attributable
+        for probed in ("hiring", "cofounder", "Freedom"):
+            assert probed not in SYSTEM_PROMPT
+
+    @pytest.mark.parametrize(
+        "position,expect_check",
+        [
+            ("T+", True),
+            ("A+", True),
+            ("T-", False),
+            ("A-", False),
+        ],
+    )
+    def test_single_aspect_prompt_checks_pluses_only(self, position, expect_check):
+        """Rendered, not source-inspected: the check is CONDITIONAL here, and a
+        source assertion cannot see which branch a minus takes. Asking a minus not
+        to restate its own parent would invert R1 — one-sided overdevelopment of
+        its parent is exactly what a minus is for.
+        """
+        from dialectical_framework.concerns import aspect_generation
+        from dialectical_framework.concerns.aspect_generation import \
+            AspectGeneration
+        from dialectical_framework.graph.nodes.statement import Statement
+
+        # DB-free render: the prompt builders read only these five attributes,
+        # and `_build_avoid_context` short-circuits on an empty `not_like_these`.
+        gen = AspectGeneration.__new__(AspectGeneration)
+        gen._thesis = Statement(
+            text="Standardise the deployment toolchain",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Coherence",
+        )
+        gen._antithesis = Statement(
+            text="Let each team choose its own toolchain",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Flexibility/Adaptation",
+        )
+        gen._text = ""
+        gen._not_like_these = []
+        gen._existing_aspects = {}
+
+        rendered = gen._single_aspect_prompt(position, "")
+        present = aspect_generation.PLUS_RESTATEMENT_CHECK in rendered
+        assert present is expect_check, (
+            f"{position}: check present={present}, expected={expect_check}"
+        )
+
+
 # --- H1: transformation worked example ---------------------------------------
 
 

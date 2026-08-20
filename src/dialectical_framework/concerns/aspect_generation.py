@@ -124,7 +124,35 @@ warning" is wrong. It does sit opposite Trust on that axis — but recklessness 
 COURAGE overdeveloped, so that content belongs at T- (Foolhardiness), and A- is
 left with nothing. A- must be FEAR overdeveloped: Paranoia.
 
+The mistake to avoid on a plus. T = "Standardise the deployment toolchain across
+every team", A = "Let each team choose its own toolchain". Writing A+ =
+"Team-driven choices enable rapid local optimization" is wrong: that is A's own
+native benefit restated, taking up nothing standardisation is for, so it
+restates A instead of developing it. The repair is not to bolt the opposition on
+as a constraint either — A+ = "Teams choose within centrally aligned standards"
+hands the generative act to T and is T+ in A's clothes. A+ keeps team choice as
+the generative act AND yields what standardisation is for: "Teams publish their
+chosen toolchain for others to adopt" — choosing still drives it, and
+interoperability arrives as its result.
+
 Generate aspect statements that fit the semantic structure."""
+
+
+# The verification clause every generation path in this file was missing.
+#
+# The take-up half of Rule 1 is already ASSERTED four times over — in
+# `ASPECT_DEFINITIONS`, in the `TetradDto` field descriptions, and in each
+# prompt's own procedure — and was still violated in **17 of 128 audited plus
+# slots (13.3%)** on the weak tier (`tests/e2e/probe_option_pair_tetrads.py`).
+# Minus-parentage, the rule that had a re-read step, ran at 3.1% in the same
+# audit output. The difference between the two was not how forcefully each rule
+# was stated; it was that only one of them was checked. Hence a check, stated
+# once here and interpolated, rather than a fifth restatement of the rule.
+PLUS_RESTATEMENT_CHECK = (
+    "Restated parent: if a plus only names what its own parent already "
+    "delivers, rewrite it so the parent stays the generative act while its "
+    "result also supplies what the other pole is for."
+)
 
 
 # --- DTOs ---
@@ -679,7 +707,7 @@ Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
 For each pair:
 1. Derive each aspect from ITS OWN parent — a plus develops that parent so it also takes up what the other pole offers; a minus overdevelops that parent one-sidedly, with the other pole absent.
 2. Then name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
-3. Re-read both aspects against step 1. If one of them is really the OTHER parent developed, rewrite it from its own parent; opposing the facing aspect well is not a reason to keep the wrong parentage.
+3. Re-read both aspects against step 1 for two distinct failures. (a) Wrong parent: if one is really the OTHER parent developed, rewrite it from its own parent; opposing the facing aspect well is not a reason to keep the wrong parentage. (b) {PLUS_RESTATEMENT_CHECK}
 If T and A do not admit a genuine shared axis of opposition, say so in the pair's `axis` field rather than inventing two unrelated aspects.
 
 Generate each aspect (1-{max_words} words) with:
@@ -740,7 +768,9 @@ Each one has a fixed parent:
 - {positive_pos} develops "{pos_parent.prompt_text}" constructively, so that it also takes up what the opposing pole offers.
 - {negative_pos} overdevelops "{neg_parent.prompt_text}" one-sidedly, with the opposing pole absent.
 
-Derive each aspect from its own parent above. Then name the **axis** — the single dimension on which they are opposite ends — and check that each sits at an opposite end of it. They cannot both hold at once. Do not build {negative_pos} by negating {positive_pos}: both poles can supply a negative end of the same axis, so negation alone leaves the parent undetermined. If no such shared axis exists, say so in the `axis` field rather than inventing two unrelated aspects."""
+Derive each aspect from its own parent above. Then name the **axis** — the single dimension on which they are opposite ends — and check that each sits at an opposite end of it. They cannot both hold at once. Do not build {negative_pos} by negating {positive_pos}: both poles can supply a negative end of the same axis, so negation alone leaves the parent undetermined. If no such shared axis exists, say so in the `axis` field rather than inventing two unrelated aspects.
+
+Then re-read {positive_pos}: {PLUS_RESTATEMENT_CHECK}"""
 
     def _single_aspect_prompt(self, position: str, existing_context: str) -> str:
         """Build prompt for single aspect generation."""
@@ -767,6 +797,13 @@ Derive each aspect from its own parent above. Then name the **axis** — the sin
         existing_section = f"\n{existing_context}\n" if existing_context else ""
         avoid_section = self._build_avoid_context()
         avoid_section = f"\n{avoid_section}\n" if avoid_section else ""
+        # Only the plus positions can fail this way — a minus is SUPPOSED to
+        # develop its parent one-sidedly, so asking it not to would invert the rule.
+        check_section = (
+            f"\nAfter drafting it, re-read: {PLUS_RESTATEMENT_CHECK}\n"
+            if position in (POSITION_T_PLUS, POSITION_A_PLUS)
+            else ""
+        )
 
         return f"""{text_section}Generate {position} for this thesis-antithesis pair.
 
@@ -775,7 +812,7 @@ Antithesis (A): "{self._antithesis.prompt_text}"
 
 {position} is the {desc}.
 Taxonomy apex concept: {apex}
-{existing_section}{avoid_section}
+{check_section}{existing_section}{avoid_section}
 Generate the aspect (1-{max_words} words) with:
 
 {HS_SCALE}
