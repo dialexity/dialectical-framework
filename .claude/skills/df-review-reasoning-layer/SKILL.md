@@ -133,6 +133,16 @@ anchors.
       regresses to Re-, Re+ without Ac+ drifts to Ac-". Restated across 4+ prompts with no owner — verify all agree.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
+- [ ] **A plus that only restates its own pole fails R1, and it is the most common measured tetrad defect
+      (13.3%).** R1 says T+/A+ are "constructive developments that actively **balance the other side** (not
+      merely 'positive')" — so "Team-driven toolchain choices enable rapid local optimization" on the autonomy
+      pole is a defect, not a plus: it names that pole's native benefit and takes up nothing standardisation
+      offers. `probe_option_pair_tetrads.py` audited 128 plus slots on the weak tier and found **17 (13.3%)
+      restating their parent**, against 3.1% minus-misparentage — i.e. the defect the probe lane chased across
+      three runs is **four times rarer** than the one sitting beside it in the same audit output. When editing
+      `aspect_generation.py`, the load-bearing clause is the "takes up what the opposition offers" half, NOT the
+      parentage half; check it is a positive specification with an example, since "develops T" alone is
+      satisfied by a restatement. Its own endpoint, not yet a probe primary.
 - [ ] **A risk the person wants dropped stays priced (R1 dialogical + R5.1).** `_INTERNAL_MODEL` distinguishes a
       correction about their SITUATION (take it — they are the authority) from an instruction to delete T−. Their
       fact resizes the price, or it dissolves the tension and takes that side's pull with it — **"never zeroes it"
@@ -397,6 +407,24 @@ anchors.
   running both prompts on the same cells doubles power only if the fix acts near-monotonically, and
   falls below unpaired Fisher once generation noise dominates the discordance. The same parentage
   prompt gave 4/72 and 9/72 on identical inputs, so plan against the noise-dominated row.
+- **A power number inherits the uncertainty of the base rate you feed it, so measure that rate
+  first.** Acting on rule (2) above, `probe_option_pair_tetrads.py` was sized on an assumed 40%
+  base rate in the enriched stratum and reported 0.86 power. The observed rate was **3.1% in both
+  strata** — below even the 18% the archive already had. Power for the proportional effect at the
+  real base rate was **0.01**, so the run could not have sized the follow-up A/B it existed to size.
+  `power.py` was not wrong; it was **conditional on a premise that had never been measured.** An
+  enrichment hypothesis is itself an untested hypothesis. Repair: spend one replicate × one ordering
+  (16 cells) as a **pilot to measure the base rate, then size** — or size on the rate you already
+  have. Sizing on the rate you hope for is how a careful-looking design ends up blind.
+- **A gate with no magnitude cannot fail, so it cannot invalidate anything.** The same run carried a
+  manipulation check registered as able to void its own primary — and registered as a DIRECTION only
+  (`mean_a < mean_b`). It passed on a separation of **0.026** and printed "MANIPULATION HELD" while
+  the two strata overlapped almost completely (3 of 8 cells in the predicted band, three at the
+  opposite extreme). That verdict had to be withdrawn after the fact, which demoted the primary from
+  a claim about the property to a claim about one hand-built population. This is the power defect in
+  a different costume: **every pre-registered gate needs a threshold it could realistically miss**,
+  and an invalidating gate needs one most of all, because it is the only thing standing between a
+  null and an overclaim. Check any `if x < y:` acceptance test for an implied magnitude of zero.
 - **One run cannot tell a fix from the favourable tail. Replicate before banking.** The
   parentage fix measured 4/72 on the first post-fix run — clearing its pre-registered
   `<= 4/72` bar by exactly zero margin, p=0.036 — and 9/72 on a replication with the same

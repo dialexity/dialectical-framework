@@ -10430,3 +10430,23 @@ class TestR24MechanismDistinctionResult:
         assert "the point estimate is *below* the pooled baseline rate" in block
         # And the sequence win must be reported as replicating, since it did.
         assert "r20's headline result replicates" in block
+
+
+# --- probe free-guard re-collection ------------------------------------------
+#
+# No `probe_*.py` file is collected by the default suite: pytest's default
+# `python_files` pattern is `test_*.py`, so a probe's free guards run ONLY when
+# someone names the file. That is a quiet failure mode of exactly the kind §6 of
+# the systemic map warns about — guards that exist, pass when invoked, and are
+# absent from the net that actually runs. Subclassing re-collects them here, so
+# the population pins and recorded-result arithmetic travel with the suite.
+from e2e.probe_option_pair_tetrads import \
+    TestThePopulationIsWhatTheDocstringClaims as _OptionPairGuards
+
+
+class TestOptionPairProbeGuardsRunInTheDefaultSuite(_OptionPairGuards):
+    """The option-pair probe's free guards, re-collected (see comment above).
+
+    Inherited rather than duplicated: a copy would drift from the probe, and the
+    thing being protected is that the probe's docstring numbers stay true.
+    """

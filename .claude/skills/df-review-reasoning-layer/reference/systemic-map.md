@@ -809,6 +809,17 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    Bands agree today but phrasing differs ("Perfect antithesis" vs "Exemplary").
 4. **Mode & Arousal scales stated 2× in one file** — `antithesis_classification.py` numeric dicts
    (`MODE_FIELDS`, `AROUSAL_VALUES`) + their markdown-table restatements in the same file's SYSTEM_PROMPT.
+
+   **4a. Do NOT use Mode as a structural detector — the documented tell does not reproduce.**
+   CLAUDE.md states that for option-pairs "Mode ~0.0–0.1 (distancing/privation) flags a fork that
+   isn't the tension". Measured on the weak tier over 8 hand-built option-pairs (both poles naming
+   mutually exclusive named plans) in `probe_option_pair_tetrads.py`: only **3 of 8 landed in that
+   band**; three read 0.90–1.00 (`market_entry` and `acquisition_call` as *negation*,
+   `pricing_migration` and `office_shape` as *inversion*). Mean Mode was **0.562 for option-pairs vs
+   0.588 for form-matched dimensional oppositions** — a 0.026 separation, i.e. none. 3/8 vs 0/8 is
+   p = 0.20, so this does not overturn the doc on one probe, but it does mean Mode **must not be
+   relied on to stratify or route** until it is measured on a population built for that question.
+   Anything that branches on a low Mode value is currently branching on noise.
 5. **Circular-causality direction (Ac+ = T-→A+) re-stated 4+×** — `transformation_generation`,
    `positive_ac_re_apex_derivation`, `action_extraction`, `synthesis_generation`, `ac_re_taxonomy` comments.
 6. **Diagonal-contradiction rule re-stated ~5×** — `COMPLEMENTARITY_SCALE` (last line), `aspect_generation`,
@@ -819,6 +830,23 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    field (the dimension the pair opposes along), so `aspect_generation` enforces diagonal contradiction through the
    output schema + an axis-first procedure rather than a trailing "Ensure T+ contradicts A-" line. Locked by
    `TestTetradDiagonalStructure` in `tests/test_prompt_review_regressions.py`.
+
+   **6a. The R1 clause that actually fails at generation is the OTHER one — "actively balances the
+   opposition" — and it is the largest measured tetrad defect.** R1: T+/A+ are "constructive
+   developments that actively balance the other side (not merely 'positive')". A plus that names its
+   own pole's native benefit satisfies "develops T" and violates R1. Audited across 128 plus slots on
+   the weak tier (`probe_option_pair_tetrads.py`): **17 (13.3%) restate their parent**, e.g.
+   "Team-driven toolchain choices enable rapid local optimization" on the autonomy pole, or
+   "Intentional preservation of organizational identity" on stay-independent — the auditor's words:
+   "restates rather than constructively develops". Compare **3.1% minus-misparentage** in the same
+   audit output, which is the defect the `probe_tetrad_pole` lane spent three runs and a replication
+   on: **the plus-restatement defect is ~4× more common than the one being chased.** So when editing
+   `aspect_generation.py`, treat the "takes up what the opposition offers" half as the load-bearing
+   clause and check it carries a positive specification plus an example — a bare "develops T" is
+   satisfied by a restatement. A second, rarer shape appears when the two poles are not one axis:
+   the plus becomes a **hybrid of both poles** ("Intentional hub-and-spoke model", "Developing
+   internal talent while filling urgent gaps"), scored `neither`. Neither shape has been a probe
+   PRIMARY yet; both need one before any prompt edit is justified by them.
 7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 
@@ -1788,6 +1816,21 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   Covers recovery-by-hash for `count()`/`all()`/`Perspective.t`/`.a`/`is_complete()`, id caching, the WARNING
   log, the still-legitimate silent empty read for an unsaved node, the pre-commit `save()`→connect build path
   (where `_id` is the only identity), and the `_id`/`hash`/`sid` identity in both T and A error messages.
+
+### A guard in a `probe_*.py` file is not in the net at all
+
+Sibling of the `real_llm` hazard below, and quieter, because nothing even reports a skip. Pytest's
+default `python_files = test_*.py` means **no `probe_*.py` file is collected by `poetry run pytest`**
+— its free guards run only when someone names the file on the command line. `pytest tests/e2e
+--collect-only | grep -c probe_option_pair` returned **0** while the same file reported "11 passed"
+when invoked directly, and the README had already been written claiming those guards "pin" the
+probe's numbers. They pinned nothing on any run anyone would actually do.
+
+Fix, and the convention for this lane: **subclass the probe's guard class inside `test_e2e.py`**
+(`TestOptionPairProbeGuardsRunInTheDefaultSuite`) so pytest re-collects the inherited methods.
+Inherit, never copy — a duplicated set of assertions drifts from the probe whose numbers it exists to
+protect. Check any new probe the same way, with `--collect-only | grep`, and note that
+`pytest <file>` passing tells you nothing about whether the suite runs it.
 
 ### A `real_llm`-marked test can be broken for months and look green
 

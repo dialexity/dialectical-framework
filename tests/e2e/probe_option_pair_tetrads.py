@@ -124,6 +124,89 @@ Pre-declared confounds:
     could ride on 1-2 unusual tensions. Per-tension counts are printed so that is
     visible rather than absorbed into the stratum mean.
 
+RESULT (2026-08-20, 64/64 tetrads generated, 256 audits, weak tier / fable-5 auditor)
+=====================================================================================
+PRIMARY: NULL, and read it with the manipulation check below before crediting it.
+  OPTION_PAIR  minus misparented  2/64 = 3.1%  [95% 0.9-10.7]  other=2 neither=0
+  OPPOSITION   minus misparented  2/64 = 3.1%  [95% 0.9-10.7]  other=1 neither=1
+  gap = +0.0%, Fisher p = 1.0000. No concentration.
+Power for the REGISTERED 15-point gap, recomputed at the base rate the run actually
+found (18% vs 3.1%): 0.74. So a LARGE concentration really is ruled out. For a
+moderate one (10% vs 3.1%) power was 0.21, and that case remains open.
+
+THE ENRICHMENT FAILED, WHICH IS THE MAIN LESSON AND IT IS ABOUT MY OWN METHOD.
+The entire design rationale was "look where the defect is dense". It is not dense
+here. I sized the run on a 40% base rate; the observed rate was **3.1% in BOTH
+strata** — lower than the archive's 18%, on new text. Consequences, stated plainly:
+  * Power for a proportional halving at the observed base (3.1% -> 1.55%) is **0.01**.
+    The `sizing input for a future parentage A/B` block correctly printed NOTHING,
+    because a rate that low cannot size anything at n=64.
+  * So `power.py` was not wrong — it was **conditional on a premise I had not
+    measured.** A power figure inherits the uncertainty of the base rate fed into
+    it, and I fed it a hope. This is the direct successor to the 0.28 lesson and it
+    is a distinct failure: *an enrichment hypothesis is itself an untested
+    hypothesis, and sizing a run on a base rate you have not yet observed produces a
+    power number that is only as good as that guess.* The cheap repair is a pilot
+    (one replicate, one ordering, 16 cells) to MEASURE the base rate, then size.
+    Sizing on the rate you already have (18%) would also have been honest; sizing on
+    40% was not.
+
+MANIPULATION CHECK: it printed HELD, and that verdict is WITHDRAWN.
+  mean Mode  OPTION_PAIR 0.562   OPPOSITION 0.588
+The registered gate asked only for a DIRECTION (op < opp). It got one, by 0.026, and
+declared the strata separated. That is the same error class as registering a bar with
+no power: **a gate with no magnitude cannot fail, so it cannot invalidate anything.**
+Reading the per-tension values, the strata do not separate at all — only 3 of 8
+option-pairs land in the 0.0-0.1 band CLAUDE.md predicts (hiring_route, platform_bet,
+funding_route at 0.10), while three read 0.90-1.00 (market_entry, acquisition_call
+negation; pricing_migration, office_shape inversion). 3/8 vs 0/8 is p=0.20.
+  * Therefore the PRIMARY NULL IS NOT A CLAIM ABOUT OPTION-PAIRS. It is a claim
+    about these 16 tensions as I labelled them. The option-pair hypothesis is
+    neither supported nor refuted by this run.
+  * And a claim in CLAUDE.md does not reproduce: "mutually exclusive options ...
+    Mode ~0.0-0.1 (distancing/privation) flags a fork that isn't the tension". On
+    the weak tier, 5 of 8 hand-built option-pairs read 0.40-1.00. Flagged, not
+    fixed — one probe on 16 tensions does not overturn a doc, but it does mean the
+    tell must not be relied on as a stratifier until it is measured properly.
+  * The gate was given a magnitude threshold AFTER this run (`_PREREG_MODE_SEP`),
+    which does not retroactively rescue this result and is not applied to it.
+
+THE PREDICTED MECHANISM WAS RIGHT ABOUT WHERE AND WRONG ABOUT WHAT.
+Registered prediction: plus-aspects in option-pairs drift to `other_pole`. Observed
+the OPPOSITE shape, and the strata differ on it:
+  PLUS  OPTION_PAIR  other_pole=1  neither=4        (5/64 = 7.8%)
+  PLUS  OPPOSITION   other_pole=4  neither=0        (4/64 = 6.2%)
+  Fisher on that 2x2: p = 0.0476.
+Option-pairs fail by inventing a THIRD course of action that fuses both plans —
+"Intentional hub-and-spoke model", "Strategic integration of external opportunity
+with internal capability", "Developing internal talent while filling urgent gaps" —
+which the auditor scores `neither`. Oppositions instead hang the aspect on the wrong
+END of the single axis, which scores `other_pole`. That is consistent with the
+structural reason this probe was built on (no single axis to develop along), but:
+the direction was opposite to what I registered, n is 5 vs 4, and it is one of three
+pre-registered secondaries. **Banked as a hypothesis generated here, not as a
+finding.** Testing it needs the compromise/hybrid shape as the PRIMARY endpoint on a
+fresh population.
+
+THE BIGGEST DEFECT IN THIS OUTPUT IS NOT PARENTAGE AT ALL.
+Of 27 flagged aspects, 12 are the auditor saying a plus "merely restates its pole
+without taking up what the other pole offers". Counting the registered valence
+endpoint across positions:
+  PLUS  valence_wrong  OPTION_PAIR 12/64  OPPOSITION 5/64   (p = 0.1162, pooled
+        17/128 = 13.3%)
+  MINUS valence_wrong  1/64 and 1/64                        (pooled 2/128 = 1.6%)
+So the plus positions violate Rule 1 — T+/A+ are "constructive developments that
+actively balance the other side (not merely 'positive')" — at **13.3%, roughly four
+times the 3.1% parentage rate this lane has been chasing across three runs.** The
+stratum difference is not significant; the ABSOLUTE rate is the point. That is the
+endpoint the next run should take, and it is measured rather than guessed.
+
+Secondary confound, recorded: the strata also differ in taxonomy domain spread
+(OPTION_PAIR Engineering 3 / Institutions 9 / General 4; OPPOSITION Engineering 7 /
+Institutions 9). Small, but it is a second difference riding alongside the intended
+one, and with the manipulation check withdrawn it cannot be ruled out as the live
+one.
+
 Run:
   poetry run pytest tests/e2e/probe_option_pair_tetrads.py -s --real-llm
   poetry run pytest tests/e2e/probe_option_pair_tetrads.py -s   (free: population,
@@ -227,6 +310,15 @@ _PREREG_NULL_GAP = 0.05
 _PREREG_ALPHA = 0.05
 #: Form matching is a design claim, so it is enforced rather than asserted in prose.
 _PREREG_MAX_WORD_COUNT_GAP = 2.0
+#: Minimum mean-Mode separation for the strata to count as separated.
+#:
+#: ADDED AFTER the 2026-08-20 run, and it does not apply to it. The gate as
+#: registered asked only for a direction, got one by 0.026, and printed HELD while
+#: the two strata overlapped almost completely. A gate with no magnitude cannot
+#: fail, so it cannot invalidate anything — the same defect as a pre-registered bar
+#: with no power calculation, in a different costume. 0.20 is the smallest gap that
+#: could not be produced by one or two tensions of the eight.
+_PREREG_MODE_SEP = 0.20
 
 
 def _words(text: str) -> int:
@@ -236,10 +328,18 @@ def _words(text: str) -> int:
 def _plan() -> list[tuple[str, str, str, int, str, str]]:
     """(stratum, label, ordering, replicate, t_text, a_text) for every cell.
 
-    Strata are INTERLEAVED rather than run in blocks: a provider that drifts over
-    the run would otherwise load that drift onto whichever stratum ran second,
-    which is precisely the confound that made two `probe_tetrad_pole` runs
-    incomparable.
+    Ordering matters for drift. The outer loops are replicate then ordering, so the
+    run makes four passes over all 16 tensions and each stratum appears in every
+    pass — a provider drifting over the ~30 minutes cannot land on one stratum only,
+    which is the confound that made two `probe_tetrad_pole` runs incomparable.
+
+    Stated precisely rather than flatteringly: WITHIN a pass the eight option-pairs
+    run before the eight oppositions, because `_TENSIONS` is grouped. So this is
+    alternating blocks of 8, not cell-by-cell interleaving. Four alternations
+    protect against slow drift across the run; they do not protect against a
+    within-pass swing of a few minutes. Left as-is once measured — reordering
+    mid-flight would have invalidated the run — and recorded here so the readout is
+    not credited with a control it does not have.
     """
     plan: list[tuple[str, str, str, int, str, str]] = []
     for rep in range(1, _REPLICATES + 1):
@@ -356,6 +456,39 @@ class TestThePopulationIsWhatTheDocstringClaims:
     def test_registered_bands_are_ordered(self):
         assert _PREREG_NULL_GAP < _PREREG_CONCENTRATION_GAP
 
+    def test_the_recorded_result_is_the_number_the_docstring_states(self):
+        """The RESULT section's arithmetic, pinned. Its whole value is telling a
+        ruled-out large effect apart from a run that could see nothing, so the two
+        power figures either hold or the write-up is wrong."""
+        # Registered 15-point gap, recomputed at the base rate actually observed.
+        assert fisher_power(64, 0.18, 0.031) == pytest.approx(0.74, abs=0.03)
+        # The moderate case the null does NOT rule out.
+        assert fisher_power(64, 0.10, 0.031) == pytest.approx(0.21, abs=0.03)
+        # And why the enrichment failing matters: a proportional effect at the
+        # observed base rate was invisible from the start.
+        assert fisher_power(64, 0.031, 0.0155) == pytest.approx(0.01, abs=0.02)
+
+    def test_the_recorded_secondary_p_values(self):
+        assert fisher_exact_two_sided(12, 52, 5, 59) == pytest.approx(
+            0.1162, abs=0.001
+        ), "PLUS valence 12/64 vs 5/64"
+        assert fisher_exact_two_sided(1, 4, 4, 0) == pytest.approx(
+            0.0476, abs=0.001
+        ), "PLUS other_pole-vs-neither shape, the hypothesis banked untested"
+        assert fisher_exact_two_sided(3, 5, 0, 8) == pytest.approx(
+            0.20, abs=0.01
+        ), "option-pairs inside CLAUDE.md's predicted Mode band, 3/8 vs 0/8"
+
+    def test_the_mode_gate_can_actually_fail(self):
+        """The registered gate printed HELD on a 0.026 separation because it asked
+        for a direction and nothing else. A gate that cannot fail cannot invalidate
+        a result, so this pins that the observed value now fails it."""
+        observed_op, observed_opp = 0.562, 0.588
+        assert observed_op < observed_opp, "direction-only gate passed, as recorded"
+        assert not (observed_op < observed_opp - _PREREG_MODE_SEP), (
+            "the repaired gate must reject the separation that was recorded as HELD"
+        )
+
     def test_the_power_claim_in_the_docstring_is_the_real_number(self):
         """The docstring's power table is load-bearing — it is what licenses calling
         a null 'a bound' rather than 'a refutation'. Pinned so an edit to the
@@ -443,14 +576,20 @@ async def test_minus_parentage_concentrates_in_option_pairs(di_container) -> Non
     if mode_op is not None and mode_opp is not None:
         print(f"\n  mean Mode  OPTION_PAIR {mode_op:.3f}  "
               f"OPPOSITION {mode_opp:.3f}", flush=True)
-        if mode_op < mode_opp:
-            print("  -> MANIPULATION HELD: the strata differ on the property "
-                  "claimed. The primary below is about option-pairs.", flush=True)
+        in_band = sum(1 for m in modes[OPTION_PAIR] if m <= 0.10)
+        print(f"  option-pairs inside CLAUDE.md's predicted 0.0-0.1 band: "
+              f"{in_band}/{len(modes[OPTION_PAIR])}", flush=True)
+        if mode_op < mode_opp - _PREREG_MODE_SEP:
+            print(f"  -> MANIPULATION HELD: separation "
+                  f"{mode_opp - mode_op:.3f} >= {_PREREG_MODE_SEP}. The primary "
+                  f"below is about option-pairs.", flush=True)
         else:
-            print("  -> !! MANIPULATION FAILED: option-pairs do NOT read lower on "
-                  "Mode. Whatever the primary says, it is about my labelling of "
-                  "these 16 tensions, not about the option-pair property. Report "
-                  "it as such and do not size a future run on it.", flush=True)
+            print(f"  -> !! MANIPULATION FAILED: separation "
+                  f"{mode_opp - mode_op:+.3f} does not reach {_PREREG_MODE_SEP}. "
+                  f"The strata do NOT differ on the property claimed, so whatever "
+                  f"the primary says is about the labelling of these 16 tensions "
+                  f"and NOT about the option-pair property. Report it as such and "
+                  f"do not size a future run on it.", flush=True)
     else:
         print("  -> !! Mode not measurable this run; manipulation UNCHECKED.",
               flush=True)
