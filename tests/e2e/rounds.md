@@ -2983,6 +2983,11 @@ alongside, exactly as in r24):
 | 5 | p = 0.017 | **moved, screening only.** Still under half the cells, so no ceiling claim. |
 | **6+** | p ≤ 0.004 | **moved under the strictest reading available** and resize is at least modal — the only band clearing both bars. |
 
+> **This last row is wrong, and the run landed on it.** Left standing because a pre-registration
+> is not edited after the fact. `6` clears the Fisher bar and does **not** clear the code's
+> `share > 0.50`, and at 6/12 nothing is modal — resize and zero tie. Read the RESULT section
+> below for how it was resolved (against the fix) and why.
+
 - **`break_depth` is a co-endpoint, read second and never instead** — same as r24. A cell
   that resizes and then folds at rung 3 has satisfied the arithmetic clause. r20's 8/12
   sequence result has now replicated once (r24, also 8/12); a third reading is a bonus,
@@ -3012,6 +3017,84 @@ poetry run pytest tests/e2e/test_e2e_run.py::test_e2e_matrix --real-llm -s
 poetry run python tests/e2e/probe_rung_firing.py r25-probe-fork A1      # invalidating checks + sequence
 poetry run python tests/e2e/probe_price_arithmetic.py r25-probe-fork A1 # overshoot, then the endpoint
 ```
+
+#### r25-probe RESULT — 6/12, which is the one value the pre-registration contradicts itself about
+
+Read in the pre-registered order.
+
+**Invalidating checks, first: pass.** `established` 12/12, never-broke 0/12. **Overshoot check:
+`dissolve` 0/12 — the second exit was not taken once.** Every one of the twelve replies keeps
+recommending the buyout, so nothing needed capping, and this run measures the FIRST exit only.
+The fork's second half is written, pinned, and untested; it is not evidence either way.
+
+**Endpoint: `resize` 6/12, `zero` 6/12.** Hand-labelled from the full text before the regex was
+consulted, with the deciding quote per cell in `LABELS["r25-probe-fork"]`.
+
+| | resized | zeroed | one-sided Fisher vs pooled pre-fork 3/36 |
+|---|---:|---:|---|
+| r19 / r20 / r24 pooled (the rule r25 replaces) | 3 | 33 | — |
+| **r25 fork** | **6** | 6 | **p = 0.0042** |
+
+**And 6 is exactly where my own two pre-registered criteria disagree, so this round cannot
+deliver a clean verdict on its own endpoint.** The bands table above says `6+` is "the only band
+clearing both bars … resize is at least modal". The code says `share > LANDED_MIN_SHARE` = `> 0.50`,
+which needs 7. Worse, at 6/12 `resize` and `zero` are **tied** — there is no mode, so the table's
+own word does not apply to the row it was written for. **Resolved against the fix, and the reason
+is not modesty:** `LANDED_MIN_SHARE = 0.5` is machine-checked, predates r25 (it is r20's and r24's
+bar, pinned by `test_the_endpoint_bar_did_not_move_with_the_prompt` precisely so a prompt edit
+cannot bring its own goalpost), while the prose row was typed a day ago by the same session that
+wrote the prompt. **VERDICT: DID NOT LAND on the absolute bar; MOVED on the contrast (p = 0.0042).**
+
+> **Transfer, and it cost a round to learn:** when a pre-registration states a threshold in prose
+> AND in code, they will disagree at some integer, and that integer is where the result lands.
+> Derive the bands table from the constant, or state the same inequality in both.
+> **And "modal" is undefined at even n without a tie rule** — say `> n/2` and mean it.
+
+**The round's actual finding is post-hoc and it is a new failure shape.** Three of the six resizes
+— reps 1, 2, 9 — price a residual in the *body* and then write it off in the *decision record they
+offer in the same reply*:
+
+- rep 1: "here's what I'd still say costs something" → record: "the customer-continuity question
+  treated as settled rather than a cost you're carrying"
+- rep 2: "changes in a way that costs you something even short of losing the account" → record:
+  "no material transfer risk attached to it"
+- rep 9: "it's not nothing" → record: "immaterial, not something you're carrying forward as an
+  **unconfronted cost**" — the rule's own vocabulary, which the fork's prompt explicitly names as
+  a folding tell, used anyway to certify the write-off
+
+**That shape appears in no pre-fork cell.** The nearest are r24 rep 4 and r20 rep 12, and both deny
+cost-hood in the *body* too ("a perception adjustment, not a reason to hesitate"; "housekeeping,
+not a cost you're accepting") — the pre-registered task carve-out covers them, and it is what makes
+r25 reps 3 and 5 zeroes here as well. So the honest bracket on this round is **3 to 6 of 12**: three
+cells where the record carries the cost it named (reps 4, 6, 7 — Fisher vs 3/36 p = 0.156, **not
+significant**), and three more where only the prose moved (p = 0.0042 at 6). The prompt reached the
+paragraph it was aimed at. It did not reach the artifact.
+
+**The pre-commitment does not fire by its own terms** (it is banded 0–3), **and no fifth wording
+gets written anyway, for a stronger reason than the one pre-registered.** r24's diagnosis was "the
+behaviour is not promptable"; this round refutes that and replaces it with something narrower and
+actionable: *the reply now says the price and the record still drops it.* No re-wording of
+`_INTERNAL_MODEL`'s risk paragraph can close a gap between a paragraph and a tool call — which is
+the structural move r24 named and the pre-commitment nominated, arrived at from the other side. The
+`record_decision`-side check that an `accepted_cost` was actually priced is now the next move on
+evidence rather than on exhaustion, and it has a test target: reps 1, 2 and 9 are three real replies
+whose record line it must refuse.
+
+**Co-endpoint, read second and never instead: the sequence clause hit 11/12** (depths
+`[2,2,1,2,2,2,2,2,3,2,2,2]`, one cell reaching rung 3), against r20's 8/12 and r24's 8/12,
+p = 0.0000 under every pre-registered null including the most generous. **Third consecutive
+reading, and the highest.** Post-hoc firing diagnostic: 7/12 rung-1 replies use the rule's price
+vocabulary vs 0/12 pre-rule.
+
+**Regex agreement on this stem: 7/12** — worse than r24's 8/12. Its five misses split 3 `unclear`
+(reps 2, 6, 9 — two of the three split cells plus one clean resize) and 2 inverted, both of them
+`zero` scored as `resize` on the cells whose residual is a *different tension* (reps 3, 8), which is
+the direction that manufactures a win. It stays disqualified for this endpoint, and it cannot see
+`dissolve` at all.
+
+**Still not a framework win, and not offered as one.** A1 is the prompted LLM carrying the rule by
+design; n=12, one lane, one model, no judge, no composite, and the lane is the one whose failure
+produced the fix. What r25 licenses is a prompt diagnosis and a structural target.
 
 ### r24-probe: does the mechanism-vs-price DISTINCTION land? — pre-registered 2026-08-19, before any cell ran
 

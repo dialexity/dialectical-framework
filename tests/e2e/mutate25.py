@@ -1,4 +1,4 @@
-"""Do the r25 pre-registration pins actually fire? Eighteen mutations, run and report.
+"""Do the r25 pins actually fire? Twenty-seven mutations, run and report.
 
     poetry run python tests/e2e/mutate25.py
 
@@ -17,6 +17,22 @@ this paragraph" — so the clauses that constrain a future session get mutated:
   14-15 the theory justification removed, or the discriminator put back on DEPTH
   16    r24's verdict loses its forward pointer (the log contradicts itself)
   17    the overshoot threshold raised past n, so the check can never fire
+
+And then the RESULT, added after the run, where the pressure is different in kind. r25
+came in at 6/12 — the one integer its own pre-registration states two incompatible
+readings about — so every mutation below is a way a later session could read this round
+as a win without editing a single number:
+
+  19-20 the verdict rounded up: the absolute-bar miss deleted, or the significant
+        contrast promoted to the whole finding
+  21-22 the pre-registration's defective bands row quietly repaired, or its
+        correction pointer detached from it
+  23    a hand label flipped so the prose and the labels disagree
+  24    the post-hoc split-cell shape promoted to a fourth label, which is the
+        one edit that would let the round raise its own count
+  25    the non-significant end of the bracket (3/12, p = 0.156) dropped
+  26    "no fifth wording" dropped once the pre-commitment's band was missed
+  27    "0 of 36" widened to a pre-fork stem without re-reading the claim
 
 WHAT THIS SCRIPT INHERITS FROM `mutate23a.py`, INCLUDING ITS SCARS
 =================================================================
@@ -53,6 +69,13 @@ POINTER = "test_the_previous_rounds_verdict_carries_the_forward_pointer"
 REACHABLE = "test_the_overshoot_threshold_is_reachable_and_not_a_hair_trigger"
 BAR = "test_the_endpoint_bar_did_not_move_with_the_prompt"
 PARTITION = "test_a_dissolution_counts_against_the_endpoint_not_for_it"
+VERDICT = "test_the_verdict_is_resolved_against_the_fix"
+CONTRADICTION = "test_the_pre_registrations_own_contradiction_is_reported_not_edited"
+RECORDED = "test_the_probe_agrees_with_the_recorded_result"
+SPLIT = "test_the_post_hoc_split_cells_do_not_change_the_endpoint"
+BRACKET = "test_the_non_significant_end_of_the_bracket_stays_visible"
+NOFIFTH = "test_no_fifth_wording_survives_even_though_the_pre_commitment_missed"
+SCOPED = "test_the_claim_that_the_shape_is_new_is_scoped_to_the_fork"
 
 MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
     # -- the pre-commitment: the only clause that binds a future session ----
@@ -190,6 +213,73 @@ MUTATIONS: tuple[tuple[str, Path, str, str, str], ...] = (
         "DISSOLVE_OVERSHOOT_MIN = 3",
         "DISSOLVE_OVERSHOOT_MIN = 13",
         REACHABLE,
+    ),
+    # ===================================================================
+    # THE RESULT. 6/12 is the value the pre-registration disagrees with
+    # itself about, so each of these is a way to read it as a win.
+    # ===================================================================
+    (
+        "the absolute-bar miss deleted, leaving only the significant contrast",
+        ROUNDS,
+        "**VERDICT: DID NOT LAND on the absolute bar; MOVED on the contrast (p = 0.0042).**",
+        "**VERDICT: MOVED (p = 0.0042).**",
+        VERDICT,
+    ),
+    (
+        "the contrast promoted to the whole finding (the 6/12 count goes)",
+        ROUNDS,
+        "**VERDICT: DID NOT LAND on the absolute bar; MOVED on the contrast (p = 0.0042).**",
+        "**VERDICT: the fork moved the behaviour, p = 0.0042 against the pooled null.**",
+        VERDICT,
+    ),
+    (
+        "the defective bands row quietly repaired (the round becomes a clean win)",
+        ROUNDS,
+        "| **6+** | p ≤ 0.004 | **moved under the strictest reading available** and resize is at least modal — the only band clearing both bars. |",
+        "| **7+** | p ≤ 0.001 | **moved under the strictest reading available** — the only band clearing both bars. |",
+        CONTRADICTION,
+    ),
+    (
+        "the correction detached from the row it corrects",
+        ROUNDS,
+        "> **This last row is wrong, and the run landed on it.** Left standing because a pre-registration\n> is not edited after the fact.",
+        "> Note: see the result below.",
+        CONTRADICTION,
+    ),
+    (
+        "a hand label flipped to 7 resizes (prose and labels diverge)",
+        PROBE,
+        '    5: ("zero", "What\'s still true, and smaller than what I was carrying',
+        '    5: ("resize", "What\'s still true, and smaller than what I was carrying',
+        RECORDED,
+    ),
+    (
+        "the split-cell shape promoted to a fourth label (the round raises its own count)",
+        PROBE,
+        'LABEL_NAMES = ("resize", "dissolve", "zero")',
+        'LABEL_NAMES = ("resize", "dissolve", "zero", "resize_but_recorded_as_none")',
+        SPLIT,
+    ),
+    (
+        "the non-significant end of the bracket dropped (only p=0.0042 survives)",
+        ROUNDS,
+        "**3 to 6 of 12**",
+        "**6 of 12**",
+        BRACKET,
+    ),
+    (
+        "'no fifth wording' dropped because the pre-commitment's band was missed",
+        ROUNDS,
+        "**and no fifth wording\ngets written anyway, for a stronger reason than the one pre-registered.**",
+        "so a further wording remains available.**",
+        NOFIFTH,
+    ),
+    (
+        "'0 of 36' widened to a pre-fork stem without re-reading the claim",
+        PROBE,
+        '    "r25-probe-fork": {\n        1: "body \'what I\'d still say costs something\'',
+        '    "r24-probe-mechanism": {},\n    "r25-probe-fork": {\n        1: "body \'what I\'d still say costs something\'',
+        SCOPED,
     ),
 )
 

@@ -676,21 +676,36 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   second leak that sat in an A2-only section for two weeks, in
   [rounds.md](rounds.md). **General form of the limit: a prompt and a probe that
   are edited by the same hand can converge without either file looking wrong.**
-- **One clause of the risk-deletion rule has resisted three prompt edits, and the
-  archive's advice about it has been wrong twice.** *A fact resizes a price, it
-  cannot zero it* has been in `_INTERNAL_MODEL` for four runs and has never
-  governed a reply at the rung where the person supplies a real fact. Emphasis
-  did nothing; ORDERING moved a different clause (the fold, 8/12, and it
-  replicates); adding the DISTINCTION the transcripts asked for did nothing
-  either (r24, 1/12 vs pooled 2/24, p=0.72) and made the failure more articulate
-  — the word "mechanism" went from 0 of 24 pre-fix cells to 5 of 12, and four
-  cells used the new distinction to certify the write-off. **Naming a seam can
-  teach a cleaner way to cross it.** The scenario rescue ("maybe zeroing is
-  correct here") was checked and refuted and is now a test, not a paragraph, so
-  the nulls cannot be explained away later. What remains is not prose-shaped: a
-  `record_decision`-side check that an `accepted_cost` was actually priced. **Stop
-  editing that paragraph** — and generally, after the second failed edit on one
-  clause, ask whether the rule has a structural home instead of a better wording.
+- **One clause of the risk-deletion rule took four prompt edits and the fourth one
+  worked — on the reply, not on the record.** *A fact resizes a price, it cannot
+  zero it* sat in `_INTERNAL_MODEL` for four runs without governing the rung where
+  the person supplies a real fact. Emphasis did nothing; ORDERING moved a different
+  clause (the fold, 8/12, now replicated three times: 8, 8, 11); adding the
+  DISTINCTION the transcripts asked for did nothing either (r24, 1/12 vs pooled
+  2/24, p=0.72) and made the failure more articulate — "mechanism" went from 0 of
+  24 pre-fix cells to 5 of 12, four of them using the new distinction to certify
+  the write-off. **Naming a seam can teach a cleaner way to cross it.** The
+  scenario rescue ("maybe zeroing is correct here") was checked, refuted, and is
+  now a test rather than a paragraph.
+  **What finally moved it was checking the theory instead of re-wording:**
+  `docs/theory/generative-rules.md` marks the dialogical reading of T− as *the
+  framework author's gloss, not a paper claim*, and with `M(T+) = −M(T−)` a price
+  that truly goes to zero **dissolves the tension** rather than leaving a cheaper
+  tetrad. So the rule asserted an absolute the theory does not support, and 11 of
+  12 r24 cells argued with it. Replacing it with a two-exit fork — name the smaller
+  price, or drop the recommendation with it — took rung-2 resizing from a pooled
+  3/36 to 6/12 (Fisher p=0.0042). **It missed the pre-registered absolute bar
+  (`share > 0.5` needs 7) and landed on the one integer r25's own pre-registration
+  contradicted itself about; both facts are in the write-up, resolved against the
+  fix.** And half the gain is prose-only: 3 of the 6 price the residual in the
+  reply and then write it off in the decision record they offer in the same breath,
+  a shape absent from all 36 pre-fork cells. **So the structural target r24 named
+  is still the next move, now on evidence rather than exhaustion** — a
+  `record_decision`-side check that an `accepted_cost` was actually priced, with
+  three real replies it must refuse. General forms, both cheap to re-learn the hard
+  way: **when two edits on one clause fail, check the theory the clause claims to
+  encode before writing a third**, and **a rule can reach the prose and still not
+  reach the artifact, so measure the artifact.**
 
 ## What the rounds found
 
@@ -756,7 +771,7 @@ opened.
 | `rerender.py` | regenerates a saved run's `.txt`, RE-SCORING machine scores (free, no LLM) |
 | `test_e2e.py` | the harness's own tests (free) |
 | `mutate23a.py` | mutation-tests the POOR_FIT-exemption pins and the control-claim sites — now the r23 RESULT on the live surfaces plus the superseded wording held verbatim in the log: 14 mutations, each expected to CAUGHT (free). Verifies every selector matches ≥1 test first — an empty pytest selection exits nonzero and would otherwise read as a pass. Its docstring records the three ways this script or its pins have lied |
-| `mutate25.py` | mutation-tests the r25 PRE-REGISTRATION — the clauses that constrain a future session rather than a result: the "no fifth wording" pre-commitment, the dissolution-overshoot check and its ordering ahead of the endpoint, the unchanged bar, the pooled 3/36 null at each of the three sites that state it, code/prose agreement on which stems form that null, and r24's forward pointer. 18 mutations, each expected to CAUGHT (free). Site 2 exists because the first draft of the endpoint pin grepped `3/36` once and SURVIVED |
+| `mutate25.py` | mutation-tests the r25 PRE-REGISTRATION — the clauses that constrain a future session rather than a result: the "no fifth wording" pre-commitment, the dissolution-overshoot check and its ordering ahead of the endpoint, the unchanged bar, the pooled 3/36 null at each of the three sites that state it, code/prose agreement on which stems form that null, and r24's forward pointer. Then, added after the run, the r25 RESULT: the verdict's absolute-bar miss, the defective bands row kept unrepaired with its correction attached, the hand labels, the post-hoc split-cell shape kept out of the label set, the non-significant end of the bracket, and "no fifth wording" surviving the pre-commitment's band being missed. 27 mutations, each expected to CAUGHT (free). Site 2 exists because the first draft of the endpoint pin grepped `3/36` once and SURVIVED |
 | `test_e2e_ported_lanes.py` | mocked wiring check for the two ported judges (free) |
 | `test_e2e_run.py` | the `--real-llm` entry points |
 

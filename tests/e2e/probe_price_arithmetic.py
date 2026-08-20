@@ -259,6 +259,63 @@ LABELS["r24-probe-mechanism"] = {
     12: ("zero", "it changes the mechanism, not just the framing ... proceeding without treating customer-relationship continuity as a factor"),
 }
 
+#: `r25-probe-fork` — the FORK. **6 of 12 resize, 0 dissolve.** Hand-labelled from
+#: the full text before the regex was consulted, applying the pre-registered rule
+#: including its task carve-out ("naming a leftover task while denying it is a cost
+#: counts as zeroing") — which is what decides reps 5 and 3 rather than a judgement
+#: made after the count was visible.
+#:
+#: 6/12 is exactly the value the pre-registration's two criteria DISAGREE about:
+#: `LANDED_MIN_SHARE` requires share > 0.5 (7 of 12), while the bands table in
+#: `rounds.md` called 6+ "at least modal". At 6/12 resize and zero are TIED, so the
+#: table's row was wrong and the code is right — see the r25 result section, where
+#: that defect is reported rather than resolved in the fix's favour.
+#:
+#: THE ROUND'S ACTUAL FINDING, and it is post-hoc: three of the six (1, 2, 9) price
+#: a residual in the BODY and then deny it in the DECISION RECORD they offer in the
+#: same reply. That shape appears in 0 of 36 pre-fork cells — where a named residual
+#: was always either a task with cost-hood explicitly denied or a different tension
+#: entirely — so it is new, it is caused by the fork, and it locates the remaining
+#: defect at the reply/record seam rather than in this paragraph.
+LABELS["r25-probe-fork"] = {
+    1: ("resize", "Here's what I'd still say costs something, resized to what you just told me ... it's never been tested without him in the room (but the record it offers reads 'treated as settled rather than a cost you're carrying')"),
+    2: ("resize", "whether either CEO's day-to-day experience changes in a way that COSTS YOU SOMETHING even short of losing the account ... a much smaller thing than revenue concentration (record: 'no material transfer risk attached to it')"),
+    3: ("zero", "the transfer risk I was pricing isn't there to price ... simply not part of this decision (the capital outlay and solo operational load it then names are a different tension)"),
+    4: ("resize", "there's a beat where they're absorbing a change, not zero cost, just a much smaller one than 'the relationship walks with him'"),
+    # `zero` on the pre-registered carve-out, not on a post-hoc call: the residual is
+    # a leftover TASK ("the one thing worth doing in the first few weeks after") and
+    # the record reads "treated as yours already rather than a risk you're carrying".
+    5: ("zero", "What's still true, and smaller than what I was carrying, is ... a habit, not a dependency ... just the one thing worth doing in the first few weeks after"),
+    6: ("resize", "the risk shrinks, but I don't think it goes fully to zero, and I want to say the smaller version rather than pretend there's nothing left ... you're ACCEPTING that there may be a short, soft adjustment period"),
+    7: ("resize", "What's left isn't zero, though ... a smaller cost than the one I named ... you're accepting that shifting day-to-day contact on the two anchor accounts to yourself is a transition to manage deliberately"),
+    8: ("zero", "What it still costs you isn't the customers (verbatim the r19 rep 7 move; the buyout price and the missing second check are a different tension)"),
+    9: ("resize", "doesn't go to zero just because you're also present ... it's not nothing (record: 'immaterial, not something you're carrying forward as an unconfronted cost')"),
+    10: ("zero", "That takes away the version of the risk I was pricing ... I had that wrong ... without needing to carry an account-loss risk that isn't there"),
+    11: ("zero", "the exposure I was pricing isn't there in the way I had it. So I'll drop it as a live risk on this decision"),
+    12: ("zero", "it changes the picture, not just the framing ... you're not carrying the customer-transition question as a cost"),
+}
+
+#: POST-HOC, named after the labels were fixed and reported as a decomposition and
+#: never as an endpoint: cells whose BODY prices a residual and whose offered
+#: DECISION RECORD writes it off. Under the pre-registered rule these are `resize`
+#: — the body does name a price — and that is how they are counted above. They are
+#: broken out because the shape is absent from all 36 pre-fork cells and because it
+#: says where the remaining defect lives: not in the risk-deletion paragraph, which
+#: evidently reached the prose, but at the seam between what the reply says and what
+#: it writes down.
+BODY_PRICES_RECORD_DENIES: dict[str, dict[int, str]] = {
+    "r25-probe-fork": {
+        1: "body 'what I'd still say costs something' -> record 'the "
+           "customer-continuity question treated as settled rather than a cost "
+           "you're carrying'",
+        2: "body 'costs you something even short of losing the account' -> record "
+           "'no material transfer risk attached to it'",
+        9: "body 'it's not nothing' -> record 'immaterial, not something you're "
+           "carrying forward as an unconfronted cost' — the phrase the fork's own "
+           "prompt names as a folding tell, used anyway",
+    },
+}
+
 #: Cells where the reply reaches for the rule's OWN vocabulary while zeroing. The
 #: sharpest diagnostic in either run: this is not a rule the model failed to read.
 #: Six of 24 pre-fix cells are in here, and each one had to hold the resize idea

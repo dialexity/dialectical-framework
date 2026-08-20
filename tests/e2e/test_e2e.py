@@ -10038,6 +10038,197 @@ class TestR25ForkPreRegistration:
         assert "check the theory" in after[1][:1200]
 
 
+class TestR25ForkResult:
+    """r25's result, pinned — including the defect in r25's own pre-registration.
+
+    The round landed on 6/12, which is the single value the pre-registration
+    states two incompatible readings about: its bands table calls 6+ "the only
+    band clearing both bars", the probe's `LANDED_MIN_SHARE` needs 7, and at 6/12
+    `resize` and `zero` are tied so nothing is modal at all. A later session
+    reading only the prose row would record this round as a win.
+
+    So these tests pin, in order of how easily each could be quietly dropped:
+    the verdict resolved against the fix, the contradiction reported rather than
+    edited away, the post-hoc split-cell shape kept OUT of the endpoint, and the
+    non-significant end of the bracket kept visible next to the significant one.
+    """
+
+    @staticmethod
+    def _block() -> str:
+        rounds = _rounds()
+        after = rounds.split("#### r25-probe RESULT")
+        assert len(after) == 2, "the r25 result section is missing or duplicated"
+        # `_prose` collapses whitespace, so "### " is the only heading marker left.
+        block = after[1].split("### ")[0]
+        assert 3_000 < len(block) < 30_000, (
+            f"the r25 result block is {len(block)} chars — the slice is no longer "
+            "bounded by its own section"
+        )
+        return block
+
+    def test_the_verdict_is_resolved_against_the_fix(self):
+        """6/12 misses the machine-checked bar, and the write-up says so first.
+
+        The contrast IS significant (p = 0.0042), which is exactly what makes this
+        the tempting round to round up. Both halves have to survive together, or
+        the sentence becomes either a win or a null instead of what it is.
+        """
+        block = self._block()
+        assert "DID NOT LAND on the absolute bar" in block
+        assert "MOVED on the contrast" in block
+        assert "p = 0.0042" in block
+        assert "6/12" in block
+
+    def test_the_pre_registrations_own_contradiction_is_reported_not_edited(self):
+        """The bad bands row stays, with a correction beside it.
+
+        Deleting the row would make the pre-registration look consistent and cost
+        the reader the one transfer this round bought. Editing it after seeing the
+        result is the thing pre-registration exists to prevent, so the fix is
+        additive: the row is untouched and carries a pointer.
+        """
+        rounds = _rounds()
+        # The defective row is still there, verbatim and unedited.
+        assert "resize is at least modal — the only band clearing both bars" in rounds
+        # And it is immediately followed by the correction, not merely contradicted
+        # a thousand lines later.
+        after = rounds.split("resize is at least modal — the only band clearing both bars")
+        assert len(after) == 2
+        pointer = after[1][:700]
+        assert "This last row is wrong, and the run landed on it" in pointer
+        assert "not edited after the fact" in pointer
+        # The result section explains which criterion won and why it is not modesty.
+        block = self._block()
+        assert "machine-checked" in block
+        assert "cannot bring its own goalpost" in block
+
+    def test_the_probe_agrees_with_the_recorded_result(self):
+        """The prose numbers come from the labels, not from memory.
+
+        Every count in the result section is recomputed here from
+        `LABELS["r25-probe-fork"]`, so a hand-edited label cannot leave the
+        write-up standing.
+        """
+        from e2e import probe_price_arithmetic as p
+
+        buckets = p._labelled("r25-probe-fork", [(rep, "") for rep in range(1, 13)])
+        assert len(buckets["resize"]) == 6, buckets["resize"]
+        assert len(buckets["zero"]) == 6, buckets["zero"]
+        assert buckets["dissolve"] == [], "the overshoot check fired after all"
+        assert buckets["resize"] == [1, 2, 4, 6, 7, 9]
+        # 6/12 is 0.500 and the bar is strict, which is the whole verdict.
+        share = len(buckets["resize"]) / 12
+        assert share == 0.5
+        assert not share > p.LANDED_MIN_SHARE
+
+    def test_the_overshoot_did_not_fire_so_the_second_exit_is_untested(self):
+        """0/12 dissolutions is not a clean bill of health for the second exit.
+
+        A check that never fires proves nothing about what it guards. The fork's
+        dissolution half is written and unmeasured, and the write-up must not let
+        "no overshoot" read as "the second exit behaves".
+        """
+        block = self._block()
+        assert "the second exit was not taken once" in block
+        assert "untested" in block
+        assert "not evidence either way" in block
+
+    def test_the_post_hoc_split_cells_do_not_change_the_endpoint(self):
+        """The new shape is a decomposition, never a fourth label.
+
+        Reps 1, 2 and 9 price a residual and then deny it in the record. Promoting
+        that to its own label after seeing the data would let the round rewrite
+        its own count — so they stay `resize` under the pre-registered rule, and
+        the category is asserted to be a strict subset of that bucket.
+        """
+        import inspect
+
+        from e2e import probe_price_arithmetic as p
+
+        split = p.BODY_PRICES_RECORD_DENIES["r25-probe-fork"]
+        assert sorted(split) == [1, 2, 9]
+        buckets = p._labelled("r25-probe-fork", [(rep, "") for rep in range(1, 13)])
+        for rep in split:
+            assert rep in buckets["resize"], f"rep {rep} is not in the resize bucket"
+        assert "resize" in p.LABEL_NAMES and len(p.LABEL_NAMES) == 3, (
+            "a fourth label appeared — the endpoint is no longer comparable to "
+            "the 36 pre-fork cells"
+        )
+        # And it is declared post-hoc where it is defined, not only in the log.
+        source = inspect.getsource(p)
+        marker = source.index("BODY_PRICES_RECORD_DENIES: dict")
+        assert "POST-HOC" in source[max(0, marker - 1200):marker]
+
+    def test_the_claim_that_the_shape_is_new_is_scoped_to_the_fork(self):
+        """"0 of 36" is encoded, not just asserted in prose.
+
+        The category dict carries the fork stem only. If a later session labels
+        the shape in a pre-fork stem, this test fails and the "new failure shape"
+        claim in the write-up has to be re-read rather than inherited.
+        """
+        from e2e import probe_price_arithmetic as p
+
+        assert set(p.BODY_PRICES_RECORD_DENIES) == {"r25-probe-fork"}
+        block = self._block()
+        assert "appears in no pre-fork cell" in block
+        # The nearest misses are named, so the claim can be checked by hand.
+        assert "r24 rep 4" in block and "r20 rep 12" in block
+
+    def test_the_non_significant_end_of_the_bracket_stays_visible(self):
+        """Three clean cells, p = 0.156 — printed next to the 0.0042.
+
+        The six-cell count is the one that clears the contrast, and half of it is
+        prose-only. Reporting only the significant end would be true and
+        misleading in the same sentence.
+        """
+        block = self._block()
+        assert "3 to 6 of 12" in block
+        assert "p = 0.156" in block
+        assert "not significant" in block
+        # The one-sentence summary of where the fix stopped.
+        assert "It did not reach the artifact" in block
+
+    def test_no_fifth_wording_survives_even_though_the_pre_commitment_missed(self):
+        """The stopping rule holds on evidence, not on its own banding.
+
+        The pre-commitment was banded 0-3 and the result is 6, so it does not fire
+        by its own terms. That is the opening for a fifth wording, and the
+        write-up has to close it with the reason the result itself supplies: the
+        remaining failure is between a paragraph and a tool call.
+        """
+        block = self._block()
+        assert "does not fire by its own terms" in block
+        assert "no fifth wording" in block
+        assert "between a paragraph and a tool call" in block
+        # And the structural target must name the cells it has to refuse, so the
+        # next round starts with a test rather than a plan.
+        assert "reps 1, 2 and 9 are three real replies" in block
+
+    def test_the_threshold_transfer_is_recorded_for_the_next_pre_registration(self):
+        """Prose bar and code bar disagree at some integer. Write it down once.
+
+        This is the reusable half of the round, and it is cheap to lose because it
+        reads like bookkeeping rather than a finding.
+        """
+        block = self._block()
+        assert "they will disagree at some integer" in block
+        assert '"modal" is undefined at even n without a tie rule' in block
+
+    def test_the_sequence_co_endpoint_is_third_and_read_second(self):
+        """11/12, and it does not get to stand in for the arithmetic clause.
+
+        Three consecutive readings of the ordering fix is the strongest repeated
+        result in the archive, which is precisely why it must not be reported
+        where a reader looking for r25's endpoint will find it first.
+        """
+        block = self._block()
+        assert "read second and never instead" in block
+        assert "11/12" in block
+        assert "Third consecutive" in block
+        # The endpoint verdict has to come BEFORE the co-endpoint in the text.
+        assert block.index("DID NOT LAND") < block.index("11/12")
+
+
 class TestR24MechanismDistinctionResult:
     """r24's result, pinned, including the rescue it refutes.
 

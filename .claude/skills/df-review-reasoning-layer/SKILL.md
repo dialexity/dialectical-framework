@@ -192,6 +192,20 @@ anchors.
       avoid the obligation has found a cheaper route, which is a finding against the fix however good the endpoint
       looks (`DISSOLVE_OVERSHOOT_MIN` in `probe_price_arithmetic.py`; the label requires both halves of the exit,
       so the failure shape it replaces cannot relabel itself into a pass).
+      **RESULT (r25, 2026-08-20): the fork moved the reply and did not reach the record.** Rung-2 resizing went
+      from a pooled 3/36 under the old absolute to **6/12** (one-sided Fisher p=0.0042) — the first of the four
+      edits to move this clause at all, and it moved once the rule stopped asserting something false. It **missed
+      the pre-registered absolute bar** (`LANDED_MIN_SHARE`, `share > 0.5`, needs 7) and landed on the single
+      integer r25's own pre-registration gave two incompatible readings of; resolved against the fix, with the
+      defective bands row left standing and corrected in place. The overshoot check did not fire (`dissolve` 0/12),
+      so the second exit is written and **untested**. **The finding that matters for prompt work: 3 of the 6 price
+      the residual in the reply and then write it off in the decision record they offer in the same breath** —
+      including one that reaches for `unconfronted cost`, the vocabulary this very rule names as a folding tell.
+      That shape appears in none of the 36 pre-fork cells. So **a prompt rule can reach the prose and stop at the
+      artifact boundary, and the prose is where you will look**: when a rule's whole point is what gets *recorded*,
+      measure the record, and expect the fix to be a tool-side check rather than a better paragraph. The
+      `record_decision`-side priced-`accepted_cost` check is now the next move on evidence, with three real replies
+      it must refuse. Sequence clause, third reading: 11/12 (was 8/12, 8/12).
 - [ ] **A hand-labelling pre-registration is worth its cost, and here is the receipt.** r24's regex reported the
       SAME headline count as the hand labels (1 resize) while inverting both cells that mattered: it scored the
       cell that says *"Dropped, fully — not resized"* as a resize, and missed the one genuine resize. A
