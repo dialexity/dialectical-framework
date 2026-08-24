@@ -143,6 +143,19 @@ AND visible:
   stale" flag when a `Synthesis.completeness` stamp no longer matches its wheel.
   Every one of these reads is fail-soft: status decoration never costs its
   payload a synthesis or a deepen.
+- **Host apps get the same picture as data, not prose.** `BuildStatus`
+  (`concerns/build_status.py`) aggregates the derived reads into a `CaseStatus`
+  dataclass — per-polarity states, per-wheel `fraction` with the
+  resumable/blocked split, synthesis stamps + `is_stale`,
+  `shallow_wheel_hashes`, and a `resume_hint` naming the wheel a `deepen` should
+  finish. Same traversal `DialecticalContext` performs (wheels via
+  `WheelRepository.find_by_nexus` — Cycle→Wheel across all layers, the
+  all-layer counterpart to `find_by_layer`), minus the LLM framing. Three rules
+  live there: a shallow wheel (`0/6N`, never deepened — the
+  `EXPLORE_DEEP_WHEELS` budget) is **not** a resume hint; a blocked wheel is
+  never offered; and a node whose status read fails lands in
+  `unreadable_hashes` and keeps `is_complete` False — unknown must not read as
+  finished.
 
 ### Layered Transformation Computation
 

@@ -206,6 +206,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Shared agent tools | `agents/orchestrator/tools/` |
 | Agent skills/tools | `agents/{analyst,explorer,advisor}/` |
 | Dialectical context (graph→natural language) | `concerns/dialectical_context.py` |
+| Build status (derived pause/resume state, typed for host apps) | `concerns/build_status.py` |
 | LLM abstraction / Bedrock provider | `utils/use_brain.py`, `utils/bedrock_provider.py` |
 | Input context (digest→prompt) | `utils/input_context.py` |
 | Events / Exceptions / Protocols | `events/`, `exceptions/`, `protocols/` |

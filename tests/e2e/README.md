@@ -55,7 +55,7 @@ engine, and the certification code and the diagnostic code read the same records
 | **Search** | `test_e2e_matrix` + `judge_notes.py` | **an opponent arm** | judge rationales naming a flaw |
 | **Archive** | `across_runs.py`, `read_pooled.py`, `read_prereg.py` | pooled history | a defensible number |
 
-**The seam lane already existed, unlabelled** — eight `--real-llm` files in
+**The seam lane already existed, unlabelled** — nine `--real-llm` files in
 `tests/`, each born from a measured defect in this archive, now carrying
 `pytest.mark.seam`. Run it after any prompt or seam change. It is cheap, it needs
 no opponent, and every test in it names the link it guards:
@@ -70,6 +70,7 @@ no opponent, and every test in it names the link it guards:
 | `test_machinery_silence_weak_tier` | the REPLY, not the prompt, keeps the machinery quiet | 15 vocabulary leaks in 6 cells, every prompt test green |
 | `test_tetrad_collapse_real_llm` | no aspect deduplicates into its own pole | `672c19d`; an `accepted_cost` ground sitting at `T/T-` |
 | `test_condition_ambiguity_live_probe` | the accepted-cost condition renders (0/6 live) | duplicate directed edges vs genuine ambiguity |
+| `test_resume_real_llm` | a build killed mid-write finishes on a second `deepen`, and says it is unfinished until it does | a half-built edge counted as done forever; 4/6 read exactly like 6/6 |
 
 Note what the "born from" column is: **a count, from a run.** Every one of these
 started as a number in this archive that had no business being that number, which

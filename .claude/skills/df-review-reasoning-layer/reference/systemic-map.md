@@ -1816,7 +1816,17 @@ annotation) → **GenerateSynthesis**
   matches the wheel), the `deepen`/`explore` tool reports, and the Navigator's exploration view
   (`present_exploration._format_wheels` — `Pathways: 4/6` from counts it already groups, no extra queries).
   Every one of them is decoration: the reads are wrapped fail-soft, so a status failure can never cost a
-  synthesis or a deepen its payload. Locked by `tests/test_resume_completeness.py` (taxonomy agreement +
+  synthesis or a deepen its payload. The one NON-prompt surface is `concerns/build_status.py`
+  (`BuildStatus` → `CaseStatus`, live since 2026-08-24): the same traversal as `DialecticalContext` minus the
+  prose, returning dataclasses so a host app renders status instead of parsing a dump — per-polarity states,
+  per-wheel `fraction` with the resumable/blocked split, synthesis stamps + `is_stale`, `shallow_wheel_hashes`,
+  and a `resume_hint`. Its judgement calls are prompt-adjacent even though no prompt is involved: **shallow is
+  not interrupted** (a 0/6N wheel is the `EXPLORE_DEEP_WHEELS` budget working, so it is never a resume hint —
+  offering it would push the argmax arrangement back onto a user whose lived reality picked another),
+  **blocked is never offered**, and **unreadable is not finished** (a node whose read fails lands in
+  `unreadable_hashes` and keeps `is_complete` False). Wheels come from
+  `WheelRepository.find_by_nexus` (Cycle→Wheel across all layers, committed-only, nexus-scoped by perspective
+  hashes — the all-layer counterpart to `find_by_layer`). Locked by `tests/test_resume_completeness.py` (taxonomy agreement +
   tie-break, counting, pair-blocked naming and no-waste, register split incl. the `0/N` wording,
   fresh/resume/complete pair drivers, band de-dup at the write site, `still_missing` reporting,
   hash-exclusion, stamp rendering) and `test_prompt_review_regressions.py::TestCompletenessRegisterSplit`.
@@ -1962,6 +1972,17 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   the part-built edge, and the wheel closed at 6/6 with three distinct bands per edge and a `6/6` synthesis
   stamp. This is also the only live proof of the pair-scoping: the complete edge ran as SUPPORT so its
   partner's top-up had an Ac+ to pair with.
+- **`tests/test_build_status.py`** (15 tests, no LLM, DB-free) — the typed status read a host app calls
+  instead of parsing a dump: the four wheel states told apart (complete / interrupted / shallow / blocked),
+  the resume hint naming the interrupted wheel and never the shallow one, closest-to-finishing with a hash
+  tiebreak so two reads of one graph agree, a blocked wheel never offered even when it is half-built,
+  `is_complete` ignoring shallow wheels and set-aside polarities but NOT unreadable nodes, stale-vs-current
+  vs unstamped syntheses, and a failed read landing in `unreadable_hashes` rather than vanishing. Runs the
+  real `wheel_completeness`/`polarity_completeness` with the repository reads faked — the judgement under
+  test is the state machine on top of them.
+- **`tests/test_build_status_graph.py`** (3 tests, no LLM, live Memgraph) — the half the fakes cannot cover:
+  `WheelRepository.find_by_nexus` returns every wheel with its parent cycle, another nexus's wheels stay out
+  (the scoping predicate), and a structure-only exploration reads as `0/6N` shallow with no resume hint.
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
   labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
 - **`tests/test_relationship_read_id_recovery.py`** (11 tests, no LLM) — the graph-read seam beneath the

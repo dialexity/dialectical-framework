@@ -14,6 +14,7 @@ from gqlalchemy import Memgraph, Neo4j
 from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
+    from dialectical_framework.graph.nodes.cycle import Cycle
     from dialectical_framework.graph.nodes.wheel import Wheel
     from dialectical_framework.graph.nodes.statement import Statement
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -202,4 +203,50 @@ class WheelRepository:
         results = list(graph_db.execute_and_fetch(query, params))
 
         return [row["w"] for row in results]
+
+    @inject
+    def find_by_nexus(
+        self,
+        nexus: Nexus,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[tuple[Cycle, Wheel]]:
+        """
+        Find every Wheel under a Nexus, at any layer, with its parent Cycle.
+
+        Same nexus scoping as `find_by_layer` (a Cycle belongs to a Nexus when
+        all of its Perspective hashes are the Nexus's), but across all layers
+        instead of one — the whole-exploration read a status pass needs.
+
+        The parent Cycle comes back in the same row on purpose: a caller
+        reporting per-wheel status needs the arrangement each wheel implements
+        (and its layer), and re-reading `wheel.cycle` afterwards would be one
+        extra relationship read per wheel.
+
+        Returns:
+            (Cycle, Wheel) pairs, largest layer first
+        """
+        nexus_pp_hashes = [
+            pp.hash for pp, _ in nexus.perspectives.all() if pp.hash is not None
+        ]
+        if not sid or not nexus_pp_hashes:
+            return []
+
+        query = """
+            MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
+            WHERE w.sid = $sid AND c.sid = $sid
+            AND w.hash IS NOT NULL AND c.hash IS NOT NULL
+            AND size(c.perspective_hashes) > 0
+            AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)
+            RETURN c, w
+            ORDER BY size(c.perspective_hashes) DESC, c.committed_at ASC,
+                     w.committed_at ASC, id(w) ASC
+        """
+        results = list(
+            graph_db.execute_and_fetch(
+                query, {"sid": sid, "nexus_pp_hashes": nexus_pp_hashes}
+            )
+        )
+
+        return [(row["c"], row["w"]) for row in results]
 

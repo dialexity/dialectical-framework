@@ -2326,6 +2326,7 @@ class TestTheSeamLaneRosterIsReal:
         "test_machinery_silence_weak_tier": "the reply keeps the machinery quiet",
         "test_tetrad_collapse_real_llm": "no aspect is its own pole",
         "test_condition_ambiguity_live_probe": "the accepted-cost condition renders",
+        "test_resume_real_llm": "a build killed mid-write can be finished",
     }
 
     @staticmethod
