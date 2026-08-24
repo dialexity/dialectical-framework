@@ -7,11 +7,15 @@ dialectical_context (compact dump) and inspect_node (verbose detail).
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.polarity import Polarity
+    from dialectical_framework.graph.nodes.transition import Transition
+    from dialectical_framework.graph.nodes.wheel import Wheel
 
 _REL_TYPE_TO_LABEL: dict[str, str] = {
     "T": "T",
@@ -149,6 +153,257 @@ def pathway_line(tr, pp_index: Optional[dict[int, int]] = None) -> Optional[str]
     if edge_label:
         head += f" ({edge_label})"
     return f"{head} — " + " | ".join(recipe)
+
+
+# --- Completeness (derived status, never stored) -------------------------
+#
+# `explore`/`deepen` take minutes on their heavy turns, so users close the tab
+# mid-build and an interrupted build is a common state, not an edge case.
+# Everything below DERIVES how far a build got, on read, from the graph itself —
+# no progress counter, no new node field, nothing to keep in sync. Reopening a
+# session therefore reports honest status for free.
+
+
+@dataclass(frozen=True)
+class WheelCompleteness:
+    """How many of a wheel's expected Transformations exist, and what's missing.
+
+    `expected` is `len(edges) × len(INSIGHT_CATEGORIES)` — the 6N cardinality
+    (see `docs/graph.md`), because `ActionExtraction` yields one Ac+ candidate
+    per insight category and Phase 2 builds a tetrad per candidate.
+
+    `done` counts ROWS per edge (clamped to the per-edge share), not distinct
+    insight bands. Reading bands here would cost one relationship read per
+    Transformation on a path that renders every wheel of a nexus, and it is
+    unnecessary because band uniqueness is enforced where the write happens:
+    `ExploreTransformations._only_missing` keeps at most one candidate per band,
+    so an edge cannot accumulate two Transformations in the same band.
+    """
+
+    done: int = 0
+    expected: int = 0
+    #: Edge labels that carry fewer than `len(INSIGHT_CATEGORIES)` Transformations
+    #: but could still be developed — what a `deepen` call would top up.
+    incomplete_edges: list[str] = field(default_factory=list)
+    #: Edge labels where no Transformation can be built yet — either this edge's
+    #: own source/target segment is unfinished, or its PAIR PARTNER's is. The
+    #: partner half matters because a tetrad needs an Ac+ from both edges of the
+    #: pair, so a workable edge opposite an unfinished one is just as stuck.
+    #: Named rather than silently absent, and kept out of `incomplete_edges` so
+    #: nothing invites a `deepen` that cannot possibly help.
+    blocked_edges: list[str] = field(default_factory=list)
+
+    @classmethod
+    def from_edge_counts(cls, counts: list[int]) -> WheelCompleteness:
+        """Build from per-edge Transformation counts alone, no labels.
+
+        For callers that already hold the counts (`present_exploration` groups
+        them while rendering) — the clamp and the denominator live in one place
+        so a second surface cannot compute the fraction differently.
+        """
+        from dialectical_framework.concerns.ac_re_taxonomy import \
+            INSIGHT_CATEGORIES
+
+        per_edge = len(INSIGHT_CATEGORIES)
+        return cls(
+            done=sum(min(c, per_edge) for c in counts),
+            expected=len(counts) * per_edge,
+        )
+
+    @property
+    def is_complete(self) -> bool:
+        """True when every expected Transformation exists.
+
+        A wheel with no edges is not "complete" — it is malformed, and calling
+        it complete would hide that.
+        """
+        return self.expected > 0 and self.done >= self.expected
+
+    @property
+    def fraction(self) -> str:
+        """`"4/6"` — the stamp form, also what `Synthesis.completeness` stores."""
+        return f"{self.done}/{self.expected}"
+
+
+def wheel_completeness(
+    wheel: Wheel, pp_index: Optional[dict[int, int]] = None
+) -> WheelCompleteness:
+    """Count a wheel's Transformations per edge against the expected 6N.
+
+    `pp_index` only labels the missing edges (T1- → A2+ rather than a hash); it
+    is derived from the wheel's nexus when not supplied.
+
+    Fail-soft like the repository reads: an edge whose segments can't be
+    resolved counts as blocked rather than raising, so status rendering never
+    takes down the dump it decorates.
+    """
+    from dialectical_framework.concerns.ac_re_taxonomy import INSIGHT_CATEGORIES
+    from dialectical_framework.graph.repositories.transformation_repository import \
+        TransformationRepository
+    from dialectical_framework.utils.order_transitions import \
+        pair_opposite_edges
+
+    edges = wheel.edges
+    if not edges:
+        return WheelCompleteness()
+
+    per_edge = len(INSIGHT_CATEGORIES)
+    # One query for the whole wheel, not one per edge: this runs on every wheel
+    # of a counsel-mode dump, which is exempt from the wheel cap.
+    counts = TransformationRepository().count_by_edges(edges)
+    if pp_index is None:
+        nexus = find_nexus_for_wheel(wheel)
+        if nexus:
+            pp_index = build_pp_index(nexus)
+
+    def _buildable(edge: Transition) -> bool:
+        source = edge.get_source_wheel_segment()
+        target = edge.get_target_wheel_segment()
+        return bool(
+            source and target and source.is_complete() and target.is_complete()
+        )
+
+    # Buildability is a property of the PAIR, matching the builder: an edge is
+    # stuck if its own segments are unfinished OR its partner's are, because a
+    # tetrad pairs the two edges' Ac+ candidates.
+    stuck: set[int] = set()
+    paired: set[int] = set()
+    for edge_a, edge_b in pair_opposite_edges(edges):
+        paired.update(e._id for e in (edge_a, edge_b) if e._id is not None)
+        if not _buildable(edge_a) or not _buildable(edge_b):
+            stuck.update(
+                e._id for e in (edge_a, edge_b) if e._id is not None
+            )
+    # An edge in no pair (a malformed wheel with an odd edge count) is stuck by
+    # construction — the builder only ever iterates pairs.
+    stuck.update(
+        e._id for e in edges if e._id is not None and e._id not in paired
+    )
+
+    done = 0
+    incomplete: list[str] = []
+    blocked: list[str] = []
+    for edge in edges:
+        found = counts.get(edge._id, 0) if edge._id is not None else 0
+        # An edge cannot count more than its share, or a category-skewed edge
+        # would inflate the wheel's progress past its own denominator.
+        done += min(found, per_edge)
+        if found >= per_edge:
+            continue
+
+        label = format_edge_label(edge, pp_index) or edge.short_hash
+        if edge._id is None or edge._id in stuck:
+            blocked.append(label)
+        else:
+            incomplete.append(label)
+
+    return WheelCompleteness(
+        done=done,
+        expected=len(edges) * per_edge,
+        incomplete_edges=incomplete,
+        blocked_edges=blocked,
+    )
+
+
+def completeness_line(
+    wheel: Wheel,
+    pp_index: Optional[dict[int, int]] = None,
+    *,
+    numeric: bool = True,
+) -> Optional[str]:
+    """One status line for a partly-built wheel, or None when it is finished.
+
+    `numeric` sets the register, in code rather than by prompt discipline:
+    the Navigator and counsel mode get counts and edge labels because the
+    exploration is on screen and is the person's own deliverable; the
+    standalone Advisor gets plain words with no digits and no framework nouns,
+    because there the machinery is invisible by design.
+
+    Returns None on a complete wheel — status is only worth saying when there
+    is something outstanding.
+    """
+    completeness = wheel_completeness(wheel, pp_index)
+    if completeness.expected == 0 or completeness.is_complete:
+        return None
+
+    if not numeric:
+        if completeness.done == 0:
+            if completeness.blocked_edges:
+                return "Not yet worked through — parts of this are still unformed."
+            return "Not yet worked through."
+        if completeness.blocked_edges:
+            return (
+                "Partly worked through — some of it is still unformed, "
+                "so a few angles are missing."
+            )
+        return "Partly worked through — a few angles are still missing."
+
+    line = f"Pathways: {completeness.fraction}"
+    if completeness.done == 0:
+        # Never deepened is not the same as interrupted, and the numeric line is
+        # where that distinction is most load-bearing: `explore` deepens exactly
+        # one wheel by design (EXPLORE_DEEP_WHEELS), so counsel mode dumps every
+        # other wheel at 0/N. Left as a bare shortfall the model reads a working
+        # budget as a broken build and offers to repair it.
+        line += " (not yet developed"
+        if completeness.blocked_edges and not completeness.incomplete_edges:
+            line += ", and cannot be until its segments are finished"
+        line += ")"
+        return line
+    if completeness.incomplete_edges:
+        line += f" (incomplete: {', '.join(completeness.incomplete_edges)})"
+    if completeness.blocked_edges:
+        line += f" (blocked, segments unfinished: {', '.join(completeness.blocked_edges)})"
+    return line
+
+
+#: Derived polarity states. `not_developed` vs `set_aside` is the distinction
+#: that was invisible: both look like "a polarity with no perspectives", but one
+#: is work the user lost and the other is a deliberate gate outcome.
+POLARITY_NOT_DEVELOPED = "not_developed"
+POLARITY_SET_ASIDE = "set_aside"
+POLARITY_PARTIAL = "partial"
+POLARITY_DEVELOPED = "developed"
+
+
+def polarity_completeness(
+    polarity: Polarity,
+    *,
+    hs_threshold: float = 0.7,
+) -> str:
+    """Classify how far a polarity got, without storing anything.
+
+    `AnalysisPipeline._rank_polarities` expands only polarities at or above
+    `HS_THRESHOLD`, so an empty polarity means two different things: below the
+    threshold it was deliberately set aside; at or above it, the expansion was
+    supposed to happen and didn't — a crash, not a judgement. Callers pass
+    `analyst.HS_THRESHOLD`; the default repeats it only so this module stays
+    importable without pulling in the analyst.
+
+    An unscored polarity (HS None) reads as `set_aside` rather than lost work:
+    claiming interrupted work on no evidence would send the user chasing a
+    build that was never started.
+    """
+    from dialectical_framework.graph.repositories.perspective_repository import \
+        PerspectiveRepository
+
+    perspectives = [
+        pp
+        for pp in PerspectiveRepository().find_by_polarity(polarity)
+        if not pp.discarded
+    ]
+    complete = [pp for pp in perspectives if pp.is_complete()]
+    if complete:
+        return POLARITY_DEVELOPED if len(complete) == len(perspectives) else POLARITY_PARTIAL
+    if perspectives:
+        # Something was started and never finished — unambiguously interrupted,
+        # whatever the HS says.
+        return POLARITY_PARTIAL
+
+    hs = polarity.heuristic_similarity
+    if hs is not None and hs >= hs_threshold:
+        return POLARITY_NOT_DEVELOPED
+    return POLARITY_SET_ASIDE
 
 
 # --- Decision grounds ---------------------------------------------------

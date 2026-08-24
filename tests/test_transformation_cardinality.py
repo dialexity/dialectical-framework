@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from dialectical_framework.concerns.action_extraction import INSIGHT_CATEGORIES
+from dialectical_framework.concerns.ac_re_taxonomy import INSIGHT_CATEGORIES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 

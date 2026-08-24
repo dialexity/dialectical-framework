@@ -21,8 +21,10 @@ two ("Two mapped tensions are already enough", "start with 1-2 perspectives").
 Whether the floor should be one is a framework question, not a prompt question,
 and it is the question this test answers: `PerspectiveCombination` treats a
 single PP as the circular-causality BASE CASE (one Cycle, one self-referencing
-Wheel — 2 edges, 1 pair, 2 Transformations), so a 1-PP exploration is
-structurally legal. Legal is not the same as useful. If a 1-PP explore produces
+Wheel — 2 edges, 1 pair, and 2 × `len(INSIGHT_CATEGORIES)` = 6 Transformations,
+since `ActionExtraction` yields one Ac+ candidate per insight band), so a 1-PP
+exploration is structurally legal. Legal is not the same as useful. If a 1-PP
+explore produces
 transformations and a synthesis, then a decision closed on one tension can still
 carry an `adopted_pathway`, and the prompt's floor is wrong. If it produces an
 empty shell, the floor is right and the bench flag is measuring the model
@@ -40,7 +42,9 @@ import pytest
 
 pytestmark = [pytest.mark.real_llm, pytest.mark.llm, pytest.mark.seam]
 
-from dialectical_framework.agents.advisor.tools.explore import run_exploration
+from dialectical_framework.agents.advisor.tools.explore import \
+    run_exploration_detailed
+from dialectical_framework.concerns.ac_re_taxonomy import INSIGHT_CATEGORIES
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
     ExpandPolarity
 from dialectical_framework.graph.nodes.case import Case
@@ -86,7 +90,7 @@ class TestOnePerspectiveIsEnoughToExplore:
             pps = await expand.resolve()
             assert pps, "ExpandPolarity produced no Perspective — nothing to explore"
 
-            report = await run_exploration(
+            report, transformation_hashes = await run_exploration_detailed(
                 perspective_hashes=[pps[0].hash],
                 intent="Whether to buy out the cofounder",
                 nexus_hash=None,
@@ -123,4 +127,26 @@ class TestOnePerspectiveIsEnoughToExplore:
         assert "synthes" in report.lower(), (
             "a 1-PP exploration produced no synthesis — counsel at the closing "
             "turn would have nothing integrated to read from"
+        )
+
+        # The base case comes out WHOLE, on a real provider: 2 edges × one Ac+
+        # candidate per insight band. This is the cardinality CLAUDE.md, the cost
+        # math and `test_transformation_cardinality.py` are all bound to, and it
+        # is only measurable here — the mock brain returns the same DTO every
+        # call, so it cannot distinguish three bands from one repeated.
+        expected = 2 * len(INSIGHT_CATEGORIES)
+        assert len(set(transformation_hashes)) == expected, (
+            f"a 1-PP wheel built {len(set(transformation_hashes))} distinct "
+            f"transformations, not {expected} — either an insight band was lost "
+            f"(check `_only_missing`/`_find_matching_category` band matching) or "
+            f"the per-edge budget in `_missing_categories` drifted from "
+            f"len(INSIGHT_CATEGORIES)"
+        )
+        # A whole wheel says nothing about completeness. `partial_wheels` is
+        # only populated for a wheel that came out short, so its presence here
+        # means the run itself was interrupted or an edge pair failed — the
+        # fragment-presented-as-answer case the resume work exists to surface.
+        assert "partial_wheels" not in artifacts, (
+            f"the deepened wheel is incomplete: {artifacts['partial_wheels']} — "
+            f"a synthesis over a fragment is stamped, not whole"
         )

@@ -243,6 +243,33 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
         cardinality=(0, 1)  # Optional: A+ → T-
     )
 
+    @property
+    def insight_category(self) -> str | None:
+        """Which INSIGHT_CATEGORIES band this Transformation's Ac+ sits in.
+
+        Derived from the Ac+ relationship's stored `insight` value rather than
+        persisted: Transformation nodes are hash-frozen at commit, so a new
+        field would change identity for every existing node. Ac+ is the right
+        carrier because it is what `ActionExtraction` generates one candidate
+        per category FOR — the category is a property of the action, not of the
+        tetrad as a whole.
+
+        Returns None when Ac+ is absent or carries no insight value, which
+        reads as "cannot tell" — resume treats that as an uncategorised
+        Transformation rather than assuming a band.
+        """
+        from dialectical_framework.concerns.ac_re_taxonomy import \
+            insight_category_of_value
+
+        result = self.ac_plus.get()
+        if not result:
+            return None
+        _, relationship = result
+        value = getattr(relationship, "insight", None)
+        if value is None:
+            return None
+        return insight_category_of_value(value)
+
     def get_wheel(self) -> Wheel | None:
         """
         Get the Wheel this transformation belongs to (via edges).

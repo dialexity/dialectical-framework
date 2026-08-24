@@ -30,7 +30,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Wheel | Concrete T-A arrangement implementing a Cycle | `intent` |
 | Transformation | Action-reflection structure (Ac, Re, Ac+, Ac-, Re+, Re-) on a Wheel edge | `intent` |
 | Transition | Movement between two Statements (source → target) | `statement`, `headline`, `haiku` |
-| Synthesis | Emergent S+/S- pair from a Wheel's circular causality | |
+| Synthesis | Emergent S+/S- pair from a Wheel's circular causality | `completeness` ("done/expected" Transformations the S+/S- was derived from, e.g. "4/6"; equal halves = whole wheel; null = not recorded) |
 | Decision | Confirmed decision: question + stance (Case-level, immutable; timestamp = `committed_at`; the why = attached Rationale whose `agent` names the confirming principal — "human" for a person, "agent:<name>" for a delegated driver) | `intent` (the question), `stance`, `discarded`, `validation` ("passed" / "failed: ..." / null=unchecked) |
 | Rationale | Explanation attached to any node | `text` |
 | Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |

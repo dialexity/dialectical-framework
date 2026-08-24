@@ -885,7 +885,14 @@ Explorer's `_ladder()`); locked by `TestAdvisorScoreLaddersDerived`. `_SCORE_REA
 keep it one, and assert on the module attribute, not `inspect.getsource`. Likewise the explore doc's
 nexus-size ladder ("How a nexus evolves", ">N: combinatorial explosion") is rendered by
 `_nexus_evolution(_resolve_max_wheel_layer())` from `settings.max_wheel_layer` — never re-type the cap
-as a literal "4"; locked by `TestAdvisorNexusSizeCapDerived`.
+as a literal "4"; locked by `TestAdvisorNexusSizeCapDerived`. Likewise the insight **band** thresholds
+(`0.6`/`0.4` for Generative/Configurational/Corrective) were hardcoded three times inside
+`explore_transformations._find_matching_category`; they are now `insight_category_of_value` /
+`insight_category_of_label` in `ac_re_taxonomy.py`, derived from `INSIGHT_CATEGORIES` + `INSIGHT_SCALE`
+(unknown label → `ValueError`, never a silent band). `insight_category_of_value` snaps to the NEAREST
+`INSIGHT_SCALE` level and breaks exact ties toward the LOWER level, so an off-scale float never promotes
+itself into a stronger band. Locked by the taxonomy-agreement tests in
+`tests/test_resume_completeness.py`.
 - Analyst HS bands (`analyst/system_prompts.py` "Reading Polarity Quality", 3 bands).
 - Advisor score-reading section (`advisor/system_prompts.py`, 4 HS bands — ladders now derived, HS bands still hand-typed).
 - Neither imports `HS_SCALE` (6 bands) — three granularities for the same `HS_THRESHOLD=0.7` gate.
@@ -1048,7 +1055,17 @@ annotation) → **GenerateSynthesis**
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
   polarities with antithesis HS ≥ 0.7. Fed by `AntithesisExtraction` / `AntithesisClassification` HS. The
-  SIMPLE=1.0 shortcut can inflate everything past it → gate stops differentiating.
+  SIMPLE=1.0 shortcut can inflate everything past it → gate stops differentiating. **Passing the gate and
+  being developed are different states, and a bare `expanded: False` conflated them.** `polarity_quality`
+  carries a `status` naming WHY: `expanded` / `deferred` (HS ≥ threshold, dropped for
+  `MAX_POLARITIES_TO_EXPAND` — work owed) / `failed` (expansion errored — work owed) / `set_aside` (below
+  threshold — the gate working, nothing owed). The Analyst prompt's "Reading Polarity Quality" section must
+  keep naming all four and must keep saying `deferred` and `failed` are **not** judgements — the resume case
+  is exactly the one where the model would otherwise report a crashed expansion as a considered omission. The
+  read-side twin is `rendering.polarity_completeness` (`developed` / `partial` / `not_developed` /
+  `set_aside`, derived per polarity on read, `hs_threshold` passed in by the caller): an unscored polarity
+  reads `set_aside` rather than lost work, since claiming interrupted work on no evidence sends the user
+  chasing a build that never started.
 - **`AntitheticalThesisDetection`** (`MERGE_THRESHOLD=0.7`, `SUGGEST_THRESHOLD=0.1`): HS≥0.7 auto-merges two
   theses into one Polarity; 0.1–0.7 suggests; ≤0.1 drops.
 - **ThesisExtraction Step-2 candidate gate** (`is_assertable & is_substantive`, with all-rejected safety net).
@@ -1764,6 +1781,45 @@ annotation) → **GenerateSynthesis**
   `TestCarryoverIsRecorded`, `TestParticularsAreWellFormed` (a particular form may not collide with a pole marker, or
   the carry probe and the symmetry share agree by construction) and `TestParticularsReporting` (an unrecorded artifact
   renders `--` and a warning, never a zero — the same absence-is-not-failure rule as `cited_record`).
+- **Completeness is derived on read, and its VOICE is set in code** (`rendering.wheel_completeness` /
+  `completeness_line`, live since 2026-08-24). Not a gate and deliberately not stored: `expected =
+  len(wheel.edges) * len(INSIGHT_CATEGORIES)` (6N), `done` = committed Transformation ROWS per edge
+  (`TransformationRepository.count_by_edges`, one query per wheel, `hash IS NOT NULL`) clamped to the
+  per-edge share — NOT distinct bands, because band uniqueness is enforced where the write happens
+  (`_only_missing` keeps at most one candidate per band), and reading bands here would cost a relationship
+  read per Transformation on a path that renders every wheel. So a session that closed mid-`deepen` reports
+  `Pathways: 4/6 (incomplete: T1→A2)` on reopen and a second `deepen` tops up exactly the gap. Three prompt-relevant consequences. (1) **The register split is
+  `numeric=bool(scoped_nexus_hash)`, not prompt discipline** — `DialecticalContext` is Advisor-only, so
+  counsel mode gets digits and the standalone Advisor gets plain words; `_HOW_YOU_SPEAK` says unfinished work
+  is spoken plainly and **never with counts** (and not the framework nouns behind them), while
+  `_HOW_YOU_SPEAK_SCOPED` says it is stated **with its numbers** because the exploration is the person's own
+  deliverable. Both variants must keep the same honesty clause — asked whether it finished, the answer is
+  straight. (2) **`_SCORE_READING` must say completeness is not quality.** The dump tells the model it is
+  "pre-pruned, rank within it", which invites reading `4/6` as a bad score and quietly demoting a half-built
+  wheel; the section now names the `# Unfinished` line and says treat the gap as a to-do, not a demotion.
+  This is the same failure family as the quality-floor entry above: a NUMBER rendered without its meaning
+  gets read as a rank. (3) A blocked edge is **named**, not silently absent — the skip case was previously
+  indistinguishable from a finished edge. Blocked is a property of the PAIR, not the edge: a workable edge
+  whose pair partner's segments are unfinished is equally stuck, so it renders under `blocked_edges` and is
+  kept out of `incomplete_edges` — nothing invites a `deepen` that cannot help. `ExploreTransformations`
+  applies the same rule before Phase 1, so a blocked pair spends no LLM calls, and reports what a top-up
+  still could not build as `still_missing`. Partial synthesis is stamped rather
+  than blocked (`Synthesis.completeness`, hash-excluded metadata like `Perspective.validation`), because an
+  unfinishable edge would otherwise withhold synthesis from that wheel forever; theory entry in
+  `docs/theory/transformations-synthesis.md`. The load-bearing subtlety for anyone touching the resume path:
+  **a tetrad pairs an edge's Ac+ with the OPPOSITE edge's Ac+ in the same band**, so Phase 1 must extract
+  candidates for what EITHER side of the pair owes — an edge whose partner is already complete still runs as
+  support. Since the write loop finishes edge A before edge B, "A complete / B partial" is the commonest
+  interrupted state, and scoping Phase 1 to the edge's own gap made per-band resume dead in exactly that
+  case. Surfaces that render the fraction: `dialectical_context._dump_wheel` and `_dump_synthesis`
+  (register-split), `inspect_node` (numeric, plus a "synthesis is stale" flag when the stamp no longer
+  matches the wheel), the `deepen`/`explore` tool reports, and the Navigator's exploration view
+  (`present_exploration._format_wheels` — `Pathways: 4/6` from counts it already groups, no extra queries).
+  Every one of them is decoration: the reads are wrapped fail-soft, so a status failure can never cost a
+  synthesis or a deepen its payload. Locked by `tests/test_resume_completeness.py` (taxonomy agreement +
+  tie-break, counting, pair-blocked naming and no-waste, register split incl. the `0/N` wording,
+  fresh/resume/complete pair drivers, band de-dup at the write site, `still_missing` reporting,
+  hash-exclusion, stamp rendering) and `test_prompt_review_regressions.py::TestCompletenessRegisterSplit`.
 - **NOT gates (scoring/annotation only):** `CausalityEstimation`, `TransformationAudit`, aspect K/area/rectangularity.
   The other live post-hoc check is `edit_perspective._validate_tetrad_coherence` (CC + diagonal) on user edits.
 
@@ -1839,7 +1895,9 @@ if the host offers one (graceful floor: otherwise keep counseling from pathways)
 application offers a way back"). The preamble also treats history as ground truth (cold start with
 messages=None on an ingest-built or shared nexus must not fabricate shared memories or authorship);
 the scoped engine's `_HOW_YOU_SPEAK_SCOPED` replaces machinery-invisible/rephrase-freely with the
-Navigator-territory precision rule (exact statement text when citing by hash). Handover
+Navigator-territory precision rule (exact statement text when citing by hash) and permits **completeness
+with its numbers** where the unscoped variant forbids counts (see the completeness entry in §4 — the split
+is code-driven, so the two variants must stay opposite deliberately, not accidentally). Handover
 mechanics (messages + nexus_hash, system prompt replaced on construction, history survives verbatim
 including foreign tool-use blocks) are locked by `tests/test_agent_handover.py` — mocked structure tests
 plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in the current head's set.
@@ -1880,9 +1938,30 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   Advisor floor contract (full-native-capability guarantee, eager-thinking/ungated-speech section, no
   speech-gating or fabricate-a-tension language, Default Arc not Sequence, no unwired "structural guarantee"
   claim, preamble-overridable terminology fence, Analyst no-tension-valid-conclusion, Explorer
-  intent-driven build_wheels); **`TestNavigatorRoundTrip`** — both prompts narrate the dx:// loop, the
+  intent-driven build_wheels); **`TestCompletenessRegisterSplit`** — plain words unscoped / numbers scoped,
+  plus the "completeness is not quality" rule in both; **`TestNavigatorRoundTrip`** — both prompts narrate the dx:// loop, the
   Explorer carries `create_dx_input`, the dead off-ramp phrasing is gone; **`TestExplorerAdvisorToggleNarration`** —
   both heads surface the handover signal without auto-switching.
+- **`tests/test_resume_completeness.py`** (no LLM, DB-free) — the pause/status/resume net: the
+  insight-band helpers agree with `INSIGHT_CATEGORIES` for every `INSIGHT_SCALE` label (and ties snap down,
+  so 0.55 stays Configurational), `wheel_completeness` counts and names incomplete/blocked edges with
+  blocked scoped to the PAIR, `_process_edge_pair` builds every band fresh / tops up exactly the gap on
+  resume / leaves a complete pair alone / spends nothing on a blocked pair and reports `still_missing` when
+  a top-up falls short, `_only_missing` keeps one candidate per band, `Synthesis.completeness` stays out of
+  the hash, and the status line reaches `dialectical_context`, `inspect_node` and the exploration view. Drives the real code with fakes
+  (`find_by_edge`, `format_edge_label`, `RelationshipManager.__get__` monkeypatched) rather than a graph —
+  the defects live in counting and composition, not in the DB or the LLM.
+- **`tests/test_resume_real_llm.py`** (1 test, `--real-llm`) — the resume claim on a real provider, which
+  is the only place it is measurable: the mock brain returns the same DTO every call, so all three insight
+  bands collapse into one and the interesting interrupted states cannot occur. Caps
+  `_create_transformation` after 4 of 6 writes (the exact defect site — tetrads generate concurrently but
+  write sequentially, and GQLAlchemy autocommits per node), then resumes through `run_deepen` on a FRESH
+  skill instance: the graph is the only carrier of resume state. Measured 2026-08-24 on haiku-4.5: the kill
+  left 4/6 with the pair top-up-able, Phase 1 then asked for exactly `[Configurational, Corrective]`
+  (`candidate_count: 2`), `existing_count: 4` (survivors reused, not rebuilt), `resumed_categories` named
+  the part-built edge, and the wheel closed at 6/6 with three distinct bands per edge and a `6/6` synthesis
+  stamp. This is also the only live proof of the pair-scoping: the complete edge ran as SUPPORT so its
+  partner's top-up had an Ac+ to pair with.
 - **`tests/test_prompt_vocabulary.py`** (1 test, `--real-llm`) — behavioral: a live Analyst response never
   labels T-/T+ as "blindspot." NAVIGATOR_APP + Analyst only. Skipped in the default suite.
 - **`tests/test_relationship_read_id_recovery.py`** (11 tests, no LLM) — the graph-read seam beneath the

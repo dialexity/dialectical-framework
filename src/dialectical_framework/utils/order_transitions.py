@@ -72,3 +72,28 @@ def order_transitions(transitions: list[Transition]) -> list[Transition]:
             break
 
     return ordered
+
+
+def pair_opposite_edges(
+    ordered_edges: list[Transition],
+) -> list[tuple[Transition, Transition]]:
+    """Pair diametrically opposite edges of an ordered wheel edge list.
+
+    A wheel with 2N edges has N opposite pairs: edge `i` pairs with edge
+    `i + N`. The pair is the unit of Transformation generation (one edge's Ac+
+    becomes the other's Re+), so anything that reasons about buildability —
+    `Wheel.edge_pairs`, `ExploreTransformations`, and the derived completeness
+    renderer — must pair the same way. Kept here rather than inlined at each
+    site: a renderer that paired differently from the builder would name the
+    wrong edge as blocked.
+
+    Returns an empty list for fewer than two edges (a malformed wheel has no
+    pairs to reason about).
+    """
+    n = len(ordered_edges) // 2
+    if n == 0:
+        return []
+    return [
+        (ordered_edges[i], ordered_edges[(i + n) % len(ordered_edges)])
+        for i in range(n)
+    ]

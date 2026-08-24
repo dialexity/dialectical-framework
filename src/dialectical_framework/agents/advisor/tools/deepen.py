@@ -60,12 +60,45 @@ async def run_deepen(wheel_hash: str) -> str:
     if pathways:
         combined_report.artifacts["pathways"] = pathways
 
+    # Whether the deepening actually finished. `pathways` has no denominator, so
+    # a run that lost half its edges to a mid-flight failure or an interrupted
+    # session reported a shorter list and nothing else — the tool looked like it
+    # succeeded. The fraction is what tells the Advisor a second `deepen` would
+    # add something, and what tells it not to present a fragment as the whole.
+    try:
+        from dialectical_framework.graph.nodes.wheel import Wheel
+        from dialectical_framework.graph.rendering import wheel_completeness
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
+        wheel = NodeRepository().find_by_hash(wheel_hash, node_type=Wheel)
+        completeness = wheel_completeness(wheel) if wheel else None
+        if completeness and completeness.expected:
+            combined_report.artifacts["pathway_completeness"] = completeness.fraction
+            if completeness.incomplete_edges:
+                combined_report.artifacts["pathways_incomplete_on"] = (
+                    completeness.incomplete_edges
+                )
+            if completeness.blocked_edges:
+                combined_report.artifacts["pathways_blocked_on"] = (
+                    completeness.blocked_edges
+                )
+    except Exception:  # noqa: BLE001 - decoration, never the payload
+        # Status decoration must never be the thing that fails a deepen that
+        # otherwise produced real pathways. Broad on purpose: the read goes to
+        # the DB, so the failure modes include driver errors that are neither
+        # ValueError nor RuntimeError.
+        pass
+
     try:
         synth = GenerateSynthesis(wheel_hash=wheel_hash)
         await synth.resolve()
         combined_report = combined_report.merge(synth.report)
-    except (ValueError, RuntimeError) as e:
-        combined_report.artifacts["synthesis_skipped"] = str(e)
+    except Exception as e:  # noqa: BLE001 - pathways stand without a synthesis
+        # A failed synthesis is reported, not raised: the Transformations this
+        # call built are real and adoptable, and losing them to a synthesis
+        # fault would throw away the expensive half of the work.
+        combined_report.artifacts["synthesis_skipped"] = f"{type(e).__name__}: {e}"
 
     combined_report.artifacts["wheel_hash"] = wheel_hash
     return str(combined_report)

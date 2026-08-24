@@ -103,6 +103,47 @@ Wheel
 
 **Each edge can have multiple Transformation alternatives** at different insight/proactiveness levels.
 
+**Per-edge cardinality is one Transformation per insight band.** `ActionExtraction`
+returns one Ac+ candidate per entry in `INSIGHT_CATEGORIES` (Generative /
+Configurational / Corrective, `concerns/ac_re_taxonomy.py`), and
+`ExploreTransformations` Phase 2 builds a tetrad per candidate — so a wheel
+carries **2N × len(INSIGHT_CATEGORIES) = 6N** Transformations, and a 1-PP wheel
+carries 6. `Transformation.insight_category` derives the band from the Ac+
+edge's stored `insight` value; nothing stores the band itself.
+
+**Completeness is derived, never stored.** `wheel_completeness(wheel)`
+(`graph/rendering.py`) counts each edge's committed Transformations against that
+denominator (one batched query, `TransformationRepository.count_by_edges`) and
+returns `done`, `expected`, `incomplete_edges` (a `deepen` can top these up) and
+`blocked_edges` (nothing can be built there yet). `done` counts ROWS clamped to
+the per-edge share rather than distinct bands — band uniqueness is enforced at
+the write site (`_only_missing` keeps at most one candidate per band), so
+reading bands here would only buy a relationship read per Transformation on a
+path that renders every wheel. This is what makes an interrupted build resumable
+AND visible:
+
+- `ExploreTransformations` skips an edge only when it owes no band — not merely
+  when it carries something. The write loop is sequential after the generation
+  gather, so a session that closed mid-loop leaves an edge part-built; per-band
+  resume tops up exactly the gap and reports `resumed_categories`. When a top-up
+  still cannot cover the gap, the shortfall is reported as `still_missing`
+  instead of passing for done.
+- Phase 1 is scoped to what **either** edge of the pair owes: a tetrad pairs an
+  edge's Ac+ with its partner's Ac+ in the same band (that Ac+ becomes its Re+),
+  so a complete partner still extracts candidates as support.
+- **Blocked is a property of the pair, not the edge.** Because a tetrad needs an
+  Ac+ from both edges, a workable edge whose pair partner's segments are
+  unfinished is equally stuck: it renders under `blocked_edges`, stays out of
+  `incomplete_edges` (nothing invites a `deepen` that cannot help), and the
+  pair spends no LLM calls.
+- The fraction is rendered by `completeness_line` — with counts in counsel mode,
+  in plain digit-free words in the standalone Advisor — and by
+  `present_exploration._format_wheels` as `Pathways: 4/6` in the Navigator's
+  exploration view. `inspect_node` adds the numeric line plus a "synthesis is
+  stale" flag when a `Synthesis.completeness` stamp no longer matches its wheel.
+  Every one of these reads is fail-soft: status decoration never costs its
+  payload a synthesis or a deepen.
+
 ### Layered Transformation Computation
 
 Transformations use parent wheel's Transformations as computation context (coarse → fine refinement):
@@ -257,6 +298,16 @@ Wheel (3-PP)
 ```
 
 Higher-layer wheel synthesis uses lower-layer (sub-wheel) syntheses as input context.
+
+**Partial synthesis is stamped, not blocked.** S+ emerges from ALL of a wheel's
+Transformations operating simultaneously, so a synthesis generated while the
+wheel was still being built is derived from a fragment. `GenerateSynthesis`
+writes that fact to `Synthesis.completeness` (`"4/6"` — a mutable metadata field,
+excluded from the hash by `_collect_structure_hash_parts`' allowlist, same
+precedent as `Perspective.validation`). Blocking instead would withhold synthesis
+forever from a wheel whose edges are permanently blocked. If the wheel is later
+topped up, the stamp no longer matches `wheel_completeness` and `inspect_node`
+says so ("synthesis is stale") — regenerating is the fix.
 
 ## Structural vs Analytical Layers
 

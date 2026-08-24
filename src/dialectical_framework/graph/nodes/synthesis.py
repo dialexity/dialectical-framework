@@ -8,7 +8,7 @@ Synthesis represents emergent properties from thesis-antithesis dialectic:
 
 from __future__ import annotations
 
-from typing import ClassVar, TYPE_CHECKING
+from typing import ClassVar, Optional, TYPE_CHECKING
 
 from dialectical_framework.graph.nodes.assessable_entity import AssessableEntity
 from dialectical_framework.graph.mixins.incremental_build_mixin import IncrementalBuildMixin
@@ -47,6 +47,18 @@ class Synthesis(IncrementalBuildMixin, AssessableEntity, label="Synthesis"):
     A Wheel can have multiple Synthesis nodes to explore
     alternative synthesis interpretations.
     """
+
+    # How much of the wheel this synthesis was actually derived from, as
+    # "done/expected" (e.g. "4/6") — metadata only, excluded from the hash by
+    # `_collect_structure_hash_parts`' allowlist, same as Perspective.validation.
+    #
+    # S+ emerges from ALL Transformations operating simultaneously, so a synthesis
+    # computed while a wheel was still being built is derived from a fragment.
+    # Blocking it was the wrong call — an edge whose segments never complete
+    # would withhold synthesis forever — so it is generated and STAMPED instead.
+    # None = not recorded (pre-existing nodes, or a wheel with no edges);
+    # a fraction whose two halves are equal means it was complete.
+    completeness: Optional[str] = None
 
     # S+ side (exactly one positive synthesis component)
     s_plus: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(

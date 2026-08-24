@@ -80,6 +80,22 @@ reference apex coherence)
 whose convex hull S± must lie within are exactly these Sa/Sb/Sc instances (per-tetrad sub-syntheses
 with exemplars appear in [P1 p.36]). If R7 ever gets wired, build Sa/Sb/Sc first.
 
+### S+ requires the whole loop — partial builds are stamped
+**Theory:** S+ emerges from the closed loop of T−→A+ (Ac+) and A−→T+ (Re+) occurring
+simultaneously across the arrangement; on a wheel that is ALL Transformations operating at once.
+[CLAUDE.md R2/R5; P0 pp.14-15]
+**Implementation:** `wheel_completeness` (`graph/rendering.py`) derives `done/expected` against
+2N × `len(INSIGHT_CATEGORIES)`; `GenerateSynthesis` stamps `Synthesis.completeness` (`"4/6"`,
+hash-excluded metadata) and reports `— PARTIAL: derived from X/Y pathways`. `inspect_node` flags a
+stamp that no longer matches the wheel as "synthesis is stale".
+**Status:** implemented (as disclosure, not enforcement)
+**Notes:** Deliberately fail-soft rather than a gate: an edge whose source/target segment never
+completes is structurally unfinishable, and blocking would withhold synthesis from that wheel
+forever. So the theory-incomplete case is generated and LABELLED — consistent with the framework's
+"tetrads are never blocked" stance (`generative-rules.md`, validation-in-practice). The same
+derivation drives per-band resume, so an interrupted build is completable rather than frozen at
+whatever the write loop reached. Locked by `tests/test_resume_completeness.py`.
+
 ### Apex coherence (Rule 7)
 **Theory:** S± must lie within the convex hull / semantic centroid of its valid sub-syntheses
 (which satisfy modality balance, Kc, control-statement coherence). [CLAUDE.md R7; sub-synthesis

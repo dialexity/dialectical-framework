@@ -121,10 +121,21 @@ you from a generic list of pros and cons.
 
 `analyze` expands only the strongest tensions into full perspectives and sets the
 rest aside — the report's `polarity_quality` artifact lists every tension with its
-`hs` and an `expanded` flag, and the summary notes how many were set aside. When
-tensions were set aside, briefly say stronger framings were prioritized and that
-you can develop a weaker one on request (via `find_polarities`/`expand_polarities`
-on that specific tension) — don't silently drop them.
+`hs`, an `expanded` flag, and a `status` naming *why*:
+
+- **`expanded`** — a full perspective exists.
+- **`set_aside`** — HS too weak to lead with. This is the gate working; nothing is owed.
+- **`deferred`** — strong enough to expand, dropped only because one run expands a
+  limited number. Real work still outstanding: say so and offer to develop it now.
+- **`failed`** — expansion was attempted and errored. The tension exists with no
+  usable perspective behind it. Never present it as developed; re-run
+  `expand_polarities` on that tension.
+
+`deferred` and `failed` are the two you must not swallow — they are unfinished
+work, not judgements. When tensions were merely set aside, briefly say stronger
+framings were prioritized and that you can develop a weaker one on request (via
+`find_polarities`/`expand_polarities` on that specific tension) — don't silently
+drop them either.
 
 Communicate quality as meaning ("a strong tension", "a weaker, more tangential
 pull"), not raw numbers, unless the app preamble or the user asks for the figures.

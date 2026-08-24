@@ -303,3 +303,91 @@ class TestAspectsNeverDedupIntoTheirOwnPoles:
                             f"{position} is the same node as a pole of its own "
                             f"tetrad: {aspect.text!r}"
                         )
+
+
+@pytest.mark.llm
+class TestExpandPolarityResumesAnInterruptedTetrad:
+    """A crash mid-expansion must be finishable, not duplicated.
+
+    `ExpandPolarity` creates the Perspective first (`save()`, uncommitted) and
+    only then generates its four aspects, so a failure in between leaves a
+    partial tetrad in the graph. `find_by_polarity` deliberately omits the
+    committed-only filter precisely so the next call can SEE that partial and
+    complete it — and `additional_needed = count - len(partial_pps)` means the
+    survivor counts toward `count` instead of being joined by a fresh sibling.
+
+    Both halves are pinned here because the resume path is invisible in normal
+    use (it only fires after a failure) and nothing else in the suite exercises
+    it: a regression would silently start producing a duplicate half-tetrad per
+    interrupted run, and the orphan would keep the polarity looking developed.
+    """
+
+    @pytest.mark.asyncio
+    async def test_partial_is_completed_and_counts_toward_count(self, monkeypatch):
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+
+            # First run dies during aspect generation — after the Perspective
+            # node was saved.
+            async def _boom(self, perspective, positions=None, text="", not_like_these=None):
+                raise RuntimeError("session closed mid-generation")
+
+            monkeypatch.setattr(AspectGeneration, "resolve", _boom)
+            with pytest.raises(RuntimeError):
+                await ExpandPolarity(polarity_hash=polarity.hash).resolve()
+
+            pp_repo = PerspectiveRepository()
+            orphans = pp_repo.find_by_polarity(polarity)
+            assert len(orphans) == 1
+            assert not orphans[0].is_complete()
+            assert not orphans[0].is_committed  # the interrupted state
+
+            # Second run resumes it.
+            stub, call_index = _distinct_aspect_stub(case_node.sid)
+            monkeypatch.setattr(AspectGeneration, "resolve", stub)
+
+            concern = ExpandPolarity(polarity_hash=polarity.hash)
+            pps = await concern.resolve()
+
+            assert len(pps) == 1
+            assert call_index["n"] == 1  # one generation, not two
+            assert concern.report.artifacts["new_count"] == 1
+            assert pps[0].is_complete() and pps[0].is_committed
+            # The partial was completed in place, not abandoned beside a sibling.
+            assert len(pp_repo.find_by_polarity(polarity)) == 1
+
+    @pytest.mark.asyncio
+    async def test_partial_absorbs_one_of_a_larger_count(self, monkeypatch):
+        """`count=2` over one survivor generates one more, not two."""
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        case_node = Case()
+        case_node.commit()
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+
+            async def _boom(self, perspective, positions=None, text="", not_like_these=None):
+                raise RuntimeError("session closed mid-generation")
+
+            monkeypatch.setattr(AspectGeneration, "resolve", _boom)
+            with pytest.raises(RuntimeError):
+                await ExpandPolarity(polarity_hash=polarity.hash, count=2).resolve()
+
+            stub, call_index = _distinct_aspect_stub(case_node.sid)
+            monkeypatch.setattr(AspectGeneration, "resolve", stub)
+
+            concern = ExpandPolarity(polarity_hash=polarity.hash, count=2)
+            pps = await concern.resolve()
+
+            assert len(pps) == 2
+            assert call_index["n"] == 2
+            assert len({pp.hash for pp in pps}) == 2
+            assert len(PerspectiveRepository().find_by_polarity(polarity)) == 2

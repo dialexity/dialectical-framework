@@ -33,7 +33,7 @@ Citations below use `[P0 p.N]` / `[P1 p.N]`.
 | [generative-rules.md](generative-rules.md) | The formal constraint network: tetrad, modality, control statements, synthesis rules, circular causality, multi-thesis geometry, transitions matrix |
 | [taxonomies.md](taxonomies.md) | Systemic (Table S1.11-1), Elemental, thesis-lessness/Mode ladder, Mode×Arousal plane |
 | [scoring.md](scoring.md) | K/Ks, SP(=area), rectangularity, HS/MHS, CC, DV, MMI, PSI, PC, feasibility, thresholds & gates |
-| [transformations-synthesis.md](transformations-synthesis.md) | Ac/Re mechanics, insight×proactiveness, Greimas criteria, transitions matrix, principles/ontologies, S± subtypes |
+| [transformations-synthesis.md](transformations-synthesis.md) | Ac/Re mechanics, insight×proactiveness, Greimas criteria, transitions matrix, principles/ontologies, S± subtypes, partial-build stamping |
 | [pipeline.md](pipeline.md) | Where each rule is enforced vs merely described in the live pipelines; procedural theory (steps, workflows) vs agent architecture |
 
 ## Theory-fidelity milestone: remaining gaps deferred (2026-08-01)

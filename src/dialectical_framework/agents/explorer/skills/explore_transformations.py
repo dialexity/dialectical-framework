@@ -33,6 +33,8 @@ from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
+from dialectical_framework.concerns.ac_re_taxonomy import (
+    INSIGHT_CATEGORIES, insight_category_of_label)
 from dialectical_framework.concerns.action_extraction import (
     ActionCandidateResultDto, ActionExtraction)
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
@@ -60,8 +62,13 @@ if TYPE_CHECKING:
 class _EdgeProcessingData:
     """Typed intermediate data for edge pair processing."""
 
-    existing: bool = False
+    #: Edge already carries one Transformation per insight category — nothing to do.
+    complete: bool = False
     skip: bool = False
+    #: Insight categories this edge still needs. Empty on a complete or skipped
+    #: edge; all of INSIGHT_CATEGORIES on a fresh one; a subset when an earlier
+    #: run was interrupted part-way through the write loop.
+    missing_categories: set[str] = field(default_factory=set)
     ac_candidates: list = field(default_factory=list)
     apexes: Optional[ApexDerivationResultDto] = None
     source_segment: Optional[WheelSegment] = None
@@ -95,6 +102,24 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
     def __init__(self, wheel_hash: str, edge_hash: Optional[str] = None) -> None:
         self.wheel_hash = wheel_hash
         self.edge_hash = edge_hash
+        #: short_hash -> the insight categories a partly-built edge was topped up
+        #: WITH. Populated only when an edge already carried some Transformations,
+        #: so the report can say "resumed" rather than "new". Written after the
+        #: graph writes, never before: bands owed and bands built are different
+        #: facts, and reporting the first as the second turned a failed top-up
+        #: into a claimed one.
+        self._resumed_edges: dict[str, list[str]] = {}
+        #: short_hash -> categories still owed after this call. A top-up can come
+        #: back short (the LLM picks the level within a band and can land outside
+        #: the one it was asked for, and a generation can fail), and silence there
+        #: read as success — the wheel simply stayed partial with no one saying
+        #: why, across unlimited retries.
+        self._resume_shortfall: dict[str, list[str]] = {}
+        #: short_hashes of edges that owe bands but cannot be built — their own
+        #: segments are unfinished, or their pair partner's are. Reported so the
+        #: Explorer's own tool output says why an edge stayed empty; the Advisor
+        #: learns the same fact from derived status (`blocked_edges`).
+        self._blocked_edges: set[str] = set()
 
     async def resolve(self) -> ExploreTransformationsResult:
         """
@@ -184,6 +209,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             f"Processed {len(edge_pairs)} edge pair(s) for Wheel {wheel.short_hash}: "
             f"{len(all_new)} new, {len(all_existing)} existing"
         )
+        self._report_resume_state()
         if failed_pairs:
             # Partial success stays ok — the transformations that WERE built are
             # real and the agent should use them. Total failure is not ok.
@@ -199,6 +225,44 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             new=all_new,
             apexes=last_apexes,
         )
+
+    def _report_resume_state(self) -> None:
+        """Decorate the report with what was resumed and what is still owed.
+
+        Its own method so the resume accounting can be driven (and asserted) on
+        the real code path — `resolve()` needs a live wheel, an edge pair does
+        not.
+        """
+        if self._resumed_edges:
+            # A top-up must read as a top-up. Without this the agent sees only
+            # "N new" and cannot tell a fresh build from the completion of an
+            # interrupted one — which is exactly the state the user left behind.
+            self._report.artifacts["resumed_categories"] = dict(self._resumed_edges)
+            self._report.summary += (
+                f" — resumed {len(self._resumed_edges)} partly-built edge(s)"
+            )
+        if self._resume_shortfall:
+            # A top-up that came back short says so. Otherwise the wheel just
+            # stays partial and every retry looks like a successful resume.
+            self._report.artifacts["still_missing"] = dict(self._resume_shortfall)
+            shortfall_str = "; ".join(
+                f"{edge_hash}: {', '.join(categories)}"
+                for edge_hash, categories in self._resume_shortfall.items()
+            )
+            self._report.summary += (
+                f" — {len(self._resume_shortfall)} edge(s) still short "
+                f"({shortfall_str})"
+            )
+        if self._blocked_edges:
+            # Nothing was spent on these and nothing can be until the segments
+            # they run between are finished. Said out loud, because an edge that
+            # is merely absent from the output reads as an edge that failed.
+            blocked = sorted(self._blocked_edges)
+            self._report.artifacts["blocked_edges"] = blocked
+            self._report.summary += (
+                f" — {len(blocked)} edge(s) blocked, segments unfinished "
+                f"({', '.join(blocked)})"
+            )
 
     async def _process_edge_pair(
         self,
@@ -226,30 +290,85 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # Phase 1: Extract Ac+ for both edges in parallel (check existing first)
         phase1_tasks: list[tuple[Transition, asyncio.Task]] = []
         edge_data: dict[str, _EdgeProcessingData] = {}
+        #: edge hash -> the bands that edge itself still owes (empty when it is
+        #: complete or unworkable). Kept beside `edge_data` because Phase 1's
+        #: scope depends on BOTH edges of the pair, not just its own.
+        owed: dict[str, set[str]] = {}
+        workable: dict[str, bool] = {}
+        #: edge hash -> whether THIS edge already carried Transformations. Per
+        #: edge, not per pair: an untouched edge opposite a part-built one is a
+        #: fresh build, and calling it a resume misdescribes both.
+        had_existing: dict[str, bool] = {}
 
         for edge in (edge_a, edge_b):
             assert edge.hash is not None
             existing = tr_repo.find_by_edge(edge=edge)
-            if existing:
-                all_existing.extend(existing)
-                edge_data[edge.hash] = _EdgeProcessingData(existing=True)
-                continue
+            all_existing.extend(existing)
+            had_existing[edge.hash] = bool(existing)
 
+            # An edge is done when it carries one Transformation per insight
+            # category — NOT merely when it carries any. The write loop below is
+            # sequential after the generation gather, so a session that closed
+            # mid-loop leaves an edge with some categories committed and the rest
+            # missing; treating non-empty as done stranded such an edge forever.
+            missing = self._missing_categories(existing)
             source_segment = edge.get_source_wheel_segment()
             target_segment = edge.get_target_wheel_segment()
-            if not source_segment or not target_segment:
-                edge_data[edge.hash] = _EdgeProcessingData(skip=True)
+            can_build = bool(
+                source_segment
+                and target_segment
+                and source_segment.is_complete()
+                and target_segment.is_complete()
+            )
+            workable[edge.hash] = can_build
+
+            if not missing:
+                edge_data[edge.hash] = _EdgeProcessingData(complete=True)
+                owed[edge.hash] = set()
                 continue
-            if not source_segment.is_complete() or not target_segment.is_complete():
+            if not can_build:
                 edge_data[edge.hash] = _EdgeProcessingData(skip=True)
+                owed[edge.hash] = set()
+                self._blocked_edges.add(edge.short_hash)
                 continue
 
             edge_data[edge.hash] = _EdgeProcessingData(
                 source_segment=source_segment,
                 target_segment=target_segment,
+                missing_categories=missing,
             )
+            owed[edge.hash] = missing
+
+        # Phase 1 is scoped to what EITHER side of the pair owes. A tetrad pairs
+        # an edge's Ac+ with the opposite edge's Ac+ in the same band (that Ac+
+        # becomes its Re+), so an edge whose partner is already complete must
+        # still extract candidates — as support, without earning Transformations
+        # of its own. Without this the commonest interrupted state could never
+        # resume: the write loop finishes edge A, dies part-way through edge B,
+        # and B's top-up then finds nobody to pair with (`_find_matching_category`
+        # returns None on an empty candidate list) and silently generates nothing.
+        #
+        # Buildability is a property of the PAIR for the same reason: if either
+        # edge's segments are unfinished, neither edge can earn a Transformation,
+        # because the missing side has no Ac+ to lend. Extracting anyway burned
+        # an ApexDerivation + one ActionExtraction per band on every attempt and
+        # wrote nothing — and the derived status then invited another `deepen`,
+        # so the same cost repeated for as long as the user kept trying.
+        pair_buildable = workable[edge_a.hash] and workable[edge_b.hash]
+        for edge, partner in ((edge_a, edge_b), (edge_b, edge_a)):
+            assert edge.hash is not None and partner.hash is not None
+            wanted = owed[edge.hash] | owed[partner.hash]
+            if not wanted or not pair_buildable:
+                if owed[edge.hash] and not pair_buildable:
+                    # Blocked BY THE PARTNER, not by itself. Named as blocked so
+                    # the report says unbuildable rather than leaving it to read
+                    # as a top-up that produced nothing.
+                    edge_data[edge.hash] = _EdgeProcessingData(skip=True)
+                    owed[edge.hash] = set()
+                    self._blocked_edges.add(edge.short_hash)
+                continue
             phase1_tasks.append((edge, asyncio.ensure_future(
-                self._phase1_for_edge(edge, wheel, input_text)
+                self._phase1_for_edge(edge, wheel, input_text, wanted)
             )))
 
         # Await Phase 1 tasks in parallel
@@ -264,7 +383,11 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                     logging.getLogger(__name__).warning(
                         "Phase 1 failed for edge %s: %s", edge.short_hash, result
                     )
-                    edge_data[edge.hash] = _EdgeProcessingData(skip=True)
+                    # A support-only edge (already complete, extracted purely to
+                    # pair with its partner) stays complete — it owes nothing, so
+                    # calling it skipped would misreport a finished edge.
+                    if not edge_data[edge.hash].complete:
+                        edge_data[edge.hash] = _EdgeProcessingData(skip=True)
                     continue
                 apexes, ac_candidates, report = result
                 self._report = self._report.merge(report)
@@ -281,7 +404,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             assert edge.hash is not None
             assert opposite_edge.hash is not None
             data = edge_data.get(edge.hash)
-            if not data or data.existing or data.skip:
+            if not data or data.complete or data.skip:
                 continue
             if not data.ac_candidates:
                 continue
@@ -291,7 +414,11 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             opp_data = edge_data.get(opposite_edge.hash)
             opp_ac_candidates = opp_data.ac_candidates if opp_data else []
 
-            for ac_plus in data.ac_candidates:
+            # Phase 1 was already asked for only the missing categories, but the
+            # LLM picks the level within a category and can land outside the band
+            # it was prompted for. Filter here too, so a top-up cannot re-add a
+            # band the edge already has.
+            for ac_plus in self._only_missing(data.ac_candidates, data.missing_categories):
                 opposite_ac = self._find_matching_category(
                     opp_ac_candidates, ac_plus.insight_label
                 )
@@ -305,12 +432,14 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         # Await all generation tasks and create graph nodes sequentially
         all_new: list[Transformation] = []
+        #: edge hash -> bands that actually reached the graph on this call.
+        built: dict[str, set[str]] = {}
         if generation_tasks:
             tetrad_results = await asyncio.gather(
                 *[t for _, _, _, t in generation_tasks],
                 return_exceptions=True,
             )
-            for (edge, data, _, _), result in zip(generation_tasks, tetrad_results):
+            for (edge, data, ac_plus, _), result in zip(generation_tasks, tetrad_results):
                 if isinstance(result, Exception):
                     logging.getLogger(__name__).warning(
                         "Tetrad generation failed for edge %s: %s", edge.short_hash, result
@@ -324,14 +453,109 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                     nexus, edge, data.source_segment, data.target_segment, tetrad,
                 )
                 all_new.append(transformation)
+                assert edge.hash is not None
+                try:
+                    built.setdefault(edge.hash, set()).add(
+                        insight_category_of_label(ac_plus.insight_label)
+                    )
+                except ValueError:
+                    # An off-scale label still produced a real Transformation;
+                    # it just cannot be attributed to a band.
+                    pass
+
+        # Resume accounting, AFTER the writes: what a part-built edge was topped
+        # up with, and what it still owes. Both are needed — a top-up that came
+        # back short otherwise looked identical to one that finished the edge.
+        for edge in (edge_a, edge_b):
+            assert edge.hash is not None
+            if not had_existing[edge.hash] or not owed[edge.hash]:
+                continue
+            got = built.get(edge.hash, set())
+            if got:
+                self._resumed_edges[edge.short_hash] = sorted(got)
+            still_owed = owed[edge.hash] - got
+            if still_owed:
+                self._resume_shortfall[edge.short_hash] = sorted(still_owed)
 
         return all_existing, all_new, last_apexes
+
+    @staticmethod
+    def _missing_categories(existing: list[Transformation]) -> set[str]:
+        """Which insight categories an edge still owes, given what it carries.
+
+        Bounded by COUNT as well as by category: an edge gets
+        `len(INSIGHT_CATEGORIES)` Transformations total, so three existing ones
+        that all landed in the same band return nothing to do rather than
+        growing the edge past its budget (which would break the 6N cardinality
+        the docs and cost math are bound to). Uncategorisable Transformations —
+        no Ac+, or no stored insight value — consume budget without covering a
+        category, which is the honest reading: something is there, but resume
+        cannot tell what.
+        """
+        budget = len(INSIGHT_CATEGORIES) - len(existing)
+        if budget <= 0:
+            return set()
+        covered = {
+            category
+            for category in (t.insight_category for t in existing)
+            if category
+        }
+        # Declaration order, not set order: Generative first, so an interrupted
+        # top-up spends its budget on the deepest band it still lacks.
+        return {
+            category
+            for category in [c for c in INSIGHT_CATEGORIES if c not in covered][:budget]
+        }
+
+    @staticmethod
+    def _only_missing(
+        candidates: list[ActionCandidateResultDto],
+        missing_categories: set[str],
+    ) -> list[ActionCandidateResultDto]:
+        """Keep at most one candidate per insight band the edge still lacks.
+
+        Two filters, and both are the contract rather than tidiness. The band
+        must be one the edge lacks, so a top-up cannot re-add what it already
+        has. And AT MOST ONE candidate per band, because `ActionExtraction`
+        asks per band but the LLM picks the level inside it and can answer two
+        prompts with the same band: unfiltered, an edge could end up with three
+        Configurational Transformations and none Generative — reading 3/3 done
+        while two of its three documented depth alternatives are permanently
+        absent, and permanently invisible, since the derived count is per row.
+        Keeping one makes the drift show up as a shortfall the next `deepen`
+        can top up.
+
+        A candidate whose label maps to no category is kept — dropping it would
+        silently lose generation work over a taxonomy gap — but only one such,
+        for the same reason.
+        """
+        if not missing_categories:
+            return []
+
+        kept: list[ActionCandidateResultDto] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            try:
+                category = insight_category_of_label(candidate.insight_label)
+            except ValueError:
+                # One sentinel for every off-scale label: they cannot be told
+                # apart as bands, so they share a single slot.
+                category = "unmapped"
+            else:
+                if category not in missing_categories:
+                    continue
+            if category in seen:
+                continue
+            seen.add(category)
+            kept.append(candidate)
+        return kept
 
     async def _phase1_for_edge(
         self,
         edge: Transition,
         wheel: Wheel,
         input_text: str,
+        only_categories: Optional[set[str]] = None,
     ) -> tuple[Optional[ApexDerivationResultDto], list[ActionCandidateResultDto], Any]:
         """Run ApexDerivation + ActionExtraction for a single edge. Returns (apexes, candidates, merged_report)."""
         from dialectical_framework.agents.execution_report import ExecutionReport
@@ -346,6 +570,7 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         ac_candidates = await extractor.resolve(
             edge, input_text,
             not_like_these=wheel.transformations,
+            only_categories=only_categories,
         )
         merged_report = merged_report.merge(extractor.report)
 
@@ -373,32 +598,20 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         if not candidates:
             return None
 
-        # Determine category from insight label
-        from dialectical_framework.concerns.ac_re_taxonomy import insight_label_to_value
+        from dialectical_framework.concerns.ac_re_taxonomy import \
+            insight_category_of_label
+
         try:
-            target_value = insight_label_to_value(insight_label)
+            target_category = insight_category_of_label(insight_label)
         except ValueError:
             return candidates[0]
 
-        # Categories: Generative (0.6-1.0), Configurational (0.4-0.5), Corrective (0.0-0.3)
-        if target_value >= 0.6:
-            target_category = "generative"
-        elif target_value >= 0.4:
-            target_category = "configurational"
-        else:
-            target_category = "corrective"
-
         for candidate in candidates:
             try:
-                val = insight_label_to_value(candidate.insight_label)
+                if insight_category_of_label(candidate.insight_label) == target_category:
+                    return candidate
             except ValueError:
                 continue
-            if val >= 0.6 and target_category == "generative":
-                return candidate
-            elif 0.4 <= val < 0.6 and target_category == "configurational":
-                return candidate
-            elif val < 0.4 and target_category == "corrective":
-                return candidate
 
         # Fallback: return first available
         return candidates[0]

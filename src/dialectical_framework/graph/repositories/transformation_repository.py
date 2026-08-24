@@ -94,16 +94,23 @@ class TransformationRepository:
             sid: Case ID (injected from DI context)
 
         Returns:
-            List of Transformations on this edge
+            List of committed Transformations on this edge
         """
         from dialectical_framework.graph.nodes.transformation import Transformation as TransformationNode
 
         if edge._id is None:
             return []
 
+        # Committed-only (CLAUDE.md): `Transformation.commit()` connects the
+        # ACTION_REFLECTION edge BEFORE validating its children, so a child that
+        # failed to commit leaves a hash-NULL orphan already attached here. This
+        # count is load-bearing twice over — it is the per-edge resume budget and
+        # the numerator of the derived completeness fraction — so counting an
+        # orphan would forfeit a band that never got built and then report the
+        # edge as finished.
         query = """
         MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)
-        WHERE id(t) = $edge_id AND tr.sid = $sid
+        WHERE id(t) = $edge_id AND tr.sid = $sid AND tr.hash IS NOT NULL
         RETURN tr
         ORDER BY id(tr)
         """
@@ -116,6 +123,39 @@ class TransformationRepository:
             row["tr"] for row in results
             if isinstance(row.get("tr"), TransformationNode)
         ]
+
+    @inject
+    def count_by_edges(
+        self,
+        edges: list[Transition],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> dict[int, int]:
+        """Count committed Transformations per edge, in ONE query.
+
+        The batched twin of `find_by_edge`, for derived status: rendering needs
+        only the count, and asking per edge cost one round-trip per edge on a
+        path with no budget guard (a counsel-mode dump renders every wheel of
+        the nexus, so a 4-PP nexus meant 96 wheels × 8 edges of round-trips).
+
+        Returns:
+            `{edge._id: count}` — edges with no Transformations are absent, so
+            callers should read with `.get(edge._id, 0)`.
+        """
+        edge_ids = [e._id for e in edges if e._id is not None]
+        if not edge_ids:
+            return {}
+
+        query = """
+        MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)
+        WHERE id(t) IN $edge_ids AND tr.sid = $sid AND tr.hash IS NOT NULL
+        RETURN id(t) AS edge_id, count(tr) AS n
+        """
+        results = graph_db.execute_and_fetch(query, {
+            "edge_ids": edge_ids,
+            "sid": sid,
+        })
+        return {int(row["edge_id"]): int(row["n"]) for row in results}
 
     @inject
     def find_by_position_transition(

@@ -7,6 +7,7 @@ context → call SynthesisGeneration concern → create Synthesis node → commi
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from itertools import combinations
 from typing import Optional, TYPE_CHECKING
@@ -78,6 +79,21 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
                 f"run explore_transformations first"
             )
 
+        from dialectical_framework.graph.rendering import (WheelCompleteness,
+                                                           wheel_completeness)
+
+        try:
+            completeness = wheel_completeness(wheel)
+        except Exception as e:  # noqa: BLE001 - status must never cost a synthesis
+            # The stamp is disclosure, not a precondition. A wheel with every
+            # pathway built must not lose its synthesis because a status read
+            # hit a driver error, so an unreadable count means an unstamped
+            # synthesis — not a failed one.
+            logging.getLogger(__name__).warning(
+                "Completeness unavailable for Wheel %s: %s", wheel.short_hash, e
+            )
+            completeness = WheelCompleteness()
+
         # Idempotent: return existing synthesis
         existing = self._find_existing_synthesis(wheel)
         if existing:
@@ -86,6 +102,27 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
             )
             self._report.artifacts["wheel"] = wheel.short_hash
             self._report.artifacts["existing"] = True
+            if existing.completeness:
+                self._report.artifacts["completeness"] = existing.completeness
+            # The wheel has gained pathways since this synthesis was derived —
+            # so it no longer reflects all of them. Says so rather than
+            # regenerating: S+/S- are hash-frozen analytical nodes, and silently
+            # adding a second one to the same wheel would leave two competing
+            # syntheses in every dump. The caller decides whether a fresh one
+            # is worth it.
+            if (
+                completeness.expected
+                and existing.completeness
+                and existing.completeness != completeness.fraction
+            ):
+                self._report.artifacts["synthesis_stale"] = (
+                    f"derived from {existing.completeness}, "
+                    f"wheel now at {completeness.fraction}"
+                )
+                self._report.summary += (
+                    f" — but it was derived from {existing.completeness} pathways "
+                    f"and the wheel now has {completeness.fraction}"
+                )
             return GenerateSynthesisResult(synthesis=existing, is_new=False)
 
         # Gather context
@@ -108,6 +145,13 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
 
         # Create Synthesis node and wire up
         synthesis = Synthesis()
+        # Stamped BEFORE commit so the value is on the node as persisted. S+
+        # emerges from all Transformations at once, so a synthesis derived while
+        # the wheel was still building is derived from a fragment — this records
+        # which. Hash-excluded (see the field comment), so it cannot change
+        # identity or break dedup.
+        if completeness.expected:
+            synthesis.completeness = completeness.fraction
         synthesis.save()
         self._report.node_created(synthesis)
 
@@ -136,6 +180,12 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
             f"S+ = \"{result.s_plus_statement.text}\", "
             f"S- = \"{result.s_minus_statement.text}\""
         )
+        if synthesis.completeness:
+            self._report.artifacts["completeness"] = synthesis.completeness
+            if not completeness.is_complete:
+                self._report.summary += (
+                    f" — PARTIAL: derived from {completeness.fraction} pathways"
+                )
 
         return GenerateSynthesisResult(synthesis=synthesis)
 

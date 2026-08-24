@@ -22,10 +22,12 @@ from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.graph.nodes.cycle import Cycle
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.perspective import Perspective
+from dialectical_framework.graph.nodes.synthesis import Synthesis
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.rendering import (
     build_pp_index,
+    completeness_line,
     format_edge_label,
     format_spiral,
 )
@@ -72,6 +74,19 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
     def __init__(self, nexus_hash: str | None = None) -> None:
         self._nexus_hash = nexus_hash
+
+    @property
+    def _numeric_status(self) -> bool:
+        """Whether completeness may be spoken with counts and edge labels.
+
+        Set in code, not by prompt discipline: this concern serves the Advisor
+        only, and there the scope IS the register. Counsel mode (nexus-pinned)
+        is the person debriefing their own exploration, which is on screen and
+        already carries scores — numbers are appropriate. Unscoped, the
+        framework is invisible by design, so partial progress is spoken in
+        plain words (see `_HOW_YOU_SPEAK`).
+        """
+        return bool(self._nexus_hash)
 
     async def resolve(self) -> str:
         if self._nexus_hash:
@@ -150,6 +165,10 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"inspect_node if needed."
             )
 
+        pending_dump = self._dump_pending_analysis()
+        if pending_dump:
+            sections.append(pending_dump)
+
         if len(nexuses) > 1:
             sections.append(
                 "Multiple explorations below. Indices (T1, A1, ...) are "
@@ -211,6 +230,14 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"{outside_count} other tension(s) exist outside this "
                 f"exploration (not shown)."
             )
+
+        # Case-level, like the decisions above: work the person started and
+        # lost does not stop mattering because the head is pinned to one
+        # exploration. A count line is also all the fence allows — the same
+        # treatment the outside tensions get.
+        pending_dump = self._dump_pending_analysis()
+        if pending_dump:
+            sections.append(pending_dump)
 
         self._report.ok = True
         self._report.summary = (
@@ -380,6 +407,67 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 block = "\n".join([block, *refs])
             lines.append(block)
         return "\n\n".join(lines)
+
+    def _dump_pending_analysis(self) -> Optional[str]:
+        """Tensions that exist but were never developed into a full tetrad.
+
+        A polarity with no usable perspective is invisible in every other
+        section — `find_all_active` is committed-only by rule, so an expansion
+        that was interrupted leaves nothing on screen at all. That made a lost
+        build indistinguishable from a blank slate AND from a tension the HS
+        gate deliberately set aside. The distinction is derived, not stored:
+        see `polarity_completeness`.
+
+        Counts, not listings, and the polarities themselves are not relaxed
+        into the committed-only dumps above: the point is honest status, not
+        leaking half-built structure into a menu the model might pick from.
+        """
+        from dialectical_framework.agents.analyst.analyst import HS_THRESHOLD
+        from dialectical_framework.graph.rendering import (
+            POLARITY_NOT_DEVELOPED, POLARITY_PARTIAL, polarity_completeness)
+        from dialectical_framework.graph.repositories.polarity_repository import \
+            PolarityRepository
+
+        pending = PolarityRepository().find_unconnected()
+        if not pending:
+            return None
+
+        partial = 0
+        not_developed = 0
+        for polarity in pending:
+            state = polarity_completeness(polarity, hs_threshold=HS_THRESHOLD)
+            if state == POLARITY_PARTIAL:
+                partial += 1
+            elif state == POLARITY_NOT_DEVELOPED:
+                not_developed += 1
+
+        lines: list[str] = []
+        if self._numeric_status:
+            if partial:
+                lines.append(
+                    f"{partial} tension(s) partially developed — an expansion "
+                    f"was interrupted before the tetrad was complete."
+                )
+            if not_developed:
+                lines.append(
+                    f"{not_developed} tension(s) identified but not yet "
+                    f"developed (strong opposition, HS >= {HS_THRESHOLD})."
+                )
+        else:
+            # Plain words, no counts, no framework nouns — the unscoped register.
+            if partial:
+                lines.append(
+                    "Some threads here were started and not finished."
+                )
+            if not_developed:
+                lines.append(
+                    "Some tensions have been named but not yet worked through."
+                )
+        if not lines:
+            # Everything outstanding was deliberately set aside on quality —
+            # that is the gate working, not unfinished business.
+            return None
+        return "# Unfinished\n" + "\n".join(lines)
 
     def _collect_grounding(self, pp: Perspective) -> Optional[str]:
         """Grounding for the tetrad plus any attached to its own poles.
@@ -722,6 +810,14 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 prob_str += f", {normalized * 100:.1f}%"
             lines.append(f"Causality: {prob_str}")
 
+        # How far this wheel actually got. Rendered BEFORE the transformations
+        # it qualifies: a 2-of-6 wheel used to be indistinguishable from a
+        # finished one — the dump simply listed whatever existed — so the model
+        # read an interrupted build as a complete answer.
+        status = completeness_line(wheel, pp_index, numeric=self._numeric_status)
+        if status:
+            lines.append(status)
+
         # Transformations (belong to wheel)
         for tr in wheel.transformations:
             tr_dump = self._dump_transformation(tr, pp_index)
@@ -775,6 +871,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             if spiral:
                 header += f" ({spiral})"
             lines.append(header)
+            # A synthesis derived from a fragment must not read as the whole.
+            # Register follows the same rule as the wheel's own status line:
+            # counts in counsel mode, plain words when the machinery is hidden.
+            stamp = self._synthesis_stamp(synth)
+            if stamp:
+                lines.append(stamp)
             s_plus = synth.s_plus.get()
             s_minus = synth.s_minus.get()
             if s_plus:
@@ -784,6 +886,28 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 stmt, _ = s_minus
                 lines.append(f"S-: \"{stmt.text}\"")
         return "\n".join(lines) if lines else None
+
+    def _synthesis_stamp(self, synth: Synthesis) -> Optional[str]:
+        """Say when a synthesis was derived from only part of its wheel.
+
+        Returns None for a complete (or unstamped) synthesis. `Synthesis
+        .completeness` is a "done/expected" string written at generation time;
+        an unparseable or equal-halves value means there is nothing to warn
+        about, so silence is the right output rather than a guess.
+        """
+        raw = synth.completeness
+        if not raw or "/" not in raw:
+            return None
+        done_str, _, expected_str = raw.partition("/")
+        try:
+            done, expected = int(done_str), int(expected_str)
+        except ValueError:
+            return None
+        if expected <= 0 or done >= expected:
+            return None
+        if self._numeric_status:
+            return f"(built from {done} of {expected} pathways — partial)"
+        return "(drawn from part of this, not all of it)"
 
     def _format_aspect_scores(self, rel) -> str:
         parts = []

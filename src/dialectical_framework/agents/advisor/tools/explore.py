@@ -155,6 +155,32 @@ async def run_exploration_detailed(
     ]
     if shallow:
         combined_report.artifacts["shallow_wheel_hashes"] = shallow
+    # Whether the wheels explore DID deepen came out whole. A deepened wheel
+    # that lost edges to a failure or an interrupted session still lands in
+    # `deepened_wheel_hashes`, so without a fraction the caller cannot tell a
+    # finished arrangement from a fragment — and would present the fragment as
+    # the answer. Only partial wheels are listed; a clean run says nothing.
+    partial: dict[str, str] = {}
+    for wh in exp_result.deepened_wheel_hashes:
+        try:
+            from dialectical_framework.graph.nodes.wheel import Wheel
+            from dialectical_framework.graph.rendering import wheel_completeness
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            wheel_node = NodeRepository().find_by_hash(wh, node_type=Wheel)
+            if not wheel_node:
+                continue
+            completeness = wheel_completeness(wheel_node)
+            if completeness.expected and not completeness.is_complete:
+                partial[wh] = completeness.fraction
+        except Exception:  # noqa: BLE001 - decoration, never the payload
+            # Broad on purpose: this is a derived-status read decorating an
+            # exploration that already succeeded, and a DB-level failure here
+            # is neither ValueError nor RuntimeError.
+            continue
+    if partial:
+        combined_report.artifacts["partial_wheels"] = partial
     if deferred_hashes:
         combined_report.artifacts["deferred_perspective_hashes"] = deferred_hashes
         combined_report.summary = (

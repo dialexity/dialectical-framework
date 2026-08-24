@@ -18,6 +18,7 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.transformation import Transformation
 from dialectical_framework.graph.nodes.wheel import Wheel
+from dialectical_framework.graph.rendering import WheelCompleteness
 from dialectical_framework.graph.repositories.nexus_repository import \
     NexusRepository
 from dialectical_framework.graph.repositories.transformation_repository import \
@@ -167,11 +168,17 @@ class PresentExploration(ReasonableConcern[str]):
         lines = [f"## Wheels ({len(wheels)})"]
 
         tr_by_wheel: dict[int, list[Transformation]] = {}
+        # Per-edge tally, harvested from the same pass: it is the denominator
+        # input below, so completeness costs no extra queries on a path that
+        # renders every wheel of the nexus.
+        tr_by_edge: dict[int, int] = {}
         for tr in transformations:
             edge_result = tr.edge.get()
             if not edge_result:
                 continue
             edge, _ = edge_result
+            if edge._id is not None:
+                tr_by_edge[edge._id] = tr_by_edge.get(edge._id, 0) + 1
             cycle_result = edge.cycle.get()
             if not cycle_result:
                 continue
@@ -218,6 +225,16 @@ class PresentExploration(ReasonableConcern[str]):
                         edge_strs.append(f"{src.text} -> {tgt.text}")
                 if edge_strs:
                     lines.append(f"    Edges: {' | '.join(edge_strs)}")
+
+            # The denominator for the transformations below. Without it a wheel
+            # killed mid-build reads exactly like a finished one — the same
+            # 6N fraction the Advisor and `deepen` speak (docs/graph.md).
+            # Silent when complete, so the common path stays uncluttered.
+            completeness = WheelCompleteness.from_edge_counts(
+                [tr_by_edge.get(e._id, 0) for e in edges]
+            )
+            if completeness.expected and not completeness.is_complete:
+                lines.append(f"    Pathways: {completeness.fraction}")
 
             wheel_trs = tr_by_wheel.get(wheel._id, [])
             if wheel_trs:

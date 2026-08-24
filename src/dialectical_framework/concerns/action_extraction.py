@@ -24,32 +24,10 @@ from dialectical_framework.agents.reasonable_concern import \
     ReasonableConcern
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
-    AC_PLUS_APEX_TARGET, insight_label_to_value, proactiveness_label_to_value)
+    AC_PLUS_APEX_TARGET, INSIGHT_CATEGORIES, insight_label_to_value,
+    proactiveness_label_to_value)
 from dialectical_framework.utils.edge_context import build_edge_context
 from dialectical_framework.protocols.has_config import SettingsAware
-
-# Insight hierarchy categories for exploration
-# Groups insight levels into categories for generating candidates at different depths
-INSIGHT_CATEGORIES = {
-    "Generative": {
-        "description": "High depth insight - strategic or transformational actions",
-        "levels": [
-            "Leverage",
-            "Anticipation",
-            "Inversion",
-            "Redirection",
-            "Transcendence",
-        ],
-    },
-    "Configurational": {
-        "description": "Medium depth insight - restructuring or combining approaches",
-        "levels": ["Composition", "Reformulation"],
-    },
-    "Corrective": {
-        "description": "Low depth insight - adjustments or reactive responses",
-        "levels": ["Variation", "Tuning", "Procedure", "Reflex"],
-    },
-}
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transformation import Transformation
@@ -163,6 +141,7 @@ class ActionExtraction(
         edge: Transition,
         input_text: str = "",
         not_like_these: Optional[list[Transformation]] = None,
+        only_categories: Optional[set[str]] = None,
     ) -> list[ActionCandidateResultDto]:
         """
         Extract Ac+ candidates for a wheel edge.
@@ -174,6 +153,10 @@ class ActionExtraction(
             edge: The wheel edge (Transition between main statements)
             input_text: Optional source content context
             not_like_these: Existing transformations to avoid duplicating
+            only_categories: Generate candidates for these insight categories
+                only — used when resuming an edge that already carries some.
+                None (the default) means all of `INSIGHT_CATEGORIES`. A
+                top-up must not pay for bands the edge already has.
 
         Returns:
             List of ActionCandidateResultDto with statements and coordinates
@@ -197,11 +180,23 @@ class ActionExtraction(
 
         exclusion_statements = self._build_exclusion_list(not_like_these or [])
 
+        wanted = {
+            category: info
+            for category, info in INSIGHT_CATEGORIES.items()
+            if only_categories is None or category in only_categories
+        }
+        if not wanted:
+            self._report.ok = False
+            self._report.summary = (
+                f"No known insight categories in {sorted(only_categories or [])}"
+            )
+            return []
+
         tasks = [
             self._generate_candidate_for_category(
                 context, input_text, category, info, exclusion_statements
             )
-            for category, info in INSIGHT_CATEGORIES.items()
+            for category, info in wanted.items()
         ]
         candidates = await asyncio.gather(*tasks)
 
@@ -210,7 +205,7 @@ class ActionExtraction(
 
         self._report.artifacts["edge_hash"] = edge.short_hash
         self._report.artifacts["candidate_count"] = len(results)
-        self._report.artifacts["insight_categories"] = list(INSIGHT_CATEGORIES.keys())
+        self._report.artifacts["insight_categories"] = list(wanted.keys())
         self._report.summary = (
             f"Extracted {len(results)} Ac+ candidates for edge {edge.short_hash}"
         )

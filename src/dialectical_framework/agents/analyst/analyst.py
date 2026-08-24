@@ -364,7 +364,10 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         # WHY these framings are the strong ones or that weaker tensions were
         # set aside.
         polarity_quality = self._build_polarity_quality(polarity_data, hashes_to_expand)
-        set_aside_count = sum(1 for q in polarity_quality if not q["expanded"])
+        set_aside_count = sum(1 for q in polarity_quality if q["status"] == "set_aside")
+        # Strong enough to expand, dropped for budget — owed work, not a
+        # judgement. Reported separately so a resuming session can ask for it.
+        deferred_count = sum(1 for q in polarity_quality if q["status"] == "deferred")
 
         expand_results = await asyncio.gather(
             *[self._expand_one(h) for h in hashes_to_expand],
@@ -398,6 +401,16 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                     )
 
         expansion_errors = [e for e in errors if e.step == "expand_polarities"]
+        # An expansion that was attempted and failed is not an expanded tension.
+        # `status` was set to "expanded" before the gather (it records the gate
+        # decision), so without this correction a crashed expansion reads as
+        # done — the one state a resuming session most needs to see, since the
+        # tension has a Polarity and no usable Perspective.
+        failed_hashes = {e.hash for e in expansion_errors if e.hash}
+        if failed_hashes:
+            for q in polarity_quality:
+                if q["polarity_hash"] in failed_hashes:
+                    q["status"] = "failed"
         # Producing NO perspectives is a failed analysis, not a quiet success.
         # This block used to set ok=True unconditionally and drop `errors` on
         # the floor (they rode home on AnalysisResult, which no tool renders),
@@ -414,11 +427,17 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             if set_aside_count
             else ""
         )
+        deferred_note = (
+            f", {deferred_count} strong tension(s) NOT expanded (budget: "
+            f"{MAX_POLARITIES_TO_EXPAND} per run) — call again to develop them"
+            if deferred_count
+            else ""
+        )
         self._report.summary = (
             f"Analysis complete: {len(thesis_hashes)} theses, "
             f"{len(polarity_hashes)} polarities, "
             f"{len(perspective_hashes)} perspectives"
-            f"{set_aside_note}"
+            f"{set_aside_note}{deferred_note}"
         )
         if expansion_errors:
             failed = "; ".join(
@@ -482,13 +501,29 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             if not h or h in seen or p.get("deduped", False):
                 continue
             seen.add(h)
+            hs = p.get("heuristic_similarity")
             quality.append(
                 {
                     "polarity_hash": h,
                     "thesis": p.get("thesis_text"),
                     "antithesis": p.get("antithesis_text"),
-                    "hs": p.get("heuristic_similarity"),
+                    "hs": hs,
                     "expanded": h in expanded_set,
+                    # WHY it wasn't expanded, not just that it wasn't. `expanded:
+                    # False` conflated two opposite situations: a tension the HS
+                    # gate judged too weak (working as designed, nothing to do)
+                    # and one strong enough to expand that got dropped for
+                    # budget (MAX_POLARITIES_TO_EXPAND) — real work still owed.
+                    # Only the latter is worth a follow-up call.
+                    "status": (
+                        "expanded"
+                        if h in expanded_set
+                        else (
+                            "deferred"
+                            if hs is not None and hs >= HS_THRESHOLD
+                            else "set_aside"
+                        )
+                    ),
                 }
             )
         quality.sort(

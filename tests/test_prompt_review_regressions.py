@@ -3514,3 +3514,79 @@ class TestTheProbeScenariosDoNotLeakIntoThePrompt:
         mutated = self._normalize("some prompt prose ... " + removed + " ... more prose")
         hits = self._hits(self.WINDOW, blob=mutated)
         assert hits, "re-injecting the leaked sentence produced no hit — scanner is vacuous"
+
+
+class TestCompletenessRegisterSplit:
+    """Unfinished work is spoken in BOTH registers, but only one may count.
+
+    An interrupted build is the common path (heavy `explore` turns run minutes,
+    users close the tab), so the context dump now carries derived status:
+    `Pathways: 4/6` and a synthesis "built from 4 of 6" in counsel mode, plain
+    sentences with no digits unscoped (`completeness_line(numeric=...)`,
+    `DialecticalContext._numeric_status`). The prompt must match the register
+    the code actually renders — a rule telling the unscoped head to name a
+    fraction would instruct it to invent one, and a scoped head told to speak
+    plainly would hide numbers already on screen.
+
+    Two failure modes are guarded together because they are the same bug seen
+    from both ends: presenting a partial arrangement as whole, and demoting it
+    as though the shortfall were a score."""
+
+    def _unscoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        return " ".join(SYSTEM_PROMPT.split())
+
+    def _scoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        return " ".join(
+            system_prompt(
+                tool_names=["anchor", "explore", "deepen", "sync"],
+                scoped_nexus_hash="abc1234",
+            ).split()
+        )
+
+    def test_unscoped_forbids_counts_and_the_nouns_behind_them(self):
+        p = self._unscoped()
+        assert "Unfinished work is spoken plainly, and never with counts" in p
+        assert 'not "four of six", and not the nouns behind them' in p
+        # The rule's whole point: a "yes, that's everything" over a fragment.
+        assert "answer straight" in p
+
+    def test_unscoped_never_licenses_the_rendered_fraction(self):
+        """`completeness_line(numeric=False)` emits no digits, so an unscoped
+        head instructed to quote a fraction would have to make one up."""
+        p = self._unscoped()
+        assert "Unfinished work is stated with its numbers" not in p
+        assert "Pathways: 4/6" not in p
+
+    def test_scoped_states_the_numbers_and_names_the_gap(self):
+        p = self._scoped()
+        assert "Unfinished work is stated with its numbers" in p
+        assert "Pathways: 4/6" in p
+        # Blocked ≠ not-yet-built: promising a `deepen` that cannot complete is
+        # a distinct failure from hiding the gap.
+        assert "cannot be built at all until its segment is finished" in p
+        assert "Unfinished work is spoken plainly, and never with counts" not in p
+
+    def test_both_registers_refuse_to_rank_on_completeness(self):
+        """`_SCORE_READING` renders in both heads, and it must: the dump says
+        "pre-pruned, rank within it", which without this reads as licence to
+        treat a half-built wheel as a low-scoring one."""
+        for prompt in (self._unscoped(), self._scoped()):
+            assert "Completeness is not quality — do not rank on it" in prompt
+            assert "treat the gap as a to-do, not a demotion" in prompt
+            # The status vocabulary the code actually emits.
+            assert "`# Unfinished` line" in prompt
+            assert "quietly deprioritizing it as though the shortfall were a score" in prompt
+
+    def test_the_score_section_defers_the_register_to_how_you_speak(self):
+        """One owner per rule: `_SCORE_READING` says what completeness MEANS in
+        both heads, and hands the question of whether numbers may be said to
+        the section that differs between them. Without the hand-off the two
+        sections re-specify each other and the unscoped head has two rules."""
+        p = self._unscoped()
+        assert "governed by How You Speak" in p

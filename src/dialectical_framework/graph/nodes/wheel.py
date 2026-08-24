@@ -34,7 +34,8 @@ from dialectical_framework.graph.nodes.perspective import (
     POSITION_A_PLUS,
     POSITION_A_MINUS,
 )
-from dialectical_framework.utils.order_transitions import order_transitions
+from dialectical_framework.utils.order_transitions import (
+    order_transitions, pair_opposite_edges)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.perspective import Perspective
@@ -158,9 +159,7 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         Returns:
             List of (ac_edge, re_edge) tuples — N pairs for 2N edges
         """
-        ordered_edges = self.edges
-        n = len(ordered_edges) // 2
-        return [(ordered_edges[i], ordered_edges[(i + n) % len(ordered_edges)]) for i in range(n)]
+        return pair_opposite_edges(self.edges)
 
     @property
     def transformations(self) -> list[Transformation]:

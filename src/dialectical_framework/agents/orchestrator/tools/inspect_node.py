@@ -160,6 +160,7 @@ from dialectical_framework.graph.rendering import (
     find_nexus_for_wheel,
     find_nexus_for_transformation,
     grounding_line,
+    wheel_completeness,
 )
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.perspective_repository import PerspectiveRepository
@@ -545,10 +546,19 @@ def _inspect_wheel(wheel: Wheel) -> str:
             lines.append(f"  T{idx} = [{pp.short_hash}]{t_text}")
         lines.append("")
 
-    # Transformations
+    # Transformations. The count alone is not status — it has no denominator, so
+    # a wheel that was interrupted two pathways in read exactly like a finished
+    # one. `wheel_completeness` supplies the expected 6N and names what is
+    # outstanding, including edges that CANNOT be developed because their
+    # segments are unfinished. inspect_node is the explicit detail read and
+    # already prints raw HS/area, so it always speaks in numbers.
     transformations = wheel.transformations
-    if transformations:
-        lines.append(f"Transformations ({len(transformations)}):")
+    completeness = wheel_completeness(wheel, pp_index)
+    if transformations or completeness.expected:
+        header = f"Transformations ({len(transformations)}"
+        if completeness.expected:
+            header += f" of {completeness.expected} expected"
+        lines.append(header + "):")
         for tr in transformations:
             edge_result = tr.edge.get()
             edge_str = ""
@@ -557,6 +567,16 @@ def _inspect_wheel(wheel: Wheel) -> str:
                 if label:
                     edge_str = f" ({label})"
             lines.append(f"  - [{tr.short_hash}]{edge_str}")
+        if completeness.incomplete_edges:
+            lines.append(
+                f"  Incomplete (deepen can top these up): "
+                f"{', '.join(completeness.incomplete_edges)}"
+            )
+        if completeness.blocked_edges:
+            lines.append(
+                f"  Blocked (segments unfinished): "
+                f"{', '.join(completeness.blocked_edges)}"
+            )
         lines.append("")
 
     # Synthesis
@@ -727,6 +747,17 @@ def _inspect_synthesis(synth: Synthesis) -> str:
         if spiral:
             lines.append(f"Spiral: {spiral}")
         lines.append(f"Parent Wheel: [{wheel.short_hash}]")
+        # What this synthesis was actually derived from, against what the wheel
+        # carries NOW. S+ emerges from all Transformations simultaneously, so a
+        # synthesis stamped 4/6 is a claim about a fragment — and if the wheel
+        # has since been topped up, it is also out of date. Both facts belong on
+        # the detail read; neither is inferable from S+/S- text.
+        current = wheel_completeness(wheel, pp_index)
+        if synth.completeness:
+            note = f"Built from: {synth.completeness} pathways"
+            if current.expected and synth.completeness != current.fraction:
+                note += f" (wheel now at {current.fraction} — synthesis is stale)"
+            lines.append(note)
     lines.append("")
 
     # S+ and S-
