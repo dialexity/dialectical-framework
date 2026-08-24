@@ -401,10 +401,15 @@ async def surface_theses(
 | *(none)* | Pure logic | Runs | Runs |
 | `@pytest.mark.llm` | LLM code paths | Mock brain | Real LLM |
 | `@pytest.mark.real_llm` | Must hit real provider | Skipped | Runs |
+| `@pytest.mark.seam` | Assembled-system guard for an archive defect | Skipped | Runs |
+
+**Adding or dropping `mark.seam` is a three-file change:** the test, `ROSTER` in `tests/e2e/test_e2e.py`, and the table in `tests/e2e/README.md` — `TestTheSeamLaneRosterIsReal` fails on any drift between them (it caught exactly that).
 
 Default to `@pytest.mark.llm` for anything touching `use_brain` or `ConversationFacilitator`.
 
 **Mock brain** (`tests/mock_brain.py`) auto-constructs Pydantic responses. Does NOT test streaming, tool registration/argument parsing, or provider behavior. Returns **identical** DTOs every call — to test diversity/dedup, `monkeypatch` the concern's `resolve`. Fills `Literal[...]` fields with the FIRST allowed value — order Literals so the first is a safe default.
+
+**Test helpers are shared by importing the sibling module directly** (`from test_dialectical_context import _create_perspective_with_aspects`) — `tests/` is on `sys.path`; there is no helper package.
 
 **Fixtures may use `meaning="test"` ONLY on paths that never reach taxonomy lookups** — `lookup_*` raises on unparseable meanings; else use a real `dx://taxonomy/...` URI.
 
