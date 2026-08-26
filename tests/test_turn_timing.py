@@ -34,6 +34,7 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.stream_events import ResponseComplete
 from dialectical_framework.agents.turn_timing import ToolRound, TurnTiming
 from dialectical_framework.graph.scope_context import scope
+from dialectical_framework.utils.retry_accounting import RetryAccount
 
 
 # DB-free: override the autouse graph fixtures.
@@ -244,6 +245,11 @@ class _StubAdvisor:
         class _Conv:
             last_submit_seconds = _REPLY_PATH_S
             last_tool_rounds = list(tool_rounds)
+            # A clean turn, so the retry accounting stays out of the way of the
+            # boundary this module is about. Its own arithmetic — and that a
+            # retry inside a tool round is attributed to that round rather than
+            # to generation — is pinned in `test_retry_accounting.py`.
+            last_submit_retries = RetryAccount()
 
             async def submit(self, _model, _message):
                 return _Reply(message="counsel")

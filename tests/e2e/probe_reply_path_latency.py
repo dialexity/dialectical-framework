@@ -141,6 +141,27 @@ def sum_tool_seconds(turn) -> float:
     return total
 
 
+def retry_seconds_by_round(turn) -> list[float]:
+    """This turn's per-round retry waste, aligned with `turn.tool_seconds`.
+
+    Returns zeros when `tool_retry_seconds` is absent or short, which is what
+    every run archived before 2026-08-26 looks like: those runs did retry — r26
+    almost certainly slept 12.5 minutes on four separate `anchor` calls — and
+    nothing recorded it. Zero here means "not recorded" for them and "clean" for
+    later runs, and only the run's own vintage tells the two apart. Never quote a
+    working-seconds figure from a run without the field.
+    """
+    parsed: list[float] = []
+    for entry in getattr(turn, "tool_retry_seconds", []) or []:
+        _, _, secs = entry.rpartition(":")
+        try:
+            parsed.append(float(secs.rstrip("s")))
+        except ValueError:
+            parsed.append(0.0)
+    parsed.extend([0.0] * max(0, len(turn.tool_seconds) - len(parsed)))
+    return parsed
+
+
 def _is_measured(run: RunRecord) -> bool:
     """True when this run's turns carry their own timing.
 
@@ -195,6 +216,32 @@ def _report_measured(runs: list[RunRecord]) -> None:
                 f" reply-path seconds, worst turn"
                 f" {max(rendered):.2f}s"
             )
+        # Retry waste, reported as a share of the reply path rather than beside
+        # it: it is INSIDE the tools and the generation printed above, so adding
+        # it as another term would double-count the same seconds. The question it
+        # answers is the one r26 could not — of the wait, how much was working?
+        wasted = [getattr(t, "retry_seconds", 0.0) or 0.0 for t in turns]
+        retried = [t for t in turns if (getattr(t, "retry_count", 0) or 0)]
+        if any(wasted):
+            in_tools = sum(sum(retry_seconds_by_round(t)) for t in turns)
+            print(
+                f"  retry waste: {sum(wasted) / (sum(reply) or 1.0) * 100:.0f}% of all"
+                f" reply-path seconds, on {len(retried)}/{len(turns)} turns"
+                f" (worst turn {max(wasted):.1f}s,"
+                f" {sum(t.retry_count for t in retried)} attempts retried in total)"
+            )
+            print(
+                f"    of which {in_tools:.0f}s inside tool rounds and"
+                f" {max(0.0, sum(wasted) - in_tools):.0f}s during generation"
+                " (which otherwise reads as the model thinking)"
+            )
+        else:
+            # NOT the same claim as "these turns ran clean" for older archives.
+            print(
+                "  retry waste: none recorded"
+                " (clean turns, or a run older than the field — see"
+                " `retry_seconds_by_round`)"
+            )
         # The off-path tail is the whole reason this probe exists: pre-fix, the
         # pathway weave put 127.7s and 387.7s AFTER two zero-tool replies. Report
         # the tail, never just the median — a median hid that defect for weeks.
@@ -207,9 +254,11 @@ def _report_measured(runs: list[RunRecord]) -> None:
         # as long as its slowest call, so folding it in would credit every name
         # in it with the whole round.
         attributable: dict[str, list[float]] = defaultdict(list)
+        working: dict[str, list[float]] = defaultdict(list)
         concurrent = 0
         for turn in turns:
-            for entry in turn.tool_seconds:
+            waste = retry_seconds_by_round(turn)
+            for index, entry in enumerate(turn.tool_seconds):
                 names, _, secs = entry.rpartition(":")
                 try:
                     value = float(secs.rstrip("s"))
@@ -219,15 +268,39 @@ def _report_measured(runs: list[RunRecord]) -> None:
                     concurrent += 1
                     continue
                 attributable[names].append(value)
+                working[names].append(max(0.0, value - waste[index]))
         if attributable:
+            # Two columns, because r26 proved one is misreadable: `anchor` at a
+            # 282.8s median went into two write-ups as the tool's price, and the
+            # working column would have said ~40s. WAITED is what the person
+            # feels and what a UX decision turns on; WORKING is what the tool
+            # costs and what an optimisation could move. Neither replaces the
+            # other, so neither is printed alone.
+            #
+            # Withheld entirely on runs older than the field: there the two
+            # columns would print identical numbers, which reads as "measured, no
+            # waste" when it means "never looked". Those are the runs where the
+            # 810s anchors actually happened.
             print("\n  Seconds per tool, from single-tool rounds (median):")
+            if any(wasted):
+                print(f"    {'':16}{'':11}{'waited':>8}{'working':>9}")
             for name, values in sorted(
                 attributable.items(), key=lambda kv: -statistics.median(kv[1])
             ):
                 flag = " [read-only]" if name in READ_ONLY else ""
+                work = (
+                    f"{statistics.median(working[name]):>8.1f}s"
+                    if any(wasted)
+                    else ""
+                )
                 print(
-                    f"    {name:16}n={len(values):<5}"
-                    f"{statistics.median(values):>8.1f}s{flag}"
+                    f"    {name:16}n={len(values):<9}"
+                    f"{statistics.median(values):>8.1f}s{work}{flag}"
+                )
+            if not any(wasted):
+                print(
+                    "    (working column withheld — no run in this tier recorded"
+                    " retries, so it would only echo the waited column)"
                 )
         if concurrent:
             print(

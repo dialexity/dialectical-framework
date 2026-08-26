@@ -71,6 +71,35 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     model ELECTS on the turn, not because of prompt assembly, the graph read, or off-path repair.
     Deferring work off the turn cannot fix that. (An earlier `anchor` figure of 42.0s, regressed from 3
     observations, was low by 6.7× — see `MEDIAN_TOOL_ROUND_S` in `tests/test_context_refresh_cost.py`.)
+  - **Read those tool medians as blends of work and sleep, not as tool cost.** r26's ten `anchor` rounds
+    were 36.5 / 38.9 / 43.4 / 43.5 / 107.8 / 457.9 / 807.9 / 808.2 / 812.3 / 812.5s. Four inside 5
+    seconds of each other at ~810s is a ceiling, not a workload, and it is the shape of `use_brain`'s
+    ParseError ladder (10s doubling to a 120s cap over 10 attempts = **750s of sleep**) on top of ~40s of
+    work: 107.8 ≈ 40+70, 457.9 ≈ 40+390, ~810 ≈ 40+750 exhausted. All six slow rounds reported `ok`, and
+    the 2.5-hour run logged **zero** warnings — because ParseError was the one retry branch that never
+    logged. Fixed 2026-08-26: that branch now logs (with cumulative sleep per call), and
+    `utils/retry_accounting.py` records the split onto `ToolRound.retry_seconds` /
+    `TurnTiming.retry_seconds` / `TurnRecord.retry_seconds` + `tool_retry_seconds`, so a future round can
+    say what the tool cost when it worked. `probe_reply_path_latency.py` prints waited vs working and
+    WITHHOLDS the working column on runs older than the field. Before quoting any pre-2026-08-26 tool
+    median as a cost, note that nothing in those runs could distinguish 40s of work from 13 minutes of
+    sleep.
+  - **Measured, not inferred, same day** (`tests/e2e/probe_anchor_retry_cost.py`, haiku-4.5, n=3):
+    **3 of 3 `anchor` calls laddered.** Waited 123.5 / 321.3 / 809.8s, of which **working 46.8 / 41.4 /
+    40.1s** and slept 70 / 270 / 750s — exact ladder sums, every call reporting `ok`. **So `anchor`
+    costs ~41s**, and r26's 282.8s median was 41s of work plus sleeping. `explore`'s 196.0s median is
+    un-decomposed and must be assumed to be the same blend. `MEDIAN_TOOL_ROUND_S` in
+    `tests/test_context_refresh_cost.py` now carries 41.4 (the working figure) and its full 42.0 → 282.8
+    → 41.4 history.
+  - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
+    a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
+    pydantic reports `particulars Field required` although the content is present and in the person's own
+    words. Same family as the double-encoding `_salvage_double_encoded` handles (right answer, wrong
+    wrapper, retry re-samples the same tendency). **Grounding is fail-soft by contract**, so this burns
+    up to 12.5 minutes of the person's turn and then changes nothing they see. Any fix here is a
+    reasoning-layer change: widen the salvage (narrowly, as that helper is), flatten/rename the schema,
+    or cap the reply-path ladder — all three are open, none is done, and the ladder is hand-rolled by
+    design (CLAUDE.md) so it must not be swapped for `llm.retry`.
   - Host-driven, not elective, on purpose: `sync` exists and the model elected `explore` in 6 of 55
     weak-tier runs. A turn that must see the graph cannot depend on the model choosing to look.
   - `dialectical_context=` at construction **seeds** the slot (turn-1 rewrite skipped when nothing moved);
@@ -714,6 +743,19 @@ Two standing implications when editing this stack: **mocked tests cannot see thi
 brain auto-fills every field — verify shape changes with `--real-llm`, prefer flatter schemas per
 CLAUDE.md), and **a per-model parse failure presents as latency, not as an error**, which is the same
 misdiagnosis family as the connect-timeout and thinking-shape bugs.
+
+**Second confirmed instance, and a second envelope shape: `GroundingDto` on haiku-4.5.** Measured
+2026-08-26 (`tests/e2e/probe_anchor_retry_cost.py`, n=3): every `anchor` call laddered, sleeping 70 /
+270 / 750s around 40–47s of real work, and each then succeeded — so it read as a 282.8s-median tool for a
+whole bench round. The model answers `TetradGrounding`'s single-field DTO with a **parameter envelope**
+(`{"parameter_name": "particulars", …}` instead of `{"particulars": …}`), content correct and in the
+person's own words. Two things make this worse than the sonnet-5 case: `TetradGrounding` is **fail-soft by
+contract**, so 12.5 minutes of the person's turn buys a `None` and nothing visible, and until 2026-08-26
+the ParseError branch was **the only retry branch that did not log** — so a 750s ladder produced `ok`,
+`swallowed_errors: none`, and a completely silent run log. That branch now logs with cumulative sleep per
+call, and `utils/retry_accounting.py` records the sleep onto `ToolRound` / `TurnTiming` / `TurnRecord` so
+"how much of this wait was work" is answerable. **Do not read a pre-2026-08-26 tool median as a tool
+cost.**
 
 **Transport faults are a four-way taxonomy, and every branch has its own curve** (`use_brain.py`):
 `_is_connection_error` (class-name based, `_CONNECT_RETRY_MAX`), `_is_rate_limit_error` (429/Throttling, 10s

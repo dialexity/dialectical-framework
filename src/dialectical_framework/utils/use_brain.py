@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, TypeVar, overload
 
@@ -17,6 +18,7 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
 from dialectical_framework.utils.concurrency import llm_concurrency_slot
+from dialectical_framework.utils.retry_accounting import record_retry
 
 if TYPE_CHECKING:
     from mirascope.llm.calls import AsyncCall
@@ -147,8 +149,14 @@ def use_brain(
             server_delay = _SERVER_RETRY_BASE_S
             server_attempts = 0
             last_error: Exception | None = None
+            #: Cumulative backoff for THIS call, so a log line can say what the
+            #: retry has cost so far rather than only what the next nap costs.
+            #: Reading nine separate "backing off 120s" lines and summing them by
+            #: hand is how a 750s ladder goes unnoticed.
+            slept_s = 0.0
 
             for attempt in range(attempts):
+                attempt_started = time.monotonic()
                 try:
                     async with llm_concurrency_slot():
                         response = await _llm_call()
@@ -173,6 +181,26 @@ def use_brain(
                 except ParseError as e:
                     last_error = e
                     if attempt < attempts - 1:
+                        # LOGGED, unlike before 2026-08-26. This was the only
+                        # retry branch that logged nothing, and it is the most
+                        # expensive one: doubling from 10s to a 120s cap over 10
+                        # attempts is 750s of sleeping. r26 spent 12.5 minutes
+                        # here on four separate `anchor` calls, all of which then
+                        # reported `ok`, and the whole 2.5-hour run produced zero
+                        # warnings — so the archive recorded 810s as the cost of
+                        # the tool. A silent retry is a cost with no owner.
+                        slept_s += parse_delay
+                        logging.getLogger(__name__).warning(
+                            "Parse failure on %s (attempt %d/%d), backing off "
+                            "%.0fs — this call has now slept %.0fs: %s",
+                            format_name or method.__qualname__,
+                            attempt + 1, attempts, parse_delay, slept_s, e,
+                        )
+                        record_retry(
+                            "parse",
+                            sleep_s=parse_delay,
+                            attempt_s=time.monotonic() - attempt_started,
+                        )
                         await asyncio.sleep(parse_delay)
                         parse_delay = min(parse_delay * 2.0, 120.0)
                 except Exception as e:
@@ -183,6 +211,12 @@ def use_brain(
                             attempt + 1, attempts, rate_delay, e,
                         )
                         if attempt < attempts - 1:
+                            slept_s += rate_delay
+                            record_retry(
+                                "rate_limit",
+                                sleep_s=rate_delay,
+                                attempt_s=time.monotonic() - attempt_started,
+                            )
                             await asyncio.sleep(rate_delay)
                             rate_delay = min(rate_delay * 2.0, 60.0)
                     elif _is_connection_error(e):
@@ -197,6 +231,12 @@ def use_brain(
                             connect_attempts, _CONNECT_RETRY_MAX, connect_delay, e,
                         )
                         if attempt < attempts - 1:
+                            slept_s += connect_delay
+                            record_retry(
+                                "connection",
+                                sleep_s=connect_delay,
+                                attempt_s=time.monotonic() - attempt_started,
+                            )
                             await asyncio.sleep(connect_delay)
                             connect_delay *= 2.0
                     elif _is_transient_server_error(e):
@@ -211,6 +251,12 @@ def use_brain(
                             server_attempts, _SERVER_RETRY_MAX, server_delay, e,
                         )
                         if attempt < attempts - 1:
+                            slept_s += server_delay
+                            record_retry(
+                                "server",
+                                sleep_s=server_delay,
+                                attempt_s=time.monotonic() - attempt_started,
+                            )
                             await asyncio.sleep(server_delay)
                             server_delay *= 2.0
                     else:

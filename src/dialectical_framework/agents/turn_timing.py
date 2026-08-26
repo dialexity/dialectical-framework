@@ -39,11 +39,31 @@ class ToolRound:
 
     names: tuple[str, ...]
     seconds: float
+    #: Of `seconds`, how many bought nothing: `use_brain` backoff sleep plus the
+    #: attempts that raised before it. Recorded because r26 wrote up `anchor` at a
+    #: 282.8s median as the tool's price when four of its ten rounds were ~40s of
+    #: work plus a 750s ParseError ladder — a number nothing in the archive could
+    #: have contradicted. `seconds` stays the person's real wait; this says how
+    #: much of that wait was the framework failing and waiting.
+    retry_seconds: float = 0.0
+    #: How many attempts were retried inside this round (0 = clean).
+    retry_count: int = 0
 
     @property
     def is_attributable(self) -> bool:
         """True when this round's seconds belong to exactly one tool."""
         return len(self.names) == 1
+
+    @property
+    def working_seconds(self) -> float:
+        """`seconds` with retry waste removed — the tool's cost when it works.
+
+        Clamped at zero for the same reason as `TurnTiming.generation_s`: the two
+        quantities come from different clocks (one around the round, one summed
+        from inside nested calls), and a negative duration in a record looks like
+        data.
+        """
+        return max(0.0, self.seconds - self.retry_seconds)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,6 +91,16 @@ class TurnTiming:
     reply_path_s: float
     off_path_s: float
     tool_rounds: tuple[ToolRound, ...] = field(default_factory=tuple)
+    #: Reply-path seconds that bought nothing: retry backoff plus the attempts
+    #: that raised, anywhere under the submit — tool rounds AND the model's own
+    #: generation. A COMPONENT of `reply_path_s`, never a third addend.
+    #:
+    #: Covers only the submit. The off-path repair runs outside it, so a retry
+    #: there is in `off_path_s` and not here; and in the streaming path the
+    #: `chunk_stream()` loop is uncovered, which cannot retry once tokens flow.
+    retry_seconds: float = 0.0
+    #: Attempts retried under the submit (0 = the turn ran clean).
+    retry_count: int = 0
     #: Reply-path seconds spent re-reading the graph into the system prompt. A
     #: COMPONENT of `reply_path_s`, not an addition to it. Recorded separately
     #: because it is the one reply-path cost the framework imposes on every turn
@@ -86,6 +116,32 @@ class TurnTiming:
     def tool_seconds(self) -> float:
         """Reply-path seconds spent inside tool rounds."""
         return sum(r.seconds for r in self.tool_rounds)
+
+    @property
+    def tool_retry_seconds(self) -> float:
+        """Of `tool_seconds`, how many bought nothing.
+
+        A component of a component: `tool_seconds` ⊂ `reply_path_s`, and this ⊂
+        `tool_seconds`. Nothing here is ever an addend of the turn total, so the
+        `duration_s == reply_path_s + off_path_s` invariant is untouched.
+        """
+        return sum(r.retry_seconds for r in self.tool_rounds)
+
+    @property
+    def generation_retry_seconds(self) -> float:
+        """Retry waste that happened outside any tool round.
+
+        Backoff during the model's OWN generation is reply-path cost the same as
+        backoff inside `anchor`, and it lands in `generation_s` where it looks
+        like the model thinking. r26 had one turn shaped exactly like that —
+        644.1s of residual with zero tool calls — which nothing at the time
+        could have distinguished from a slow reply.
+
+        Clamped: the two figures come from one shared accumulator and its nested
+        children, so the subtraction cannot go negative unless a caller assembles
+        rounds and totals from different turns.
+        """
+        return max(0.0, self.retry_seconds - self.tool_retry_seconds)
 
     @property
     def generation_s(self) -> float:
@@ -107,3 +163,13 @@ class TurnTiming:
         read as belonging to either name alone.
         """
         return [f"{'+'.join(r.names)}:{r.seconds:.1f}s" for r in self.tool_rounds]
+
+    def format_retry_rounds(self) -> list[str]:
+        """The same rounds, in the same order, carrying only their retry waste.
+
+        A PARALLEL list rather than an annotation inside `format_rounds()`:
+        readers already parse those strings by splitting on the last colon, and
+        widening the format would break them silently. Index i here is the waste
+        inside index i there, so `working = rounds[i] - retries[i]`.
+        """
+        return [f"{'+'.join(r.names)}:{r.retry_seconds:.1f}s" for r in self.tool_rounds]

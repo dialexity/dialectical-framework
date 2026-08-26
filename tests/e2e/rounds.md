@@ -3980,6 +3980,69 @@ tool cost. It sits inside the `use_brain` retry envelope (10s base, doubling to 
 retry from generation** — `tool_seconds` covers tool rounds, and a retry storm inside one
 generation is invisible to it. Residual over 60s on 1 of 64 turns, so this does not move
 the picture above, but the p90 of 480.4s should be read knowing one such turn exists.
+(Fixed after this round: `TurnRecord.retry_seconds` now covers the whole reply path, so
+generation retries are `retry_seconds − Σ tool_retry_seconds` rather than invisible.)
+
+#### CORRECTION, same day: `anchor` costs ~41s, not 282.8s. The rest was sleeping.
+
+**Everything in the table above is the person's real wait and stands. The attribution of
+that wait to the TOOL does not.** The ten `anchor` values were 36.5 / 38.9 / 43.4 / 43.5 /
+107.8 / 457.9 / 807.9 / 808.2 / 812.3 / 812.5s. Four of them inside 5 seconds of each other
+at ~810s is a ceiling, not a workload — and 750s is exactly what `use_brain`'s ParseError
+ladder sleeps when it runs to exhaustion (10s doubling to a 120s cap over 10 attempts).
+Every slow round reported `ok` with `swallowed_errors: none`, and the whole 2.5-hour run
+logged **zero** warnings, because ParseError was the only retry branch that logged nothing.
+
+Measured directly, same tier and scenario, with the accountant installed
+(`tests/e2e/probe_anchor_retry_cost.py`, n=3, 21 minutes):
+
+| waited | working | slept | discarded attempts | parse retries |
+|---|---|---|---|---|
+| 123.5s | **46.8s** | 70.0s | 6.6s | 3 |
+| 321.3s | **41.4s** | 270.0s | 9.9s | 5 |
+| 809.8s | **40.1s** | 750.0s | 19.7s | 9 |
+
+**3 of 3 calls laddered.** The sleep totals are exact ladder sums (10+20+40 = 70;
++80+120 = 270; the 120s cap nine times = 750). Working time is flat at **40–47s** — the
+same figure the histogram's fast values already showed, which is why the fast values were
+never the anomaly. So:
+
+- **`anchor` costs ~41s.** The 282.8s median and 812.5s max were 41 seconds of work plus up
+  to 12.5 minutes of `asyncio.sleep`, reported as success.
+- **`explore`'s 196.0s median / 986.7s max (n=3) is un-decomposed** and must be assumed to
+  be the same blend until it is measured. Do not quote it as tool cost.
+- **The conclusion above survives, for a different reason.** The wait is still on the reply
+  path and still inside the tools the model elects, so deferring work off the turn still
+  does not fix it. But the fix is now a schema/prompt fix (why does the weak model keep
+  failing to parse?) or a ladder-policy fix (a 120s×9 tail on a live conversation is
+  indefensible whatever triggers it) — not an architecture fix.
+- **Instrumented so no future round can repeat this:** the ParseError branch logs with
+  cumulative sleep per call, and `retry_seconds` / `tool_retry_seconds` land on every
+  `TurnRecord`. `probe_reply_path_latency.py` prints waited beside working, and WITHHOLDS
+  the working column for runs older than the field rather than printing a copy of waited.
+- **Not changed, and it is a policy call, not a bug:** the ladder itself. Capping reply-path
+  retries by wall clock would trade a 13-minute silence for an error the person sees.
+
+**And the schema that triggers it is now named.** A one-call re-run with the log visible
+(`-o log_cli=true --log-cli-level=WARNING`, 53.3s waited / 41.7s working / 10.0s slept):
+
+```
+Parse failure on GroundingDto (attempt 1/10), backing off 10s — this call has now slept 10s:
+  1 validation error for GroundingDto
+  particulars
+    Field required [type=missing, input_value={'parameter_name': 'parti...ded before next raise.'}]
+```
+
+`TetradGrounding`'s **`GroundingDto`** — a single-field schema — and haiku-4.5 answers it
+with a **parameter envelope** (`{"parameter_name": "particulars", …}`) instead of the object.
+The content is present and correct (the fragment ends in the person's own "…ded before next
+raise"), so this is the same family as the double-encoding in
+`tests/test_double_encoded_response.py`: right answer, wrong wrapper, and a retry that
+re-samples the same tendency. **Grounding is fail-soft by contract**, so a ParseError there
+costs 13 minutes and then changes nothing about what the person sees — which is the worst
+possible trade and was invisible until the branch logged. Fix not made here: unwrapping a
+new envelope is a reasoning-layer decision (see `_salvage_double_encoded` for the precedent
+and its deliberate narrowness).
 
 #### The quality screen — cleared its bar, and still proves nothing, as registered
 

@@ -282,6 +282,11 @@ class E2EDriver:
                         round(timing.context_render_s, 3) if timing else 0.0
                     ),
                     tool_seconds=timing.format_rounds() if timing else [],
+                    tool_retry_seconds=(
+                        timing.format_retry_rounds() if timing else []
+                    ),
+                    retry_seconds=round(timing.retry_seconds, 1) if timing else 0.0,
+                    retry_count=timing.retry_count if timing else 0,
                     error=error,
                     swallowed_errors=list(swallowed),
                 )

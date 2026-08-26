@@ -438,6 +438,28 @@ class TurnRecord(BaseModel):
     #: concurrent round took as long as its slowest call, so those seconds must
     #: NOT be read as belonging to either name alone (see `ToolRound`).
     tool_seconds: list[str] = Field(default_factory=list)
+    #: Of `tool_seconds`, the part that bought nothing — retry backoff plus the
+    #: attempts that raised. PARALLEL to it: same order, same names, so index i
+    #: here is the waste inside index i there and the difference is the tool's
+    #: cost when it works. A separate list rather than an annotation inside those
+    #: strings because readers parse them by splitting on the last colon.
+    #:
+    #: Exists because r26 recorded `anchor` at a 282.8s median and wrote it up as
+    #: the tool's price, when four of its ten rounds sat within 5 seconds of each
+    #: other at ~810s — a ceiling, not a workload. ~40s of work plus the
+    #: ParseError ladder's 750s of sleep, all reporting `ok`, in a run whose log
+    #: held zero warnings because that branch was the one that never logged.
+    tool_retry_seconds: list[str] = Field(default_factory=list)
+    #: Reply-path retry waste for the WHOLE turn, tool rounds and the model's own
+    #: generation alike. A COMPONENT of `reply_path_s`, never an addition to it.
+    #: The generation share is this minus the `tool_retry_seconds` sum, and it is
+    #: the share nothing else could ever see: r26 had a turn with 644.1s of
+    #: residual and no tool calls at all.
+    retry_seconds: float = 0.0
+    #: Attempts retried on the reply path. 0 means the turn ran clean, which is
+    #: a finding — the difference between "this tool is slow" and "this tool
+    #: failed nine times quietly" is otherwise unrecoverable from the archive.
+    retry_count: int = 0
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
     #: logs and continues by design (a graph fault must not break a live

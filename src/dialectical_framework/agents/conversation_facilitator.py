@@ -30,6 +30,9 @@ from dialectical_framework.agents.stream_events import (
 )
 from dialectical_framework.agents.turn_timing import ToolRound
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.utils.retry_accounting import (RetryAccount,
+                                                          record_retry,
+                                                          retry_account)
 from dialectical_framework.utils.use_brain import use_brain
 
 from mirascope.llm import TextChunk, ThoughtChunk, ToolOutput
@@ -130,6 +133,14 @@ class ConversationFacilitator(SettingsAware):
         # interval the person actually waits, so it is measured around the
         # outermost await rather than summed from parts that might not cover it.
         self.last_submit_seconds: float = 0.0
+        # Of that interval, what was spent retrying: backoff sleep plus the
+        # attempts that raised before it, ANYWHERE under this submit — tool
+        # rounds and the model's own generation alike. The per-round split lives
+        # on `ToolRound.retry_seconds`, so generation retries are this minus
+        # their sum. Recorded because r26 quoted `anchor` at a 282.8s median
+        # when four of its ten rounds were ~40s of work plus a 750s ParseError
+        # ladder, and nothing in the archive could tell the two apart.
+        self.last_submit_retries: RetryAccount = RetryAccount()
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -207,43 +218,52 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_call_args = []
         self.last_tool_rounds = []
         self.last_submit_seconds = 0.0
+        self.last_submit_retries = RetryAccount()
 
         # `finally`, not a plain assignment before each return: a turn that
         # RAISED still waited the person's time, and a duration recorded only on
         # the happy path makes the expensive failures the invisible ones.
         started = time.monotonic()
         try:
-            if not self._tools:
-                return await self._call_with_response_model(response_model)
+            # One account over the whole submit, nested accounts per tool round.
+            # Both see every retry (see `retry_accounting._stack`), so the outer
+            # total covers generation too — which is where r26's one 644.1s
+            # tool-less residual would have shown up.
+            with retry_account(self.last_submit_retries):
+                if not self._tools:
+                    return await self._call_with_response_model(response_model)
 
-            # Agentic loop: resume() accumulates messages internally
-            response = await self._call_with_tools()
-            for _ in range(max_tool_rounds):
-                if not response.tool_calls:
-                    break
-                self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
-                self._record_tool_call_args(response.tool_calls)
-                self._log_tool_calls(response.tool_calls)
-                round_names = tuple(tc.name for tc in response.tool_calls)
-                round_started = time.monotonic()
-                tool_outputs = await response.execute_tools()
-                self.last_tool_rounds.append(
-                    ToolRound(
-                        names=round_names,
-                        seconds=time.monotonic() - round_started,
+                # Agentic loop: resume() accumulates messages internally
+                response = await self._call_with_tools()
+                for _ in range(max_tool_rounds):
+                    if not response.tool_calls:
+                        break
+                    self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
+                    self._record_tool_call_args(response.tool_calls)
+                    self._log_tool_calls(response.tool_calls)
+                    round_names = tuple(tc.name for tc in response.tool_calls)
+                    round_started = time.monotonic()
+                    with retry_account() as round_retries:
+                        tool_outputs = await response.execute_tools()
+                    self.last_tool_rounds.append(
+                        ToolRound(
+                            names=round_names,
+                            seconds=time.monotonic() - round_started,
+                            retry_seconds=round_retries.wasted_s,
+                            retry_count=round_retries.count,
+                        )
                     )
-                )
-                self._record_tool_results(response.tool_calls, tool_outputs)
-                self._strip_caller_from_messages(response.messages)
-                response = await response.resume(tool_outputs)
+                    self._record_tool_results(response.tool_calls, tool_outputs)
+                    self._strip_caller_from_messages(response.messages)
+                    response = await response.resume(tool_outputs)
 
-            # Sync full conversation history from the response chain
-            self._messages = list(response.messages)
-            self._close_dangling_tool_calls(response)
-            self._strip_unsupported_input_fields()
+                # Sync full conversation history from the response chain
+                self._messages = list(response.messages)
+                self._close_dangling_tool_calls(response)
+                self._strip_unsupported_input_fields()
 
-            # Extract structured response
-            return await self._call_with_response_model(response_model)
+                # Extract structured response
+                return await self._call_with_response_model(response_model)
         finally:
             self.last_submit_seconds = time.monotonic() - started
 
@@ -272,15 +292,25 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_call_args = []
         self.last_tool_rounds = []
         self.last_submit_seconds = 0.0
+        self.last_submit_retries = RetryAccount()
         started = time.monotonic()
 
+        # Re-entered per await instead of wrapped around the whole generator, and
+        # `retry_account` explains why: a contextvar set across a `yield` installs
+        # itself in the consumer's context and never resets if the consumer stops
+        # iterating. The uncovered gap is the `chunk_stream()` loop below, which
+        # cannot retry anyway once tokens are flowing.
+        turn = self.last_submit_retries
+
         if not self._tools:
-            result = await self._call_with_response_model(response_model)
+            with retry_account(turn):
+                result = await self._call_with_response_model(response_model)
             self.last_submit_seconds = time.monotonic() - started
             yield ResponseComplete(result=result)
             return
 
-        stream = await self._open_stream_with_retry()
+        with retry_account(turn):
+            stream = await self._open_stream_with_retry()
 
         for _ in range(max_tool_rounds):
             async for chunk in stream.chunk_stream():
@@ -303,10 +333,14 @@ class ConversationFacilitator(SettingsAware):
             self._log_tool_calls(stream.tool_calls)
             round_names = tuple(tc.name for tc in stream.tool_calls)
             round_started = time.monotonic()
-            tool_outputs = await stream.execute_tools()
+            with retry_account(turn), retry_account() as round_retries:
+                tool_outputs = await stream.execute_tools()
             self.last_tool_rounds.append(
                 ToolRound(
-                    names=round_names, seconds=time.monotonic() - round_started
+                    names=round_names,
+                    seconds=time.monotonic() - round_started,
+                    retry_seconds=round_retries.wasted_s,
+                    retry_count=round_retries.count,
                 )
             )
 
@@ -316,12 +350,14 @@ class ConversationFacilitator(SettingsAware):
                 yield result
 
             self._strip_caller_from_messages(stream.messages)
-            stream = await stream.resume(tool_outputs)
+            with retry_account(turn):
+                stream = await stream.resume(tool_outputs)
 
         self._messages = list(stream.messages)
         self._close_dangling_tool_calls(stream)
         self._strip_unsupported_input_fields()
-        result = await self._call_with_response_model(response_model)
+        with retry_account(turn):
+            result = await self._call_with_response_model(response_model)
         # Before the yield: the reply-path interval ends when the reply EXISTS,
         # and a consumer that stops iterating at ResponseComplete would otherwise
         # leave this unset on the very turns it is measuring.
@@ -448,6 +484,7 @@ class ConversationFacilitator(SettingsAware):
         delay = 5.0
         last_error: Optional[Exception] = None
         for attempt in range(max_attempts):
+            attempt_started = time.monotonic()
             try:
                 call = await self._get_tools_call()
                 return await call.stream()
@@ -457,6 +494,14 @@ class ConversationFacilitator(SettingsAware):
                     logging.getLogger(__name__).warning(
                         "Stream connection failed (attempt %d/%d): %s",
                         attempt + 1, max_attempts, e,
+                    )
+                    # This ladder is the facilitator's own, so `use_brain` never
+                    # sees it — up to 35s of reply-path sleep that would
+                    # otherwise land in the generation residual unlabelled.
+                    record_retry(
+                        "stream_open",
+                        sleep_s=delay,
+                        attempt_s=time.monotonic() - attempt_started,
                     )
                     await asyncio.sleep(delay)
                     delay = min(delay * 2.0, 30.0)

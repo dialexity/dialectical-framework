@@ -32,21 +32,36 @@ from dialectical_framework.graph.scope_context import scope
 #: The archive's observed per-cell anchor productivity, upper end.
 TENSION_COUNT = 7
 
-#: The reply path this cost has to be judged against. Measured, not assumed —
-#: and revised once already, which is the point of the comment.
+#: What one `anchor` round costs when it WORKS — the thing the refresh has to be
+#: a rounding error against. Measured, not assumed, and revised twice in one day,
+#: which is why the whole history is here rather than just the current number.
 #:
-#: This read 42.0s until 2026-08-26, off three `anchor` rounds in
-#: `timing-check-building` (42.0s / 39.1s / 804.5s). r26 ran ten of them on the
-#: same scenario and tier and found a median of **282.8s** (max 812.5s), so the
-#: old figure was low by 6.7x — a median of three observations from one
-#: afternoon, reported to one decimal place as if it were a property of the tool.
-#: `explore` is worse: 196.0s median, 986.7s max.
+#: 42.0s → 282.8s → 41.4s.
 #:
-#: The revision makes this test MORE conservative, not less: the same refresh is
-#: a smaller share of a larger round (0.245s against 282.8s is 0.09%). The
-#: budget below is unchanged because it is an absolute bound on the refresh, not
-#: a ratio — the share is printed for judgement, never asserted.
-MEDIAN_TOOL_ROUND_S = 282.8
+#: The first figure was a median of three observations from one afternoon
+#: (42.0 / 39.1 / 804.5s), reported to a decimal place as if it were a property
+#: of the tool. r26 ran ten rounds on the same scenario and tier and found a
+#: median of 282.8s (max 812.5s), so 42.0 looked low by 6.7x.
+#:
+#: Then `tests/e2e/probe_anchor_retry_cost.py` decomposed it with the retry
+#: accountant installed and found that ALL THREE of its calls laddered: waited
+#: 123.5 / 321.3 / 809.8s, of which **46.8 / 41.4 / 40.1s was work** and 70 / 270
+#: / 750s was `asyncio.sleep` in the ParseError retry curve (exact ladder sums),
+#: every one of them reporting `ok`. r26's 282.8s was real waiting and NOT the
+#: tool's cost — the two are different quantities and the archive had no way to
+#: tell them apart until the accounting landed.
+#:
+#: So this is the median WORKING round: 41.4s. Landing back within 0.6s of the
+#: original 42.0 is a coincidence, not a vindication — that figure was right by
+#: accident, off a sample of three that happened to contain two clean calls.
+#:
+#: Using the working figure is the conservative choice: the refresh is a LARGER
+#: share of 41.4s than of 282.8s (this laptop's 0.25-0.34s median reads as
+#: 0.6-0.8% against 41.4s, and 0.09-0.12% against 282.8s), and a baseline padded
+#: with the framework's own sleeping would excuse any refresh cost at all. The
+#: budget below is unchanged either way — it is an absolute bound on the refresh,
+#: not a ratio, and the share is printed for judgement, never asserted.
+MEDIAN_TOOL_ROUND_S = 41.4
 
 
 @pytest.mark.asyncio
@@ -56,9 +71,9 @@ async def test_the_refresh_is_cheap_against_the_reply_path():
     The assertion is deliberately loose — this runs on developer laptops and CI
     boxes against a containerised Memgraph, so a tight bound would be a flake
     generator. What it actually guards is the ORDER OF MAGNITUDE: the refresh must
-    stay a rounding error against the 42s median tool round, because a per-turn
-    read that crept into seconds would have quietly traded the read-side fix for
-    the latency problem this whole line of work started from.
+    stay a rounding error against a WORKING tool round (`MEDIAN_TOOL_ROUND_S`),
+    because a per-turn read that crept into seconds would have quietly traded the
+    read-side fix for the latency problem this whole line of work started from.
     """
     case = Case()
     case.commit()

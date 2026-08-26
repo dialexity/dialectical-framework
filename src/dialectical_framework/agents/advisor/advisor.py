@@ -277,13 +277,17 @@ class Advisor:
 
         Tool rounds come from the facilitator rather than being re-timed here:
         it owns the loop, and a second clock around the same awaits could only
-        disagree with the first.
+        disagree with the first. Retry waste comes from there for the same
+        reason — the sleeps happen many frames below this method.
         """
+        retries = self._conversation.last_submit_retries
         self.last_turn_timing = TurnTiming(
             reply_path_s=reply_path_s,
             off_path_s=off_path_s,
             tool_rounds=tuple(self._conversation.last_tool_rounds),
             context_render_s=context_render_s,
+            retry_seconds=retries.wasted_s,
+            retry_count=retries.count,
         )
 
     async def _repair_unrecorded_decision(
