@@ -122,6 +122,25 @@ def _all_turns(run: RunRecord) -> list:
     return [t for s in run.sessions for t in s.turns]
 
 
+def sum_tool_seconds(turn) -> float:
+    """Seconds this turn spent inside tool rounds, from the recorded strings.
+
+    Concurrent rounds are INCLUDED here, unlike the per-tool table below: the
+    question there is "what does `anchor` cost", which a multi-tool round cannot
+    answer, but the question here is "how much of this turn was tools", which it
+    answers fine — a round's seconds are the person's wait whether one tool ran
+    or three.
+    """
+    total = 0.0
+    for entry in turn.tool_seconds:
+        _, _, secs = entry.rpartition(":")
+        try:
+            total += float(secs.rstrip("s"))
+        except ValueError:
+            continue
+    return total
+
+
 def _is_measured(run: RunRecord) -> bool:
     """True when this run's turns carry their own timing.
 
@@ -154,6 +173,35 @@ def _report_measured(runs: list[RunRecord]) -> None:
             f"  share of wall clock: reply path {sum(reply) / total * 100:.0f}%,"
             f" off path {sum(off) / total * 100:.0f}%,"
             f" harness overhead {(1 - (sum(reply) + sum(off)) / total) * 100:.0f}%"
+        )
+        # The reply path's own composition. `context_render_s` is a COMPONENT of
+        # `reply_path_s`, not a third addend — printing it beside the split above
+        # would otherwise read as if the arithmetic no longer closed. The residual
+        # is generation plus whatever the framework does that nothing times yet,
+        # which is the only honest label for it.
+        rendered = [t.context_render_s for t in turns]
+        if any(rendered):
+            firing = sum(1 for t in rendered if t) / len(rendered) * 100
+            print(
+                f"  reply path composition (median): context refresh"
+                f" {statistics.median(rendered):.2f}s"
+                f"  +  tools {statistics.median([sum_tool_seconds(t) for t in turns]):.1f}s"
+                f"  +  generation/residual"
+                f" {statistics.median([t.reply_path_s - t.context_render_s - sum_tool_seconds(t) for t in turns]):.1f}s"
+            )
+            print(
+                f"  context refresh: fired on {firing:.0f}% of turns,"
+                f" {sum(rendered) / (sum(reply) or 1.0) * 100:.1f}% of all"
+                f" reply-path seconds, worst turn"
+                f" {max(rendered):.2f}s"
+            )
+        # The off-path tail is the whole reason this probe exists: pre-fix, the
+        # pathway weave put 127.7s and 387.7s AFTER two zero-tool replies. Report
+        # the tail, never just the median — a median hid that defect for weeks.
+        tail = sorted(off)[-3:]
+        print(
+            f"  off-path tail (3 worst turns): {[round(t, 1) for t in reversed(tail)]}"
+            f"   over 60s: {sum(1 for t in off if t > 60.0)}/{len(off)} turns"
         )
         # Per-tool seconds, from single-tool rounds only. A concurrent round took
         # as long as its slowest call, so folding it in would credit every name

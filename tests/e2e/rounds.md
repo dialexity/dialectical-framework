@@ -3770,3 +3770,72 @@ The conversational guard no longer asserts a weave flatly. `explore` is wired th
 weave is legitimate when the MODEL elected it and a defect when only the closing could
 have caused it — a distinction the old `assert woven` could not draw, and the reason its
 perspective-count skip (which fired on its first run) is gone.
+
+### r26: what the two latency fixes actually bought — pre-registered 2026-08-26, before any cell ran
+
+Two changes shipped on 2026-08-26 and neither has been priced on a bench round:
+
+1. **The closing READS pathways instead of building them** (`991694b`). Removes the
+   127.7s and 387.7s off-path weaves, at a cost this archive already prices at
+   **0.44 steps** (−0.69 unwoven against −0.25 woven, 36 scores each,
+   `claim2-weak-r15-voice`).
+2. **The Advisor re-reads the graph into its prompt every turn, rewriting only on
+   change** (`25e6565`). Adds a new per-turn cost to the reply path, measured off-bench
+   at **0.245s for 7 tensions** (`tests/test_context_refresh_cost.py`).
+
+The two push opposite ways: (2) should make A2 *better* informed, (1) should make it
+*worse* grounded. This round measures the net. It is registered as a **telemetry and
+mechanism round with a quality screen attached** — not as a test of either change's
+quality effect, for the reason in "What this round cannot do" below.
+
+**Design.** `cofounder_equity`, weak tier, arms **A1.7 + A2**, **4 replicates**.
+A2−A1.7 because that is the comparison that means something; A1 is not in this round at
+all. Three sessions per replicate (`decide` 6 beats, `wobble_a` 2, `wobble_b` 2) = 10
+turns per cell, so **24 cells / ~240 turns, of which ~120 are A2 turns carrying
+timing.** Judging on.
+
+**Pre-fix comparators, all measured, all from `timing-check-building` /
+`timing-instrumentation-check` (16 A2 turns):** median turn 22.8s = 17.9s reply path +
+1.6s off path; **3 of 16 turns over 60s off-path (387.7s, 127.7s, 93.1s)**; `anchor`
+42.0s median; `record_decision` 2.4s; per-turn arithmetic closed on 16/16.
+
+#### Primary endpoints — the latency mechanism. n is TURNS, and these are well powered.
+
+| # | endpoint | bar | why this bar |
+|---|---|---|---|
+| P1 | off-path turns over 60s | **0 of ~120** | Pre-fix 3/16 (19%). If the weave is really off the turn there is no mechanism left that can spend a minute after a reply. A single such turn refutes the fix. |
+| P2 | `context_render_s` fires | **>90% of A2 turns non-zero** | The refresh must run every turn, not just when something changed. The change-gate suppresses the *rewrite*, never the *read* — a low rate means the gate is short-circuiting the read too. |
+| P3 | median `context_render_s` | **< 2.0s AND < 5% of median `reply_path_s`** | Same budget as the unit test, now on real conversation graphs instead of a 7-tension fixture. Guards against trading the read-side fix for the latency problem this line of work started from. |
+| P4 | per-turn arithmetic | **`duration_s == reply_path_s + off_path_s` on 100% of turns** | `context_render_s` is a COMPONENT of `reply_path_s`. If it were wired as a third addend it would surface here as non-zero harness overhead. |
+
+P1 is the bar that carries the round. It is a count endpoint with a pre-fix rate of 19%
+and n≈120, so it is the one thing here that a null would genuinely settle.
+
+#### Secondary — the quality screen. Declared underpowered BEFORE the run.
+
+`endpoint_power.py`, run today: composite sd 0.79, and at 80% power **0.7 steps needs 10
+pairs, 0.5 steps needs 20, 0.3 steps needs 55.** This round has 12 pairs.
+
+- **Bar:** pooled A2−A1.7 composite must not fall more than **0.65 steps** below the
+  pre-fix weak `cofounder_equity` baseline (decide **−0.327**, wobble_a **−0.567**,
+  wobble_b **−0.714**, 31 reps each).
+- **What clearing it means:** no collapse. Nothing more.
+- **What a null means:** nothing. Stated in advance so it is not argued afterwards.
+
+**What this round cannot do.** The priced debt of fix (1) is **0.44 steps**, which needs
+28–55 pairs. This round has 12. It therefore **cannot detect the cost it already knows it
+paid**, and any reading of the quality delta as evidence about the bounded repair is
+invalid on these numbers. The 12 pairs are worth buying because they pool with future
+rounds toward that n, not because they answer it now.
+
+#### Mechanism reads with denominators too small to be bars — descriptive only
+
+- **`adopted_pathway_grounds` / `decision_record_complete`.** The ceremony fires once per
+  `decide` session, so n = **4 A2 decisions**. That is the endpoint that most directly
+  shows fix (1)'s debt and it has a denominator of four. Reported, never a bar.
+- **Dump-to-reply overlap.** Do not compare this round's `probe_readside_reach` overlap
+  to the 0.26 pathways baseline. `carryover_in` is now the session's **seed** dump, not
+  the only dump the session sees — the model may draw on a refreshed dump that nothing
+  in `RunRecord` records. **The bias is downward and its size is unknown**, so a lower
+  overlap here is a harness artefact of fix (2), not a read-side regression. Repairing
+  the comparison means recording the dump per turn, which this round does not have.
