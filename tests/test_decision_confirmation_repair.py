@@ -21,6 +21,8 @@ when it must not, and what it records), not the classifier's judgement.
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import Advisor
@@ -485,12 +487,17 @@ class _SeamFixtures:
             lambda self, pp: pp.in_cycle,
         )
 
-    def _capture_exploration(self, monkeypatch, built: list[str] | None = None):
-        """Patch the weave call and record what it was asked to build.
+    def _capture_exploration(self, monkeypatch):
+        """A tripwire on the weave call, which must never fire on a turn.
 
-        `built` is what the fake exploration reports back as the transformation
-        hashes now on the deepened wheel — the seam grounds on these, so tests
-        about grounding set them and tests about weaving ignore them.
+        This helper used to supply what the weave "built", because the closing
+        constructed its own pathways. It no longer does, so the returned list is
+        now an assertion target rather than a plumbing detail: every test in this
+        file expects it EMPTY. The reason is measured, not stylistic —
+        `run_exploration_detailed` cost 127.7s and 387.7s on two turns of
+        `timing-check-building`, on the person's wait, on the two turns
+        immediately before the closing. See
+        `Advisor._ensure_pathways_before_closing`.
         """
         calls = []
 
@@ -502,50 +509,109 @@ class _SeamFixtures:
                     "nexus_hash": nexus_hash,
                 }
             )
-            return "{}", list(built or [])
+            return "{}", []
 
         import dialectical_framework.agents.advisor.tools.explore as explore_mod
 
         monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
-        # No pathways on the graph unless a test says so: the fallback lookup
-        # runs a real query otherwise, and these are DB-free tests.
+        # No pathways on the graph unless a test says so: the lookup runs a real
+        # query otherwise, and these are DB-free tests.
         monkeypatch.setattr(
             _StubAdvisor, "_existing_pathway_hashes", lambda self: []
         )
         return calls
 
+    def _graph_pathways(self, monkeypatch, hashes: list[str]):
+        """Pathways ALREADY on the graph — the only source a closing now has.
+
+        Call after `_capture_exploration`, which defaults the same lookup to
+        empty. Whether these came from the model's own `explore` or from an
+        earlier turn is exactly the distinction the closing cannot make and does
+        not need to: it grounds on what is there.
+        """
+        monkeypatch.setattr(
+            _StubAdvisor, "_existing_pathway_hashes", lambda self: list(hashes)
+        )
+
 
 class TestPathwaysBeforeClosing(_SeamFixtures):
-    """A decision must not close over tensions that were never woven.
+    """A closing READS the pathways it grounds on. It must not build them.
 
-    The engine prompt has always said so — "A decision closes on pathways, not
-    on tensions alone... Without pathways there is no paired recipe to adopt, no
-    trap version of the choice to name, and the counsel at the closing turn is a
-    single tension restated with more emphasis." The model does not obey it, in
-    exactly the tier-shaped way `record_decision` did not: `explore` fires in
-    6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all 6 cells of
-    `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
-    tensions each. Those runs closed decisions over a graph holding no nexus, no
-    cycle, no wheel, no transformation and no synthesis — the framework's
-    differentiator never ran, so the arm was a prompted model with tetrads
-    bolted on, which is what the judged rows then measured.
+    This class used to assert the opposite, and the reason it did still stands:
+    the engine prompt requires pathways at a closing — "A decision closes on
+    pathways, not on tensions alone... Without pathways there is no paired
+    recipe to adopt, no trap version of the choice to name, and the counsel at
+    the closing turn is a single tension restated with more emphasis" — and the
+    model does not obey it, in exactly the tier-shaped way `record_decision` did
+    not: `explore` fires in 6/55 weak-tier runs (11%) against 17/25 strong
+    (68%), and in all 6 cells of `claim2-weak-r7-readside` it fired ZERO times
+    while `anchor` built 5-7 tensions each. A direct probe
+    (`tests/e2e/probe_explore_reachability.py`) confirmed the weak tier CAN call
+    `explore` unprompted, so that is election, not capability.
 
-    A direct probe (`tests/e2e/probe_explore_reachability.py`) confirmed the
-    weak tier CAN call `explore` unprompted when a turn asks for a causal map.
-    So this is election, not capability — same diagnosis, same remedy as the
-    decision repair above.
+    WHAT CHANGED, AND WHY IT IS NOT A RETREAT
+    =========================================
+    Building here was on the person's wait. `Advisor.chat` awaits the repair
+    before returning the reply, so the weave was billed to the turn no matter
+    what the comments said. Measured with per-turn timing on a real provider
+    (`timing-check-building`, weak tier): two turns making ZERO tool calls cost
+    141.9s and 402.0s, of which 127.7s and 387.7s were this weave — both on the
+    turn immediately before the closing.
+
+    So the pathways still matter and the weave still has to happen; it happens
+    OFF the turn. What this class now guards is the boundary: the closing reads,
+    grounds on what it finds, records, and never blocks. The quality cost of
+    reading an unwoven graph is real and recorded in
+    `test_a_lone_unwoven_tension_is_not_woven_either` — it is a debt this leaves
+    visible, not a defect it denies.
     """
 
     @pytest.mark.asyncio
-    async def test_unwoven_tensions_get_pathways(self, monkeypatch):
-        """The r7 shape exactly: several anchored tensions, no explore call."""
+    async def test_unwoven_tensions_are_not_woven_on_the_turn(self, monkeypatch):
+        """The r7 shape — five anchored tensions, no explore — must not trigger a weave.
+
+        This is the exact input that used to produce the 387.7s turn.
+        """
         self._patch_repo(monkeypatch, self._perspectives(5))
         calls = self._capture_exploration(monkeypatch)
 
-        await _StubAdvisor([])._ensure_pathways_before_closing()
+        pathways = await _StubAdvisor([])._ensure_pathways_before_closing()
 
-        assert len(calls) == 1
-        assert calls[0]["hashes"] == ["h0000", "h0001", "h0002", "h0003", "h0004"]
+        assert calls == [], (
+            "the closing wove on the person's wait — the 387.7s turn is back"
+        )
+        assert pathways == []
+
+    @pytest.mark.asyncio
+    async def test_the_unwoven_gap_is_logged_not_swallowed(self, monkeypatch, caplog):
+        """The debt has to be visible, or this is just a silent capability loss.
+
+        Deliberately a log and not a queue: a queue nothing drains is this
+        archive's signature defect (a value computed and never read). The count
+        is in the message because "some perspectives" cannot be acted on.
+        """
+        self._patch_repo(monkeypatch, self._perspectives(5, woven=2))
+        self._capture_exploration(monkeypatch)
+
+        with caplog.at_level(logging.WARNING):
+            await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert any(
+            "3 unwoven perspective(s)" in r.getMessage()
+            for r in caplog.records
+            if r.levelno >= logging.WARNING
+        ), "an unwoven closing left no trace at warning level"
+
+    @pytest.mark.asyncio
+    async def test_a_woven_graph_logs_nothing(self, monkeypatch, caplog):
+        """No debt, no warning — otherwise the log stops meaning anything."""
+        self._patch_repo(monkeypatch, self._perspectives(4, woven=4))
+        self._capture_exploration(monkeypatch)
+
+        with caplog.at_level(logging.WARNING):
+            await _StubAdvisor([])._ensure_pathways_before_closing()
+
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     @pytest.mark.asyncio
     async def test_already_woven_tensions_are_not_rewoven(self, monkeypatch):
@@ -558,45 +624,47 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
         assert calls == []
 
     @pytest.mark.asyncio
-    async def test_only_the_unwoven_remainder_is_woven(self, monkeypatch):
+    async def test_a_partly_woven_graph_grounds_on_what_is_woven(self, monkeypatch):
+        """Two unwoven of five is still a read, and the read still returns."""
         self._patch_repo(monkeypatch, self._perspectives(5, woven=3))
         calls = self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0042"])
 
-        await _StubAdvisor([])._ensure_pathways_before_closing()
+        pathways = await _StubAdvisor([])._ensure_pathways_before_closing()
 
-        assert calls[0]["hashes"] == ["h0003", "h0004"]
+        assert calls == []
+        assert pathways == ["tr0042"]
 
     @pytest.mark.asyncio
-    async def test_a_single_tension_is_woven_too(self, monkeypatch):
-        """ONE opposition is a complete arrangement, and this used to be skipped.
+    async def test_a_lone_unwoven_tension_is_not_woven_either(self, monkeypatch):
+        """The recorded cost of moving construction off the turn.
 
-        The guard was `len(unwoven) < 2`, justified as "a wheel over a single
-        tension is that tension restated, not a pathway". That reasoning
-        contradicts the framework: `PerspectiveCombination` treats a single PP
-        as the circular-causality base case (W(1)=1), and
+        A single opposition IS a complete arrangement — `PerspectiveCombination`
+        treats one PP as the circular-causality base case (W(1)=1),
         `docs/theory/generative-rules.md` Rule 8 has layer-1 wheels covering the
-        within-tetrad diagonals. Measured on a real provider at the weak tier
-        (`tests/test_single_perspective_explore_real_llm.py`): 1 cycle, 1
-        DEEPENED wheel, 6 transformations, 6 named Ac+/Re+ pathways, 1 synthesis
-        — from one perspective.
+        within-tetrad diagonals, and it was measured on a real provider at the
+        weak tier (`tests/test_single_perspective_explore_real_llm.py`): 1 cycle,
+        1 DEEPENED wheel, 6 transformations, 6 named Ac+/Re+ pathways, 1
+        synthesis, from one perspective. So weaving it is worth doing.
 
-        It cost `claim2-weak-r15-voice` half its A2 arm: 3 of 6 cells called
-        `anchor` exactly once, so the seam saw one unwoven perspective and
-        returned, and those cells closed on `woven=0 transformations=0` with the
-        report flagging the framework for not arranging what it had mapped.
-        Judged mean over those cells was -0.69 against -0.25 for the woven ones.
+        It is worth doing OFF the turn. When the weave lived here,
+        `claim2-weak-r15-voice` measured what skipping it costs — 3 of 6 cells
+        called `anchor` once, closed on `woven=0 transformations=0`, and the
+        judged mean over them was -0.69 against -0.25 for the woven cells, the
+        single largest identified component of A2's remaining loss.
+
+        This test therefore pins a DEBT, not a win: until deferred construction
+        exists, a lone-tension closing grounds on nothing and that -0.69 is the
+        exposure. If this assertion is ever inverted back, check that the weave
+        moved off the reply path rather than back onto it.
         """
         self._patch_repo(monkeypatch, self._perspectives(1))
         calls = self._capture_exploration(monkeypatch)
 
-        await _StubAdvisor([])._ensure_pathways_before_closing()
+        pathways = await _StubAdvisor([])._ensure_pathways_before_closing()
 
-        assert len(calls) == 1, (
-            "a lone tension was left unwoven — the decision closes with no "
-            "pathway, so `adopted_pathway` cannot be grounded and the returning "
-            "session has no recipe to re-audit against"
-        )
-        assert calls[0]["hashes"] == ["h0000"]
+        assert calls == []
+        assert pathways == []
 
     @pytest.mark.asyncio
     async def test_a_lone_already_woven_tension_is_not_rewoven(self, monkeypatch):
@@ -623,22 +691,55 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
         assert calls == []
 
     @pytest.mark.asyncio
-    async def test_the_scoped_nexus_pin_is_carried_through(self, monkeypatch):
-        """Counsel mode must weave INTO its nexus, never fork a second one."""
-        self._patch_repo(monkeypatch, self._perspectives(3))
-        calls = self._capture_exploration(monkeypatch)
+    async def test_the_scoped_nexus_pin_governs_the_read(self, monkeypatch):
+        """Counsel mode reads ITS nexus, not every nexus in scope.
 
-        await _StubAdvisor([], nexus_hash="nex1234")._ensure_pathways_before_closing()
+        The pin used to matter because the weave could fork a second nexus. With
+        no weave, it still matters for the same underlying reason — a counsel
+        session must not ground its decision on a pathway from an exploration the
+        person is not in.
+        """
+        seen: list = []
 
-        assert calls[0]["nexus_hash"] == "nex1234"
+        class _Nexus:
+            hash = "nex1234"
+
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+        from dialectical_framework.graph.repositories.transformation_repository import \
+            TransformationRepository
+
+        def _prefix(self, h):
+            seen.append(h)
+            return _Nexus()
+
+        monkeypatch.setattr(NexusRepository, "find_by_hash_prefix", _prefix)
+        monkeypatch.setattr(
+            NexusRepository,
+            "find_all",
+            lambda self: pytest.fail("a pinned counsel session read every nexus"),
+        )
+
+        class _Tr:
+            hash = "tr0005"
+
+        monkeypatch.setattr(
+            TransformationRepository, "find_by_nexus", lambda self, n: [_Tr()]
+        )
+        self._patch_repo(monkeypatch, self._perspectives(3, woven=3))
+
+        advisor = _StubAdvisor([], nexus_hash="nex1234")
+        assert await advisor._ensure_pathways_before_closing() == ["tr0005"]
+        assert seen == ["nex1234"]
 
     @pytest.mark.asyncio
-    async def test_pathways_are_built_before_the_record_is_written(self, monkeypatch):
-        """Order is the whole point: the record's grounds are read from the graph.
+    async def test_the_record_is_written_without_waiting_to_build(self, monkeypatch):
+        """Order was the whole point, and the order is now: read, ground, record.
 
-        Weaving after the write would leave `adopted_pathway` unavailable on the
-        very record it exists for, and the later re-audit with nothing to
-        reassure from.
+        There is no weave to sequence against. What still has to hold is that the
+        grounds reach `RecordDecision` at commit time rather than being attached
+        afterwards on this branch — the repair branch writes the record itself,
+        so it can pass them in.
         """
         order = []
 
@@ -648,7 +749,7 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
             )
 
         async def fake_record(self, **kwargs):
-            order.append("record")
+            order.append(("record", [g.role for g in (kwargs["grounds"] or [])]))
             return "hash"
 
         monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
@@ -656,40 +757,43 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
 
         monkeypatch.setattr(RecordDecision, "resolve", fake_record)
 
-        self._patch_repo(monkeypatch, self._perspectives(3))
-
-        async def fake_run(*, perspective_hashes, intent, nexus_hash):
-            order.append("explore")
-            return "{}", ["tr0001"]
-
-        import dialectical_framework.agents.advisor.tools.explore as explore_mod
-
-        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        self._patch_repo(monkeypatch, self._perspectives(3, woven=3))
+        calls = self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0001"])
 
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
-        assert order == ["explore", "record"]
+        assert calls == []
+        assert order == [("record", ["adopted_pathway"])]
 
     @pytest.mark.asyncio
-    async def test_a_model_recorded_decision_still_gets_pathways(self, monkeypatch):
-        """The branch the first version of this seam missed.
+    async def test_a_model_recorded_decision_still_reads_pathways(self, monkeypatch):
+        """The branch the first version of this seam missed, still covered.
 
         Gating pathways on the REPAIR firing skips every turn where the model
         recorded the decision itself — and that is the larger population:
         `record_decision` ran without `explore` in **50** saved A2 cells against
         48 with both. Recording is stronger evidence of closing than any
-        classifier verdict, so it must trigger pathways too — and then ground
-        the record on one (`TestTheClosingGroundsOnThePathwayItBuilt`).
+        classifier verdict, so this branch must still look for a pathway and
+        ground the record on one (`TestTheClosingGroundsOnThePathwayItBuilt`).
+        What it must not do is BUILD one while the person waits.
         """
         self._patch_repo(monkeypatch, self._perspectives(4))
         calls = self._capture_exploration(monkeypatch)
+        looked = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_existing_pathway_hashes",
+            lambda self: looked.append(True) or [],
+        )
 
         advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
         # No confirmation check is patched: reaching one would mean the repair
         # ran, and a recorded decision must never be re-recorded.
         await advisor._repair_unrecorded_decision("write it down", "done")
 
-        assert len(calls) == 1
+        assert calls == []
+        assert looked, "the recorded branch stopped looking for a pathway at all"
 
     @pytest.mark.asyncio
     async def test_a_recorded_decision_is_never_recorded_twice(self, monkeypatch):
@@ -811,14 +915,15 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
         return recorded
 
     @pytest.mark.asyncio
-    async def test_the_repair_branch_grounds_on_the_pathway_it_built(
+    async def test_the_repair_branch_grounds_on_the_pathway_it_found(
         self, monkeypatch
     ):
-        """The hashes the weave returned must reach `RecordDecision` as a ground."""
+        """The hashes the READ returned must reach `RecordDecision` as a ground."""
         self._confirming(monkeypatch)
         recorded = self._capture_record(monkeypatch)
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(monkeypatch, built=["tr0001", "tr0002"])
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0001", "tr0002"])
 
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
@@ -840,9 +945,8 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
         self._confirming(monkeypatch)
         recorded = self._capture_record(monkeypatch)
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(
-            monkeypatch, built=[f"tr{i:04d}" for i in range(6)]
-        )
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, [f"tr{i:04d}" for i in range(6)])
 
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
@@ -859,7 +963,7 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
         self._confirming(monkeypatch)
         recorded = self._capture_record(monkeypatch)
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(monkeypatch, built=[])
+        self._capture_exploration(monkeypatch)
 
         await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
 
@@ -902,7 +1006,8 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
         `commit()` then `grounds.connect(...)`.
         """
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(monkeypatch, built=["tr0007"])
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0007"])
         connected = _StubDecision()
         monkeypatch.setattr(
             _StubAdvisor, "_decision_recorded_this_turn", lambda self: connected
@@ -931,7 +1036,8 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
         twice.
         """
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(monkeypatch, built=["tr0007"])
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0007"])
         decision = _StubDecision(existing_roles=["adopted_pathway"])
         monkeypatch.setattr(
             _StubAdvisor, "_decision_recorded_this_turn", lambda self: decision
@@ -970,7 +1076,8 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
     async def test_a_grounding_failure_never_breaks_the_turn(self, monkeypatch):
         """The reply is already delivered; a missing edge is not the person's problem."""
         self._patch_repo(monkeypatch, self._perspectives(2))
-        self._capture_exploration(monkeypatch, built=["tr0007"])
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0007"])
 
         def boom(self):
             raise RuntimeError("memgraph went away")

@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional, Sequence, TypeVar
 
 from langfuse import observe
@@ -27,6 +28,7 @@ from dialectical_framework.agents.stream_events import (
     ToolResult,
     ToolStart,
 )
+from dialectical_framework.agents.turn_timing import ToolRound
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.use_brain import use_brain
 
@@ -114,6 +116,20 @@ class ConversationFacilitator(SettingsAware):
         # Both look identical from outside: `anchor:ok` over a graph with no
         # grounding on it.
         self.last_tool_call_args: list[dict[str, Any]] = []
+        # Wall clock per tool ROUND, and the total for the whole submit. Names
+        # and outcomes say WHAT ran; these say what it cost the person waiting,
+        # which is a different question and the one no field answered. Every
+        # figure in `probe_reply_path_latency.py` before this existed was
+        # regressed out of 187 runs' cell-level `duration_s` because a turn
+        # recorded no duration at all.
+        #
+        # Per round rather than per call because `execute_tools()` gathers a
+        # round and runs it concurrently — see `ToolRound`.
+        self.last_tool_rounds: list[ToolRound] = []
+        # The whole submit: generation plus every tool round. This is the
+        # interval the person actually waits, so it is measured around the
+        # outermost await rather than summed from parts that might not cover it.
+        self.last_submit_seconds: float = 0.0
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -189,30 +205,47 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_calls = []
         self.last_tool_results = []
         self.last_tool_call_args = []
+        self.last_tool_rounds = []
+        self.last_submit_seconds = 0.0
 
-        if not self._tools:
+        # `finally`, not a plain assignment before each return: a turn that
+        # RAISED still waited the person's time, and a duration recorded only on
+        # the happy path makes the expensive failures the invisible ones.
+        started = time.monotonic()
+        try:
+            if not self._tools:
+                return await self._call_with_response_model(response_model)
+
+            # Agentic loop: resume() accumulates messages internally
+            response = await self._call_with_tools()
+            for _ in range(max_tool_rounds):
+                if not response.tool_calls:
+                    break
+                self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
+                self._record_tool_call_args(response.tool_calls)
+                self._log_tool_calls(response.tool_calls)
+                round_names = tuple(tc.name for tc in response.tool_calls)
+                round_started = time.monotonic()
+                tool_outputs = await response.execute_tools()
+                self.last_tool_rounds.append(
+                    ToolRound(
+                        names=round_names,
+                        seconds=time.monotonic() - round_started,
+                    )
+                )
+                self._record_tool_results(response.tool_calls, tool_outputs)
+                self._strip_caller_from_messages(response.messages)
+                response = await response.resume(tool_outputs)
+
+            # Sync full conversation history from the response chain
+            self._messages = list(response.messages)
+            self._close_dangling_tool_calls(response)
+            self._strip_unsupported_input_fields()
+
+            # Extract structured response
             return await self._call_with_response_model(response_model)
-
-        # Agentic loop: resume() accumulates messages internally
-        response = await self._call_with_tools()
-        for _ in range(max_tool_rounds):
-            if not response.tool_calls:
-                break
-            self.last_tool_calls.extend(tc.name for tc in response.tool_calls)
-            self._record_tool_call_args(response.tool_calls)
-            self._log_tool_calls(response.tool_calls)
-            tool_outputs = await response.execute_tools()
-            self._record_tool_results(response.tool_calls, tool_outputs)
-            self._strip_caller_from_messages(response.messages)
-            response = await response.resume(tool_outputs)
-
-        # Sync full conversation history from the response chain
-        self._messages = list(response.messages)
-        self._close_dangling_tool_calls(response)
-        self._strip_unsupported_input_fields()
-
-        # Extract structured response
-        return await self._call_with_response_model(response_model)
+        finally:
+            self.last_submit_seconds = time.monotonic() - started
 
     @observe()
     async def submit_stream(
@@ -237,9 +270,13 @@ class ConversationFacilitator(SettingsAware):
         # healthy turn and the healthy turn's own tools look unreported.
         self.last_tool_results = []
         self.last_tool_call_args = []
+        self.last_tool_rounds = []
+        self.last_submit_seconds = 0.0
+        started = time.monotonic()
 
         if not self._tools:
             result = await self._call_with_response_model(response_model)
+            self.last_submit_seconds = time.monotonic() - started
             yield ResponseComplete(result=result)
             return
 
@@ -264,7 +301,14 @@ class ConversationFacilitator(SettingsAware):
             self.last_tool_calls.extend(tc.name for tc in stream.tool_calls)
             self._record_tool_call_args(stream.tool_calls)
             self._log_tool_calls(stream.tool_calls)
+            round_names = tuple(tc.name for tc in stream.tool_calls)
+            round_started = time.monotonic()
             tool_outputs = await stream.execute_tools()
+            self.last_tool_rounds.append(
+                ToolRound(
+                    names=round_names, seconds=time.monotonic() - round_started
+                )
+            )
 
             # Recorded and streamed from one construction: the events a UI sees
             # and the outcomes a caller inspects must not be able to disagree.
@@ -278,6 +322,10 @@ class ConversationFacilitator(SettingsAware):
         self._close_dangling_tool_calls(stream)
         self._strip_unsupported_input_fields()
         result = await self._call_with_response_model(response_model)
+        # Before the yield: the reply-path interval ends when the reply EXISTS,
+        # and a consumer that stops iterating at ResponseComplete would otherwise
+        # leave this unset on the very turns it is measuring.
+        self.last_submit_seconds = time.monotonic() - started
         yield ResponseComplete(result=result)
 
     # --- Internal helpers ---

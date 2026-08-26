@@ -231,6 +231,7 @@ class E2EDriver:
             # The capture spans the arm's whole turn, which for A2 includes the
             # post-reply repair and pathway seams — the fail-soft blocks most
             # able to lose an artifact without anyone noticing.
+            turn_started = time.monotonic()
             with _capturing_swallowed_errors() as swallowed:
                 try:
                     with using_model(self._container, tier_model):
@@ -246,6 +247,10 @@ class E2EDriver:
                     tool_outcomes = []
                     grounding_args = []
                     error = f"arm: {type(exc).__name__}: {exc}"
+            # Outside the try: a turn that RAISED still cost the person its
+            # seconds, and the expensive failures are the ones worth seeing.
+            duration_s = time.monotonic() - turn_started
+            timing = getattr(arm, "last_turn_timing", None)
 
             simulator.observe("assistant", assistant_text)
             turns.append(
@@ -261,6 +266,10 @@ class E2EDriver:
                     tool_calls=tool_calls,
                     tool_outcomes=tool_outcomes,
                     grounding_args=grounding_args,
+                    duration_s=round(duration_s, 1),
+                    reply_path_s=round(timing.reply_path_s, 1) if timing else 0.0,
+                    off_path_s=round(timing.off_path_s, 1) if timing else 0.0,
+                    tool_seconds=timing.format_rounds() if timing else [],
                     error=error,
                     swallowed_errors=list(swallowed),
                 )

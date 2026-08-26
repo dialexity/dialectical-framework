@@ -53,6 +53,7 @@ from dialectical_framework.agents.advisor.system_prompts import (
 from dialectical_framework.agents.conversation_facilitator import (
     ConversationFacilitator,
 )
+from dialectical_framework.agents.turn_timing import TurnTiming
 
 from .models import Arm
 
@@ -80,6 +81,9 @@ class ArmSession(Protocol):
 
     @property
     def last_grounding_args(self) -> list[str]: ...
+
+    @property
+    def last_turn_timing(self) -> Optional[TurnTiming]: ...
 
 
 # ---------------------------------------------------------------------------
@@ -351,6 +355,21 @@ class PromptArm:
     def last_grounding_args(self) -> list[str]:
         return []  # no tools by construction
 
+    @property
+    def last_turn_timing(self) -> Optional[TurnTiming]:
+        """All reply path, by construction — a prompt arm has nothing off it.
+
+        Recorded rather than left None because this arm's per-turn seconds ARE
+        the reply-cost baseline the A2 split is read against, and
+        `probe_reply_path_latency.py` currently derives that baseline by dividing
+        a whole cell's `duration_s` by its turn count — which silently assumes
+        every turn in a session costs the same.
+        """
+        return TurnTiming(
+            reply_path_s=self._conversation.last_submit_seconds,
+            off_path_s=0.0,
+        )
+
     async def write_journal(self) -> str:
         """A1.7: have the model write its own carry-forward notes.
 
@@ -449,6 +468,16 @@ class AdvisorArm:
             else:
                 flags.append(f"{name}:context=MISSING")
         return flags
+
+    @property
+    def last_turn_timing(self) -> Optional[TurnTiming]:
+        """The reply-path / off-path split, straight from the Advisor.
+
+        Read off the agent rather than timed here: only the Advisor knows where
+        the reply was handed over, and the harness timing `arm.reply()` from
+        outside can see the total and nothing else.
+        """
+        return self._advisor.last_turn_timing
 
     @property
     def messages(self) -> list:

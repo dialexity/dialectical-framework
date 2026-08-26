@@ -13,6 +13,7 @@ Two use cases:
 from __future__ import annotations
 
 import logging
+import time
 from typing import AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
@@ -26,6 +27,7 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import ResponseComplete, StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
+from dialectical_framework.agents.turn_timing import TurnTiming
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +162,9 @@ class Advisor:
         # lazily on turn 1 (init is sync; resolve() is async). One-shot —
         # the system prompt is static after its first render.
         self._pending_context_render = bool(nexus_hash and not dialectical_context)
+        # Where the last turn's seconds went, split at the point the reply was
+        # handed to the person. None until the first turn completes.
+        self.last_turn_timing: Optional[TurnTiming] = None
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
@@ -203,7 +208,12 @@ class Advisor:
         with agent_scope(self.AGENT_NAME):
             await self._render_pending_context()
             result = await self._conversation.submit(ChatResponse, user_message)
+            reply_path_s = self._conversation.last_submit_seconds
+            repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, result.message)
+            self._record_turn_timing(
+                reply_path_s, time.monotonic() - repair_started
+            )
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
@@ -220,10 +230,41 @@ class Advisor:
                 if isinstance(event, ResponseComplete):
                     reply = event.message
                 yield event
-            # After the stream, so the person's reply is never delayed by the
-            # repair. Same guarantee as chat(): a confirmed decision is on
-            # disk by the time the turn is over.
+            reply_path_s = self._conversation.last_submit_seconds
+            # After the stream, so the text is on screen before the repair runs.
+            # NOT the same as being free: this generator cannot finish until the
+            # repair does, and `chat` is worse still — it holds its return value
+            # for the whole repair. That comment used to claim `chat` carried the
+            # same guarantee, and it never did; the repair was measured at 387.7s
+            # on a turn whose reply took 14.3s. Which is why the repair must stay
+            # BOUNDED — see `_ensure_pathways_before_closing`, which reads the
+            # graph and no longer builds on it.
+            repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, reply)
+            self._record_turn_timing(
+                reply_path_s, time.monotonic() - repair_started
+            )
+
+    def _record_turn_timing(self, reply_path_s: float, off_path_s: float) -> None:
+        """Publish where this turn's seconds went.
+
+        The split matters more than either number: `reply_path_s` is time the
+        person spent waiting, `off_path_s` is time spent after they had their
+        reply. Those are the same second to a cost budget and opposite seconds to
+        a UX decision, and until this existed only the sum was ever recorded —
+        at the granularity of a whole multi-session cell, which is why
+        `probe_reply_path_latency.py` had to regress the split out of 187 runs
+        instead of reading it.
+
+        Tool rounds come from the facilitator rather than being re-timed here:
+        it owns the loop, and a second clock around the same awaits could only
+        disagree with the first.
+        """
+        self.last_turn_timing = TurnTiming(
+            reply_path_s=reply_path_s,
+            off_path_s=off_path_s,
+            tool_rounds=tuple(self._conversation.last_tool_rounds),
+        )
 
     async def _repair_unrecorded_decision(
         self, user_message: str, assistant_message: str
@@ -356,110 +397,84 @@ class Advisor:
             logger.exception("Decision confirmation repair failed (fail-soft)")
 
     async def _ensure_pathways_before_closing(self) -> list[str]:
-        """Build pathways for unwoven perspectives when a decision is closing.
+        """The pathways this closing may ground on — READ from the graph, not built.
 
-        Returns the Transformation hashes now on the deepened wheel — the
-        pathways this closing is entitled to ground on. Empty when there was
-        nothing to weave or the exploration produced none.
+        Returns Transformation hashes already in scope. Empty when the graph
+        holds none.
 
-        The engine prompt already states the rule: "A decision closes on
-        pathways, not on tensions alone... Without pathways there is no paired
-        recipe to adopt, no trap version of the choice to name, and the counsel
-        at the closing turn is a single tension restated with more emphasis."
-        The model does not obey it. Measured over every saved bench run,
-        `explore` fires in 6 of 55 weak-tier runs (11%) against 17 of 25 at the
-        strong tier (68%, Fisher p ~ 5e-07) — and in the 6 cells of
-        `claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7
-        tensions per cell. Those runs closed decisions over a graph with no
-        nexus, no cycle, no wheel, no transformation and no synthesis: the
-        framework's actual differentiator never executed, so the arm was a
-        prompted model with tetrads bolted on. A direct probe confirmed the weak
-        tier CAN call `explore` unprompted when a turn asks for a causal map, so
-        this is election, not capability — the same failure mode, and the same
-        remedy, as `_repair_unrecorded_decision` itself.
+        WHY THIS NO LONGER BUILDS
+        =========================
+        It used to call `run_exploration_detailed` for every unwoven
+        perspective, and that call sits on the person's wait. `chat` awaits this
+        repair before returning the reply; `chat_stream` delivers the text first
+        but still cannot end the turn without it. So "off the reply path" was
+        true of the reply TEXT and false of the person.
 
-        Scope is deliberately narrow: this fires only on a closing — either the
-        model recorded a decision this turn, or the confirmation check found one
-        in the person's own words — never mid-exploration. It builds what the
-        person's own closing entitles them to and nothing more. Weaving obeys
-        `run_exploration`'s existing per-call perspective cap, so a wide graph is
-        woven across successive closings rather than in one latency spike.
+        Measured on a real provider (`timing-check-building`, weak tier, 16
+        turns, per-turn timing rather than regression): two turns that made ZERO
+        tool calls cost 141.9s and 402.0s, of which 127.7s and 387.7s were this
+        method. Both landed on the turn immediately before the closing — the one
+        turn in a conversation that has to feel exact.
 
-        BOTH closings need it, and the model-recorded branch is the larger one:
-        across every saved A2 cell, `record_decision` ran without `explore` 50
-        times against 48 with both. Both branches now ground the pathway they
-        build — the already-recorded one by connecting a GROUNDED_IN edge to the
-        committed Decision (an analytical edge; hashes are unaffected), the
-        repair branch by passing it to `RecordDecision` at commit time.
+        WHAT GIVING THAT UP COSTS, STATED PLAINLY
+        =========================================
+        Building here bought something real, and this surrenders it. The engine
+        prompt's rule stands: "A decision closes on pathways, not on tensions
+        alone... Without pathways there is no paired recipe to adopt, no trap
+        version of the choice to name, and the counsel at the closing turn is a
+        single tension restated with more emphasis." The model does not obey it
+        — `explore` fires in 6 of 55 weak-tier runs (11%) against 17 of 25 at
+        the strong tier (68%, Fisher p ~ 5e-07). Split by whether the graph was
+        woven at closing (`claim2-weak-r15-voice`), the judged mean was -0.25
+        woven against -0.69 unwoven over 36 scores each: the single largest
+        identified component of A2's remaining loss.
 
-        Fail-soft and silent to the person: their reply has already been
-        delivered, and a pathway they never asked about must not surface as an
-        error. What it changes is the RECORD — `adopted_pathway` becomes
-        available, the re-audit has a recipe to reassure from, and the synthesis
-        exists.
+        So the construction is not unnecessary — it is in the wrong PLACE. It
+        belongs off the turn entirely, and the architecture already permits
+        that: GROUNDED_IN is analytical, so a Decision committed now can be
+        grounded on a pathway built later (`_attach_adopted_pathway`; and
+        `Decision`'s own docstring shows `commit()` preceding
+        `grounds.connect(...)`). Until that deferral exists, an unwoven closing
+        is LOGGED rather than quietly accepted. Deliberately a log and not a
+        queue: a queue nothing drains is this archive's signature defect, so
+        there is a visible gap instead of a fake mechanism.
+
+        Still `async` though it now awaits nothing — the deferral restores awaits
+        here, and churning both call sites twice would obscure that.
+
+        Fail-soft throughout: a closing that cannot see a pathway is recorded
+        without one, exactly as before this method existed.
         """
-        from dialectical_framework.agents.advisor.tools.explore import \
-            run_exploration_detailed
         from dialectical_framework.graph.repositories.perspective_repository import \
             PerspectiveRepository
 
-        repo = PerspectiveRepository()
-        perspectives = repo.find_all_active()
-        unwoven = [
-            p
-            for p in perspectives
-            if p.hash and not repo.is_in_use_by_cycle(p)
-        ]
-        # One tension is enough. This guard used to be `< 2` on the reasoning
-        # that "a wheel needs a second opposition to be a pathway rather than a
-        # restatement" — which contradicts the framework's own model.
-        # `PerspectiveCombination` treats a single PP as the circular-causality
-        # BASE CASE (W(1)=1: one Cycle, one Wheel, 2 edges, 1 pair), and
-        # `docs/theory/generative-rules.md` Rule 8 says layer-1 wheels are what
-        # covers the within-tetrad diagonals. Measured directly rather than
-        # argued (`tests/test_single_perspective_explore_real_llm.py`, weak tier,
-        # real provider): a 1-PP exploration yields 1 cycle, 1 DEEPENED wheel,
-        # 6 transformations, 6 named Ac+/Re+ pathways and 1 synthesis.
-        #
-        # The cost of the old floor, measured in `claim2-weak-r15-voice`: 3 of 6
-        # A2 cells called `anchor` exactly once, so the seam saw one unwoven
-        # perspective and returned. Those cells closed on `woven=0
-        # transformations=0`, and the report flagged them as the framework
-        # failing to arrange what it had mapped. Split by this state, the judged
-        # mean was -0.69 unwoven against -0.25 woven over 36 scores each — the
-        # single largest identified component of A2's remaining loss, and it was
-        # this `return`, not the model.
-        if not unwoven:
-            # Nothing to weave is NOT nothing to ground. The model may have
-            # called `explore` itself — that is the cell this seam wants to see
-            # — and then the pathways already exist and the closing is still
-            # entitled to one. Measured in `claim2-weak-r16-floor`: 6/6 A2 cells
-            # closed with 12-42 transformations on the graph and 0/6 carried an
-            # `adopted_pathway` ground, INCLUDING the cell that called `explore`
-            # at t2 and `record_decision` at t5 with 30 pathways in hand. An
-            # early `return` here would keep that exact cell ungrounded.
-            return self._existing_pathway_hashes()
+        try:
+            repo = PerspectiveRepository()
+            unwoven = [
+                p
+                for p in repo.find_all_active()
+                if p.hash and not repo.is_in_use_by_cycle(p)
+            ]
+        except Exception:
+            logger.exception("Unwoven-perspective lookup failed (fail-soft)")
+            unwoven = []
 
-        logger.info(
-            "Decision closing over %d unwoven perspective(s) — building "
-            "pathways the engine prompt requires and the model skipped",
-            len(unwoven),
-        )
-        _report, built = await run_exploration_detailed(
-            perspective_hashes=[p.hash for p in unwoven],
-            intent=(
-                "The person is closing a decision on these tensions. Build the "
-                "causal arrangements so the decision rests on a pathway."
-            ),
-            nexus_hash=self._nexus_hash,
-        )
-        # The per-call perspective cap can defer some of `unwoven`, and a wheel
-        # that reuses every transformation reports them as existing rather than
-        # new — either way `transformation_hashes` is "what is now on the
-        # deepened wheel", which is what a ground needs. Falling back to the
-        # graph covers an exploration that built nothing new on a graph that
-        # already had pathways.
-        return built or self._existing_pathway_hashes()
+        # Read regardless of `unwoven`: nothing to weave is NOT nothing to
+        # ground. Measured in `claim2-weak-r16-floor` — 6/6 A2 cells closed with
+        # 12-42 transformations on the graph and 0/6 carried an
+        # `adopted_pathway`, including the cell that called `explore` itself.
+        pathways = self._existing_pathway_hashes()
+        if unwoven:
+            logger.warning(
+                "Decision closing over %d unwoven perspective(s); grounding on "
+                "%d existing pathway(s) rather than building. The engine prompt "
+                "requires pathways at a closing and the model skipped them, so "
+                "this closing rests on less than it is entitled to — pathway "
+                "construction is deferred off the turn, not performed here.",
+                len(unwoven),
+                len(pathways),
+            )
+        return pathways
 
     def _existing_pathway_hashes(self) -> list[str]:
         """Transformation hashes already on this session's graph, if any.

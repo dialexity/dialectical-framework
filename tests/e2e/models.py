@@ -404,6 +404,30 @@ class TurnRecord(BaseModel):
     #: (framework). Length only, never the text: `context` holds the person's
     #: whole case and would duplicate the transcript in every record.
     grounding_args: list[str] = Field(default_factory=list)
+    #: Wall clock for the whole turn, timed by the driver around `arm.reply()`.
+    #: The outer bound: `reply_path_s + off_path_s` should account for nearly all
+    #: of it, and a gap between them is harness overhead worth seeing.
+    duration_s: float = 0.0
+    #: Seconds between the person's message and their reply EXISTING — model
+    #: generation plus every tool round the model elected, since `Advisor.chat`
+    #: awaits `submit()` before it holds any text. This is the number a UX
+    #: decision turns on, and no field carried it until 2026-08-26: timing lived
+    #: only on `RunRecord.duration_s`, which covers a whole multi-session cell.
+    #: `probe_reply_path_latency.py` estimated the split by regressing 187 runs'
+    #: cell duration onto their tool histograms (81% strong / 88% weak on the
+    #: reply path) — defensible as attribution, and no substitute for this.
+    reply_path_s: float = 0.0
+    #: Seconds spent AFTER the reply was handed over: the decision repair and the
+    #: pathway seam. `Advisor` already treats that boundary as load-bearing ("so
+    #: the person's reply is never delayed by the repair"); this measures it
+    #: instead of trusting the comment.
+    off_path_s: float = 0.0
+    #: Per tool ROUND: `"anchor:229.4s"`, or `"anchor+explore:301.2s"` when the
+    #: round ran several tools concurrently. Same `list[str]` idiom as
+    #: `tool_outcomes` and `grounding_args`, and the `+` is load-bearing — a
+    #: concurrent round took as long as its slowest call, so those seconds must
+    #: NOT be read as belonging to either name alone (see `ToolRound`).
+    tool_seconds: list[str] = Field(default_factory=list)
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
     #: logs and continues by design (a graph fault must not break a live

@@ -1,26 +1,35 @@
-"""The tripwire for the OTHER tier-gated ceremony: pathways before a closing.
+"""The tripwire for the OTHER tier-gated ceremony: what a closing may cost.
 
 Real-LLM counterpart to `TestPathwaysBeforeClosing` in
-`test_decision_confirmation_repair.py` (which pins the seam DB-free). It asserts
-two things at once, because the whole point of the seam is that they must both
-hold on the SAME turn:
+`test_decision_confirmation_repair.py` (which pins the seam DB-free). This file
+used to assert that the closing WOVE the tensions it closed over. It no longer
+does, and the inversion is the point: per-turn timing on a real provider
+(`timing-check-building`, weak tier, 16 turns) measured two turns that made ZERO
+tool calls costing 141.9s and 402.0s, of which 127.7s and 387.7s were
+`_ensure_pathways_before_closing` — and both landed on the turn immediately
+before the closing, the one turn that has to feel exact. Construction moved off
+the turn; see that method's docstring for the quality debt this leaves.
+
+So the two things that must hold on the SAME turn are now:
 
 1. a decision the person confirmed reaches the graph, and
-2. the tensions it closed over got woven into an arrangement.
+2. the closing did not BUILD its way there.
 
-The measurement that motivates (2), from `tests/e2e/README.md`: `explore` fires
-in 6/55 weak-tier runs (11%) against 17/25 strong (68%), and in all six cells of
-`claim2-weak-r7-readside` it fired ZERO times while `anchor` built 5-7 tensions
-each. Decisions closed over a graph with no nexus, no cycle, no wheel, no
-transformation and no synthesis — so the arm the bench scored was a prompted
-model with tetrads bolted on.
+(2) is asserted against what the model itself did, not flatly. `explore` is a
+wired tool here, so a weave is legitimate when the MODEL elected it and a defect
+when only the closing could have caused it — a distinction the old flat
+`assert woven` could not draw. The measurement that makes this worth splitting,
+from `tests/e2e/README.md`: `explore` fires in 6/55 weak-tier runs (11%) against
+17/25 strong (68%), and in all six cells of `claim2-weak-r7-readside` it fired
+ZERO times while `anchor` built 5-7 tensions each. So on this tier the
+model-explored branch is the rare one, and the no-build assertion is usually the
+live one.
 
-It also guards a regression the seam can plausibly cause and the DB-free tests
-cannot see: pathway construction now runs BETWEEN the confirmation verdict and
-`RecordDecision`, and it is a long, many-call, graph-writing operation. If it
-leaves the scope, the DI container or the conversation in a state
-`RecordDecision` cannot survive, the record disappears — reintroducing exactly
-the failure the repair exists to prevent, on the exact path meant to enrich it.
+It also still guards the regression the DB-free tests cannot see. Something runs
+BETWEEN the confirmation verdict and `RecordDecision`; it used to be a long
+graph-writing exploration and is now a pathway LOOKUP, and a read can raise where
+a write used to. If it leaves the scope, the DI container or the conversation in a
+state `RecordDecision` cannot survive, the record disappears.
 `claim2-weak-r8-pathways` / wobble_b closed on an unambiguous "write that down as
 the decision" and recorded NOTHING, while a replay of that turn's classifier
 (`tests/e2e/probe_confirmation_on_r8_wobble_b.py`) returns
@@ -79,13 +88,13 @@ TURNS = [
 ]
 
 
-class TestWeakTierClosesOnPathways:
+class TestWeakTierClosesWithoutBuilding:
     @pytest.mark.asyncio
     @pytest.mark.timeout(2400)
     # Deliberately NOT @traced: it serializes the test's args as span input and
     # `di_container` is cyclic — the serializer recurses forever and HANGS
     # (CLAUDE.md, Observability).
-    async def test_a_confirmed_decision_leaves_a_record_and_a_pathway(
+    async def test_a_confirmed_decision_leaves_a_record_without_building_one(
         self, di_container
     ):
         from e2e.modelctx import using_model
@@ -108,43 +117,61 @@ class TestWeakTierClosesOnPathways:
             perspectives = PerspectiveRepository().find_all_active()
             repo = PerspectiveRepository()
             woven = [p for p in perspectives if repo.is_in_use_by_cycle(p)]
+            # Read inside the scope: `grounds` is a live relationship query.
+            grounds = {d.short_hash: len(list(d.grounds.all())) for d in decisions}
 
         print(f"\nTool calls per turn: {tool_calls_per_turn}")
         print(f"Perspectives: {len(perspectives)} (woven into a cycle: {len(woven)})")
         print(f"Active decisions: {len(decisions)}")
         for d in decisions:
             print(f"  [[{d.short_hash}]] {d.intent} -> {d.stance}")
+            print(f"      grounds: {grounds[d.short_hash]}")
         model_explored = any("explore" in calls for calls in tool_calls_per_turn)
         print(f"Explored by the model itself: {model_explored}")
 
-        # (1) The record. Asserted FIRST and separately from the pathway: if the
-        # seam's exploration is what costs us the record, the two assertions
-        # failing together is the signature, and the record is the one that
-        # must never be traded away for the other.
+        # (1) The record. Asserted FIRST and separately: whatever sits between
+        # the verdict and `RecordDecision` must not cost the person the one thing
+        # they were promised. That slot used to hold a long weave and now holds a
+        # pathway lookup, so the assertion outlives the change.
         assert decisions, (
             "The person explicitly confirmed a decision and no Decision node "
             "reached the graph. The confirmation classifier is NOT the suspect "
             "— it returns confirmed=True on this exact turn at this exact tier "
             "(tests/e2e/probe_confirmation_on_r8_wobble_b.py). Look for a "
             "fail-soft exception logged between the verdict and RecordDecision, "
-            "which is where pathway construction now sits."
+            "which is where the pathway LOOKUP now sits."
         )
 
-        # (2) The pathway. Below two tensions the seam correctly does nothing,
-        # so a run where the model surfaced only one opposition cannot judge it
-        # — skip rather than fail, or this becomes a test of the anchor prompt's
-        # productivity instead of the seam.
-        if len(perspectives) < 2:
-            pytest.skip(
-                f"Only {len(perspectives)} perspective(s) mapped — one tension "
-                "has no arrangement to enumerate, so the seam is correct to "
-                "stay silent and there is nothing here to assert."
+        # (2) Who built, if anyone. No skip on perspective count any more: under
+        # the read-only closing, "nothing was woven" is assertable however few
+        # tensions the anchor prompt happened to produce. The old skip fired on
+        # this test's first run and made it a report on anchor productivity.
+        if model_explored:
+            # The model elected `explore`, so a weave is its work, not the
+            # closing's — and this is the branch that proves the read side
+            # reaches real structure through a real conversation.
+            assert woven, (
+                "The model called `explore` itself and NOT ONE perspective is "
+                "in a cycle — the tool reported success and left nothing "
+                "`is_in_use_by_cycle` can see. The closing's only source of a "
+                "ground is that same read, so this breaks grounding for every "
+                "decision, not just this one."
             )
-
-        assert woven, (
-            f"A decision closed over {len(perspectives)} mapped tensions and "
-            "NOT ONE is in a cycle: the decision rests on tensions alone, which "
-            "is what the engine prompt forbids and what the weak tier did in "
-            "6/6 bench cells. Either the seam did not fire or its exploration "
-            "failed fail-soft — check the log for 'Pathway construction'."
-        )
+        else:
+            assert not woven, (
+                f"No turn called `explore`, yet {len(woven)} perspective(s) are "
+                "woven into a cycle. Nothing but the closing could have built "
+                "that, so construction is back on the person's wait — the 387.7s "
+                "turn. Check `_ensure_pathways_before_closing` for a re-added "
+                "`run_exploration` call."
+            )
+            # The priced debt this branch leaves: with nothing woven there is no
+            # pathway to ground on, so the closing rests on tensions alone —
+            # the -0.25-vs--0.69 quality cost recorded in
+            # `_ensure_pathways_before_closing`. Printed, NOT asserted: grounds
+            # legitimately target perspectives and statements as well as
+            # pathways (`record_decision.py` — the framework-derived path grounds
+            # the perspective), so a count of zero is not what "no pathway" looks
+            # like and `grounds == 0` would be a false alarm. The precise
+            # behaviour is pinned DB-free in `test_decision_confirmation_repair.py`,
+            # including the WARNING this case must log.

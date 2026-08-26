@@ -3698,3 +3698,75 @@ quotation of those numbers that omits them is incomplete:
 **What r23 still cannot settle**, unchanged from the pre-registration: n=12 cannot
 resolve a half-step spurious gain; it tests *this* judge; and two scenarios say nothing
 about poor-fit requests in general.
+
+### timing-instrumentation-check / timing-check-building: telemetry validation, NOT a control reading (2026-08-26)
+
+**Read this section as a disclaimer before it is a result.** Both stems were run to
+validate new per-turn timing (`TurnRecord.duration_s`, `reply_path_s`, `off_path_s`,
+`tool_seconds`), with `DIALEXITY_E2E_JUDGE_OFF=1`. **No cell was judged, so neither stem
+carries a delta and neither is evidence about any arm.** `timing-instrumentation-check`
+names a control scenario (`premature_relocation`, A1+A2, weak, 1 replicate, 4 turns
+each) only because it is the cheapest single-session scenario in the file — it was
+chosen for its length, not its content. Nothing here suspends, supports or qualifies
+r23's control verdict above. `timing-check-building` is `cofounder_equity`, A2 only,
+weak, 2 cells / 16 turns, and was run because the first stem elected almost no tools.
+
+#### What the instrumentation showed
+
+Before this, the reply-path share was *regressed* out of 187 runs' cell-level
+`duration_s` by `probe_reply_path_latency.py`, because no per-turn duration existed. The
+regression's direction held; almost none of its specific numbers did.
+
+| quantity | attributed from the archive | measured here |
+|---|---|---|
+| `anchor` | 229s | 42.0s, 39.1s, **804.5s** (median 42s, brutal right tail) |
+| `record_decision` | 44s | 2.4s |
+| off-path share | 2% of wall clock | 1.4–1.9s/turn normally; **127.7s and 387.7s** when pathway construction fired |
+
+Per-turn arithmetic closed exactly (`duration_s == reply_path_s + off_path_s` on all 16
+turns, 0% unexplained harness overhead), and the reply-path/off-path boundary behaved:
+the one turn that called `record_decision` is the one turn with `off_path_s == 0.0`,
+because the repair correctly short-circuited.
+
+#### The defect it found, which is the actual result
+
+`Advisor.chat` awaits `_repair_unrecorded_decision` **before returning the reply**, so
+`_ensure_pathways_before_closing`'s weave was billed to the person's wait. The comment
+at the `chat_stream` call site asserted the opposite — "the person's reply is never
+delayed by the repair. Same guarantee as chat()" — about the one method that did not
+have it. The signature defect of this archive: a rule stated in prose and not enforced
+by the assembly.
+
+Measured cost: two turns making **zero tool calls** cost 141.9s and 402.0s, of which
+127.7s and 387.7s were that weave. Both landed on the turn immediately before the
+closing.
+
+**Fixed by making the closing READ pathways instead of building them.** That is a real
+capability loss, priced from this archive at −0.69 unwoven against −0.25 woven over 36
+scores each (`claim2-weak-r15-voice`) — the single largest identified component of A2's
+remaining loss. The construction is not unnecessary, it is in the wrong place: it
+belongs off the turn, and GROUNDED_IN being an analytical edge means a Decision
+committed now can be grounded on a pathway built later. Until that deferral exists an
+unwoven closing is logged at warning level — deliberately a log and not a queue, since a
+queue nothing drains is the defect class this paragraph is about.
+
+**Verified on a real provider,** since both seam guards for this path previously asserted
+the behaviour that was removed and had to be inverted rather than deleted:
+
+- `test_pathways_seam_real_llm` (seeded, 2 real tetrads) — 330s, both phases. The closing
+  wove **0** perspectives and returned no grounds; explicit `run_exploration_detailed`
+  then wove **2** and `_existing_pathway_hashes` found **12** transformations (the
+  documented 6N for N=2). So construction is off the turn AND the read side the closing
+  now depends on really sees what a deferred builder would produce.
+- `test_pathways_before_closing_weak_tier` (conversational, 3 turns) — 56s for the whole
+  conversation, against 141.9s and 402.0s for *single* turns before the fix. The record
+  landed. Caveat worth keeping: the weak tier made **zero tool calls and mapped zero
+  tensions**, so this run cleared the no-build branch trivially — there was nothing to
+  weave. It is the seeded sibling that carries the property; this one carries the record
+  and the wall clock. The decision closed with **0 grounds**, which is the priced debt
+  above, observed live rather than inferred.
+
+The conversational guard no longer asserts a weave flatly. `explore` is wired there, so a
+weave is legitimate when the MODEL elected it and a defect when only the closing could
+have caused it — a distinction the old `assert woven` could not draw, and the reason its
+perspective-count skip (which fired on its first run) is gone.

@@ -62,8 +62,8 @@ no opponent, and every test in it names the link it guards:
 
 | Guard (`tests/`) | The link it guards | Born from |
 |---|---|---|
-| `test_pathways_seam_real_llm` | two seeded tensions → a woven arrangement, and weaving first doesn't cost the record | `62244f0` — the seam never ran |
-| `test_pathways_before_closing_weak_tier` | a confirmed decision AND its arrangement on the same turn | `explore` fired 6/55 weak vs 17/25 strong |
+| `test_pathways_seam_real_llm` | a closing leaves the graph alone, then reads what explicit exploration built; the record survives the lookup | `62244f0` — the seam never ran; `timing-check-building` — the seam's weave cost 387.7s on the person's wait |
+| `test_pathways_before_closing_weak_tier` | a confirmed decision reaches the graph and the closing did not build its way there; a weave is asserted only when the model itself called `explore` | `explore` fired 6/55 weak vs 17/25 strong; `timing-check-building` — the closing's weave cost 387.7s on the person's wait |
 | `test_single_perspective_explore_real_llm` | ONE perspective is enough to explore | 5/6 A2 runs never called `explore`; 3 prompt fixes failed |
 | `test_decision_repair_weak_tier` | a weak model still leaves a record | 0/6 weak vs 6/6 strong recorded a decision |
 | `test_decision_rationale_integrity_weak_tier` | a REFUTED risk is not recorded as a CARRIED one, and a SILENT one is not recorded at all | 4/12 A2 rationales swallowed a fabricated dismissal; priceless decisions passed the audit 17/19 |
@@ -213,8 +213,12 @@ hashes cited **0 across 18 sessions**. The read side is not broken in general �
 the memory section lands reliably — it is broken for exactly the sections that
 carry the differentiator. Worse, **14 of 18 first sessions built 390
 transformations while the system prompt held `EMPTY_UNDERSTANDING` for all 8
-turns**, because `_ensure_pathways_before_closing` runs *after* `submit()` and
-`{dialectical_context}` is rendered once at construction. Depth does not predict
+turns**, because `_ensure_pathways_before_closing` ran *after* `submit()` and
+`{dialectical_context}` is rendered once at construction. That closing no longer
+builds (its weave cost a measured 387.7s on the person's wait — see
+`rounds.md`, `timing-check-building`), so this particular builder is gone; the
+ordering half is NOT fixed, and a per-turn re-render is still owed before any
+deferred construction can be read. Depth does not predict
 the score in either direction (corr −0.107 over 36 cells — a **null, not an
 inversion**), which is precisely what an unread structure predicts.
 

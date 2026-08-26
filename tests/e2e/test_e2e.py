@@ -2318,8 +2318,8 @@ class TestTheSeamLaneRosterIsReal:
 
     #: file stem -> the link in the chain it guards, mirroring the README table.
     ROSTER = {
-        "test_pathways_seam_real_llm": "seeded tensions become a woven pathway",
-        "test_pathways_before_closing_weak_tier": "record and pathway, same turn",
+        "test_pathways_seam_real_llm": "a closing reads an arrangement, never builds one",
+        "test_pathways_before_closing_weak_tier": "a record without building one",
         "test_single_perspective_explore_real_llm": "one perspective is explorable",
         "test_decision_repair_weak_tier": "a weak model still leaves a record",
         "test_decision_rationale_integrity_weak_tier": "refuted != carried",
@@ -3953,9 +3953,13 @@ class TestSwallowedErrorCapture:
 class TestWovePathwayReadsTheGraph:
     """A pathway counts when it EXISTS, not when a tool call names it.
 
-    `Advisor._ensure_pathways_before_closing` calls `run_exploration` directly
-    rather than through the tool layer, so the old `"explore" not in
-    all_tool_calls` test reported a correctly-woven cell as unwoven.
+    When these cells were recorded, `Advisor._ensure_pathways_before_closing`
+    called `run_exploration` directly rather than through the tool layer, so the
+    old `"explore" not in all_tool_calls` test reported a correctly-woven cell as
+    unwoven. That closing now READS instead of building (it cost 387.7s on one
+    measured turn), but the property survives its cause: any builder off the tool
+    layer — including the deferred construction that weave is owed to — reproduces
+    the same blind spot, and these archived cells still carry it.
     `claim2-weak-r10` flagged 4/6 that way and its records could not adjudicate
     it — the same mistake `collapsed_to_a1` already corrects for
     `record_decision`, one seam later.
@@ -7312,10 +7316,13 @@ class TestTheProductDoesNotReachTheReply:
         assert sum(r["hashes"] for r in rows) == 0, "a reply now cites a node"
 
     def test_the_first_session_builds_structure_it_cannot_read(self):
-        """The ordering bug: `_ensure_pathways_before_closing` runs after
-        `submit()` and `{dialectical_context}` is rendered once at construction,
-        so session 1 holds EMPTY_UNDERSTANDING while building 12-42
-        transformations."""
+        """The ordering bug, as the archive recorded it:
+        `_ensure_pathways_before_closing` ran after `submit()` and
+        `{dialectical_context}` is rendered once at construction, so session 1
+        held EMPTY_UNDERSTANDING while building 12-42 transformations. The
+        closing no longer builds, which removes this particular builder but not
+        the ordering hazard — a per-turn re-render is still owed, and without it
+        deferred construction lands writes no later prompt ever shows."""
         blind = [r for r in probe_readside_reach.build_without_context() if not r["had_dump"]]
         built = [r for r in blind if r["transformations"]]
         assert len(built) >= 10, (
