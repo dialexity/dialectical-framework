@@ -3867,3 +3867,37 @@ no comparator arm:
 Recorded as an amendment rather than an edit because the point of pre-registration is the
 timestamp. Nothing here moves a goalpost — the bar is the same number — and no cell's
 output had been read when it was written.
+
+#### Correction to r26's registered n, made 2026-08-26 while cells were still running
+
+The design paragraph above says "24 cells / ~240 turns, of which ~120 are A2" and "12
+pairs". All four figures are wrong. `runner.py:212` is explicit — *"A scenario with
+branches runs one cell PER branch (each re-running the base sessions)"* — so a branched
+scenario does not get a cell per session:
+
+| | registered | actual |
+|---|---|---|
+| cells | 24 | **16** (4 reps × 2 branches × 2 arms) |
+| turns per cell | 10 | **8** (`decide` 6 beats + branch 2 beats) |
+| total turns | ~240 | **128** |
+| A2 turns carrying timing | ~120 | **64** |
+| judged pairs | 12 | **16** (`decide` re-runs in each branch cell, so 8 of the 16 are `decide`) |
+
+Consequences, both directions:
+
+- **P1's bound loosens.** 0 of 64 turns gives an exact 95% upper bound of **4.9%**, not
+  the 2.5% the amendment above quoted off 120 turns. Still a useful bound against a
+  mechanism that produced 19% in the only pre-fix sample, and the bar is still refutable
+  by one turn — but the bound is half as tight as registered.
+- **The quality screen tightens slightly.** 16 pairs instead of 12 puts the 80%-power MDE
+  near **0.6 steps** rather than 0.65. This does not rescue anything: the 0.44-step debt
+  still needs 28–55 pairs, so "cannot detect the cost it already knows it paid" stands
+  unchanged.
+- **`decide` is re-run per branch cell, so its 8 sessions per arm are not 8 independent
+  observations of the design.** `reps` is 4. Anything read per-session on `decide` is
+  pooling correlated cells, which is the unit-shopping error `716d124` exists to prevent.
+- **`adopted_pathway_grounds` gets a slightly better denominator than registered** — the
+  ceremony can fire in each of the 8 A2 `decide` sessions rather than 4 — but 8 is still
+  no basis for a rate, and it stays descriptive.
+
+Written from `runner.py`, not from output: no cell's result had been read.
