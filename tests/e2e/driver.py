@@ -269,8 +269,17 @@ class E2EDriver:
                     duration_s=round(duration_s, 1),
                     reply_path_s=round(timing.reply_path_s, 1) if timing else 0.0,
                     off_path_s=round(timing.off_path_s, 1) if timing else 0.0,
+                    # THREE decimals, unlike its neighbours. r26 registered
+                    # "the refresh fires on >90% of turns" as an endpoint and
+                    # then could not test it: at 0.1s precision every read
+                    # under 50ms records as a literal 0.0, and on the opening
+                    # turns of a session the graph is empty enough that it
+                    # genuinely is that fast. 80% of turns read non-zero, which
+                    # is indistinguishable from a suppressed read at that
+                    # precision. A field whose whole point is that it is small
+                    # must be recorded finer than the thing it is small against.
                     context_render_s=(
-                        round(timing.context_render_s, 1) if timing else 0.0
+                        round(timing.context_render_s, 3) if timing else 0.0
                     ),
                     tool_seconds=timing.format_rounds() if timing else [],
                     error=error,

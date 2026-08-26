@@ -2563,8 +2563,14 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.831 over 414 judged pairs on the
-canonical stems, recomputed after r22's supersession — not a borrowed figure).** One
+**Powered from the archive's own NI-composite sd (0.825 over 454 judged pairs on the
+canonical stems, recomputed after r22's supersession and again after r26 — not a borrowed
+figure).** The table below was simulated at **0.831 over 414 pairs**; r26's 16 pairs moved
+the sd to 0.825, and re-simulating at both values (200k trials each) moves **no cell by
+more than 1 point** — 0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 84/97/99. So the table
+stands as computed and is left as computed. (The re-simulation reproduced the eight effect
+cells exactly and gave 5% rather than 3% on the true-null row, which is a difference in
+test rule, not in sd; r23's verdict does not rest on it and is not reopened here.) One
 session and no branches means 1 judged pair per replicate, so replicates *are* pairs
 and the ICC problem that dogs r21/r22 does not arise here. Simulated (40k trials):
 
@@ -3901,3 +3907,110 @@ Consequences, both directions:
   no basis for a rate, and it stays descriptive.
 
 Written from `runner.py`, not from output: no cell's result had been read.
+
+#### r26 RESULTS — the fixes did what they targeted, and the wait is somewhere else entirely
+
+16 cells, 128 turns, 2h30m, exit 0. Weak tier recorded as
+`bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0` (read off the run, not the tier
+label). Judge X/Y split even (A1.7 first ×8, A2 first ×8) against a +0.24 Y-slot bias.
+
+**Primary endpoints, against the bars registered above:**
+
+| # | bar | result | |
+|---|---|---|---|
+| P1 | 0 of 64 turns over 60s off-path | **0 of 64.** Worst off-path 30.3s | **PASS** |
+| P2 | `context_render_s` non-zero on >90% of A2 turns | **80%** (13 zero turns) | **MISS** |
+| P3 | median refresh < 2.0s and < 5% of median reply path | **0.300s = 1.49%** | **PASS** |
+| P4 | arithmetic closes on 100% of turns | 62/64 exact; 2 turns unattributed by **0.4s and 0.6s** | **PASS in substance** |
+
+P1 is the result that matters. Pre-fix, 3 of 16 turns spent over a minute after the reply
+had been handed over (387.7s, 127.7s, 93.1s). Post-fix the worst off-path turn in 64 is
+**30.3s**, and the exact 95% upper bound on the >60s rate is **4.9%**. The class of defect
+that started this line of work is gone.
+
+**P2 missed, and the cause is the harness, not the mechanism.** `driver.py` wrote
+`round(timing.context_render_s, 1)`, so every refresh under 0.05s records as a literal
+zero — and on the opening turns of a `decide` session the graph is empty, so the read
+genuinely is that fast. The 13 zero turns are 7 with no tools and 6 with tools, and the
+median non-zero refresh is 0.300s, so sub-50ms reads are entirely plausible. It is
+recorded as a MISS rather than reinterpreted into a pass, because the bar was 90% and the
+number is 80%. **The endpoint was untestable at the recorded precision**; the field now
+records 3 decimals so the next round can actually test it.
+
+#### Where the person's wait actually is
+
+| | A1.7 (the "snappy" arm) | A2 |
+|---|---|---|
+| p50 reply path | **6.2s** | **20.4s** |
+| p75 | 7.5s | 47.8s |
+| p90 | 9.0s | **480.4s** |
+| max | **12.1s** | **1010.6s** |
+| turns over 60s | 0 / 64 | 11 / 64 |
+| turns over 300s | 0 / 64 | 7 / 64 |
+| wall clock, 8 cells | **7 min** | **123 min** |
+
+A2's reply path decomposes as **73% tool rounds, 26% generation, 0.7% context refresh.**
+Every one of the 11 slow turns attributes cleanly:
+
+```
+  reply_s   tools_s   ctx_s   resid_s  tool_calls
+   1010.6     986.7    0.70      23.2  ['explore']
+    836.1     812.3    0.00      23.8  ['anchor']
+    834.4     808.2    0.00      26.2  ['anchor']
+    832.6     812.5    0.10      20.0  ['anchor']
+    827.4     807.9    0.40      19.1  ['anchor']
+    645.7       0.0    1.60     644.1  (none)      <-- not framework cost, see below
+    480.4     457.9    0.20      22.3  ['anchor']
+```
+
+**`anchor` median 282.8s, max 812.5s (n=10). `explore` median 196.0s, max 986.7s (n=3).**
+The pre-fix attributed figure for `anchor` was **42.0s** off 3 observations — wrong by
+**6.7×**, and it was the constant `tests/test_context_refresh_cost.py` judged the refresh
+against. Corrected there in the same change as this entry.
+
+**So the UX answer is not the one this work was chasing.** The ceremony's cost is not
+prompt assembly, not the graph read, and no longer the off-path repair. It is that the
+model elects `anchor` and `explore` on the reply path, and each takes **3 to 16 minutes
+while the person waits.** Deferring more work off the turn cannot fix a turn that is slow
+because of what it elected to do ON the turn.
+
+**One turn is not ours.** The 645.7s residual turn called no tools, so its seconds are not
+tool cost. It sits inside the `use_brain` retry envelope (10s base, doubling to a 60s cap,
+10 attempts), which reaches ~10 minutes. **The instrumentation cannot separate provider
+retry from generation** — `tool_seconds` covers tool rounds, and a retry storm inside one
+generation is invisible to it. Residual over 60s on 1 of 64 turns, so this does not move
+the picture above, but the p90 of 480.4s should be read knowing one such turn exists.
+
+#### The quality screen — cleared its bar, and still proves nothing, as registered
+
+**Composite A2−A1.7 weak: −0.18, 16 pairs, CI [−0.56, +0.19].** The pre-fix pooled
+comparator on the same cell is **≈−0.48** (decide −0.327, wobble_a −0.567, wobble_b
+−0.714, 31 reps each, weighting `decide` ×2 as this round's cell shape does). Movement
+**≈+0.31 steps toward parity**, and per-branch, backed out of the archive means:
+`decide` **+0.15**, `wobble_a` **−0.43**, `wobble_b` **−0.43**.
+
+**This is not a detected improvement.** +0.31 is well inside the 0.6-step MDE registered
+for 16 pairs, the composite CI spans zero, and **0 of 12 dimension rows have an interval
+excluding zero.** The bar ("not more than 0.65 steps below baseline") is cleared, and the
+registration already said what clearing it means: no collapse, nothing more. The
+underpowered-in-advance declaration stands — this round still cannot see the 0.44-step
+debt it knows fix (1) paid.
+
+**`status.py` is now contaminated for this comparison.** Its `A2-A1.7 cofounder_equity
+weak` rows read 35 reps because they include r26. The pre-fix figures are the 31-rep ones
+quoted above; do not re-derive a "baseline" from a fresh `status.py` run and compare r26
+to it.
+
+#### What the validity checks found, which is worth more than the delta
+
+- **5 of 8 A2 runs ended with NO woven pathway.** `adopted_pathway_grounds` on **2/8**,
+  COMPLETE records (risk-grounded cost + pathway) on **1/8**. This is fix (1)'s priced debt
+  showing up live rather than inferred — visible, and still under-powered to price.
+- **4 `record_decision` calls REPORTED FAILURE**, all the same coherence refusal: *"Cannot
+  record: ground [[aa83f90]] is the accepted cost, but that same wording is a price in 2
+  tensions and no other."* Turns looked normal; the graph is what suffered.
+- **2 runs closed without electing `record_decision`** — the repair seam wrote the record,
+  so nobody was misled, but the prompt rule is not binding.
+- **3 machinery leaks, one of them A2 saying "The framework found five different
+  readings"** — a direct break of the silent-framework contract, and `conversational_fit`
+  (+0.12) is partly measuring it.

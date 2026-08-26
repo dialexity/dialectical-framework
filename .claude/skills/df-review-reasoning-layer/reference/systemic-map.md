@@ -59,8 +59,18 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     nowhere else.
   - The caching objection **survives as the mechanism**: re-READ every turn, re-WRITE only on change, so an
     unchanged turn keeps its prefix cache. Cost measured at **0.245s median for 7 tensions**
-    (`tests/test_context_refresh_cost.py`) — 0.58% of the 42s median tool round — and recorded per turn as
-    `TurnTiming.context_render_s` / `TurnRecord.context_render_s`.
+    (`tests/test_context_refresh_cost.py`) and recorded per turn as `TurnTiming.context_render_s` /
+    `TurnRecord.context_render_s`.
+  - **Priced on the bench, r26, 64 live A2 turns: median 0.300s = 1.49% of the median reply path, and
+    0.7% of all reply-path seconds in the round.** Never above 1.6s on any of the 11 slow turns. The
+    refresh is not a latency concern and this is no longer an argument, it is a measurement.
+  - **What r26 found instead, and it relocates the whole latency question:** A2's reply path is **73%
+    tool rounds, 26% generation, 0.7% refresh**, and the tools are enormous — `anchor` **282.8s median /
+    812.5s max** (n=10), `explore` **196.0s median / 986.7s max** (n=3). A2 p90 reply path **480.4s**
+    against A1.7's **9.0s**; worst turn **1010.6s**. So the Advisor feels lengthy because of what the
+    model ELECTS on the turn, not because of prompt assembly, the graph read, or off-path repair.
+    Deferring work off the turn cannot fix that. (An earlier `anchor` figure of 42.0s, regressed from 3
+    observations, was low by 6.7× — see `MEDIAN_TOOL_ROUND_S` in `tests/test_context_refresh_cost.py`.)
   - Host-driven, not elective, on purpose: `sync` exists and the model elected `explore` in 6 of 55
     weak-tier runs. A turn that must see the graph cannot depend on the model choosing to look.
   - `dialectical_context=` at construction **seeds** the slot (turn-1 rewrite skipped when nothing moved);
@@ -69,7 +79,14 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     ≠ freeze, fail-soft keeps last good context, vanished nexus stops retrying).
   Graph-building itself is **model-initiated
   only** (prompt-steered tools); a background-analysis hook was also tried and removed (same day, too
-  naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
+  naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall).
+  **r26 settled two of those three objections in opposite directions.** The drain-latency wall is
+  retired: post-reply work now costs at most 30.3s across 64 turns (0 over 60s, 95% upper bound 4.9%),
+  where pre-fix it reached 387.7s. But the **per-turn cost objection got far heavier, not lighter** — a
+  background builder would be running the very tools r26 timed at 282.8s (`anchor`) and 196.0s
+  (`explore`) medians, so "build it in the background" means committing 3–16 minutes of provider work
+  per turn on arrangements the conversation may never reach. Any revived proposal has to answer the cost
+  objection with those numbers, not the 42s the archive used to believe. The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
   produces no graph (A2→A1 collapse, `tests/e2e/README.md`) — treat failure as prompt-steering signal, not flake.
   **The bench imports these section constants.** `tests/e2e/arms.py` builds its A1 baseline (the

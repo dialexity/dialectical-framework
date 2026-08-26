@@ -32,10 +32,21 @@ from dialectical_framework.graph.scope_context import scope
 #: The archive's observed per-cell anchor productivity, upper end.
 TENSION_COUNT = 7
 
-#: The reply path this cost has to be judged against. Measured, not assumed:
-#: `anchor` ran 42.0s / 39.1s / 804.5s across `timing-check-building`, so 42s is
-#: the median single tool round a turn already pays for.
-MEDIAN_TOOL_ROUND_S = 42.0
+#: The reply path this cost has to be judged against. Measured, not assumed —
+#: and revised once already, which is the point of the comment.
+#:
+#: This read 42.0s until 2026-08-26, off three `anchor` rounds in
+#: `timing-check-building` (42.0s / 39.1s / 804.5s). r26 ran ten of them on the
+#: same scenario and tier and found a median of **282.8s** (max 812.5s), so the
+#: old figure was low by 6.7x — a median of three observations from one
+#: afternoon, reported to one decimal place as if it were a property of the tool.
+#: `explore` is worse: 196.0s median, 986.7s max.
+#:
+#: The revision makes this test MORE conservative, not less: the same refresh is
+#: a smaller share of a larger round (0.245s against 282.8s is 0.09%). The
+#: budget below is unchanged because it is an absolute bound on the refresh, not
+#: a ratio — the share is printed for judgement, never asserted.
+MEDIAN_TOOL_ROUND_S = 282.8
 
 
 @pytest.mark.asyncio

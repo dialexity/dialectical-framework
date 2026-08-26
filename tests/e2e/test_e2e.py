@@ -9397,11 +9397,18 @@ class TestR23ControlPreRegistration:
             if len(scores := {k: v for k, v in c.scores.items() if k in trio}) == 3
         ]
         assert len(values) > 200, f"too few NI pairs to size a control: {len(values)}"
-        assert round(st.stdev(values), 2) == 0.83, (
+        # Pinned to 2dp, so this fires on a real drift and not on every round
+        # that adds a handful of pairs. It has fired once for real: r26's 16
+        # pairs took 0.831/414 to 0.825/454. That was the DESIGN working —
+        # re-simulation at both sds moved no cell of the table by more than a
+        # point, so the table stood and only its provenance line changed. Widen
+        # the tolerance and the next drift that DOES matter goes unnoticed.
+        assert round(st.stdev(values), 2) == 0.82, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
-            "table was computed at 0.831 and must be recomputed"
+            "table was simulated at 0.831 and re-verified at 0.825, and must be "
+            "re-simulated before its percentages are quoted again"
         )
-        assert "0.831 over 414 judged pairs" in self._block()
+        assert "0.825 over 454 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:
