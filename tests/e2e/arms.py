@@ -364,6 +364,11 @@ class PromptArm:
         `probe_reply_path_latency.py` currently derives that baseline by dividing
         a whole cell's `duration_s` by its turn count — which silently assumes
         every turn in a session costs the same.
+
+        `context_render_s` stays 0.0 by construction too, and that zero is a
+        measurement: a prompt arm has no graph to re-read, so the whole of
+        A2's per-turn refresh cost shows up as a difference against this arm
+        rather than having to be isolated inside it.
         """
         return TurnTiming(
             reply_path_s=self._conversation.last_submit_seconds,

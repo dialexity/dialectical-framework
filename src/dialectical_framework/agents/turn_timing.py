@@ -51,18 +51,32 @@ class TurnTiming:
     """A turn's seconds, split into what the person waited for and what they did not.
 
     `reply_path_s` is the interval between their message arriving and their reply
-    existing: model generation PLUS every tool round the model elected, because
-    `Advisor.chat` awaits `submit()` before it holds any text at all.
+    existing: the per-turn context re-render, PLUS model generation, PLUS every
+    tool round the model elected — because `Advisor.chat` refreshes the prompt and
+    then awaits `submit()` before it holds any text at all.
 
     `off_path_s` is work done after the reply was handed over — the decision
     repair and the pathway seam. `Advisor` already treats that boundary as load
     bearing ("so the person's reply is never delayed by the repair"), and this is
     that same boundary made observable rather than asserted in a comment.
+
+    The invariant worth preserving when adding fields:
+    `TurnRecord.duration_s == reply_path_s + off_path_s`, which held to 0%
+    unexplained overhead across all 16 turns of `timing-check-building`. So a new
+    reply-path cost belongs INSIDE `reply_path_s` as a component (like
+    `tool_seconds`), never as a third addend — otherwise that check silently
+    starts reporting the new field as harness overhead.
     """
 
     reply_path_s: float
     off_path_s: float
     tool_rounds: tuple[ToolRound, ...] = field(default_factory=tuple)
+    #: Reply-path seconds spent re-reading the graph into the system prompt. A
+    #: COMPONENT of `reply_path_s`, not an addition to it. Recorded separately
+    #: because it is the one reply-path cost the framework imposes on every turn
+    #: whether the model asks for anything or not, which makes it the first thing
+    #: to check if turns get slower for no visible reason.
+    context_render_s: float = 0.0
 
     @property
     def total_s(self) -> float:
@@ -75,14 +89,14 @@ class TurnTiming:
 
     @property
     def generation_s(self) -> float:
-        """Reply-path seconds NOT spent in tool rounds — model generation.
+        """Reply-path seconds that were neither tool rounds nor the re-render.
 
-        Clamped at zero: the two intervals are measured by separate clocks around
+        Clamped at zero: these intervals are measured by separate clocks around
         nested awaits, so a pathological scheduler could in principle make the
         subtraction negative, and a negative duration in a record is worse than a
         zero because it looks like data.
         """
-        return max(0.0, self.reply_path_s - self.tool_seconds)
+        return max(0.0, self.reply_path_s - self.tool_seconds - self.context_render_s)
 
     def format_rounds(self) -> list[str]:
         """Rounds as `"anchor:229.4s"` / `"anchor+explore:301.2s"` strings.

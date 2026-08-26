@@ -250,8 +250,11 @@ class _StubAdvisor:
 
         self._conversation = _Conv()
 
-    async def _render_pending_context(self) -> None:
-        return None
+    async def _refresh_context(self) -> float:
+        # Zero, so this module's assertions stay exactly about the repair
+        # boundary. The refresh's own contribution to `reply_path_s` is pinned
+        # in `test_advisor_context_render.py`.
+        return 0.0
 
     async def _repair_unrecorded_decision(self, _user, _assistant) -> None:
         await asyncio.sleep(_REPAIR_SLEEP)

@@ -269,6 +269,9 @@ class E2EDriver:
                     duration_s=round(duration_s, 1),
                     reply_path_s=round(timing.reply_path_s, 1) if timing else 0.0,
                     off_path_s=round(timing.off_path_s, 1) if timing else 0.0,
+                    context_render_s=(
+                        round(timing.context_render_s, 1) if timing else 0.0
+                    ),
                     tool_seconds=timing.format_rounds() if timing else [],
                     error=error,
                     swallowed_errors=list(swallowed),
@@ -583,6 +586,15 @@ class E2EDriver:
                 # On a returning session the Advisor is handed the freshly
                 # rendered dump (decision ledger included) — the live-graph
                 # equivalent of "remembering", and the thing under test.
+                #
+                # NOTE ON WHAT THIS FIELD NOW MEANS. It is the session's SEED,
+                # no longer the only dump the session ever sees:
+                # `Advisor._refresh_context` re-reads the graph every turn, so a
+                # first session (seed None) now acquires context from turn 2 on
+                # instead of running all 8 turns blind. Archived records predate
+                # that, which is why `probe_readside_reach.build_without_context`
+                # can still read `had_dump` as "context-free session" for them and
+                # must NOT be pointed at new rounds without re-reading this.
                 live_context = None
                 if not is_first:
                     try:

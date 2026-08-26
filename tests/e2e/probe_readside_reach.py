@@ -44,11 +44,18 @@ context at all** when the reply was written. Two facts in `src/`, both verified:
     the person receives — and only THEN runs `_repair_unrecorded_decision`, which
     is where `_ensure_pathways_before_closing` weaves. Its own docstring says so:
     "their reply has already been delivered".
-  * `{dialectical_context}` is rendered ONCE, at construction
-    (`advisor.py:162-165`), and `_render_pending_context` is a no-op unless the
-    Advisor was built scoped without a context. The bench builds it UNSCOPED
-    (`driver.py:513-521`), so `_pending_context_render` is False and session 1
-    carries `EMPTY_UNDERSTANDING` for all 8 turns.
+  * `{dialectical_context}` was rendered ONCE, at construction, and the deferred
+    render was a no-op unless the Advisor was built scoped without a context. The
+    bench builds it UNSCOPED (`driver.py`), so session 1 carried
+    `EMPTY_UNDERSTANDING` for all 8 turns.
+
+BOTH HALVES ARE NOW FIXED IN `src/`, which is why this probe reads the archive in
+the past tense. The closing no longer builds (it cost a measured 387.7s on the
+person's wait), and `Advisor._refresh_context` re-reads the graph into the prompt
+EVERY turn in both modes, rewriting only when the dump changed. The numbers below
+are therefore a record of what the archived runs did, not a description of current
+behaviour — and they are the baseline the next round measures against. The guard
+against regression is `test_advisor_context_render.py`.
 
 Measured consequence in r16: every `decide` session built 12-42 transformations
 with **no dump in context**, and the structure only became visible in the

@@ -7318,11 +7318,14 @@ class TestTheProductDoesNotReachTheReply:
     def test_the_first_session_builds_structure_it_cannot_read(self):
         """The ordering bug, as the archive recorded it:
         `_ensure_pathways_before_closing` ran after `submit()` and
-        `{dialectical_context}` is rendered once at construction, so session 1
-        held EMPTY_UNDERSTANDING while building 12-42 transformations. The
-        closing no longer builds, which removes this particular builder but not
-        the ordering hazard — a per-turn re-render is still owed, and without it
-        deferred construction lands writes no later prompt ever shows."""
+        `{dialectical_context}` was rendered once at construction, so session 1
+        held EMPTY_UNDERSTANDING while building 12-42 transformations.
+
+        Both halves are fixed in `src/` now — the closing reads instead of
+        building, and `Advisor._refresh_context` re-reads every turn — so this
+        asserts a property of the ARCHIVE, which cannot change. It stays because
+        it is the baseline: the next round's cells must NOT reproduce it, and
+        `test_advisor_context_render.py` is what guards the code."""
         blind = [r for r in probe_readside_reach.build_without_context() if not r["had_dump"]]
         built = [r for r in blind if r["transformations"]]
         assert len(built) >= 10, (

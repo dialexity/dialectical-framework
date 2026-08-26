@@ -214,11 +214,13 @@ the memory section lands reliably — it is broken for exactly the sections that
 carry the differentiator. Worse, **14 of 18 first sessions built 390
 transformations while the system prompt held `EMPTY_UNDERSTANDING` for all 8
 turns**, because `_ensure_pathways_before_closing` ran *after* `submit()` and
-`{dialectical_context}` is rendered once at construction. That closing no longer
-builds (its weave cost a measured 387.7s on the person's wait — see
-`rounds.md`, `timing-check-building`), so this particular builder is gone; the
-ordering half is NOT fixed, and a per-turn re-render is still owed before any
-deferred construction can be read. Depth does not predict
+`{dialectical_context}` was rendered once at construction. **Both halves are now
+fixed in `src/`:** that closing reads instead of building (its weave cost a
+measured 387.7s on the person's wait — see `rounds.md`,
+`timing-check-building`), and `Advisor._refresh_context` re-reads the graph into
+the prompt every turn in both modes, rewriting only when the dump changed. No
+round has yet measured the effect, so every number in this section remains the
+pre-fix baseline. Depth does not predict
 the score in either direction (corr −0.107 over 36 cells — a **null, not an
 inversion**), which is precisely what an unread structure predicts.
 

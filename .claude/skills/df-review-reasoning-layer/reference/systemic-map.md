@@ -44,11 +44,30 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   import-time default render (settings defaults), kept for back-compat + regression tests.
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
-  The system prompt is **static after its first render** — fresh graph state flows through the
-  conversation (tool results + model-invoked `sync`), never by rewriting the system prompt (a per-turn
-  refresh was tried and removed 2026-07-28: it busted prompt caching to re-present information already in
-  history). One exception: scoped construction without a precomputed context renders the scoped dump
-  lazily on turn 1 (`_render_pending_context`, one-shot). Graph-building itself is **model-initiated
+  The dump is **re-read every turn** by `Advisor._refresh_context`, and the system prompt is **rewritten
+  only when the rendered dump changed**. Read this history before touching it, because the design has
+  flipped twice:
+  - A per-turn refresh was tried and removed **2026-07-28** — it busted prompt caching to re-present
+    information already in history.
+  - The static prompt was then removed and the refresh **reinstated 2026-08-26**, because both halves of
+    that reasoning were measured false. `probe_readside_reach`: the dump reached the reply at 0.26
+    (pathways) / 0.21 (synthesis) overlap with **0 hashes cited across 18 sessions**, and **14 of 18 first
+    sessions built 390 transformations while the slot read `EMPTY_UNDERSTANDING` for all 8 turns** — the
+    prompt contradicting the history it sat on. Depth predicted score at corr −0.107 over 36 cells, the
+    null that unread structure predicts. "Already in history" also conflates the tool's REPORT with the
+    dump's derived content (indices T1/A1, scores, validation flags, suppression counts), which appears
+    nowhere else.
+  - The caching objection **survives as the mechanism**: re-READ every turn, re-WRITE only on change, so an
+    unchanged turn keeps its prefix cache. Cost measured at **0.245s median for 7 tensions**
+    (`tests/test_context_refresh_cost.py`) — 0.58% of the 42s median tool round — and recorded per turn as
+    `TurnTiming.context_render_s` / `TurnRecord.context_render_s`.
+  - Host-driven, not elective, on purpose: `sync` exists and the model elected `explore` in 6 of 55
+    weak-tier runs. A turn that must see the graph cannot depend on the model choosing to look.
+  - `dialectical_context=` at construction **seeds** the slot (turn-1 rewrite skipped when nothing moved);
+    it does not freeze it. Locking it would half-fix the bench, whose driver seeds returning sessions only.
+  - Locked by `tests/test_advisor_context_render.py` (per-turn re-read, no-rewrite-when-unchanged, seed
+    ≠ freeze, fail-soft keeps last good context, vanished nexus stops retrying).
+  Graph-building itself is **model-initiated
   only** (prompt-steered tools); a background-analysis hook was also tried and removed (same day, too
   naive: per-turn full-pipeline cost, context-blind single-message input, drain-latency wall). The
   `--real-llm` e2e test (`test_advisor_e2e.py`) is the guard: it fails if a multi-turn conversation
@@ -1330,9 +1349,20 @@ annotation) → **GenerateSynthesis**
   when a turn asks for a causal map — so it is ELECTION, and election at the closing turn is exactly what the
   decision-repair lesson says belongs in code. The seam fires only inside `_repair_unrecorded_decision` AFTER the
   confirmation verdict passes (never a background weaver: mid-exploration weaving would burn latency on
-  arrangements the conversation may never reach and make `explore`'s per-call perspective cap meaningless), weaves
-  only perspectives not already `is_in_use_by_cycle` (idempotent — a model that DID explore pays nothing), and
-  returns only on an EMPTY unwoven set. **The floor was `< 2` through r15 and it was wrong — one tension is
+  arrangements the conversation may never reach and make `explore`'s per-call perspective cap meaningless).
+  **As of 2026-08-26 that seam READS pathways and no longer builds them** (`_ensure_pathways_before_closing`):
+  per-turn timing on a real provider caught it billing construction to the person's wait — two turns making
+  ZERO tool calls cost 141.9s and 402.0s, of which **127.7s and 387.7s were the weave**, both landing on the
+  turn immediately before the closing. `Advisor.chat` awaits the repair before returning, so the "reply already
+  delivered" comment at that call site was false for `chat` and always had been. The read is now the closing's
+  ONLY source of a ground, so a silent failure in it means every decision closes ungrounded. **This leaves a
+  priced debt, not a clean win:** the −0.69-unwoven / −0.25-woven gap below is exactly what the removed
+  construction used to close, so an unwoven closing is now logged at WARNING (deliberately a log, not a queue
+  — an undrained queue is this archive's signature defect) and the construction is owed a place OFF the turn.
+  Inverted guards: `tests/test_pathways_seam_real_llm.py` (seeded — the closing wove 0 while explicit
+  exploration wove 2 and the read found 12 transformations) and
+  `tests/test_pathways_before_closing_weak_tier.py` (conversational — asserts a weave only when the MODEL
+  called `explore`, since only then is one legitimate). **The floor was `< 2` through r15 and it was wrong — one tension is
   enough.** The justification ("one opposition has no arrangement to enumerate; a wheel over it is the tension
   restated") contradicts the framework's own model: `PerspectiveCombination` treats a single PP as the
   circular-causality BASE CASE (`W(1)=1`), and `docs/theory/generative-rules.md` Rule 8 has layer-1 wheels covering

@@ -422,6 +422,16 @@ class TurnRecord(BaseModel):
     #: the person's reply is never delayed by the repair"); this measures it
     #: instead of trusting the comment.
     off_path_s: float = 0.0
+    #: Reply-path seconds spent re-reading the graph into the system prompt. A
+    #: COMPONENT of `reply_path_s`, never an addition to it — otherwise the
+    #: `duration_s ≈ reply_path_s + off_path_s` check above starts reporting this
+    #: field as harness overhead. Recorded separately because it is the only
+    #: reply-path cost the framework imposes on EVERY turn whether the model asked
+    #: for anything or not: `Advisor._refresh_context` replaced a one-shot render
+    #: (the read-side half of this archive's primary defect — 14 of 18 first
+    #: sessions built 390 transformations against `EMPTY_UNDERSTANDING`). If turns
+    #: get slower for no visible reason, look here first.
+    context_render_s: float = 0.0
     #: Per tool ROUND: `"anchor:229.4s"`, or `"anchor+explore:301.2s"` when the
     #: round ran several tools concurrently. Same `list[str]` idiom as
     #: `tool_outcomes` and `grounding_args`, and the `+` is load-bearing — a

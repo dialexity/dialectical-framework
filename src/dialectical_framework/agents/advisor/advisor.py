@@ -48,15 +48,14 @@ class Advisor:
     - Wrapping chat() calls in `with scope(sid):`
     - Optionally pre-computing dialectical_context via DialecticalContext
 
-    The system prompt is static after its first render: the Current
-    Understanding dump reflects the graph at construction time. Fresh graph
-    state flows through the conversation itself — tool results carry each
-    change, and the model calls `sync` when it wants a full re-dump. (One
-    exception: an exploration-pinned Advisor constructed without a precomputed
-    dialectical_context renders its scoped dump lazily on the first turn,
-    because __init__ is sync and DialecticalContext.resolve() is async. A
-    transient render failure retries on the next turn; only success — or a
-    vanished nexus — consumes the one shot.)
+    The Current Understanding dump is re-read from the graph on EVERY turn, by
+    the host loop rather than at the model's discretion — see
+    `_refresh_context`. The system prompt is only REWRITTEN when that dump
+    actually changed, so a turn that mutated nothing keeps its provider-side
+    prefix cache. `dialectical_context` seeds the slot for turn 1; it does not
+    freeze it. This replaces a one-shot render whose staleness was the read-side
+    half of the archive's primary defect (14 of 18 first sessions built 390
+    transformations while the prompt still claimed an empty graph).
 
     Usage (fresh start):
         with scope(case.sid):
@@ -158,10 +157,16 @@ class Advisor:
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble
-        # Scoped mode without a precomputed context: render the scoped dump
-        # lazily on turn 1 (init is sync; resolve() is async). One-shot —
-        # the system prompt is static after its first render.
-        self._pending_context_render = bool(nexus_hash and not dialectical_context)
+        # The context currently rendered into the system prompt. A
+        # construction-time `dialectical_context` SEEDS this (saving the turn-1
+        # read); `_refresh_context` owns it from then on and re-renders every turn.
+        # `None` means "nothing rendered yet", which is distinct from a rendered
+        # empty graph and must stay so — otherwise turn 1 skips its first read.
+        self._last_context: Optional[str] = dialectical_context
+        # Cleared only when the pinned nexus proves unresolvable — see
+        # `_refresh_context`. Not a host knob: a turn that must see the graph
+        # cannot be configured into not looking.
+        self._context_refresh_enabled = True
         # Where the last turn's seconds went, split at the point the reply was
         # handed to the person. None until the first turn completes.
         self.last_turn_timing: Optional[TurnTiming] = None
@@ -206,20 +211,26 @@ class Advisor:
     async def chat(self, user_message: str) -> str:
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
-            await self._render_pending_context()
+            # Before submit, so this turn's prompt reflects what the LAST turn
+            # wrote. The person waits for it, so it counts against the reply path.
+            context_render_s = await self._refresh_context()
             result = await self._conversation.submit(ChatResponse, user_message)
-            reply_path_s = self._conversation.last_submit_seconds
+            reply_path_s = context_render_s + self._conversation.last_submit_seconds
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, result.message)
             self._record_turn_timing(
-                reply_path_s, time.monotonic() - repair_started
+                reply_path_s,
+                time.monotonic() - repair_started,
+                context_render_s=context_render_s,
             )
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
-            await self._render_pending_context()
+            # Before the stream, for the same reason as in `chat`: this turn's
+            # prompt must reflect what the last turn wrote.
+            context_render_s = await self._refresh_context()
             # The final reply comes from ResponseComplete, not from accumulated
             # TextDeltas: deltas cover the tool rounds, and the structured
             # message is what the person actually receives.
@@ -230,7 +241,7 @@ class Advisor:
                 if isinstance(event, ResponseComplete):
                     reply = event.message
                 yield event
-            reply_path_s = self._conversation.last_submit_seconds
+            reply_path_s = context_render_s + self._conversation.last_submit_seconds
             # After the stream, so the text is on screen before the repair runs.
             # NOT the same as being free: this generator cannot finish until the
             # repair does, and `chat` is worse still — it holds its return value
@@ -242,10 +253,18 @@ class Advisor:
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, reply)
             self._record_turn_timing(
-                reply_path_s, time.monotonic() - repair_started
+                reply_path_s,
+                time.monotonic() - repair_started,
+                context_render_s=context_render_s,
             )
 
-    def _record_turn_timing(self, reply_path_s: float, off_path_s: float) -> None:
+    def _record_turn_timing(
+        self,
+        reply_path_s: float,
+        off_path_s: float,
+        *,
+        context_render_s: float = 0.0,
+    ) -> None:
         """Publish where this turn's seconds went.
 
         The split matters more than either number: `reply_path_s` is time the
@@ -264,6 +283,7 @@ class Advisor:
             reply_path_s=reply_path_s,
             off_path_s=off_path_s,
             tool_rounds=tuple(self._conversation.last_tool_rounds),
+            context_render_s=context_render_s,
         )
 
     async def _repair_unrecorded_decision(
@@ -683,35 +703,89 @@ class Advisor:
                 return True
         return False
 
-    async def _render_pending_context(self) -> None:
-        """One-shot deferred render of the scoped Current Understanding dump
-        (scoped construction without a precomputed dialectical_context).
+    async def _refresh_context(self) -> float:
+        """Re-read the graph into the system prompt, EVERY turn. Returns seconds.
 
-        One-shot on SUCCESS — a transient failure (DB blip) keeps the flag
-        set so the next turn retries, instead of leaving the whole session
-        with a prompt that claims rich understanding over an empty slot.
+        This used to be a one-shot render, and the one-shot was the read-side
+        half of this archive's primary defect. Two ways it went wrong:
+
+        1. Unscoped (the standalone Advisor) never rendered at all, so the prompt
+           held `EMPTY_UNDERSTANDING` for the whole session while the agent's own
+           `anchor`/`ingest`/`explore` calls wrote to the graph. Measured:
+           **14 of 18 first sessions built 390 transformations against an empty
+           slot for all 8 turns** (`probe_readside_reach`). Depth then failed to
+           predict the score in either direction (corr -0.107 over 36 cells) —
+           a null, which is exactly what unread structure predicts.
+        2. Scoped rendered once, so anything built on turn 3 was invisible from
+           turn 4 on.
+
+        Host-driven on purpose. The model has `sync` and could re-read whenever it
+        liked, and across 55 weak-tier runs it elected `explore` 6 times — no
+        amount of prompt text makes an elective call reliable. A turn that must
+        see the graph cannot depend on the model choosing to look.
+
+        A construction-time `dialectical_context` is therefore a SEED, not a lock:
+        it fills the slot before turn 1 and spares the turn-1 prompt REWRITE when
+        the graph has not moved since (the read still happens — that is what
+        detects movement). The refresh owns the slot from then on. Locking it would
+        have left the bench exactly half-fixed, since the driver passes a
+        session-start snapshot on returning sessions only (and nothing on first
+        sessions), then holds it static for all 8 turns of that session.
+
+        On the prompt-caching objection this reverses: rewriting a system prompt
+        does cost provider-side prefix caching, which is why the rewrite is gated
+        on the rendered text actually CHANGING. A turn that mutated nothing keeps
+        its cache. A turn that built structure loses it — and that turn already
+        spent tens of seconds inside the tool that built it, so the miss is small
+        against a model that can finally see its own work. The old rule also held
+        that history already carries this ("tool results + sync"); history carries
+        the tool's REPORT, not the derived dump — indices (T1/A1), scores,
+        validation flags and suppression counts appear nowhere else, and a prompt
+        asserting EMPTY_UNDERSTANDING actively contradicts the history it sits on.
+
+        Cheap enough to do per turn: `DialecticalContext.resolve()` is repository
+        reads and string assembly with no LLM call in it, against a reply path
+        whose median tool round is 42s. Not free, though — so the cost is returned
+        and recorded as `TurnTiming.context_render_s` rather than assumed small.
         """
-        if not self._pending_context_render:
-            return
-        try:
-            from dialectical_framework.concerns.dialectical_context import \
-                DialecticalContext
+        if not self._context_refresh_enabled:
+            return 0.0
 
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+
+        started = time.monotonic()
+        try:
             context = await DialecticalContext(
                 nexus_hash=self._nexus_hash
             ).resolve()
+        except ValueError:
+            # The pinned nexus is gone. Not transient and not recoverable by
+            # retrying, so stop re-reading it every turn — but keep the last good
+            # prompt rather than reverting to EMPTY_UNDERSTANDING, which would
+            # throw away understanding the conversation has already been given.
+            self._context_refresh_enabled = False
+            logger.exception(
+                "Dialectical context refresh disabled: pinned nexus unresolvable"
+            )
+            return time.monotonic() - started
+        except Exception:
+            # Fail-soft: this turn runs on the previous turn's prompt, and the
+            # next turn tries again. The model still reaches graph state through
+            # `sync` meanwhile.
+            logger.exception("Dialectical context refresh failed (fail-soft)")
+            return time.monotonic() - started
+
+        # Idempotent by comparing the RENDERED text, not by trusting a
+        # graph-version signal that does not exist. A turn that changed nothing
+        # must not churn the system prompt: re-setting an identical prompt buys
+        # nothing and needlessly disturbs provider-side prefix caching.
+        if context != self._last_context:
             self._conversation.set_system_prompt(
                 self._build_system_prompt(self._app_preamble, context)
             )
-            self._pending_context_render = False
-        except ValueError:
-            # Nexus disappeared — not transient, don't retry forever.
-            self._pending_context_render = False
-            logger.exception("Deferred dialectical context render failed")
-        except Exception:
-            # Fail-soft this turn; retry next turn. The model still reaches
-            # graph state through sync meanwhile.
-            logger.exception("Deferred dialectical context render failed")
+            self._last_context = context
+        return time.monotonic() - started
 
     @property
     def messages(self) -> list:
