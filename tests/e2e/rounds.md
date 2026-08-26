@@ -3839,3 +3839,31 @@ rounds toward that n, not because they answer it now.
   in `RunRecord` records. **The bias is downward and its size is unknown**, so a lower
   overlap here is a harness artefact of fix (2), not a read-side regression. Repairing
   the comparison means recording the dump per turn, which this round does not have.
+
+#### Amendment to P1, made 2026-08-26 after 3 of 24 cells had run and before any result was read
+
+The registration above called P1 "the one thing a null would genuinely settle." Sized
+rather than asserted, that was wrong, and it is the exact error `power.py`'s docstring was
+written to catch — an endpoint and a bar with no power calculation.
+
+As a **two-sample** comparison P1 is hopeless. The limiting arm is not this round's ~120
+turns, it is the **pre-fix sample, which is 16 turns** (3 over 60s). `fisher_power(16,
+0.19, 0.0)` = **0.17**. Adding post-fix turns cannot fix that; the pre-fix sample is spent
+and cannot grow, because the code that produced it is deleted.
+
+P1 is therefore re-registered as a **one-sample bound on the post-fix rate**, which needs
+no comparator arm:
+
+- **0 of ~120 turns puts an exact 95% upper bound of 2.5% on the >60s off-path rate**
+  (0/60 → 4.9%, 0/240 → 1.2%).
+- That is worth having because the pre-fix mechanism is known from the code, not inferred
+  from the rate: `_ensure_pathways_before_closing` called `run_exploration_detailed` on
+  the reply path, and that call is gone. The question is whether any path still reaches a
+  minute of post-reply work, and a bound answers it.
+- **The bar is unchanged and still refutable by one turn.** What changes is the claim
+  attached to it: clearing it bounds the rate below ~2.5%, it does not establish a
+  difference from 19%.
+
+Recorded as an amendment rather than an edit because the point of pre-registration is the
+timestamp. Nothing here moves a goalpost — the bar is the same number — and no cell's
+output had been read when it was written.
