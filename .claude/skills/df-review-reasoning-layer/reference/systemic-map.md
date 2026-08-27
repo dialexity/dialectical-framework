@@ -107,10 +107,14 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     both outcomes a parse failure actually has were paying for nothing: a deterministic envelope cannot
     be re-sampled away (salvage it), and a stochastic derailment recovers on the very next sample (retry
     it, immediately). Nonzero rather than zero only as back-pressure, because a fan-out stage fails many
-    gathered children at once and a tight loop would earn a real throttle. Still open here: a
-    prompt/schema-level fix for the framing leak itself, and whether `retry_max=10` re-asks is the right
-    budget once naps are gone (no data on how many resamples a derailment needs; n=1 says one). The
-    ladder is hand-rolled by design (CLAUDE.md) so it must not be swapped for `llm.retry`.
+    gathered children at once and a tight loop would earn a real throttle.
+    **`retry_max=10` stays, decided 2026-08-27** — asked and answered, not overlooked. The residual
+    exposure is now ten generations rather than ten naps (~400s for `anchor`), but cutting it trades
+    latency for failure rate on stochastic derailments and there is no distribution data on how many
+    resamples one needs (n=1 says one; r26 had a call succeed on attempt 10, since salvaged). Get the
+    attempt-count distribution off a bench run first. Still genuinely open: a prompt/schema-level fix for
+    the framing leak itself. The ladder is hand-rolled by design (CLAUDE.md) so it must not be swapped
+    for `llm.retry`.
   - Host-driven, not elective, on purpose: `sync` exists and the model elected `explore` in 6 of 55
     weak-tier runs. A turn that must see the graph cannot depend on the model choosing to look.
   - `dialectical_context=` at construction **seeds** the slot (turn-1 rewrite skipped when nothing moved);

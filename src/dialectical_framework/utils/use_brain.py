@@ -91,6 +91,13 @@ def use_brain(
     Args:
         ai_model: Model ID (e.g., 'bedrock/anthropic/claude-...'). Reads from DI if not provided.
         retry_max: Maximum attempts (default: 10). Set to 1 to disable retries.
+            Ten is a DELIBERATE hold, revisited and kept 2026-08-27. Now that the
+            parse curve is flat the residual exposure is ten generations rather
+            than ten naps (~400s for `anchor`), so cutting it is tempting — but
+            that trades latency for failure rate on stochastic derailments, and
+            there is no distribution data on how many resamples one needs (n=1
+            says one; r26 had a call succeed on attempt 10, since salvaged).
+            Get the attempt-count distribution off a bench run before changing it.
         format: Pydantic model class for structured output.
         tools: List of tool functions/classes to make available.
         thinking: Extended thinking level string ("medium", "high", etc.)
