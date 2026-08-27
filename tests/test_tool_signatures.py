@@ -48,6 +48,9 @@ from dialectical_framework.agents.advisor.tools.record_decision import (
     record_decision,
 )
 from dialectical_framework.agents.orchestrator.tools.add_input import add_input
+from dialectical_framework.agents.orchestrator.tools.audit_feasibility import (
+    audit_feasibility,
+)
 from dialectical_framework.agents.orchestrator.tools.inspect_node import inspect_node
 from dialectical_framework.agents.orchestrator.tools.query_graph import query_graph
 from dialectical_framework.agents.orchestrator.tools.discard import discard
@@ -69,6 +72,7 @@ ALL_TOOLS = [
     expand_nexus,
     present_exploration,
     add_input,
+    audit_feasibility,
     inspect_node,
     query_graph,
     discard,
@@ -84,7 +88,7 @@ from dialectical_framework.agents.advisor.tools.scoped import \
 ALL_TOOLS.extend(
     t for t in build_scoped_tools("deadbeef")
     # inspect_node/read_digest are reused as-is; only test the closures once
-    if t.__name__ in {"sync", "discard", "explore", "anchor"}
+    if t.__name__ in {"sync", "discard", "explore", "anchor", "audit_feasibility"}
 )
 
 

@@ -16,7 +16,9 @@ The Advisor keeps its full analytical power in this mode (it IS
 Analyst+Explorer behind one voice): anchor plants new tensions (standalone),
 the pinned explore weaves them into the exploration, deepen develops an
 alternative arrangement of the pinned exploration on demand (guarded by
-wheel-membership), sync/inspect_node/read_digest read, discard retracts
+wheel-membership), audit_feasibility scores a named pathway of the pinned
+exploration for practical achievability on demand (guarded by nexus
+membership), sync/inspect_node/read_digest read, discard retracts
 (members of the pinned nexus and standalone perspectives — e.g. its own
 rejected anchors — but never members of OTHER explorations), and
 record_decision persists confirmed decisions (Case-level, unguarded by the
@@ -114,10 +116,46 @@ def build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
 
         return await run_deepen(wheel_hash)
 
+    @llm.tool
+    async def audit_feasibility(
+        transformation_hashes: Annotated[
+            list[str],
+            Field(
+                description="Hashes of the pathway(s) of THIS exploration to assess — the [[hash]] shown with each action-reflection pathway"
+            ),
+        ],
+    ) -> str:
+        """Assess whether specific action-reflection pathways of this exploration are practically achievable: a 0.0-1.0 feasibility band per Ac+/Re+ step, with the resource, resistance, timeline and precedent factors behind it, and what would have to be true for it to work. Use when the person asks whether something is realistic or doable, or when choosing between pathways turns on achievability rather than insight. Costs two model calls per pathway, so name the one or two under discussion; already-assessed pathways are returned free."""
+        from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+            run_audit_feasibility
+
+        # Guarded even though a reader might call it read-only: it WRITES
+        # (a critique Rationale and a FeasibilityEstimation), and it spends
+        # provider calls doing it, so it is a write tool by both tests.
+        # All-or-nothing rather than per-hash filtering: a silently shortened
+        # answer would read as "these are the feasible ones".
+        refusal = _transformations_outside_scope_refusal(
+            pinned_hash, transformation_hashes
+        )
+        if refusal:
+            return refusal
+
+        return await run_audit_feasibility(transformation_hashes)
+
     # record_decision is appended as-is: decisions are Case-level facts, not
     # exploration members — no nexus-scope guard applies (grounds may be
     # exploration members; grounding is read-only w.r.t. the exploration).
-    return [anchor, sync, inspect_node, read_digest, discard, explore, deepen, record_decision]
+    return [
+        anchor,
+        sync,
+        inspect_node,
+        read_digest,
+        discard,
+        explore,
+        deepen,
+        audit_feasibility,
+        record_decision,
+    ]
 
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
@@ -167,6 +205,52 @@ def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:
             f"exploration — discarding is global and would remove it there "
             f"too, so it cannot be discarded from here."
         )
+    return None
+
+
+def _transformations_outside_scope_refusal(
+    nexus_hash: str, transformation_hashes: list[str]
+) -> str | None:
+    """
+    Return a refusal message if any named pathway belongs to a DIFFERENT
+    exploration; None if the audit may proceed.
+
+    A Transformation names its exploration directly (`tr.nexus`), so no
+    perspective traversal is needed here — unlike a wheel, whose membership is
+    derived. Hashes that resolve to nothing, or to something that isn't a
+    pathway, are NOT refused here: the tool itself reports those per-hash with a
+    usable message, and duplicating that judgement in the guard would turn a
+    typo into a scope accusation.
+    """
+    from dialectical_framework.graph.nodes.transformation import Transformation
+    from dialectical_framework.graph.rendering import \
+        find_nexus_for_transformation
+    from dialectical_framework.graph.repositories.nexus_repository import \
+        NexusRepository
+    from dialectical_framework.graph.repositories.node_repository import \
+        NodeRepository
+
+    nexus = NexusRepository().find_by_hash_prefix(nexus_hash)
+    if nexus is None:
+        return f"Cannot assess feasibility: pinned exploration {nexus_hash} not found."
+
+    repo = NodeRepository()
+    for raw in transformation_hashes or []:
+        h = (raw or "").strip().strip("[]")
+        if not h:
+            continue
+        try:
+            node = repo.find_by_hash(h)
+        except ValueError:
+            continue  # ambiguous prefix — the tool reports it usefully
+        if not isinstance(node, Transformation):
+            continue
+        owner = find_nexus_for_transformation(node)
+        if owner is None or owner._id != nexus._id:
+            return (
+                f"Refused: pathway [[{h}]] is outside this exploration's scope "
+                f"and cannot be assessed from here."
+            )
     return None
 
 

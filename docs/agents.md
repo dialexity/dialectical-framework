@@ -155,13 +155,14 @@ back to the Analyst thread.
 — `nexus_hash` is **required** and hard-bound at construction; a missing nexus raises
 immediately. `app_tools` works as on the Advisor (see below).
 
-**Tools (12):**
+**Tools (13):**
 
 | Group | Tools | Purpose |
 |-------|-------|---------|
 | Build | `build_wheels` | perspectives → Cycles + Wheels, scored by causal plausibility |
 | Deepen | `explore_transformations` | a chosen Wheel → Ac+/Re+ pathways (6 positions per edge) |
 | Synthesize | `generate_synthesis` | a Wheel with transformations → S+/S- |
+| Assess | `audit_feasibility` | named pathways → practical achievability bands + the factors behind them (on demand; 2 calls per pathway) |
 | Grow | `expand_nexus` | attach *existing* perspectives to this nexus |
 | Round-trip | `create_dx_input` | capture a Transition's insight as a Case Input for the Analyst (see [Handoffs](#handoffs-the-ux-glue)) |
 | Read | `present_exploration`, `inspect_node`, `read_input`, `read_digest`, `digest_input`, `query_graph`, `get_schema` | state / detail |
@@ -225,7 +226,7 @@ built-in set. The engine prompt carries no docs for them (their tool-schema docs
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
-**Tools (9)** — coarse, composed super-tools that hide the machinery:
+**Tools (10)** — coarse, composed super-tools that hide the machinery:
 
 | Tool | Composes | Purpose |
 |------|----------|---------|
@@ -233,6 +234,7 @@ preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 | `anchor` | IntroducePolarity + ExpandPolarity | plant a specific T/A tension |
 | `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot (budgeted: deepens only the top-plausibility arrangement) |
 | `deepen` | ExploreTransformations + GenerateSynthesis | develop an alternative arrangement when the person's lived reality picks a shallow reading |
+| `audit_feasibility` | TransformationAudit | answer "could I actually do that?" about named pathways — a practical-achievability band per Ac+/Re+ step with its factors and success conditions (on demand: 2 calls per pathway, idempotent, absent unless asked) |
 | `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + the confirming principal's rationale (consent-first in BOTH modes — the one exception to silent machinery; provenance = `principal`, host-attested) |
 | `sync` | DialecticalContext | re-read full graph state |
 | `discard`, `inspect_node`, `read_digest` | shared | curate / detail (discard also retracts/supersedes Decisions) |
@@ -243,6 +245,12 @@ exposed. `deepen` is the follow-up to `explore`'s depth budget: all arrangements
 built and ranked, one is developed; when conversation gravitates to another reading,
 `deepen` develops it on demand (the Explorer needs no equivalent — its
 `explore_transformations`/`generate_synthesis` are already per-wheel, user-driven).
+`audit_feasibility` is the same shape applied to a *judgement* rather than to
+structure: the transformation audit used to run on every pathway `explore` built
+(40% of its provider spend, for an annotation nothing read), so it is now off by
+default and this tool spends it on the pathway the person actually asked about.
+Both agents carry it — the Advisor ranks partly on feasibility, the Explorer
+displays it.
 
 **UX to build around it:**
 - **A chat window — essentially that.** No graph canvas, no scores, no hashes, no phase
@@ -356,11 +364,14 @@ first-person/third-party perspective detection, same score presentation
 (meaning-first). The toggle changes the engine (tool-driving vs counseling) and the
 register — never the user contract.
 
-The Advisor head keeps full analytical power (anchor + explore + deepen pinned to the
-nexus — it IS Analyst+Explorer behind one voice), but with two constraints:
+The Advisor head keeps full analytical power (anchor + explore + deepen +
+audit_feasibility pinned to the nexus — it IS Analyst+Explorer behind one
+voice), but with two constraints:
 
 - **Nexus pin in code** (`advisor/tools/scoped.py`): it cannot create sibling nexuses or
-  reach outside the exploration (deepen refuses wheels of other explorations). Only
+  reach outside the exploration (deepen refuses wheels of other explorations;
+  audit_feasibility refuses pathways of other explorations — it writes and it
+  spends provider calls, so it is guarded like the other write tools). Only
   `ingest` is excluded (bulk extraction belongs to the Analyst thread).
 - **Transparent mutation** (`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`): unlike the unscoped Advisor's
   silent graph-building, the counsel head asks before adding a new tension to the

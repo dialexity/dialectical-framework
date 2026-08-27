@@ -852,7 +852,7 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 | Type | Purpose |
 |------|---------|
 | `CausalityProbabilityEstimation` | Causality ordering likelihood (raw on Cycles/Wheels, normalized on Transitions) |
-| `FeasibilityEstimation` | Practical achievability (Ac+/Re+ transitions only, and only when `settings.audit_transformations` is on — default off) |
+| `FeasibilityEstimation` | Practical achievability (Ac+/Re+ transitions only). Written by two paths, neither of them default: eagerly on every new Transformation when `settings.audit_transformations` is on (default off), or on demand for named pathways via the `audit_feasibility` tool. Its `provider` Rationale carries the factors and success conditions behind the number — the tool renders both |
 | `ModeEstimation` | T-A opposition characterization |
 | `ArousalEstimation` | T-A opposition intensity |
 | `ConceptualCoherenceEstimation` | Tetrad validation (control statements, CC) |

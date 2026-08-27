@@ -198,13 +198,14 @@ class TestScopedDiscard:
 
 class TestScopedToolset:
     def test_full_analytical_power_no_ingest(self):
-        """Scoped Advisor always carries anchor + pinned explore + deepen
-        (it IS Analyst+Explorer behind one voice); only ingest is excluded."""
+        """Scoped Advisor always carries anchor + pinned explore + deepen +
+        audit_feasibility (it IS Analyst+Explorer behind one voice); only ingest
+        is excluded."""
         tools = build_scoped_tools("abc1234")
         names = {t.__name__ for t in tools}
         assert names == {
             "anchor", "sync", "inspect_node", "read_digest", "discard",
-            "explore", "deepen", "record_decision",
+            "explore", "deepen", "audit_feasibility", "record_decision",
         }
         assert "ingest" not in names
 

@@ -122,6 +122,13 @@ every row, so the concern that dominates provider time is whichever generation
 stage is slowest rather than a self-evaluation layer; and the depth estimate drops
 by the audit's stage, since it closed each Transformation's chain.
 
+The concern itself did not go away — `audit_feasibility` runs it on the one or two
+pathways a person asks about (2 calls each, capped at 4 pathways, free on a repeat
+ask). So the spend this probe measured has not moved elsewhere in `explore`: it
+moved out of the build entirely and into whatever fraction of conversations raise
+achievability, which is the number worth measuring next if this line item ever
+looks large again.
+
 Two things this run also surfaced, neither of them about cost:
 
 - `SynthesisPairDto` returned `s_plus` and omitted required `s_minus`. A

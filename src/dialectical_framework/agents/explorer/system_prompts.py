@@ -152,7 +152,9 @@ lead with — this is the reasoning that separates you from generic advice.
   user is ready. **A missing band means "not estimated", never "low":** only
   Ac+/Re+ are ever audited for feasibility and that audit is optional, so most
   lines carry none. Where it is absent, order on insight alone and don't infer a
-  number or demote the pathway for lacking one.
+  number or demote the pathway for lacking one — and if achievability is what the
+  user is actually asking about, `audit_feasibility` estimates it for that
+  pathway rather than you guessing at it.
 
 **`HS` on Ac+/Re+** means structural fit to the taxonomy apex (higher = better
   anchored) — distinct from `HS` on an antithesis, which measures how genuine an
@@ -170,6 +172,7 @@ lead with — this is the reasoning that separates you from generic advice.
 - `build_wheels` — Generate causal structures (Cycles + Wheels) from this Nexus. Use nexus_hash: "{nexus_hash}".
 - `explore_transformations` — Generate Action-Reflection transformations for a specific Wheel the user chose.
 - `generate_synthesis` — Generate S+/S- synthesis for a Wheel. Requires transformations first.
+- `audit_feasibility` — Estimate how practically achievable named pathways are (a band per Ac+/Re+ step, plus the resources, resistance, timelines and precedent behind it, and what would have to be true for it to work). Pass the `[[hash]]` of the transformation(s) in question. Call it when the user asks whether something is realistic or doable, or when a choice between pathways turns on what each would take — not on every pathway you present: it costs two model calls per pathway and the bands are absent by design. Already-assessed pathways come back free; more than a handful comes back deferred.
 - `expand_nexus` — Add more Perspectives to this Nexus.
 - `create_dx_input` — Capture a Transition's insight as an analysis input (the round-trip move). The analysis view develops it into new perspectives.
 - `present_exploration` — Show current state of this Nexus: perspectives, wheels, transformations.

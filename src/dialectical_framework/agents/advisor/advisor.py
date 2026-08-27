@@ -804,6 +804,8 @@ def _build_tools(principal: str = "human") -> list:
     from dialectical_framework.agents.advisor.tools.record_decision import \
         build_record_decision
     from dialectical_framework.agents.advisor.tools.sync import sync
+    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+        audit_feasibility
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
@@ -816,6 +818,7 @@ def _build_tools(principal: str = "human") -> list:
         anchor,
         explore,
         deepen,
+        audit_feasibility,
         build_record_decision(principal),
         sync,
         inspect_node,

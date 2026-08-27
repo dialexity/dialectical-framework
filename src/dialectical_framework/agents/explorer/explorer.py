@@ -144,6 +144,8 @@ def _build_tools() -> list:
         generate_synthesis
     from dialectical_framework.agents.explorer.tools.present_exploration import \
         present_exploration
+    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+        audit_feasibility
     from dialectical_framework.agents.orchestrator.tools.create_dx_input import \
         create_dx_input
     from dialectical_framework.agents.orchestrator.tools.digest_input import \
@@ -163,6 +165,7 @@ def _build_tools() -> list:
         build_wheels,
         explore_transformations,
         generate_synthesis,
+        audit_feasibility,
         expand_nexus,
         create_dx_input,
         present_exploration,

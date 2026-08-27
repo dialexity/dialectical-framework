@@ -127,6 +127,22 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     only Ac+/Re+ while `_dump_transformation` renders all four positions, so **half of every transformation's
     lines have always lacked a feasibility band** and neither prompt had ever mentioned it. A pre-existing
     gap found by asking who consumes the artifact, not by reading the new code.
+    **THEN TOOLIFIED, same day** (`orchestrator/tools/audit_feasibility.py`,
+    `tests/test_audit_feasibility_tool.py` + `..._graph.py`). The settings switch is startup-only and
+    process-wide (`wiring_config` wires modules per container; `SettingsAware` resolves through the
+    module-level `@inject _di_settings()`), so "maybe up to the user" was only ever satisfiable as "up to
+    whoever runs the deployment". A tool is the seam that actually reaches a person: it asks AFTER the
+    pathway was offered, about the pathway they asked about (`pathway_line()` already emits `[[short_hash]]`,
+    so the handle was in the conversation). The general shape worth reusing: **when an expensive concern's
+    output is only sometimes wanted, the question is not "cheaper or off" but WHO ASKS — a per-item tool
+    turns a fixed 6N cost into a demand-driven 1-2.** Three things it must do, all learned from the removal
+    trace: skip items that already carry the artifact (`upsert_estimation` keeps one score but critique
+    Rationales ACCUMULATE, so a repeat ask would leave two disagreeing prose records and no way to tell
+    which produced the surviving number); cap and NAME the excess
+    (`MAX_TRANSFORMATIONS_PER_CALL = 4`, or one question re-spends the entire eager budget); and render from
+    the GRAPH rather than from the concern's return value — which is what finally gave the critique
+    Rationale a reader (score from the `FeasibilityEstimation`, reasoning from its `provider` edge), and is
+    the only part fakes cannot cover, hence the separate graph test.
     That table was only legible after `CallRecord` carried the DTO
     name: all 33 structured DTOs share ONE `@use_brain` site in `ConversationFacilitator`, so grouping by
     `__qualname__` put 49 of 50 calls in a single wrapper row.
@@ -1202,13 +1218,16 @@ the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS =
 `advisor/tools/explore.py`) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
-annotation, **opt-in and off by default** — `settings.audit_transformations`) → **GenerateSynthesis**
+annotation, **opt-in and off by default** in this chain — `settings.audit_transformations`; the same concern is
+reachable per-pathway on demand via the `audit_feasibility` tool) → **GenerateSynthesis**
   **Phase 1 fans out 3×, and that sets the whole stage's cost.** `ActionExtraction` runs one LLM call per
   `INSIGHT_CATEGORIES` entry (Generative/Configurational/Corrective) and returns THREE Ac+ candidates per edge;
   Phase 2 loops over them (`_find_matching_category` pairs each with the opposite edge's same-category
   candidate), so an edge yields 3 Transformations, not 1 — **6N per N-PP wheel**, i.e. 6 for a 1-PP wheel
   (verified on a real provider, `tests/test_single_perspective_explore_real_llm.py`). Per deepened wheel that is
-  2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit *only when the audit is enabled*) calls. CLAUDE.md said "2N Transformations" until
+  2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit *only when the eager audit is enabled*) calls. With the
+  eager audit off (the default) the audit term is 0 here and the spend moves to whichever pathways a conversation
+  actually asks about — `audit_feasibility` charges 2 calls per named pathway, once. CLAUDE.md said "2N Transformations" until
   2026-08-13 — it was counting edges. If you are reasoning about explore latency or about how many pathways the
   model gets to choose between, this multiplier is the number that matters, and adding an insight category
   multiplies the whole stage. (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only

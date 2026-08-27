@@ -65,8 +65,13 @@ class Settings(BaseModel):
     # that absence was ALREADY the common case: only Ac+/Re+ are ever audited,
     # so Ac-/Re- have never carried a feasibility band even with this on.
     #
-    # Turn it on for analytical work where the band is worth the latency.
-    audit_transformations: bool = Field(default=False, description="Audit each new Transformation's Ac+/Re+ transitions for practical feasibility. Adds 2 provider calls per Transformation and writes FeasibilityEstimations plus critique Rationales; nothing in the framework depends on them.")
+    # This is the EAGER path only, and it is a startup switch (settings resolve
+    # process-wide through the DI container). A person in a conversation asks
+    # instead: the `audit_feasibility` tool runs the same concern on the pathways
+    # they raised, so the spend follows the interest. Turn this on for
+    # programmatic analytical runs with no agent in the loop, where nobody will
+    # ever ask and the band is worth the latency on everything.
+    audit_transformations: bool = Field(default=False, description="EAGERLY audit every new Transformation's Ac+/Re+ transitions for practical feasibility. Adds 2 provider calls per Transformation and writes FeasibilityEstimations plus critique Rationales; nothing in the framework depends on them. Off by default — agents reach the same concern on demand via the audit_feasibility tool.")
 
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
