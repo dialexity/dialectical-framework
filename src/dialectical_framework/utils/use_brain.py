@@ -5,7 +5,8 @@ import json
 import logging
 import time
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Literal, Optional, TypeVar, overload
+from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Iterator, Literal,
+                    Optional, TypeVar, overload)
 
 from dependency_injector.wiring import Provide, inject
 from langfuse import get_client, observe
@@ -171,11 +172,21 @@ def use_brain(
                         try:
                             return response.parse()
                         except ParseError as e:
-                            salvaged = _salvage_double_encoded(
+                            salvaged = _salvage_envelope(
                                 response, call_params["format"], e
                             )
                             if salvaged is not None:
                                 return salvaged
+                            # Nothing fit, so this is about to cost a re-ask and
+                            # a nap. Say what the model actually sent, ONCE per
+                            # call: the pydantic error names the field and
+                            # truncates the payload mid-value, which is enough to
+                            # know something is wrong and not enough to write the
+                            # unwrapper that would fix it. Diagnosing the
+                            # `GroundingDto` envelope took a dedicated probe run
+                            # for want of exactly this line.
+                            if attempt == 0:
+                                _log_unsalvageable(response, format_name)
                             raise
                     return response
                 except ParseError as e:
@@ -269,37 +280,149 @@ def use_brain(
     return decorator
 
 
-def _salvage_double_encoded(response: Any, format: type, error: ParseError) -> Any:
-    """Recover a structured result the model returned double-encoded.
+#: Generic container keys a model may nest the real object under. An allowlist,
+#: not a heuristic: `raw["error"]` or `raw["refusal"]` must NEVER be unwrapped as
+#: if it were the answer, so only names that mean "here is the payload" qualify.
+_CONTAINER_KEYS = (
+    "properties",  # the model echoed the JSON Schema instead of instantiating it
+    "result",
+    "output",
+    "response",
+    "data",
+    "arguments",  # tool-call framing leaking into a structured-output response
+    "parameters",
+    "input",
+    "json",
+)
 
-    Some models (observed: sonnet-5 on Bedrock) serialize the WHOLE response
-    object a second time and hand that string back as the value of the first
-    field, so the wire payload is::
 
-        {"matches": "{\\"matches\\": [{...}]}"}
+#: How much of an unsalvageable payload to log. Enough to see the envelope's
+#: shape — its keys and how the first value starts — without dumping a whole
+#: tetrad into the log on every parse failure.
+_RAW_PAYLOAD_LOG_CHARS = 600
 
-    Pydantic then rejects the field (`Input should be a valid array`,
-    `input_type=str`) even though every byte of the answer is present. The
-    content is right; only one layer of encoding is wrong.
 
-    Salvaged here rather than left to the retry loop because the retry is the
-    expensive part: a re-ask is a fresh sample of the same model tendency, so
-    it usually fails again, and `parse_delay` (10s doubling to a 120s cap over
-    `retry_max` attempts) turns one such call into 10+ minutes before it raises.
-    Nested inside a pipeline that is hours, and the framework arm looks
-    catastrophically slow when the model in fact answered correctly the first
-    time. Measured: a single `anchor` on sonnet-5 took 857s and then failed,
-    against ~33s on haiku.
+def _log_unsalvageable(response: Any, format_name: Optional[str]) -> None:
+    """Log what the model actually sent, so the next envelope is a one-line fix.
 
-    Deliberately narrow — a genuinely malformed or truncated response must still
-    raise and still retry, so the inner value has to look like a re-encoding of
-    this very model: it must validate against it AND name at least one of its
-    fields. Validation alone is too weak a test, because DTOs whose fields all
-    have defaults (`SemanticDedupDto.matches` among them) accept ANY JSON
-    object — unrelated JSON in a string field would otherwise be "salvaged"
-    into a silently empty result, which is worse than the parse error it
-    replaces. Returns None when the shape does not match, leaving the caller's
-    `raise` intact.
+    Truncated and never raising: this runs on the failure path, and a logging
+    helper that throws would replace a recoverable parse error with an unhandled
+    one. Payload text only — no prompt, no system prompt, so this cannot leak the
+    person's material any more widely than the parse error already does.
+    """
+    try:
+        text = response.text("") or ""
+    except Exception:  # noqa: BLE001
+        return
+    if not text.strip():
+        logging.getLogger(__name__).warning(
+            "Unsalvageable %s response: the model returned NO text at all.",
+            format_name,
+        )
+        return
+    clipped = text[:_RAW_PAYLOAD_LOG_CHARS]
+    logging.getLogger(__name__).warning(
+        "Unsalvageable %s envelope, retrying blind. Raw payload (%d chars%s): %s",
+        format_name,
+        len(text),
+        ", truncated" if len(text) > _RAW_PAYLOAD_LOG_CHARS else "",
+        clipped,
+    )
+
+
+def _envelope_candidates(raw: Any, format: type) -> Iterator[tuple[str, Any]]:
+    """Every way this payload might be the right answer in the wrong wrapper.
+
+    Yields `(what_went_wrong, candidate_payload)`. Ordered cheapest-and-most-
+    observed first, but order only decides which explanation gets logged when two
+    would both validate — `_salvage_envelope` gates every candidate identically.
+
+    Each rule is deliberately small, and adding one when a NEW envelope is
+    observed is the intended way to extend this: a rule, a line in the log, and a
+    case in `tests/test_envelope_salvage.py`. What must not be added is a rule
+    that guesses — see the invariant on `_salvage_envelope`.
+    """
+    fields = set(format.model_fields)
+
+    # `raw` is always a dict: Mirascope's `RootResponse.parse` runs
+    # `extract_serialized_json` before validating, which strips prose preambles,
+    # ```json fences and any list wrapper down to the first balanced `{...}`. So
+    # those three envelope families are already handled upstream and need no rule
+    # here — what reaches this function is the object Mirascope itself tried and
+    # failed to validate.
+    if not isinstance(raw, dict):
+        return
+
+    # 1. The whole object serialized a second time into one field's string.
+    #    Observed: sonnet-5 on Bedrock, `SemanticDedupDto`.
+    #       {"matches": "{\"matches\": [{...}]}"}
+    for value in raw.values():
+        if not isinstance(value, str):
+            continue
+        try:
+            yield "double-encoded (the whole object stringified inside a field)", json.loads(value)
+        except Exception:
+            continue
+
+    # 2. A PARAMETER DESCRIPTOR instead of the object. Observed: haiku-4.5 on
+    #    Bedrock, `TetradGrounding`'s single-field `GroundingDto` —
+    #       {"parameter_name": "particulars", "parameter_value": "..."}
+    #    i.e. the model described the field it was asked to fill instead of
+    #    filling it. Recognised by SHAPE rather than by key name, because the
+    #    provider's wording for "parameter_name" is not a contract: exactly two
+    #    keys, one holding a string that IS one of this model's field names. Two
+    #    keys keeps it unambiguous; more, and which key held the value would be
+    #    a guess.
+    if len(raw) == 2:
+        for key, value in raw.items():
+            if isinstance(value, str) and value in fields:
+                other = next(k for k in raw if k != key)
+                yield (
+                    f"a parameter descriptor naming {value!r} instead of filling it",
+                    {value: raw[other]},
+                )
+
+    # 3. The object nested one level under a generic container key, including the
+    #    DTO's own name (`{"GroundingDto": {...}}`) — a model that treats the
+    #    schema title as a wrapper.
+    for key in (*_CONTAINER_KEYS, format.__name__):
+        inner = raw.get(key)
+        if isinstance(inner, dict):
+            yield f"nested under a {key!r} wrapper", inner
+
+
+def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
+    """Recover a structured result the model returned in the wrong envelope.
+
+    Models answer with the right content in the wrong wrapper, and each provider
+    and model has its own way of doing it. Two are confirmed here, both on
+    Bedrock, both on SINGLE-FIELD DTOs: sonnet-5 re-serialized the whole object
+    into the one field (`SemanticDedupDto`), and haiku-4.5 answered with a
+    parameter descriptor naming the field instead of filling it (`GroundingDto`).
+    Pydantic rejects both although every byte of the answer is present.
+
+    Salvaged here rather than left to the retry loop because THE RETRY IS THE
+    EXPENSIVE PART, and it cannot work: a re-ask is a fresh sample of the same
+    model tendency, so it draws the same envelope again, while `parse_delay` (10s
+    doubling to a 120s cap over `retry_max` attempts) sleeps up to 750s per call.
+    Measured both ways — an `anchor` on sonnet-5 took 857s and then FAILED; on
+    haiku-4.5 three of three `anchor` calls slept 70 / 270 / 750s around ~41s of
+    real work and then succeeded, which is worse, because succeeding is silent.
+    Nested in a pipeline that fans out, one such tendency multiplies across every
+    gathered child.
+
+    THE INVARIANT, and the reason this can be generic without being dangerous:
+    **every candidate's field names come from the model's own bytes, never from
+    the schema.** No rule may invent a field name. `{"value": "I cannot answer"}`
+    is therefore not salvageable into a single-field DTO even though it would
+    validate — inventing the key would turn a refusal into content, and putting
+    junk in the graph is worse than the parse error it replaces. A candidate must
+    additionally validate AND name at least one real field, because DTOs whose
+    fields all have defaults (`SemanticDedupDto.matches` among them) accept ANY
+    JSON object.
+
+    Returns None when nothing fits, leaving the caller's `raise` intact so a
+    genuinely malformed or truncated response still retries.
     """
     if not isinstance(error.original_exception, PydanticValidationError):
         return None
@@ -308,27 +431,22 @@ def _salvage_double_encoded(response: Any, format: type, error: ParseError) -> A
         raw = json.loads(_utils.extract_serialized_json(response.text("")))
     except Exception:
         return None
-    if not isinstance(raw, dict):
-        return None
 
     fields = set(format.model_fields)
-    for value in raw.values():
-        if not isinstance(value, str):
+    for what_went_wrong, candidate in _envelope_candidates(raw, format):
+        if not isinstance(candidate, dict) or not fields & set(candidate):
             continue
         try:
-            inner = json.loads(value)
+            salvaged = format.model_validate(candidate)
         except Exception:
             continue
-        if not isinstance(inner, dict) or not fields & set(inner):
-            continue
-        try:
-            salvaged = format.model_validate(inner)
-        except Exception:
-            continue
+        # WARNING, not debug: a silent recovery hides a prompt/DTO problem worth
+        # fixing upstream, and the whole reason this defect cost a bench round is
+        # that the framework recovered from it without saying so.
         logging.getLogger(__name__).warning(
-            "Model returned %s double-encoded (whole object as a string inside a "
-            "field); unwrapped one layer instead of retrying.",
-            format.__name__,
+            "Model returned %s as %s; unwrapped it instead of retrying "
+            "(saving up to 750s of parse backoff on this call).",
+            format.__name__, what_went_wrong,
         )
         return salvaged
     return None

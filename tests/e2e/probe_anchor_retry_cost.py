@@ -72,14 +72,49 @@ it answered with a **parameter ENVELOPE** (`{"parameter_name": "particulars",
 ...}`) instead of the object (`{"particulars": "..."}`). The content was there —
 the fragment ends in the person's own words, "…ded before next raise" — so this is
 a wrapper defect, not a refusal or a truncation, on a single-field schema. Same
-family as the double-encoding in `test_double_encoded_response.py`: the answer is
+family as the double-encoding in `test_envelope_salvage.py`: the answer is
 correct and the envelope is wrong, and the retry re-samples the same tendency,
 which is why it can ladder all the way to the 750s cap and still succeed.
 
-That makes the fix a schema/salvage question rather than a latency one, and it is
-NOT made here: `_salvage_double_encoded` sets the precedent for unwrapping exactly
-one known-bad envelope when the payload validates, but widening what the framework
-accepts from a model is a reasoning-layer decision with its own review.
+That makes the fix a schema/salvage question rather than a latency one.
+
+AFTER THE GENERIC SALVAGE, 2026-08-27 (same model, same tensions, n=3)
+=====================================================================
+    waited 37.5s  working 37.5s  slept 0.0s   0 retries   salvaged
+    waited 55.2s  working 40.3s  slept 10.0s  1 retry     salvaged + one retry
+    waited 38.9s  working 38.9s  slept 0.0s   0 retries   salvaged
+
+**3 of 3 calls emitted the descriptor again, and all 3 were unwrapped with zero
+retries** — so the envelope is deterministic for this model/DTO pair, which is
+exactly why re-asking could never fix it. 1254.6s -> 131.6s on the same work,
+21 minutes -> 2m17s, and the tool's ~40s is now all the wait there is.
+
+Read the log, not the timing, to tell salvage from luck: a clean run can mean the
+model happened not to emit the envelope. The line to look for is
+`Model returned GroundingDto as a parameter descriptor`. The first n=1 re-run
+after the fix came back at 37.4s with NO such line — nothing was salvaged there,
+the model simply behaved, and quoting it as verification would have been wrong.
+
+A SECOND DIALECT OF THE SAME TENDENCY, found by the new raw-payload log
+======================================================================
+The middle call above retried once, on `TetradDto` — a SIX-field DTO, which
+retires the idea that single-field schemas are the risk surface:
+
+    "t_plus": "\\n<parameter name=\\"statement\\">Unified ownership enabling ..."
+
+`t_plus` is an `AspectDto`, so an object was expected and the model wrote
+Anthropic **tool-call XML** into the string slot, then derailed — `a_minus`,
+`a_plus`, `t_minus` and the second axis never arrived. So the unifying diagnosis
+is tool-call parameter framing leaking into structured output, in two dialects:
+a JSON descriptor for the whole object, and an XML fragment inside one field.
+
+Deliberately NOT given a salvage rule, and the distinction is the useful part:
+that response was also TRUNCATED, so unwrapping `t_plus` would still have failed
+validation. It NEEDED a re-ask, and got one for 10s. The rule that separates the
+two cases is whether the fault is deterministic — a descriptor the model emits
+3/3 times cannot be re-sampled away and must be salvaged; a derailment it emits
+once recovers on the next attempt and must be retried. If the XML dialect ever
+shows up in an otherwise complete response, that is when it earns a rule.
 """
 
 from __future__ import annotations

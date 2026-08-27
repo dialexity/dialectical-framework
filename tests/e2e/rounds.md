@@ -4037,12 +4037,23 @@ Parse failure on GroundingDto (attempt 1/10), backing off 10s — this call has 
 with a **parameter envelope** (`{"parameter_name": "particulars", …}`) instead of the object.
 The content is present and correct (the fragment ends in the person's own "…ded before next
 raise"), so this is the same family as the double-encoding in
-`tests/test_double_encoded_response.py`: right answer, wrong wrapper, and a retry that
+`tests/test_envelope_salvage.py` (then `test_double_encoded_response.py`): right answer,
+wrong wrapper, and a retry that
 re-samples the same tendency. **Grounding is fail-soft by contract**, so a ParseError there
 costs 13 minutes and then changes nothing about what the person sees — which is the worst
 possible trade and was invisible until the branch logged. Fix not made here: unwrapping a
 new envelope is a reasoning-layer decision (see `_salvage_double_encoded` for the precedent
 and its deliberate narrowness).
+
+> **Fixed after this round, 2026-08-27.** The per-DTO special case became a generic chain,
+> `use_brain._salvage_envelope`, because all 33 structured DTOs inherit this one retry ladder
+> through a single seam. Re-measured on the same tier and tensions: **3/3 calls emitted the
+> descriptor again and 3/3 were unwrapped with zero retries, 1254.6s → 131.6s**, so the
+> envelope is deterministic for this model/DTO pair and re-asking could never have fixed it.
+> `_log_unsalvageable` landed alongside it and immediately caught a second dialect — Anthropic
+> tool-call XML inside one field of the SIX-field `TetradDto` — which retires the
+> "single-field schemas are the risk surface" reading in the paragraph above. See
+> `probe_anchor_retry_cost.py`'s docstring.
 
 #### The quality screen — cleared its bar, and still proves nothing, as registered
 

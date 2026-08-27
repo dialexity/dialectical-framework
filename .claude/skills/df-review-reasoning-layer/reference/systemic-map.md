@@ -735,10 +735,22 @@ response object and return that string as the first field's value — observed o
 re-ask resamples the same tendency, and `parse_delay` (10s ×2 → 120s cap over `retry_max`=10) spends 10+
 minutes per call before raising — nested in `AnalysisPipeline` that became **2.6h for one bench A2 cell**
 (a single `anchor`: 857s-then-fail on sonnet-5 vs ~33s-succeed on haiku), read as framework slowness when
-the model answered correctly first try. `_salvage_double_encoded` (`use_brain.py`) unwraps exactly one
-layer, gated on the inner object validating against the model AND naming one of its fields — validation
-alone is too weak because all-defaulted DTOs (`matches` included) accept any JSON object, so unrelated
-JSON would "salvage" into a silently empty result. Locked by `test_double_encoded_response.py`.
+the model answered correctly first try. Handled generically since 2026-08-27 by **`_salvage_envelope`**
+(`use_brain.py`), a CHAIN of small unwrapping rules — double-encoded field, parameter descriptor, generic
+container key — tried before the retry ladder is ever paid. Every candidate must validate against the
+model AND name one of its fields: validation alone is too weak because all-defaulted DTOs (`matches`
+included) accept any JSON object, so unrelated JSON would "salvage" into a silently empty result.
+**The invariant that makes it safe to be generic: field names come from the model's own bytes, never from
+the schema.** No rule may invent a key, so `{"value": "I cannot answer"}` is NOT coerced into a
+single-field DTO even though it would validate — that would turn a refusal into graph content, which is
+worse than the parse error it replaces. Adding a rule when a new envelope is observed is the intended
+extension path (rule + log label + case in `tests/test_envelope_salvage.py`). Three envelope families
+deliberately have NO rule because Mirascope's `RootResponse.parse` already runs `extract_serialized_json`
+first: prose preamble, ```json fence, list wrapper. An unsalvageable payload now gets logged VERBATIM
+(truncated, once per call, `_log_unsalvageable`) — pydantic's own message clips the payload mid-value,
+which is enough to know something broke and not enough to write the rule that fixes it; diagnosing the
+`GroundingDto` envelope cost a dedicated `--real-llm` probe run for want of exactly that line, and the
+line found a second dialect within minutes of existing.
 Two standing implications when editing this stack: **mocked tests cannot see this class of bug** (mock
 brain auto-fills every field — verify shape changes with `--real-llm`, prefer flatter schemas per
 CLAUDE.md), and **a per-model parse failure presents as latency, not as an error**, which is the same
@@ -756,6 +768,24 @@ the ParseError branch was **the only retry branch that did not log** — so a 75
 call, and `utils/retry_accounting.py` records the sleep onto `ToolRound` / `TurnTiming` / `TurnRecord` so
 "how much of this wait was work" is answerable. **Do not read a pre-2026-08-26 tool median as a tool
 cost.**
+
+**FIXED 2026-08-27, and the fix reframed the whole family.** `_salvage_envelope` now unwraps the parameter
+descriptor: re-measured on the same model and tensions, 3/3 calls emitted it again and 3/3 were unwrapped
+with zero retries — **1254.6s → 131.6s**, and `anchor` is ~40s of pure work. The envelope is
+DETERMINISTIC for that model/DTO pair, which is why the retry ladder could never fix it. Verify by LOG,
+not by timing: the first clean re-run after the fix carried no salvage line at all — the model simply
+behaved that time, and reading 37.4s as proof would have been wrong.
+
+**The unifying diagnosis is tool-call parameter framing leaking into structured output, and it is NOT
+confined to single-field DTOs.** The new raw-payload log immediately caught a second dialect on
+`TetradDto` (SIX fields): `"t_plus": "\n<parameter name=\"statement\">Unified ownership …"` — `t_plus` is
+an `AspectDto`, so an object was expected and the model wrote **Anthropic tool-call XML** into the string
+slot, then derailed (four fields never arrived). Deliberately given no rule, and the reason is the rule
+that now separates the two cases: **salvage a DETERMINISTIC envelope, retry a STOCHASTIC derailment.**
+That response was truncated, so unwrapping `t_plus` would still have failed validation — it needed a
+re-ask and got one for 10s. If the XML dialect appears in an otherwise complete response, it earns a rule.
+Corollary for prompt work on this stack: a parse failure here is evidence about how the structured-output
+request is FRAMED to the provider, not only about the DTO's own field descriptions.
 
 **Transport faults are a four-way taxonomy, and every branch has its own curve** (`use_brain.py`):
 `_is_connection_error` (class-name based, `_CONNECT_RETRY_MAX`), `_is_rate_limit_error` (429/Throttling, 10s
