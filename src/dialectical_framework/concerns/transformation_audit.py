@@ -5,6 +5,32 @@ Evaluates the practical feasibility of each transition within a Transformation,
 creating critique Rationales and FeasibilityEstimations. This serves as the
 self-evaluation layer — assessing whether the generated wisdom is actionable.
 
+OPT-IN, AND WHY
+===============
+This runs only when `settings.audit_transformations` is on (default OFF). It has
+exactly one caller — `ExploreTransformations.resolve()` step 5 — and it is the
+only writer of `FeasibilityEstimation` and of CRITIQUES-linked Rationales in the
+tree. That matters because it is also the most expensive thing per unit of
+consequence in the whole pipeline:
+
+    cost      two provider calls per Transformation (Ac+ and Re+). At 1 PP that
+              was 12 calls / 147.4s — 40% of `explore`'s ENTIRE provider spend,
+              ~12.3s each against a 7.8s mean across all concerns, and the only
+              concern billed twice per Transformation.
+    consumers no code. `FeasibilityEstimation` is read at two render sites
+              (`dialectical_context._format_transition_scores`, `inspect_node`),
+              both `if ... is not None` and both display-only. The critique
+              Rationale is read NOWHERE — `.critiques` has no traversal outside
+              its own declaration and the cascade-delete in `NodeRepository`.
+              No score, no ranking, no resume accounting, no completeness
+              fraction and no status depends on any of it.
+
+So an unaudited wheel is finished, not partial, and skipping this cannot corrupt
+anything. What it does cost is one ranking input in both agents' prompts ("prefer
+high-feasibility + low-to-moderate insight first"); both now state what to do
+when the band is absent, which they had to anyway — `_collect_positions` audits
+only Ac+/Re+, so Ac-/Re- have never carried a feasibility band even with this on.
+
 Usage:
     service = TransformationAudit()
     results = await service.resolve(transformation)

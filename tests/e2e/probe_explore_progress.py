@@ -7,7 +7,12 @@ the wall clock has a call in flight, about 11 sequential stages deep, already
 compressed 4.15x by the existing fan-out. So there is no missing `gather`, and the
 best available cost win — batching the audit, 40% of provider time — would land
 `explore` around 70s. **The floor is structural, so optimisation cannot make this
-snappy.** What can is not making the person WAIT on it: if the wheel visibly forms
+snappy.** (That win was since taken, and by deletion rather than batching: the
+audit is opt-in and off by default as of 2026-08-27, `settings.audit_transformations`
+— so the runs recorded below, which all predate the switch, are AUDITED runs. Set
+`DIALEXITY_AUDIT_TRANSFORMATIONS=true` to reproduce them; with it off the audit
+stage and its 6 progress steps are simply absent, which shortens the tail rather
+than changing anything the probe measures about the hole.) What can is not making the person WAIT on it: if the wheel visibly forms
 while it is being built, 70s of construction and 104s of construction feel far more
 alike than either feels like 104s of nothing.
 

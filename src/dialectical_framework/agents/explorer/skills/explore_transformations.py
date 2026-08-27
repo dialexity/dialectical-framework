@@ -50,6 +50,7 @@ from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AcMinusRelationship, AcPlusRelationship, AcRelationship,
     ReMinusRelationship, RePlusRelationship, ReRelationship)
+from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.async_drain import drain_completed
 from dialectical_framework.utils.progress import (expect_progress,
                                                   progress_scope,
@@ -93,7 +94,9 @@ class ExploreTransformationsResult:
         return self.existing + self.new
 
 
-class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
+class ExploreTransformations(
+    ReasonableConcern[ExploreTransformationsResult], SettingsAware
+):
     """
     Subagent for generating Action-Reflection transformations at wheel level.
 
@@ -200,8 +203,21 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 if apexes:
                     last_apexes = apexes
 
-            # 5. Audit new transformations in parallel
-            if all_new:
+            # 5. Audit new transformations in parallel — OPT-IN, off by default.
+            #
+            # The audit is an analytical annotation, not a step in building the
+            # wheel. Nothing here or downstream branches on it: the
+            # FeasibilityEstimation is rendered when present and omitted when
+            # absent, the critique Rationale has no reader at all, and neither
+            # `_report_resume_state` nor `wheel_completeness` counts an unaudited
+            # Transformation as owing anything. So a wheel built with this off is
+            # finished, not partial — which is why the skip is silent rather than
+            # reported as a shortfall.
+            #
+            # It is gated because it was 40% of this tool's provider spend, two
+            # calls per Transformation. See `settings.audit_transformations` for
+            # the measurement and for the one thing the absence does cost.
+            if all_new and self.settings.audit_transformations:
                 from dialectical_framework.concerns.transformation_audit import TransformationAudit
 
                 async def _audit_one(tr: Transformation) -> TransformationAudit:

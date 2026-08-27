@@ -12,7 +12,9 @@ The framework fans out heavily on paper — `ExplorationPipeline` runs wheels
 concurrently, `ExploreTransformations` parallelizes edge pairs, Phase 1 edges,
 Phase 2 candidates and audits — while each Transformation is documented as **4
 sequential `TransformationGeneration` calls + 2 audits**, so the depth is real
-too. Which one dominates decides whether the latency work is "do less" or
+too. (Those 2 audits are now opt-in and off by default — see
+`settings.audit_transformations`. They were 40% of `explore`'s provider spend,
+which is the kind of finding this instrument exists to produce.) Which one dominates decides whether the latency work is "do less" or
 "restructure the chain", and guessing between them from a wall clock is exactly
 the mistake that made `anchor`'s 812.5s read as a workload.
 

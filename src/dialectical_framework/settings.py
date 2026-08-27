@@ -44,6 +44,30 @@ class Settings(BaseModel):
     # and ignores this.
     advisor_max_perspectives_per_exploration: int = Field(default=2, description="Max perspectives woven per silent Advisor explore call; excess is reported as deferred (weave in a follow-up call), never silently dropped. 0 = unlimited.")
 
+    # Practical-feasibility auditing of new Transformations. OFF by default,
+    # because it is an ANALYTICAL ANNOTATION rather than part of building a wheel:
+    #
+    #   - Nothing in the code branches on what it produces. The
+    #     FeasibilityEstimation is rendered when present and omitted when absent
+    #     (dialectical_context._format_transition_scores, inspect_node), and the
+    #     critique Rationale it writes has no reader anywhere in the tree.
+    #     Resume accounting, wheel_completeness, build_status and every score are
+    #     untouched by its absence — a wheel built without it is not "partial".
+    #   - It cost 40% of `explore`'s entire provider spend: two calls per
+    #     Transformation (Ac+ and Re+), 12 calls / 147.4s at 1 PP, ~12.3s each
+    #     against a 7.8s mean, the only concern billed twice per Transformation
+    #     (`tests/e2e/probe_explore_cost.py`).
+    #
+    # What turning it off actually costs is ONE ranking input: both agents'
+    # prompts say "prefer high-feasibility + low-to-moderate insight first", and
+    # without it that rule orders on insight alone. Both prompts state this
+    # explicitly, because a missing number must not read as a low one — and note
+    # that absence was ALREADY the common case: only Ac+/Re+ are ever audited,
+    # so Ac-/Re- have never carried a feasibility band even with this on.
+    #
+    # Turn it on for analytical work where the band is worth the latency.
+    audit_transformations: bool = Field(default=False, description="Audit each new Transformation's Ac+/Re+ transitions for practical feasibility. Adds 2 provider calls per Transformation and writes FeasibilityEstimations plus critique Rationales; nothing in the framework depends on them.")
+
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -143,6 +167,7 @@ class Settings(BaseModel):
             advisor_perspective_quality_min_dv=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV", 0.3)),
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
+            audit_transformations=os.getenv("DIALEXITY_AUDIT_TRANSFORMATIONS", "false").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

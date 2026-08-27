@@ -1095,9 +1095,15 @@ Use these scores to prioritize what you draw on:
 - `proactiveness`: Position on the action-reflection spectrum.
 {_ladder_lines(PROACTIVENESS_SCALE, {0.2: "Re apex zone", 0.4: "midpoint", 0.6: "Ac apex zone"})}
   Ac+ should be 0.5–1.0 (action zone). Re+ should be 0.0–0.4 (reflection zone).
-- `feasibility`: Practical achievability.
+- `feasibility`: Practical achievability. Often ABSENT — see below.
   ≥0.7 = readily actionable. 0.5–0.7 = challenging but doable.
   0.3–0.5 = extremely difficult. <0.3 = practically impossible, needs scaffolding.
+  **A missing `feasibility=` is "not estimated", never "low".** Only Ac+ and Re+
+  are ever audited for it, and that audit is optional, so most lines carry no
+  band and some sessions carry none at all. Where it is absent: rank on the
+  scores that ARE there, say nothing about practicality you cannot ground in the
+  pathway's own text, never infer a number, and never demote a pathway for
+  lacking one. A pathway without a feasibility band is not a risky pathway.
 
 **Prioritization rules:**
 
@@ -1145,6 +1151,11 @@ numbers in an exploration-pinned session and forbids them otherwise.
 3. When offering pathways, prefer high-feasibility + low-to-moderate insight
    first (accessible, immediately actionable). Offer deeper alternatives
    (high insight, lower feasibility) for users who are ready and engaged.
+   Where feasibility is absent — the usual case, see above — order on insight
+   alone: low-to-moderate first, deeper as the person engages. Do not stall on
+   the missing half of this rule and do not go looking for it; insight already
+   carries the readiness match, which is the part that governs what you offer
+   first.
    Multiple pathways on the same edge at different insight levels: match to
    the conversation's depth.
 4. When the graph grows (new perspectives appear after sync), note what's

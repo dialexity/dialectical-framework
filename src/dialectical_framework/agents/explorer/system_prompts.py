@@ -145,10 +145,14 @@ lead with — this is the reasoning that separates you from generic advice.
   {_ladder(PROACTIVENESS_SCALE)}.
   Ac+ sits in the action zone (0.5-1.0); Re+ sits in the reflection zone (0.0-0.4).
 
-**`feasibility` (0.0-1.0):** ≥0.7 readily actionable; 0.5-0.7 challenging but
-  doable; 0.3-0.5 extremely difficult; <0.3 practically impossible — needs
-  scaffolding before you offer it. Prefer high-feasibility + low-to-moderate
-  insight first (accessible); offer deeper alternatives when the user is ready.
+**`feasibility` (0.0-1.0), often ABSENT:** ≥0.7 readily actionable; 0.5-0.7
+  challenging but doable; 0.3-0.5 extremely difficult; <0.3 practically
+  impossible — needs scaffolding before you offer it. Prefer high-feasibility +
+  low-to-moderate insight first (accessible); offer deeper alternatives when the
+  user is ready. **A missing band means "not estimated", never "low":** only
+  Ac+/Re+ are ever audited for feasibility and that audit is optional, so most
+  lines carry none. Where it is absent, order on insight alone and don't infer a
+  number or demote the pathway for lacking one.
 
 **`HS` on Ac+/Re+** means structural fit to the taxonomy apex (higher = better
   anchored) — distinct from `HS` on an antithesis, which measures how genuine an

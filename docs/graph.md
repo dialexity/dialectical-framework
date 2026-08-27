@@ -852,7 +852,7 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 | Type | Purpose |
 |------|---------|
 | `CausalityProbabilityEstimation` | Causality ordering likelihood (raw on Cycles/Wheels, normalized on Transitions) |
-| `FeasibilityEstimation` | Practical achievability |
+| `FeasibilityEstimation` | Practical achievability (Ac+/Re+ transitions only, and only when `settings.audit_transformations` is on — default off) |
 | `ModeEstimation` | T-A opposition characterization |
 | `ArousalEstimation` | T-A opposition intensity |
 | `ConceptualCoherenceEstimation` | Tetrad validation (control statements, CC) |

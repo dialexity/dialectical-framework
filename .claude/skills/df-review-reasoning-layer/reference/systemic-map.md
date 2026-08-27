@@ -106,7 +106,28 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     other concern is exactly 6 calls, one per Transformation; the audit is 2 per Transformation, so it is
     the only place "ask for less" is available without deleting a generation stage, and it is expensive on
     both levers because it closes each Transformation's chain. **Any prompt work on `TransitionAudit`
-    should be read as latency work too.** That table was only legible after `CallRecord` carried the DTO
+    should be read as latency work too.**
+    **RESOLVED 2026-08-27, by deletion from the default path rather than by batching** —
+    `settings.audit_transformations`, default **False** (`tests/test_transformation_audit_optional.py`).
+    The trace that decided it is the reusable part: the audit has ONE caller
+    (`ExploreTransformations.resolve()` step 5) and is the sole writer of `FeasibilityEstimation` and of
+    CRITIQUES-linked Rationales, and **nothing in the code branches on either**. The estimation is read at
+    exactly two render sites (`dialectical_context._format_transition_scores`, `inspect_node`), both
+    `if ... is not None`, both display-only; `grep '\.critiques\b'` finds no traversal at all outside the
+    declaration in `rationale.py` and the cascade-delete in `NodeRepository`. No score, ranking, resume
+    accounting, `wheel_completeness` or `build_status` sees its absence — **so an unaudited wheel is
+    FINISHED, not partial**, which is why the skip is silent rather than reported as a shortfall (report it
+    as one and `deepen` tops up forever). The lesson for the next "expensive concern" question: **price the
+    concern against its CONSUMERS before designing a cheaper version of it.** Batching was the obvious move
+    and would have been wasted work on an artifact with no reader.
+    The one real cost, and it was PROSE not code: both agents' prompts rank pathways on "prefer
+    high-feasibility + low-to-moderate insight first" (`advisor/system_prompts.py`,
+    `explorer/system_prompts.py`), so both now say a missing band means *not estimated*, never *low*, and
+    to order on insight alone where it is absent. That clause was owed anyway — `_collect_positions` audits
+    only Ac+/Re+ while `_dump_transformation` renders all four positions, so **half of every transformation's
+    lines have always lacked a feasibility band** and neither prompt had ever mentioned it. A pre-existing
+    gap found by asking who consumes the artifact, not by reading the new code.
+    That table was only legible after `CallRecord` carried the DTO
     name: all 33 structured DTOs share ONE `@use_brain` site in `ConversationFacilitator`, so grouping by
     `__qualname__` put 49 of 50 calls in a single wrapper row.
     1 PP is the FLOOR of `explore`'s cost, not r26's 196.0s median — but `parallelism` and `depth`
@@ -1181,13 +1202,13 @@ the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS =
 `advisor/tools/explore.py`) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
-annotation) → **GenerateSynthesis**
+annotation, **opt-in and off by default** — `settings.audit_transformations`) → **GenerateSynthesis**
   **Phase 1 fans out 3×, and that sets the whole stage's cost.** `ActionExtraction` runs one LLM call per
   `INSIGHT_CATEGORIES` entry (Generative/Configurational/Corrective) and returns THREE Ac+ candidates per edge;
   Phase 2 loops over them (`_find_matching_category` pairs each with the opposite edge's same-category
   candidate), so an edge yields 3 Transformations, not 1 — **6N per N-PP wheel**, i.e. 6 for a 1-PP wheel
   (verified on a real provider, `tests/test_single_perspective_explore_real_llm.py`). Per deepened wheel that is
-  2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit) calls. CLAUDE.md said "2N Transformations" until
+  2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit *only when the audit is enabled*) calls. CLAUDE.md said "2N Transformations" until
   2026-08-13 — it was counting edges. If you are reasoning about explore latency or about how many pathways the
   model gets to choose between, this multiplier is the number that matters, and adding an insight category
   multiplies the whole stage. (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only

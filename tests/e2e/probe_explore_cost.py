@@ -109,6 +109,19 @@ on the critical path. Every other row is 6 calls — one per Transformation — 
 audit is the only place where "ask for less" is available without removing a
 generation stage.
 
+**ACTED ON (2026-08-27): the audit is now opt-in and off by default** —
+`settings.audit_transformations`. Not batched, removed from the default path: a
+blast-radius trace found no code consumer at all (the `FeasibilityEstimation` is
+rendered where present and omitted where absent; the critique Rationale it writes
+has no reader anywhere), so the cheapest correct answer to "ask for less" was to
+stop asking. **A re-run of this probe will therefore show 35 calls, not 47, and
+`TransitionAuditDto` absent from the table** — that is the change, not a
+regression. Set `DIALEXITY_AUDIT_TRANSFORMATIONS=true` to reproduce the numbers
+above. Two consequences worth carrying: the per-caller table is now 6 calls in
+every row, so the concern that dominates provider time is whichever generation
+stage is slowest rather than a self-evaluation layer; and the depth estimate drops
+by the audit's stage, since it closed each Transformation's chain.
+
 Two things this run also surfaced, neither of them about cost:
 
 - `SynthesisPairDto` returned `s_plus` and omitted required `s_minus`. A

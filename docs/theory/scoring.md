@@ -104,12 +104,16 @@ self-regulatory capability, inversely correlated with log(people involved); cond
 "estimate practical feasibility of step x in the presence of steps y1, y2, …"; transition
 feasibility rises with wheel size (mutual reinforcement). [P0 pp.19-22; P1 pp.23-24,35-39]
 **Implementation:** `concerns/causality/*` (CausalityEstimation scores cycle plausibility);
-`concerns/transformation_audit.py` (per-transformation feasibility annotation).
+`concerns/transformation_audit.py` (per-transformation feasibility annotation, **opt-in** —
+`settings.audit_transformations`, default off).
 **Status:** partial
 **Notes:** Both scoring sites exist but: (a) causality scoring is not the paper's conditional
 in-presence-of prompt; (b) no 0.5 feasibility threshold/`No≥0.5` aggregate anywhere; (c) neither
 gates — both annotate. The mutual-reinforcement hypothesis (feasibility ↑ with thesis count) is
-untested in code.
+untested in code. Transformation feasibility is also **absent by default**: the audit costs two
+provider calls per Transformation (measured at 40% of an exploration's whole provider spend) and
+nothing reads what it writes, so it was made opt-in. Even with it on, only Ac+ and Re+ are scored
+— the paper's per-step conditional sequence scoring has no implementation on either path.
 
 ### Mode / Arousal values
 **Theory:** Mode = thesis-lessness ladder value; Arousal ∈ [0,1] activation. [P0 pp.7-8]
