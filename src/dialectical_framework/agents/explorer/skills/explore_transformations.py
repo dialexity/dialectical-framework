@@ -51,6 +51,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AcMinusRelationship, AcPlusRelationship, AcRelationship,
     ReMinusRelationship, RePlusRelationship, ReRelationship)
 from dialectical_framework.utils.async_drain import drain_completed
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  progress_scope,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -151,54 +154,75 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # 3. Get input text from scope
         input_text = await self._get_input_text()
 
-        # 4. Process edge pairs in parallel — both edges get Transformations
-        pair_results = await asyncio.gather(
-            *[
-                self._process_edge_pair(wheel, nexus, edge_a, edge_b, input_text)
-                for edge_a, edge_b in edge_pairs
-            ],
-            return_exceptions=True,
-        )
-
         all_existing: list[Transformation] = []
         all_new: list[Transformation] = []
         last_apexes: Optional[ApexDerivationResultDto] = None
-
         failed_pairs: list[str] = []
-        for result in pair_results:
-            if isinstance(result, Exception):
-                logging.getLogger(__name__).warning("Edge pair failed: %s", result)
-                # A log line is not a report line. The caller
-                # (ExplorationPipeline, `deepen`) reads only `str(report)`, so
-                # without this a wheel whose every edge pair failed rendered as
-                # "0 new, 0 existing" with ok=True — indistinguishable from a
-                # wheel that was already fully transformed.
-                failed_pairs.append(f"{type(result).__name__}: {result}")
-                continue
-            existing, new, apexes = result
-            all_existing.extend(existing)
-            all_new.extend(new)
-            if apexes:
-                last_apexes = apexes
 
-        # 5. Audit new transformations in parallel
-        if all_new:
-            from dialectical_framework.concerns.transformation_audit import TransformationAudit
-
-            async def _audit_one(tr: Transformation) -> TransformationAudit:
-                auditor = TransformationAudit()
-                await auditor.resolve(tr, input_text)
-                return auditor
-
-            audit_results = await asyncio.gather(
-                *[_audit_one(tr) for tr in all_new],
+        # The progress scope spans BOTH phases and the audit, i.e. the whole span
+        # `probe_explore_progress.py` measured as dead air. It is installed HERE,
+        # one level above the concurrency, for two reasons that are both easy to get
+        # wrong:
+        #
+        # 1. A task created before the scope is installed captures a context without
+        #    it and reports nothing. Every `ensure_future` below must be inside.
+        # 2. Installed per edge PAIR instead, each pair would open its own scope and
+        #    a 2-PP wheel would publish two competing denominators for one stage.
+        #    One scope per tool call, keyed by wheel so concurrently-deepened wheels
+        #    stay distinguishable.
+        #
+        # The denominator starts at 0 and grows via `expect_progress` as each pair
+        # discovers what it owes — the count is not knowable here, since it depends
+        # on what Phase 1 extracts and on what each edge already carries.
+        with progress_scope("transformation", key=wheel.short_hash):
+            # 4. Process edge pairs in parallel — both edges get Transformations
+            pair_results = await asyncio.gather(
+                *[
+                    self._process_edge_pair(wheel, nexus, edge_a, edge_b, input_text)
+                    for edge_a, edge_b in edge_pairs
+                ],
                 return_exceptions=True,
             )
-            for result in audit_results:
+
+            for result in pair_results:
                 if isinstance(result, Exception):
-                    logging.getLogger(__name__).warning("Audit failed: %s", result)
+                    logging.getLogger(__name__).warning("Edge pair failed: %s", result)
+                    # A log line is not a report line. The caller
+                    # (ExplorationPipeline, `deepen`) reads only `str(report)`, so
+                    # without this a wheel whose every edge pair failed rendered as
+                    # "0 new, 0 existing" with ok=True — indistinguishable from a
+                    # wheel that was already fully transformed.
+                    failed_pairs.append(f"{type(result).__name__}: {result}")
                     continue
-                self._report = self._report.merge(result.report)
+                existing, new, apexes = result
+                all_existing.extend(existing)
+                all_new.extend(new)
+                if apexes:
+                    last_apexes = apexes
+
+            # 5. Audit new transformations in parallel
+            if all_new:
+                from dialectical_framework.concerns.transformation_audit import TransformationAudit
+
+                async def _audit_one(tr: Transformation) -> TransformationAudit:
+                    # One step per Transformation, not per call. The audit is two
+                    # provider calls, but a person watching wants "auditing 3 of 6",
+                    # not a denominator inflated by an internal detail.
+                    report_progress("Checking the move against the situation")
+                    auditor = TransformationAudit()
+                    await auditor.resolve(tr, input_text)
+                    return auditor
+
+                expect_progress(len(all_new))
+                audit_results = await asyncio.gather(
+                    *[_audit_one(tr) for tr in all_new],
+                    return_exceptions=True,
+                )
+                for result in audit_results:
+                    if isinstance(result, Exception):
+                        logging.getLogger(__name__).warning("Audit failed: %s", result)
+                        continue
+                    self._report = self._report.merge(result.report)
 
         # Summary
         self._report.artifacts["wheel_hash"] = wheel.short_hash
@@ -435,6 +459,11 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 )
                 generation_tasks.append((edge, data, ac_plus, task))
 
+        # Declared here rather than inside `_generate_tetrad`: the denominator has to
+        # exist before the first step of the first tetrad publishes, and the tasks
+        # above do not begin running until the drain below awaits them.
+        expect_progress(len(generation_tasks) * TransformationGeneration.PROGRESS_STEPS)
+
         # Write each tetrad AS IT LANDS, not after all of them land. Writes are
         # still strictly one at a time — `_create_transformation` is synchronous,
         # so two can never interleave and the GQLAlchemy constraint holds exactly
@@ -454,9 +483,12 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
         # Kept rather than reverted, for the case it does serve: one tetrad hitting
         # a ParseError retry used to hold back the writes of all five siblings, and
         # now holds back only its own. Tail behaviour, not median — do not cite it
-        # as a latency fix. Closing the real hole needs a progress signal emitted
-        # INSIDE `_generate_tetrad`, between its four sequential calls, where there
-        # is no node to report yet.
+        # as a latency fix.
+        #
+        # What DID address the silence is the progress scope opened in `resolve()`:
+        # `TransformationGeneration.resolve` reports each of its four steps as it
+        # starts, on the `sid:progress` channel, because there is no node to report
+        # there and an `Effect` would be a lie.
         #
         # Failure semantics unchanged from `gather(..., return_exceptions=True)`:
         # a failed tetrad is a logged skip that the resume machinery below tops up
@@ -602,10 +634,16 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
 
         merged_report = ExecutionReport(tool=self.__class__.__name__)
 
+        # Two calls, neither of which writes a node — so without these two lines
+        # Phase 1 is part of the same silence Phase 2 was.
+        expect_progress(2)
+
+        report_progress("Working out what good looks like here")
         apex_service = ApexDerivation()
         apexes = await apex_service.resolve(edge, input_text)
         merged_report = merged_report.merge(apex_service.report)
 
+        report_progress("Looking for concrete moves to take")
         extractor = ActionExtraction()
         ac_candidates = await extractor.resolve(
             edge, input_text,

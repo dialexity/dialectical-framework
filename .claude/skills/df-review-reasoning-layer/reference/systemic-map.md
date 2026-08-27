@@ -142,6 +142,35 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     holds back its five siblings' writes — tail behaviour, not median) and must not be cited as a latency
     fix. General lesson for this stack: a concurrency change is only a latency change when the durations
     it reorders actually differ; check the per-caller table for uniformity before predicting a spread.
+  - **The signal that DID fill the hole, and the seam it uses (landed 2026-08-27).** Progress rides a
+    SEPARATE channel, `f"{sid}:progress"` (`events/progress_event.py`, `GraphEventBus.publish_progress` /
+    `subscribe_progress`), carrying a `ProgressEvent`, never an `Effect`. Chosen over widening `GraphEvent`
+    or adding a `progress` member to `EffectType` for one reason worth keeping: **a host that knows nothing
+    about progress keeps working exactly as it does today**, because nothing new appears on the channel it
+    subscribes to. Measured both ways in the same run — graph-only largest gap 34.2s (unchanged, as
+    promised), with progress **12.7s**; dead air 83% → 72%; 28 of the 37 events land inside the formerly
+    silent 34s. `tests/test_progress.py::TestTheGraphChannelIsUntouched` asserts the compatibility promise
+    directly rather than inferring it from the channel name.
+    Emission is `utils/progress.py`: `progress_scope(stage, key=…)` plus `report_progress(detail)` /
+    `expect_progress(n)`, a no-op when no scope is installed. Three things there are load-bearing and were
+    each a bug first or nearly one. (1) The ContextVar holds a **mutable** scope so gathered children
+    mutate what the parent can see — same reason as `call_census`, and here it also means **a task created
+    BEFORE the scope is installed never reports**, which is why `ExploreTransformations` opens the scope
+    above its `gather` rather than inside `_process_edge_pair`. (2) Unlike the two measurement instruments
+    it is NOT a stack — innermost wins — because two denominators describing one instant is worse for a
+    person than one. (3) `_publish` **snapshots** `done`/`total` before scheduling the send; reading them
+    inside the deferred task made every event in a fan-out carry the same final count.
+    `detail` strings carry NO framework vocabulary (no T+/A-, no Ac/Re, no insight band): a host may render
+    them verbatim and the silent Advisor's contract is that the machinery stays hidden. `total` GROWS as
+    work is discovered (2 → 4 → 34 in one run), so a host caching the first denominator draws a bar that
+    goes backwards; `done` counts FINISHED steps while `detail` names the one that just started, so they
+    disagree by one and `done` never reaches `total` mid-run — the `final=True` event closes it out with
+    the count that actually completed, deliberately not rounded up, so a partial build reads as 22/24.
+    **The floor is now one provider call.** The widest remaining gap is `SynthesisGeneration`, a single
+    `submit`: its step announces the stage but cannot subdivide it, so labelled quiet is the best available
+    without streaming. `TransformationGeneration.PROGRESS_STEPS` is a public constant callers size their
+    denominator from — drift between it and the `report_progress` call count corrupts every bar silently,
+    so `TestProgressStepsMatchesTheCalls` pins it.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own

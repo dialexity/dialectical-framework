@@ -33,6 +33,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
 from dialectical_framework.graph.relationships.synthesis_of_relationship import (
     SynthesisOfRelationship,
 )
+from dialectical_framework.utils.progress import (progress_scope,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -129,13 +131,23 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
         input_text = await self._get_input_text()
         lower_layer_context = self._build_lower_layer_context(wheel)
 
-        # Call the concern
-        concern = SynthesisGeneration()
-        result = await concern.resolve(
-            wheel=wheel,
-            input_text=input_text,
-            lower_layer_context=lower_layer_context,
-        )
+        # Call the concern.
+        #
+        # One progress step, because `SynthesisGeneration` is ONE provider call. This
+        # names the stage rather than filling it: `probe_explore_progress.py` measured
+        # the stretch between the last transformation effect and the Synthesis nodes
+        # as ~10s, and one event at the start leaves ~10s of quiet after it. Said
+        # plainly so nobody expects a shrinking gap here — an indivisible call is the
+        # floor, and subdividing it would mean streaming, a much larger change.
+        # What it buys is that the quiet is now labelled instead of blank.
+        with progress_scope("synthesis", key=wheel.short_hash, total=1):
+            report_progress("Drawing out what emerges from the whole picture")
+            concern = SynthesisGeneration()
+            result = await concern.resolve(
+                wheel=wheel,
+                input_text=input_text,
+                lower_layer_context=lower_layer_context,
+            )
         self._report = self._report.merge(concern.report)
 
         if result is None:

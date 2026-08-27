@@ -34,6 +34,7 @@ from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
 from dialectical_framework.concerns.scoring_scales import HS_SCALE
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.utils.progress import report_progress
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
@@ -325,6 +326,12 @@ class TransformationGeneration(
     - HS scores by comparing to derived apexes
     """
 
+    #: How many progress steps one `resolve()` reports. Callers multiply by their
+    #: tetrad count to get a denominator, so this MUST equal the number of
+    #: `report_progress` calls below — `TestProgressStepsMatchesTheCalls` asserts it,
+    #: because drift here silently corrupts every progress bar rather than failing.
+    PROGRESS_STEPS = 4
+
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
@@ -379,12 +386,24 @@ class TransformationGeneration(
             ac_plus.proactiveness_label
         )
 
+        # The four `report_progress` calls below are the ONLY thing a person can see
+        # during this chain: nothing here writes a graph node, so no `Effect` reaches
+        # the bus until `_create_transformation` runs after the last of them. That is
+        # what made `explore`'s transformation phase 45.6s of silence.
+        #
+        # `detail` carries NO framework vocabulary — no T+/A-, no Ac/Re, no insight
+        # band. A host may render it verbatim, and the silent Advisor's whole contract
+        # is that the machinery stays hidden (CLAUDE.md, "User-Facing Vocabulary is
+        # App-Layer"). Plain description of the activity only.
+
         # Generate Ac- (this-edge context)
+        report_progress("Working out how this move can overshoot")
         ac_minus_completion = await self._generate_ac_minus(
             edge_context, input_text, ac_plus, parent_context=parent_context,
         )
 
         # Generate Re+, Re- (opposite-edge context + opposite Ac+)
+        report_progress("Working out the answering move")
         re_side_completion = await self._generate_re_side(
             opposite_edge_context, opposite_ac_plus, ac_plus,
             expected_re_category,
@@ -430,6 +449,7 @@ class TransformationGeneration(
         )
 
         # Score HS in a separate LLM call
+        report_progress("Scoring how well the pair holds together")
         hs_scores = await self._score_hs(
             ac_plus.statement,
             re_plus_dto.statement,
@@ -439,6 +459,7 @@ class TransformationGeneration(
         re_plus_hs = hs_scores.re_plus_hs
 
         # Generate category reframings (Ac from this-edge, Re from opposite-edge)
+        report_progress("Naming what kind of move this is")
         category_reframings = await self._generate_category_reframings(
             ac_plus.proactiveness_label,
             expected_re_category,

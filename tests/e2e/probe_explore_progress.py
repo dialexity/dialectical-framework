@@ -136,6 +136,47 @@ retrying tetrad no longer holds back its five siblings' writes — tail, not med
 and the conclusion above stands unchanged: the 43s belongs to work that produces no
 node until it is finished, so only a progress signal emitted between
 `_generate_tetrad`'s four sequential calls can fill it.
+
+THIRD RUN, after the `sid:progress` channel landed — the hole is filled
+======================================================================
+That signal now exists (`utils/progress.py`, `events/progress_event.py`), published
+on a channel of its own so no existing subscriber can break. Two runs, both 1 PP::
+
+                              run A          run B
+    wall                      68.0s          75.2s
+    graph-only largest gap    33.4s          34.2s     <- UNCHANGED, by design
+    with progress             10.0s          12.7s
+    graph-only dead air         82%            83%
+    with progress               70%            72%
+    progress events              35             37
+
+**The transformation hole is gone and the compatibility promise held.** The 34.2s
+graph-silent stretch now carries 28 progress events, roughly one per 1.2s, each
+naming what is being worked on ("Working out how this move can overshoot", 17/34).
+The graph channel's own figures did not move at all — same 0.0s first effect, same
+bursts, same 34s hole — which is the point: a host that ignores this change sees
+byte-for-byte what it saw before, and one that opts in sees the gap fall ~3x.
+
+**The remaining gap is ONE provider call, and that is the floor.** After the third
+run the widest hole is 12.7s between "Drawing out what emerges from the whole
+picture" and the Synthesis nodes appearing — `SynthesisGeneration` is a single
+`submit`, so a progress signal can announce the stage but cannot subdivide it.
+Do not expect this number to shrink without streaming the synthesis, which is a
+much larger change (`raw_call=True`, and the concurrency slot is excluded from it).
+Labelled quiet is still a large improvement on blank quiet, but it is a label.
+
+Second-order findings from the same runs, both worth knowing before optimising:
+
+- **The audit phase reports all its steps at once** (6 events at 38.0s) because the
+  audits are gathered — then relies on its Rationale writes to trickle, which they
+  do, at 2-6s apart. Adequate, and the reason the audit was left at one step per
+  Transformation rather than per call.
+- `total` really does grow (2 → 4 → 34 across one run), so a host that caches the
+  first denominator it sees will render a bar that goes backwards. The event
+  docstring says this; this is the run that demonstrates it.
+- Wall clock ran 68.0s / 75.2s here against 80.9s / 97.5s earlier. That is
+  run-to-run variance on 47-50 calls, NOT an effect of any change in this file's
+  history. Do not read any of these deltas as a latency result.
 """
 
 from __future__ import annotations
@@ -159,6 +200,7 @@ from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.scope_context import scope
+from dialectical_framework.utils import progress as progress_module
 from dialectical_framework.utils.call_census import call_census
 
 #: Same scenario as `probe_explore_cost.py`, so the two runs are comparable and a
@@ -211,12 +253,23 @@ async def test_probe_explore_progress_stream(di_container):
         "the report class is not publishing to this bus, so an empty stream below"
         " would say nothing about the framework"
     )
+    # Same check for the progress channel, for the same reason: the module-level bus
+    # is wired by `DialecticalReasoning.setup`, and if some earlier test cleared it
+    # an empty progress stream would read as "the emission points don't fire".
+    assert progress_module._event_bus is bus, (
+        "progress is not wired to this bus — see `utils/progress.set_event_bus`"
+    )
 
     case = Case()
     case.commit()
 
     #: (seconds since tool start, effect) — appended by the collector task.
     seen: list[tuple[float, object]] = []
+    #: (seconds since tool start, ProgressEvent) — the second channel. Kept apart
+    #: from `seen` because the headline question is what the two streams look like
+    #: SEPARATELY: a host that only subscribes the old way still sees `seen`, and
+    #: the whole point of the change is that this list is what fills its gaps.
+    progress: list[tuple[float, object]] = []
 
     try:
         with scope(case.sid), using_model(di_container, DEFAULT_TIER_WEAK):
@@ -243,13 +296,22 @@ async def test_probe_explore_progress_stream(di_container):
                     async for event in subscriber:
                         seen.append((time.monotonic() - started, event.message.effect))
 
+            async def _collect_progress() -> None:
+                async with bus.subscribe_progress(case.sid) as subscriber:
+                    progress_ready.set()
+                    async for event in subscriber:
+                        progress.append((time.monotonic() - started, event.message))
+
             ready = asyncio.Event()
+            progress_ready = asyncio.Event()
             collector = asyncio.create_task(_collect())
+            progress_collector = asyncio.create_task(_collect_progress())
             # Subscribe BEFORE the work: `broadcaster` registers the queue inside
             # the context manager, so a task merely created is not yet listening
             # and the first events would be dropped — which would corrupt the one
             # number this probe exists to measure.
             await ready.wait()
+            await progress_ready.wait()
 
             with call_census() as census:
                 report, transformation_hashes = await run_exploration_detailed(
@@ -263,10 +325,12 @@ async def test_probe_explore_progress_stream(di_container):
             # recorded in the final instant have not necessarily been delivered.
             await asyncio.sleep(0.5)
             collector.cancel()
-            try:
-                await collector
-            except asyncio.CancelledError:
-                pass
+            progress_collector.cancel()
+            for task in (collector, progress_collector):
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
     finally:
         await bus.disconnect()
 
@@ -347,6 +411,53 @@ async def test_probe_explore_progress_stream(di_container):
         legible = {e.node.label for _, e in seen if e.node}
         print(f"\n  node kinds on the stream: {', '.join(sorted(legible))}")
 
+        # The number that decides whether the progress channel was worth adding:
+        # dead air as experienced by a host subscribed to BOTH streams. The graph
+        # figures above are what a host that ignores the change still sees, and they
+        # are expected to be unchanged — that is the compatibility promise.
+        merged = sorted(stamps + [t for t, _ in progress])
+        merged_gaps = (
+            [(0.0, merged[0])]
+            + [(merged[i - 1], merged[i]) for i in range(1, len(merged))]
+            + [(merged[-1], waited)]
+        )
+        merged_widest = max(merged_gaps, key=lambda g: g[1] - g[0])
+        merged_dead = sum(
+            g[1] - g[0] for g in merged_gaps if g[1] - g[0] >= _NOTICEABLE_GAP_S
+        )
+        print(
+            f"\n  WITH THE PROGRESS CHANNEL: {len(progress)} progress event(s)"
+            f"\n  largest silent gap  {merged_widest[1] - merged_widest[0]:.1f}s"
+            f"  at {merged_widest[0]:.1f}s–{merged_widest[1]:.1f}s"
+            f"  (graph-only: {widest[1] - widest[0]:.1f}s)"
+            f"\n  dead air over {_NOTICEABLE_GAP_S:.0f}s: {merged_dead:.1f}s"
+            f" = {merged_dead / waited:.0%} of the wall"
+            f"  (graph-only: {dead_air / waited:.0%})"
+        )
+
+        if progress:
+            # What the widest graph-only hole now contains, which is the whole claim.
+            inside = [
+                (t, e) for t, e in progress if widest[0] <= t <= widest[1]
+            ]
+            print(
+                f"  the {widest[1] - widest[0]:.1f}s graph-silent stretch now carries"
+                f" {len(inside)} progress event(s)"
+            )
+            for t, event in progress[:4]:
+                print(
+                    f"    {t:6.1f}s  {event.done:3d}/{event.total:<3d} {event.detail}"
+                )
+            print("      ...")
+            for t, event in progress[-3:]:
+                final = "  FINAL" if event.final else ""
+                print(
+                    f"    {t:6.1f}s  {event.done:3d}/{event.total:<3d}"
+                    f" {event.detail}{final}"
+                )
+            stages = {e.stage for _, e in progress}
+            print(f"  stages reporting progress: {', '.join(sorted(stages))}")
+
     # Coherence only, never a duration: this probe measures, it does not gate.
     assert seen, (
         "no effect reached the bus during a tool that demonstrably records node"
@@ -355,6 +466,16 @@ async def test_probe_explore_progress_stream(di_container):
     )
     assert all(0.0 <= t <= waited + 1.0 for t, _ in seen), (
         "an effect is timestamped outside the tool's own wall clock"
+    )
+    assert progress, (
+        "the progress channel delivered nothing during a tool that reports steps"
+        " from `TransformationGeneration` — either the scope was installed after the"
+        " tasks were created (they then inherit a context without it) or"
+        " `progress.set_event_bus` was never wired"
+    )
+    assert all(e.total >= e.done for _, e in progress), (
+        "a progress event claims more steps done than expected — the denominator is"
+        " being declared after the steps it covers"
     )
 
 

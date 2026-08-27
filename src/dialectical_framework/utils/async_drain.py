@@ -37,7 +37,9 @@ table (6 each of five DTOs — perfectly homogeneous work).
 So the hole is not caused by the barrier. It is caused by nothing being WRITABLE
 until a whole Transformation's 4-call chain finishes, which means the honest signal
 during that window is progress ("4 of 6 generated"), not a mutation — the conclusion
-the progress probe already reached, and this change does not substitute for it.
+the progress probe already reached, and this change does not substitute for it. That
+signal now exists on its own channel (`utils/progress.py`) and is what actually
+closed the gap: 34.2s → 12.7s, re-measured.
 
 What the drain does still buy, and why it is kept rather than reverted: it removes a
 barrier that bites whenever the work ISN'T uniform. One tetrad hitting a ParseError

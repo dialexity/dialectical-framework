@@ -281,6 +281,8 @@ container.commit()
 
 **Event reporting:** `commit()` emits no SSE events. When it creates relationships internally (e.g., `Polarity.commit()` creates T/A edges), the calling skill emits `relationship_created` per edge. Save-then-commit containers emit split events: `report.node_created(node)` after `save()`, `report.node_committed(node)` after `commit()`. Atomic-commit nodes emit one `node_created` with both set.
 
+**Two channels per scope, and `Effect` stays a mutation.** `sid` carries `GraphEvent(effect=…)`; `sid:progress` carries `ProgressEvent` (`events/progress_event.py`, `bus.publish_progress`/`subscribe_progress`). Long chains that write no node until they finish — `TransformationGeneration` is 4 sequential calls, measured as 34s of dead air — report via `utils/progress.py`: `progress_scope(stage, key=…)` around the work, `report_progress(detail)` per step, `expect_progress(n)` to grow the denominator as work is discovered. No-op with no scope installed. **Never widen `Effect`/`EffectType` for progress** — a separate channel is what lets an existing host upgrade without changes (pinned by `TestTheGraphChannelIsUntouched`). Two traps: the ContextVar holds a MUTABLE scope so gathered children share it, which means **a task created before the scope is installed reports nothing** (open the scope above the `gather`); and `detail` strings must carry no framework vocabulary, since a host may render them verbatim under the silent Advisor. `done` = steps finished, `detail` = step just started, `total` grows — see the module docstrings before rendering any of it.
+
 ### Relationship Direction
 
 `RelationshipTo` and `RelationshipFrom` define the SAME edge from different perspectives. Convention: Child→Parent edges use `RelationshipTo` on child.

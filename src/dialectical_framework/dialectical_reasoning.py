@@ -13,6 +13,7 @@ from dialectical_framework.graph.composite_input_resolver import CompositeInputR
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.events.graph_event_bus import GraphEventBus
 from dialectical_framework.graph.scope_context import get_current_sid
+from dialectical_framework.utils import progress
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -32,6 +33,9 @@ class DialecticalReasoning(containers.DeclarativeContainer):
         container = cls()
         container.settings.override(settings)
         ExecutionReport.set_event_bus(container.event_bus())
+        # Same bus object, different channel (`sid:progress`). Wired separately
+        # because progress is not a graph mutation — see `utils/progress.py`.
+        progress.set_event_bus(container.event_bus())
         if settings.effect_log_dir:
             from dialectical_framework.utils.effect_logger import EffectLogger
             ExecutionReport.set_effect_logger(EffectLogger(settings.effect_log_dir))
