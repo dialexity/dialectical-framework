@@ -18,6 +18,7 @@ from pydantic import ValidationError as PydanticValidationError
 from dialectical_framework.enums.di import DI
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
+from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.concurrency import llm_concurrency_slot
 from dialectical_framework.utils.retry_accounting import record_retry
 
@@ -171,7 +172,23 @@ def use_brain(
                 attempt_started = time.monotonic()
                 try:
                     async with llm_concurrency_slot():
+                        # Timed INSIDE the slot: waiting for a semaphore is
+                        # queueing, not provider time, and counting it here would
+                        # make a throttled fan-out read as slow calls rather than
+                        # as a queue. `CallCensus` documents where that wait
+                        # surfaces instead.
+                        call_started = time.monotonic()
                         response = await _llm_call()
+                        record_call(
+                            method.__qualname__,
+                            seconds=time.monotonic() - call_started,
+                            started=call_started,
+                            # Without this the census cannot tell 33 DTOs apart:
+                            # they all come through one `@use_brain` site in
+                            # `ConversationFacilitator`, so the qualname is a
+                            # constant.
+                            format_name=format_name,
+                        )
                     _trace_generation(
                         response=response,
                         model=resolved,

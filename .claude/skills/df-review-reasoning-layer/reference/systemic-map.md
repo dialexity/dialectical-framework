@@ -88,10 +88,30 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   - **Measured, not inferred, same day** (`tests/e2e/probe_anchor_retry_cost.py`, haiku-4.5, n=3):
     **3 of 3 `anchor` calls laddered.** Waited 123.5 / 321.3 / 809.8s, of which **working 46.8 / 41.4 /
     40.1s** and slept 70 / 270 / 750s — exact ladder sums, every call reporting `ok`. **So `anchor`
-    costs ~41s**, and r26's 282.8s median was 41s of work plus sleeping. `explore`'s 196.0s median is
-    un-decomposed and must be assumed to be the same blend. `MEDIAN_TOOL_ROUND_S` in
+    costs ~41s**, and r26's 282.8s median was 41s of work plus sleeping. `MEDIAN_TOOL_ROUND_S` in
     `tests/test_context_refresh_cost.py` now carries 41.4 (the working figure) and its full 42.0 → 282.8
     → 41.4 history.
+  - **`explore` decomposed 2026-08-27** (`tests/e2e/probe_explore_cost.py` + `utils/call_census.py`,
+    weak tier, 1 PP, 6 Transformations). Unlike `anchor` this one is **work, and the question that
+    replaced work-vs-sleep was volume-vs-depth: many calls, or few in a long chain?** Answer: **both, so
+    the dichotomy was false.** 47 calls, **367.8s of provider time compressed 4.15x** into 88.6s
+    in-flight, which is 85% of the 103.8s wall, about **11 stages deep** at 7.8s a stage. The fan-out is
+    genuinely working and the residual latency is structural — there is no missing `gather`, and asking
+    for less cuts COST while cutting latency only where it removes a stage. Keep those two levers apart:
+    latency follows `busy_s`/`depth`, cost follows `provider_s`, and `parallelism` is neither (it reports
+    compression already achieved). The first draft of that probe branched on `parallelism` alone and
+    announced "fan-out, so ask for less" about a run whose wall clock was a chain.
+    **The actionable finding: `TransitionAuditDto` is 40% of all provider time** — 147.4s over 12 calls
+    at ~12.3s each against a 7.8s mean, three times the next row (`ReSideCompletionDto`, 56.8s). Every
+    other concern is exactly 6 calls, one per Transformation; the audit is 2 per Transformation, so it is
+    the only place "ask for less" is available without deleting a generation stage, and it is expensive on
+    both levers because it closes each Transformation's chain. **Any prompt work on `TransitionAudit`
+    should be read as latency work too.** That table was only legible after `CallRecord` carried the DTO
+    name: all 33 structured DTOs share ONE `@use_brain` site in `ConversationFacilitator`, so grouping by
+    `__qualname__` put 49 of 50 calls in a single wrapper row.
+    1 PP is the FLOOR of `explore`'s cost, not r26's 196.0s median — but `parallelism` and `depth`
+    transfer across N (widening adds parallel branches without lengthening the per-Transformation chain),
+    which is why the cheap run answers the actionable half.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own
@@ -801,6 +821,16 @@ That response was truncated, so unwrapping `t_plus` would still have failed vali
 re-ask and got one for 10s. If the XML dialect appears in an otherwise complete response, it earns a rule.
 Corollary for prompt work on this stack: a parse failure here is evidence about how the structured-output
 request is FRAMED to the provider, not only about the DTO's own field descriptions.
+
+**A THIRD family, and it is prompt work rather than transport: a missing required field.**
+`probe_explore_cost.py` caught `SynthesisPairDto` returning a complete, well-formed `s_plus` and simply
+omitting required `s_minus` — repeatedly, and with DIFFERENT content each time. No wrapper is involved, so
+`_salvage_envelope` correctly declines (the invariant forbids inventing a key the model never sent) and
+the retry is the right response. What this family costs depends entirely on the curve: 2s under the flat
+one, and the run before it paid 10+20+40+80 = 150s for the same four resamples. **The lesson for this
+skill is where to look**: an envelope defect is a framing problem in how the request reaches the provider,
+whereas a systematically absent field is a problem in the DTO's own field descriptions or in the prompt's
+account of what the negative pole is for. `SynthesisPairDto`'s `s_minus` is the open instance.
 
 **Transport faults are a four-way taxonomy, and every branch has its own curve** (`use_brain.py`):
 `_is_connection_error` (class-name based, `_CONNECT_RETRY_MAX`), `_is_rate_limit_error` (429/Throttling, 10s
