@@ -112,6 +112,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     1 PP is the FLOOR of `explore`'s cost, not r26's 196.0s median — but `parallelism` and `depth`
     transfer across N (widening adds parallel branches without lengthening the per-Transformation chain),
     which is why the cheap run answers the actionable half.
+  - **Because that floor is structural, the latency question becomes a DISCLOSURE question, and it was
+    measured the same day** (`tests/e2e/probe_explore_progress.py`). Best-case optimisation (batching the
+    audit) lands `explore` near 70s, so nothing here reaches "snappy" — but 70s of visibly forming wheel
+    and 104s of nothing are not the same experience. **The machinery already exists and the emission
+    POINTS are wrong.** `ExecutionReport.node_created`/`node_committed`/`relationship_created` publish to
+    `GraphEventBus` through `_emit` the instant they are recorded (fire-and-forget, no batching, and
+    `merge()` deliberately does not re-emit, so each effect reaches the bus exactly once). Measured:
+    **first effect at 0.0s and the entire structural skeleton — Nexus, Perspective, Cycle, 2 Wheels,
+    Transitions — inside 1.5s**, then **one 45.6s silence covering 33 of 50 provider calls**, then 120
+    effects in a single burst; dead air 92.7s = **95% of the 97.5s wall**.
+    The cause is CLAUDE.md's concurrency rule working exactly as written — gather the LLM work, write
+    graph nodes sequentially after the gather — so an effect cannot be emitted while its work runs,
+    because the node it reports does not exist yet. The audit phase DOES trickle (one Rationale per
+    finishing audit, 54–91s), which is the shape the Transformation phase should have. **So the fix is
+    not a subscription and not a `gather`: the bus carries graph MUTATIONS, and the honest signal during
+    those 45.6s ("4 of 6 transformations generated") is progress, not a mutation.** A gathered child may
+    emit one safely — publishing is not a graph write, so the GQLAlchemy constraint does not apply — but
+    `Effect` is documented as an atomic mutation and carries `previous` for undo, so overloading its
+    `effect_type` would be the wrong seam. This is a host-facing contract change; do not make it silently.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own
