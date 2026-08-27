@@ -131,6 +131,17 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     emit one safely — publishing is not a graph write, so the GQLAlchemy constraint does not apply — but
     `Effect` is documented as an atomic mutation and carries `previous` for undo, so overloading its
     `effect_type` would be the wrong seam. This is a host-facing contract change; do not make it silently.
+  - **A fix was tried the same day and it did not work — worth knowing before trying it again.** The
+    Transformation write loop was moved off `asyncio.gather` onto a completion-order drain
+    (`utils/async_drain.py`), expecting each Transformation to land as its own work finished. Re-measured:
+    the gap went **45.6s → 42.9s** and the burst spread from one instant to 2.0s. Nothing a person would
+    notice. The cause was legible in the cost probe's per-caller table all along — **the six tetrad tasks
+    are six IDENTICAL 4-call chains started together, so they finish together, and completion-order
+    draining only pays on HETEROGENEOUS work.** The barrier was real and was not what the person was
+    waiting for. The drain was kept for the case it does serve (a tetrad hitting a parse retry no longer
+    holds back its five siblings' writes — tail behaviour, not median) and must not be cited as a latency
+    fix. General lesson for this stack: a concurrency change is only a latency change when the durations
+    it reorders actually differ; check the per-caller table for uniformity before predicting a spread.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own

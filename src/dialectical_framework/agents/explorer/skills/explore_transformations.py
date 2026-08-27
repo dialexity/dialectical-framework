@@ -50,6 +50,7 @@ from dialectical_framework.graph.nodes.transition import Transition
 from dialectical_framework.graph.relationships.polarity_relationship import (
     AcMinusRelationship, AcPlusRelationship, AcRelationship,
     ReMinusRelationship, RePlusRelationship, ReRelationship)
+from dialectical_framework.utils.async_drain import drain_completed
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -307,10 +308,14 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
             had_existing[edge.hash] = bool(existing)
 
             # An edge is done when it carries one Transformation per insight
-            # category — NOT merely when it carries any. The write loop below is
-            # sequential after the generation gather, so a session that closed
-            # mid-loop leaves an edge with some categories committed and the rest
+            # category — NOT merely when it carries any. The write loop below
+            # commits one Transformation at a time, so a session that closed
+            # mid-drain leaves an edge with some categories committed and the rest
             # missing; treating non-empty as done stranded such an edge forever.
+            # That partial state is now reached SOONER (the drain writes in
+            # completion order rather than after a barrier), which changes nothing
+            # about correctness — this resume path is exactly what makes writing
+            # incrementally safe rather than a new class of half-built edge.
             missing = self._missing_categories(existing)
             source_segment = edge.get_source_wheel_segment()
             target_segment = edge.get_target_wheel_segment()
@@ -430,29 +435,60 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                 )
                 generation_tasks.append((edge, data, ac_plus, task))
 
-        # Await all generation tasks and create graph nodes sequentially
+        # Write each tetrad AS IT LANDS, not after all of them land. Writes are
+        # still strictly one at a time — `_create_transformation` is synchronous,
+        # so two can never interleave and the GQLAlchemy constraint holds exactly
+        # as it did under `gather`.
+        #
+        # **This did NOT fix the silence it was aimed at, and the honest figure
+        # belongs here rather than only in a commit message.**
+        # `probe_explore_progress.py` measured this phase as 45.6s of dead air
+        # ending in 120 effects at once; after the switch from `gather` to a
+        # completion-order drain it measured 42.9s of dead air ending in 120 effects
+        # over 2.0s. Essentially nothing, because these are six IDENTICAL 4-call
+        # chains started together — they finish together, so there is no early
+        # result to deliver early. Completion-order draining only pays on
+        # heterogeneous work, which the cost probe's per-caller table (6 each of
+        # five DTOs) says this is not.
+        #
+        # Kept rather than reverted, for the case it does serve: one tetrad hitting
+        # a ParseError retry used to hold back the writes of all five siblings, and
+        # now holds back only its own. Tail behaviour, not median — do not cite it
+        # as a latency fix. Closing the real hole needs a progress signal emitted
+        # INSIDE `_generate_tetrad`, between its four sequential calls, where there
+        # is no node to report yet.
+        #
+        # Failure semantics unchanged from `gather(..., return_exceptions=True)`:
+        # a failed tetrad is a logged skip that the resume machinery below tops up
+        # on a later call, never something that takes down its siblings.
         all_new: list[Transformation] = []
         #: edge hash -> bands that actually reached the graph on this call.
         built: dict[str, set[str]] = {}
         if generation_tasks:
-            tetrad_results = await asyncio.gather(
-                *[t for _, _, _, t in generation_tasks],
-                return_exceptions=True,
-            )
-            for (edge, data, ac_plus, _), result in zip(generation_tasks, tetrad_results):
-                if isinstance(result, Exception):
-                    logging.getLogger(__name__).warning(
-                        "Tetrad generation failed for edge %s: %s", edge.short_hash, result
-                    )
-                    continue
-                tetrad, report = result
+            def _log_failure(
+                context: tuple[int, Transition, _EdgeProcessingData, ActionCandidateResultDto],
+                error: BaseException,
+            ) -> None:
+                logging.getLogger(__name__).warning(
+                    "Tetrad generation failed for edge %s: %s", context[1].short_hash, error
+                )
+
+            #: (submission index, transformation), sorted back at the end.
+            landed: list[tuple[int, Transformation]] = []
+            async for (index, edge, data, ac_plus), (tetrad, report) in drain_completed(
+                {
+                    task: (index, edge, data, ac_plus)
+                    for index, (edge, data, ac_plus, task) in enumerate(generation_tasks)
+                },
+                on_error=_log_failure,
+            ):
                 self._report = self._report.merge(report)
                 assert data.source_segment is not None
                 assert data.target_segment is not None
                 transformation = self._create_transformation(
                     nexus, edge, data.source_segment, data.target_segment, tetrad,
                 )
-                all_new.append(transformation)
+                landed.append((index, transformation))
                 assert edge.hash is not None
                 try:
                     built.setdefault(edge.hash, set()).add(
@@ -462,6 +498,10 @@ class ExploreTransformations(ReasonableConcern[ExploreTransformationsResult]):
                     # An off-scale label still produced a real Transformation;
                     # it just cannot be attributed to a band.
                     pass
+            # Emission order is now completion order, which is the point — but the
+            # REPORT's order stays submission order, so nothing downstream starts
+            # depending on which provider call happened to finish first.
+            all_new = [t for _, t in sorted(landed, key=lambda pair: pair[0])]
 
         # Resume accounting, AFTER the writes: what a part-built edge was topped
         # up with, and what it still owes. Both are needed — a top-up that came

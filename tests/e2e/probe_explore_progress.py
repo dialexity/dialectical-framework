@@ -107,6 +107,35 @@ progress and not a mutation. Closing it means a progress signal that a gathered
 child may emit safely (publishing to the bus is not a graph write, so the
 GQLAlchemy constraint does not apply), which is a change to the contract host apps
 consume and therefore not a change to make silently.
+
+SECOND RUN, same day — the barrier was NOT the cause, and this probe proved it
+============================================================================
+The write loop was changed from `asyncio.gather` + a post-barrier loop to a
+completion-order drain (`utils/async_drain.py`), on the reasoning that each
+Transformation would then land as its own work finished and the burst would spread
+across the 43s. Re-measured::
+
+    waited 80.9s   effects 150   calls 48
+    TIME TO FIRST EFFECT  0.0s
+    LARGEST SILENT GAP   42.9s   (was 45.6s)
+    burst at 44.4-46.4s, 120 effects   (was one instant)
+
+**The prediction was wrong.** The gap moved 45.6s → 42.9s and the burst spread over
+2.0s instead of 0 — nothing a person would notice. The reason is visible in the cost
+probe's own per-caller table and I should have read it first: the six tetrad tasks are
+six *identical* 4-call chains started at the same moment, so they complete at the same
+moment. **Completion-order draining only pays on heterogeneous work**, and this work
+is uniform by construction. The barrier was real and was not what the person was
+waiting for.
+
+(The 97.5s → 80.9s wall is run-to-run variance — 48 calls against 50 — not an effect
+of the change. Do not read it as one.)
+
+This is what the probe is for. The drain was kept for the case it does serve (a
+retrying tetrad no longer holds back its five siblings' writes — tail, not median),
+and the conclusion above stands unchanged: the 43s belongs to work that produces no
+node until it is finished, so only a progress signal emitted between
+`_generate_tetrad`'s four sequential calls can fill it.
 """
 
 from __future__ import annotations
