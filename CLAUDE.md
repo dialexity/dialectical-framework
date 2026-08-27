@@ -339,7 +339,7 @@ Named options / courses of action ("Take the startup offer") classify COMPLEX �
 
 Optional concurrency semaphore in `utils/concurrency.py` (env `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`; 0/unset = disabled). Applied inside `use_brain`; streaming (`raw_call=True`) excluded.
 
-Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts; ParseError: 2× up to 120s. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`** (can't express separate retry curves, per-attempt slot re-acquisition/tracing, or string-based Bedrock throttle detection).
+Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts. **ParseError is FLAT at 2s (`_PARSE_RETRY_DELAY_S`) — the one non-exponential curve, on purpose:** backoff works against congestion, and a wrong response *shape* does not heal while you wait (measured — the old 10s→120s curve slept 750s around 41s of `anchor` work and changed nothing). Nonzero only as back-pressure, since a fan-out stage fails many children at once. Wrong-envelope responses are unwrapped before retrying at all (`_salvage_envelope`); its invariant is that candidate field names come from the model's bytes, never the schema. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`** (can't express separate retry curves, per-attempt slot re-acquisition/tracing, or string-based Bedrock throttle detection).
 
 **Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, audits. `AnalysisPipeline` parallelizes `expand_polarities`/`find_polarities`. Graph writes stay sequential after gather.
 

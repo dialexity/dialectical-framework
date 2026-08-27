@@ -2,9 +2,15 @@
 
 WHY THIS EXISTS
 ===============
-`use_brain` retries a `ParseError` on a curve that doubles from 10s to a 120s cap
-over 10 attempts. Run to exhaustion that is **750 seconds of `asyncio.sleep`** —
-and until this module existed, nothing anywhere recorded that it had happened.
+`use_brain` used to retry a `ParseError` on a curve doubling from 10s to a 120s
+cap over 10 attempts. Run to exhaustion that is **750 seconds of `asyncio.sleep`**
+— and until this module existed, nothing anywhere recorded that it had happened.
+
+That curve is flat at 2s now (`_PARSE_RETRY_DELAY_S`), which does NOT retire this
+module — it is what made the flattening arguable in the first place. The throttle
+and 5xx curves still double, and the next expensive retry will be discovered the
+same way: by something recording where the seconds went. The measurement outlives
+the defect that motivated it.
 
 Bench round r26 measured `anchor` at a 282.8s median and 812.5s max and wrote it
 up as the tool's price. Four of its ten `anchor` rounds came in at 807.9s /

@@ -9,8 +9,10 @@ took that as the tool's price. The ten values were:
     36.5  38.9  43.4  43.5  107.8  457.9  807.9  808.2  812.3  812.5
 
 Four inside 5 seconds of each other at ~810s is a ceiling, not a workload. Every
-value fits ~40s of work plus a rung of `use_brain`'s ParseError ladder (10s
-doubling to a 120s cap = 750s over ten attempts): 107.8 ≈ 40+70, 457.9 ≈ 40+390,
+value fits ~40s of work plus a rung of `use_brain`'s ParseError ladder AS IT STOOD
+THEN (10s doubling to a 120s cap = 750s over ten attempts; flat at 2s since
+2026-08-27, so these sums are no longer reproducible — see the last section):
+107.8 ≈ 40+70, 457.9 ≈ 40+390,
 ~810 ≈ 40+750 with the ladder exhausted. All six slow rounds reported `ok` with
 `swallowed_errors: none`, and the whole 2.5-hour run logged zero warnings —
 because ParseError was the one retry branch that never logged.
@@ -115,6 +117,23 @@ two cases is whether the fault is deterministic — a descriptor the model emits
 3/3 times cannot be re-sampled away and must be salvaged; a derailment it emits
 once recovers on the next attempt and must be retried. If the XML dialect ever
 shows up in an otherwise complete response, that is when it earns a rule.
+
+AND THE LADDER ITSELF WENT FLAT, 2026-08-27
+===========================================
+Both outcomes above say the same thing about waiting, so `_PARSE_RETRY_DELAY_S` is
+now 2s with no doubling. Backoff is a congestion curve: it works because waiting
+makes the next attempt more likely to succeed. A wrong response SHAPE has no such
+property — the deterministic descriptor was never going to change, and the
+stochastic derailment was already fixed on the next sample, having first slept 10s
+for nothing.
+
+What this means for READING this probe from here on: the exact-ladder-sum
+signature that identified the fault (70 / 270 / 750) no longer exists, so a slow
+`anchor` can no longer be diagnosed by arithmetic on its wall clock. Use the
+`slept` column and the log lines. The sleep numbers above are history, not a
+baseline — n=3 under the flat curve would have cost ~2 to 6s of sleep in total
+where it cost 1090s. The remaining exposure is `retry_max` GENERATIONS (~40s each
+here), which is a separate and still-open question from the naps.
 """
 
 from __future__ import annotations
@@ -149,8 +168,9 @@ TENSIONS = [
     ("Raise with the cap table as it stands", "Fix the equity split before raising"),
 ]
 
-#: How many of them to run. Three is ~21 minutes when they ladder, which is worth
-#: paying once for a median and not worth paying to re-read a log line.
+#: How many of them to run. Three is ~2m20s now (~21 minutes before the salvage
+#: and the flat curve), which is worth paying once for a median and not worth
+#: paying to re-read a log line.
 ANCHOR_CALLS = max(1, min(len(TENSIONS), int(os.getenv("DIALEXITY_PROBE_ANCHOR_N", "3"))))
 
 

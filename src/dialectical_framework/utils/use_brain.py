@@ -79,9 +79,10 @@ def use_brain(
     """
     Decorator factory for Mirascope v2 LLM calls.
 
-    Retries on ParseError (validation failures) with exponential backoff, on
-    rate limits / throttling, and on transient connection failures (each with
-    its own curve — see `_is_connection_error`).
+    Retries on ParseError (validation failures) with a FLAT delay — waiting does
+    not fix a wrong shape, see `_PARSE_RETRY_DELAY_S` — and on rate limits /
+    throttling, transient connection failures and transient 5xx with exponential
+    backoff (each with its own curve — see `_is_connection_error`).
     Automatically traces all LLM calls via Langfuse when configured.
 
     When ``format`` is provided, returns the parsed model instance.
@@ -143,7 +144,7 @@ def use_brain(
                 return _llm_call
 
             attempts = max(1, retry_max)
-            parse_delay = 10.0
+            parse_delay = _PARSE_RETRY_DELAY_S
             rate_delay = 10.0
             connect_delay = _CONNECT_RETRY_BASE_S
             connect_attempts = 0
@@ -152,8 +153,11 @@ def use_brain(
             last_error: Exception | None = None
             #: Cumulative backoff for THIS call, so a log line can say what the
             #: retry has cost so far rather than only what the next nap costs.
-            #: Reading nine separate "backing off 120s" lines and summing them by
-            #: hand is how a 750s ladder goes unnoticed.
+            #: Reading nine separate "backing off" lines and summing them by hand
+            #: is how the old 750s parse ladder went unnoticed for a whole bench
+            #: round. Still worth carrying now that the parse curve is flat: the
+            #: throttle and 5xx curves still double, and they will exhaust the
+            #: same budget the same way.
             slept_s = 0.0
 
             for attempt in range(attempts):
@@ -193,13 +197,16 @@ def use_brain(
                     last_error = e
                     if attempt < attempts - 1:
                         # LOGGED, unlike before 2026-08-26. This was the only
-                        # retry branch that logged nothing, and it is the most
-                        # expensive one: doubling from 10s to a 120s cap over 10
-                        # attempts is 750s of sleeping. r26 spent 12.5 minutes
-                        # here on four separate `anchor` calls, all of which then
-                        # reported `ok`, and the whole 2.5-hour run produced zero
-                        # warnings — so the archive recorded 810s as the cost of
-                        # the tool. A silent retry is a cost with no owner.
+                        # retry branch that logged nothing, and it used to be the
+                        # most expensive one: r26 spent 12.5 minutes here on four
+                        # separate `anchor` calls, all of which then reported
+                        # `ok`, and the whole 2.5-hour run produced zero warnings
+                        # — so the archive recorded 810s as the cost of the tool.
+                        # A silent retry is a cost with no owner.
+                        #
+                        # FLAT since 2026-08-27, deliberately unlike the three
+                        # curves below — see `_PARSE_RETRY_DELAY_S`. The re-ask
+                        # still happens; only the waiting between re-asks is gone.
                         slept_s += parse_delay
                         logging.getLogger(__name__).warning(
                             "Parse failure on %s (attempt %d/%d), backing off "
@@ -213,7 +220,6 @@ def use_brain(
                             attempt_s=time.monotonic() - attempt_started,
                         )
                         await asyncio.sleep(parse_delay)
-                        parse_delay = min(parse_delay * 2.0, 120.0)
                 except Exception as e:
                     if _is_rate_limit_error(e):
                         last_error = e
@@ -401,15 +407,20 @@ def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
     parameter descriptor naming the field instead of filling it (`GroundingDto`).
     Pydantic rejects both although every byte of the answer is present.
 
-    Salvaged here rather than left to the retry loop because THE RETRY IS THE
-    EXPENSIVE PART, and it cannot work: a re-ask is a fresh sample of the same
-    model tendency, so it draws the same envelope again, while `parse_delay` (10s
-    doubling to a 120s cap over `retry_max` attempts) sleeps up to 750s per call.
-    Measured both ways — an `anchor` on sonnet-5 took 857s and then FAILED; on
-    haiku-4.5 three of three `anchor` calls slept 70 / 270 / 750s around ~41s of
-    real work and then succeeded, which is worse, because succeeding is silent.
-    Nested in a pipeline that fans out, one such tendency multiplies across every
-    gathered child.
+    Salvaged here rather than left to the retry loop because the retry CANNOT
+    work: a re-ask is a fresh sample of the same model tendency, so it draws the
+    same envelope again. Measured — an `anchor` on sonnet-5 re-asked itself for
+    857s and then FAILED; on haiku-4.5 three of three `anchor` calls emitted the
+    same descriptor 3/3 times. Nested in a pipeline that fans out, one such
+    tendency multiplies across every gathered child.
+
+    This used to be expensive as well as futile: the old parse curve doubled from
+    10s to a 120s cap, so those haiku calls slept 70 / 270 / 750s around ~41s of
+    real work and then succeeded, which is worse than failing, because succeeding
+    is silent. The curve is flat now (`_PARSE_RETRY_DELAY_S`), so an unsalvaged
+    envelope costs re-asks rather than naps — but a re-ask that will never succeed
+    is still `retry_max` generations of someone's turn, which is why unwrapping
+    beats retrying even at 2s a rung.
 
     THE INVARIANT, and the reason this can be generic without being dangerous:
     **every candidate's field names come from the model's own bytes, never from
@@ -444,8 +455,8 @@ def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
         # fixing upstream, and the whole reason this defect cost a bench round is
         # that the framework recovered from it without saying so.
         logging.getLogger(__name__).warning(
-            "Model returned %s as %s; unwrapped it instead of retrying "
-            "(saving up to 750s of parse backoff on this call).",
+            "Model returned %s as %s; unwrapped it instead of spending the "
+            "call's whole retry budget re-asking for the same envelope.",
             format.__name__, what_went_wrong,
         )
         return salvaged
@@ -508,6 +519,31 @@ def _serialize_message(msg: Any) -> dict[str, Any]:
             content = "\n".join(parts)
         return {"role": msg.role, "content": str(content)}
     return {"content": str(msg)}
+
+
+#: The parse retry curve, and the only FLAT one in this file.
+#:
+#: Exponential backoff is a congestion-control curve. It works because waiting
+#: makes the next attempt MORE LIKELY to succeed — the throttle window rolls over,
+#: the link comes back, the overloaded service drains. A parse failure has no such
+#: property: the model returned the wrong SHAPE, and nothing about that shape
+#: heals over 120 seconds. So the doubling curve (10s → 120s cap, 750s over ten
+#: attempts) was spending the person's turn buying nothing at all.
+#:
+#: Measured on both outcomes a parse failure actually has, and neither wanted the
+#: wait. A DETERMINISTIC envelope defect (haiku-4.5's `GroundingDto` parameter
+#: descriptor, 3/3 calls) cannot be re-sampled away — 9 retries and 750s of sleep
+#: never fixed it and `_salvage_envelope` now does, at attempt 1. A STOCHASTIC
+#: derailment (`TetradDto` truncated mid-field) recovers on the very next sample —
+#: it did, having first slept 10s for no reason. Retrying is worth keeping;
+#: waiting between retries never was.
+#:
+#: Not zero, though, and this is the whole reason the value is 2 rather than 0:
+#: `ExplorationPipeline` and `ExploreTransformations` fan out, so a systematic
+#: shape defect fails many gathered children at once, and a zero-delay loop would
+#: turn one bad DTO into a burst of `retry_max` × N requests and earn a real
+#: throttle — trading a curve that does nothing for a curve that does harm.
+_PARSE_RETRY_DELAY_S = 2.0
 
 
 #: Retry curve for transient connection failures. Shorter and shallower than the

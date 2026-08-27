@@ -74,7 +74,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   - **Read those tool medians as blends of work and sleep, not as tool cost.** r26's ten `anchor` rounds
     were 36.5 / 38.9 / 43.4 / 43.5 / 107.8 / 457.9 / 807.9 / 808.2 / 812.3 / 812.5s. Four inside 5
     seconds of each other at ~810s is a ceiling, not a workload, and it is the shape of `use_brain`'s
-    ParseError ladder (10s doubling to a 120s cap over 10 attempts = **750s of sleep**) on top of ~40s of
+    ParseError ladder as it stood then (10s doubling to a 120s cap over 10 attempts = **750s of sleep**;
+    flat at 2s since 2026-08-27, see the retry-policy note below) on top of ~40s of
     work: 107.8 ≈ 40+70, 457.9 ≈ 40+390, ~810 ≈ 40+750 exhausted. All six slow rounds reported `ok`, and
     the 2.5-hour run logged **zero** warnings — because ParseError was the one retry branch that never
     logged. Fixed 2026-08-26: that branch now logs (with cumulative sleep per call), and
@@ -94,12 +95,22 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own
-    words. Same family as the double-encoding `_salvage_double_encoded` handles (right answer, wrong
-    wrapper, retry re-samples the same tendency). **Grounding is fail-soft by contract**, so this burns
-    up to 12.5 minutes of the person's turn and then changes nothing they see. Any fix here is a
-    reasoning-layer change: widen the salvage (narrowly, as that helper is), flatten/rename the schema,
-    or cap the reply-path ladder — all three are open, none is done, and the ladder is hand-rolled by
-    design (CLAUDE.md) so it must not be swapped for `llm.retry`.
+    words. Same family as the double-encoding (right answer, wrong wrapper, retry re-samples the same
+    tendency). **Grounding is fail-soft by contract**, so this burned up to 12.5 minutes of the person's
+    turn and then changed nothing they saw.
+    **Both halves fixed 2026-08-27, and they are two answers to one question.** `_salvage_envelope`
+    unwraps it before any retry (see the DTO-shape entry below for the chain and its invariant), and the
+    parse curve went FLAT at 2s (`_PARSE_RETRY_DELAY_S`) — the only non-exponential curve in
+    `use_brain`. The reasoning generalises past this DTO and is the thing to carry forward: **backoff is
+    a congestion curve.** It earns its keep when waiting makes the next attempt more likely to succeed —
+    the throttle window rolls over, the link returns. A wrong response SHAPE has no such property, so
+    both outcomes a parse failure actually has were paying for nothing: a deterministic envelope cannot
+    be re-sampled away (salvage it), and a stochastic derailment recovers on the very next sample (retry
+    it, immediately). Nonzero rather than zero only as back-pressure, because a fan-out stage fails many
+    gathered children at once and a tight loop would earn a real throttle. Still open here: a
+    prompt/schema-level fix for the framing leak itself, and whether `retry_max=10` re-asks is the right
+    budget once naps are gone (no data on how many resamples a derailment needs; n=1 says one). The
+    ladder is hand-rolled by design (CLAUDE.md) so it must not be swapped for `llm.retry`.
   - Host-driven, not elective, on purpose: `sync` exists and the model elected `explore` in 6 of 55
     weak-tier runs. A turn that must see the graph cannot depend on the model choosing to look.
   - `dialectical_context=` at construction **seeds** the slot (turn-1 rewrite skipped when nothing moved);

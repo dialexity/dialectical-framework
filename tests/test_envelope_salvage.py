@@ -13,12 +13,16 @@ Pydantic rejects both although every byte of the answer is present.
 
 What makes it expensive is the retry, not the parse — and the retry cannot work.
 A re-ask is a fresh sample of the same model tendency, so it draws the same
-envelope again, while `parse_delay` (10s doubling to a 120s cap across
-`retry_max`=10) sleeps up to 750s per call. Measured both ways: an `anchor` on
-sonnet-5 took 857s and then FAILED, and on haiku-4.5 three of three `anchor`
-calls slept 70 / 270 / 750s around ~41s of real work and then SUCCEEDED — which
-is worse, because succeeding is silent. Two write-ups then quoted the blend as
-the tool's cost.
+envelope again. Measured both ways: an `anchor` on sonnet-5 took 857s and then
+FAILED, and on haiku-4.5 three of three `anchor` calls emitted the same descriptor
+and then SUCCEEDED on a later attempt — which is worse, because succeeding is
+silent. Under the old exponential parse curve those three slept 70 / 270 / 750s
+around ~41s of real work, and two write-ups quoted the blend as the tool's cost.
+
+Both halves of the fix are pinned here, because both follow from one finding —
+the wrong SHAPE does not heal while you wait. `TestTheOtherRules` and friends
+cover the unwrapping; `test_the_parse_curve_is_flat_not_exponential` covers what
+happens when nothing unwraps.
 
 So `_salvage_envelope` is a chain of small rules rather than one special case,
 and every rule obeys one invariant: **field names come from the model's own
@@ -144,7 +148,7 @@ class TestTheTwoObservedEnvelopes:
     def test_parameter_descriptor_is_recovered(self):
         """The `GroundingDto` failure, verbatim: the model described the field.
 
-        The 750s ladder this replaces bought a `None`, because grounding is
+        The 750s ladder this replaced bought a `None`, because grounding is
         fail-soft — 12.5 minutes of someone's turn for nothing they could see.
         """
         payload = json.dumps(
@@ -331,7 +335,8 @@ class TestTheRecoveryIsAudible:
 
 class TestRetryLoopIntegration:
     """The salvage must fire inside `use_brain`'s loop and cost ZERO retries —
-    the retry budget was the whole expense (up to 750s of sleep per call)."""
+    the retry budget was the whole expense (750s of sleep per call under the old
+    curve; `retry_max` wasted generations even under the flat one)."""
 
     @pytest.fixture(autouse=True)
     def mock_llm(self):
@@ -424,6 +429,66 @@ class TestRetryLoopIntegration:
         with pytest.raises(ParseError):
             await _method()
         assert len(calls) == 3
+
+    @pytest.mark.asyncio
+    async def test_the_parse_curve_is_flat_not_exponential(self, monkeypatch):
+        """The other half of the same policy, which is why it lives here.
+
+        Salvage and backoff are two answers to one question — what to do about a
+        parse failure — and both follow from the same finding: the model returned
+        the wrong SHAPE, and a shape does not heal while you wait. Exponential
+        backoff earns its keep against congestion (the throttle window rolls over,
+        the link returns); against a schema mismatch it buys nothing, which is how
+        `anchor` came to sleep 750s around 41s of work.
+
+        Pinned rather than left to the constant, because "10.0, doubling, capped at
+        120.0" is three characters away at all times and reads like every other
+        curve in that file. The flatness is the deliberate part.
+        """
+        slept: list[float] = []
+
+        async def _fake_sleep(seconds: float) -> None:
+            slept.append(seconds)
+
+        monkeypatch.setattr(use_brain_module.asyncio, "sleep", _fake_sleep)
+        monkeypatch.setattr(use_brain_module, "_trace_generation", lambda **_: None)
+
+        def _fake_llm_call(_model, **_params):
+            def _decorator(_fn):
+                async def _inner():
+                    return _FakeResponse("not json at all", _GroundingLike)
+
+                return _inner
+
+            return _decorator
+
+        monkeypatch.setattr(use_brain_module.llm, "call", _fake_llm_call)
+
+        @use_brain_module.use_brain(
+            ai_model="anthropic/claude-x", format=_GroundingLike, retry_max=6
+        )
+        async def _method():
+            return None
+
+        with pytest.raises(ParseError):
+            await _method()
+
+        # Five naps for six attempts, every one the same length. The OLD curve
+        # would have been [10, 20, 40, 80, 120] here — 270s against 10s.
+        assert len(slept) == 5
+        assert set(slept) == {use_brain_module._PARSE_RETRY_DELAY_S}
+        assert sum(slept) < 15.0, (
+            "a parse failure must cost re-asks, not minutes of sleeping"
+        )
+
+    def test_the_parse_delay_is_not_zero(self):
+        """Zero would replace a useless curve with a harmful one.
+
+        `ExplorationPipeline` and `ExploreTransformations` fan out, so one
+        systematic shape defect fails many gathered children at once — and a
+        tight loop across all of them is how a parse bug earns a real throttle.
+        """
+        assert use_brain_module._PARSE_RETRY_DELAY_S > 0
 
     @pytest.mark.asyncio
     async def test_the_raw_payload_is_logged_once_not_once_per_attempt(
