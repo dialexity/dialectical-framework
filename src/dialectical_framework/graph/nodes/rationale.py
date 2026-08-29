@@ -214,6 +214,25 @@ class Rationale(BaseNode, label="Rationale"):
         # Check explanation target first (stored hash or relationship)
         if self._explanation_target_hash:
             target_hash = self._explanation_target_hash
+        elif self._critiques_target_hash:
+            # A freshly built critique already names its target in hand, so
+            # there is nothing to look up. Reading EXPLAINS here queried the DB
+            # for THIS node's edges before its row existed: `commit()` assigns
+            # `self.hash` and then calls `save()`, whose immutability check
+            # re-computes the hash — so the second pass sees `hash` set, `_id`
+            # still None, and no row, and logged "a committed node that is not
+            # stored is corruption". It was neither committed nor corrupt, and
+            # the read could only ever come back empty (the EXPLAINS edge is
+            # created after commit, in the auto-connect step below). That was 2
+            # spurious warnings per audited Transformation.
+            #
+            # Hash-neutral: this branch is reachable only when the explanation
+            # hash is absent AND the critique hash is present, which means the
+            # transient refs are authoritative (they do not survive a DB load)
+            # — exactly the case where the old code fell through to the same
+            # `_critiques_target_hash` one block down. Explanation still wins
+            # when both are set.
+            target_hash = self._critiques_target_hash
         else:
             explanation_result = self.explains.get()
             if explanation_result:

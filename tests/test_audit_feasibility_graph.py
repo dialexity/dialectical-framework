@@ -138,6 +138,82 @@ async def test_the_answer_comes_back_out_of_the_graph():
         assert '"audited": 1' in report
 
 
+async def test_the_audit_does_not_cry_corruption(caplog):
+    """The critique write must not log "a committed node that is not stored".
+
+    It did — 2 per audited Transformation, 12 in the 1-PP cost census, and the
+    message names corruption, which is the loudest thing the graph layer says.
+    Cause: `commit()` assigns `self.hash`, then `save()` re-computes it as an
+    immutability check, so `_collect_structure_hash_parts` read EXPLAINS while
+    `hash` was set, `_id` was None and the row did not exist yet. Benign, but a
+    warning that cries corruption on a routine write teaches everyone to ignore
+    the one signal that would catch the real thing.
+    """
+    import logging
+
+    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+        run_audit_feasibility
+
+    case = Case()
+    case.commit()
+
+    with scope(case.sid):
+        transformation = _built_transformation()[1]
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            report = await run_audit_feasibility([transformation.short_hash])
+
+        offenders = [
+            r.getMessage()
+            for r in caplog.records
+            if "no row in the database" in r.getMessage()
+        ]
+        assert offenders == [], f"spurious corruption warnings: {offenders}"
+        # ...and the audit still did its job, so the silence is not achieved by
+        # skipping the write.
+        assert "feasibility=0.50" in report
+
+
+def test_a_critique_hashes_on_its_target(caplog):
+    """Hash-neutrality of the fix above, pinned independently of the code path.
+
+    The short-circuit must return the SAME hash the DB-reading fall-through
+    returned — a Rationale is content-addressable, so a change here would
+    silently fork every existing critique into a duplicate node.
+    """
+    import hashlib
+    import logging
+
+    from dialectical_framework.graph.nodes.rationale import Rationale
+
+    case = Case()
+    case.commit()
+
+    with scope(case.sid):
+        explained = Rationale(text="the pathway as offered")
+        stmt = Statement(text="somewhere to point at", meaning="verbatim:target")
+        stmt.commit()
+        explained.set_explanation_target(stmt)
+        explained.commit()
+
+        critique = Rationale(text="**Key Factors:** goodwill, timing")
+        critique.set_critiques_target(explained)
+        caplog.clear()
+        with caplog.at_level(logging.WARNING):
+            critique.commit()
+
+        expected = hashlib.sha256(
+            f"{critique.text}\n{explained.hash}".encode("utf-8")
+        ).hexdigest()
+        assert critique.hash == expected, (
+            "a critique hashes on text + target hash; changing that forks "
+            "every critique already in the graph"
+        )
+        assert not [
+            r for r in caplog.records if "no row in the database" in r.getMessage()
+        ]
+
+
 async def test_asking_again_costs_nothing(monkeypatch):
     """The second ask is the likely one (someone re-raises the same doubt) and
     the one that pays double: `upsert_estimation` would replace the score, but
