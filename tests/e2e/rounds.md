@@ -4153,3 +4153,67 @@ the provider every turn. The saving is DERIVED from the two-call shape, not meas
 here, and the honest way to read it is: whatever fraction of the 18.55s median was the
 second round. A timing round after this change is what turns that into a number —
 until then it is arithmetic, and this file's own history is a warning about those.
+
+### timing-after-one-round: the round that could not measure what it was run to measure (2026-08-30)
+
+Same disclaimer as the three timing stems above: `DIALEXITY_E2E_JUDGE_OFF=1`, no cell
+judged, **no delta and no evidence about any arm.** Run in exactly
+`timing-after-audit-gather`'s shape (A2 only, weak, `cofounder_equity`, both wobble
+branches, 1 replicate, 16 turns) at `5e78fc7` against that stem's `17e459e`, to put a
+number on the second-provider-round removal the section above left as arithmetic.
+
+**It did not, and the shape cannot.** The previous entry asked for "whatever fraction of
+the 18.55s median was the second round". The answer this round returns is that the
+question is not answerable this way: the model elected **13 tool calls against the
+baseline's 3**, and tool election is what decides how big the graph — and therefore the
+system prompt — is on every later turn.
+
+| quantity | `timing-after-audit-gather` | `timing-after-one-round` |
+|---|---|---|
+| median turn | 22.3s | 34.4s |
+| median reply path | 18.55s | 33.6s |
+| median reply path, tool-free turns | 17.4s | 20.45s |
+| tool calls / turns carrying one | 3 / 3 | **13 / 8** |
+| tool seconds, total | 74.1s | 446.8s |
+| worst turn | 52.1s | 185.6s |
+| worst off-path | 9.4s | **1.8s** |
+| median `context_render_s` | 0.19s | 0.47s |
+| cell wall (both branches) | 451.9s | 890.7s |
+
+**Pair the turns by position and the confound is explicit.** The scenario script is
+identical, so turn (branch, session, index) is the same person-message in both rounds.
+Of 16 pairs only 8 are tool-free on BOTH sides, and those 8 give a median delta of
+**+2.2s with deltas from −9.5s to +13.7s** — a distribution centred near zero and an
+order of magnitude wider than the effect being hunted. The sign of each delta tracks the
+graph, not the build: the two fastest (−9.5s, −1.3s) are early turns, and the two
+slowest (+13.7s, +8.3s) are late ones whose `context_render_s` had risen to 0.79s and
+0.36s against the baseline's 0.23s and 0.18s. In `wobble_b` the same pattern is extreme
+— a turn rendering 5.53s of graph against the baseline turn's 0.05s.
+
+So: **a single run per build cannot measure a per-turn saving in this harness**, because
+the model's tool election varies enough between runs to resize the system prompt, and
+prompt size moves generation time by more than the saving does. This is the timing
+analogue of the rule already stated above for judged composites ("do not read a single
+run as a verdict on a build"), and it is now stated for latency too. The mechanical claim
+— that the extra round is gone — is settled where it can be settled deterministically,
+in `tests/test_reply_reuse.py`, not here. Putting a NUMBER on it needs a controlled
+probe: one fixed graph, one fixed prompt, N repetitions, `_reuse_written_reply` toggled
+as the only variable. That is a probe, not a round.
+
+#### What the round did find, which is worth more than what it was run for
+
+**The graph re-read has a tail, and nothing before this round was deep enough to see
+it.** `context_render_s` was a 0.19s median over 16 turns in the baseline. Here 4 of 16
+turns spent **5.16s, 5.15s, 5.53s and 5.88s** re-reading the graph into the system
+prompt — 14%, 17%, 22% and 17% of those turns' reply paths. All four preregistered
+endpoints from the 2026-08-26 stems still **PASS**, and P3 passes on its own terms
+because it is written on the median (0.47s, 1.4% of the median reply path, against bars
+of 2.0s and 5%). The tail is not a bar breach; it is a cost the bar does not cover, and
+it grows with the exploration rather than with the conversation's length.
+
+**Which reorders the remaining latency work.** A conversation that actually uses the
+framework ends up with a multi-second graph render and a correspondingly large dump
+inside a ~15.6k-token engine prompt, on every turn. The next levers are the prompt's
+shape and its cacheability, and this round says they are worth more than the earlier,
+shallower round implied — not less. Provenance: `dirty: True` on the build record is the
+untracked `read_turn_timing.py` reader, not a `src/` edit.
