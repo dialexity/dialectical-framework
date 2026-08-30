@@ -4093,3 +4093,51 @@ to it.
 - **3 machinery leaks, one of them A2 saying "The framework found five different
   readings"** — a direct break of the silent-framework contract, and `conversational_fit`
   (+0.12) is partly measuring it.
+
+### timing-after-audit-gather: the TAIL collapsed and the median did not move (2026-08-30)
+
+Same disclaimer as the two 2026-08-26 timing stems above: `DIALEXITY_E2E_JUDGE_OFF=1`,
+no cell judged, **no delta and no evidence about any arm.** Run in exactly
+`timing-check-building`'s shape (A2 only, weak, `cofounder_equity`, both wobble
+branches, 1 replicate, 16 turns) so the per-turn numbers are comparable, at `17e459e`
+against that stem's `9e8f7f0`. Between the two builds: the parse-retry curve went
+flat, `audit_transformations` became opt-in and off by default, the on-demand audit
+gathers its Ac+/Re+ pair, and the closing repair was bounded to read the graph rather
+than build on it.
+
+| quantity | `timing-check-building` | `timing-after-audit-gather` |
+|---|---|---|
+| session wall (2 branches) | 363.7s + 1509.1s = 1872.8s | 227.5s + 224.4s = **451.9s** |
+| worst turn | 823.6s | **52.1s** |
+| worst reply path | 821.7s | **50.7s** |
+| worst off-path (repair) | 387.7s | **9.4s** |
+| `anchor` | 42.0s, 39.1s, **804.5s** | 34.5s, 37.1s |
+| median turn | 22.8s | 22.3s |
+| median reply path | 17.95s | 18.55s |
+
+**Read the tail, not the total.** The 4.1x session figure is confounded: this round
+elected 3 tool calls against the baseline's 6, and a turn that calls no tool is
+cheaper for reasons no fix here owns. What is not confounded is the shape of the
+distribution. The 804.5s `anchor` did not reproduce and the two remaining anchors sit
+inside the baseline's own non-outlier range (34.5/37.1 vs 42.0/39.1) — consistent with
+the retry curve, which is where an 800s single tool call came from. The two off-path
+craters (127.7s and 387.7s, both pathway construction inside the closing repair) are
+gone outright: the worst repair in this round cost 9.4s, and no turn paid construction
+off-path. That is the bounded repair working, and it is the one comparison here with a
+mechanism behind it.
+
+**The median turn did not move, and that is the finding that matters.** 22.8s → 22.3s,
+reply path 17.95s → 18.55s, `tool_seconds` a median of 0.00s in BOTH rounds. Every
+latency fix in this build worked on the tail. The person's ordinary turn is ~18s of
+one-shot generation over a ~15.6k-token system prompt with no tool call in it, and
+nothing in the concern layer touches that. `context_render_s` (new since the baseline,
+so absent there) has a median of **0.19s** across 16 turns — the graph re-read that
+was the suspected per-turn tax is 1% of the reply path.
+
+So the snappiness question is now cleanly separated from the ceremony question: the
+ceremony's cost shows up as a tail, and the tail is fixed. What remains is the cost of
+a single large-prompt generation, which is a transport and prompt-shape problem —
+`ChatResponse` is one `message: str` field, and with tools configured every turn ends
+with an EXTRA non-streamed `_call_with_response_model` round to re-render prose that
+the tool-round call already produced (`conversation_facilitator.submit` and
+`submit_stream` both). Un-measured as of this round.
