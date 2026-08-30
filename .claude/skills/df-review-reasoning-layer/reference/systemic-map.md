@@ -295,8 +295,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - **The extraction call is now the FALLBACK, not the common path — which shrinks this surface without closing it.**
   A turn that ends with no tool call has already written its answer as prose, so `_reuse_written_reply`
   (`conversation_facilitator.py`) builds `ChatResponse` from `response.text()` and skips the second round entirely.
-  It was ~half of an 18.55s median reply path, and it also appended the reply to history TWICE (once from the
-  response chain, once from the extraction call's own append). The gate declines on: pending `tool_calls` (the
+  Measured at +1.6s per turn (95% CI 0.6–2.6s, 24 paired turns — `tests/e2e/probe_reply_reuse_saving.py`), about a
+  fifth of a tool-free turn rather than the "half the reply path" this map claimed before the probe existed. It also
+  appended the reply to history TWICE (once from the response chain, once from the extraction call's own append). The gate declines on: pending `tool_calls` (the
   round-budget exit, where the text is mid-work and a synthetic user message has just been appended), a response
   model that is not exactly one required `str` named `message` (`submit` is generic), and unreadable or empty text.
   So the turns that still reach `_EXTRACTION_REQUEST` are precisely the ones already going badly — the framing above

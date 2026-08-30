@@ -674,10 +674,14 @@ class ConversationFacilitator(SettingsAware):
         On a turn that ends without a tool call, the tools call has already
         produced the finished answer as prose, and the extraction call that
         follows pays a second full provider round-trip to restate that same
-        text inside a one-field envelope. It was roughly half of an 18.55s
-        median reply path (`tests/e2e/rounds.md`, the timing rounds), and it
-        also put the reply into history TWICE — once from the response chain,
-        once from `_call_with_response_model`'s own append.
+        text inside a one-field envelope. **Measured at +1.6s per turn** (95% CI
+        0.6–2.6s, 24 paired turns on the weak tier at a 15.7k-token prompt —
+        `tests/e2e/probe_reply_reuse_saving.py`), so about a fifth of a tool-free
+        turn rather than the half this docstring used to claim from arithmetic:
+        the second round re-sends a prompt Anthropic has already cached, so what
+        it really pays for is re-emitting the reply as output tokens. It also put
+        the reply into history TWICE — once from the response chain, once from
+        `_call_with_response_model`'s own append.
 
         None means "not eligible", and the caller must fall back to
         `_call_with_response_model`, which stays a live path. Each gate is a

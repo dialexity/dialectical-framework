@@ -4217,3 +4217,77 @@ inside a ~15.6k-token engine prompt, on every turn. The next levers are the prom
 shape and its cacheability, and this round says they are worth more than the earlier,
 shallower round implied — not less. Provenance: `dirty: True` on the build record is the
 untracked `read_turn_timing.py` reader, not a `src/` edit.
+
+### probe-reply-reuse: the round's unanswerable question, answered — +1.6s, not half the turn (2026-08-30)
+
+`tests/e2e/probe_reply_reuse_saving.py`, weak tier, 24 usable paired turns across three
+runs. Not a round: no arms, no judge, no scenario, no delta about any arm. It answers
+exactly the question the entry above declared unanswerable on the bench — what removing
+the second provider round bought per turn — by controlling what the bench cannot: one
+fixed user message, a fresh `Advisor` and a fresh `Case` per turn (empty graph, so the
+prompt is the bare 62,794-char / ~15.7k-token engine and nothing else), and
+`_reuse_written_reply` monkeypatched off as the only variable.
+
+**The call shape is the deterministic half, and it is exact.** Every reuse turn asked for
+**0** structured extractions; every reuse-off turn asked for exactly **1**. 23 of 24
+turns in the primary run, no exceptions, no drift. The prompt was byte-identical on all
+24 turns, so the two arms were compared on equal work.
+
+**The seconds, paired:**
+
+| quantity | value |
+|---|---|
+| primary run (n=11 pairs) | median **+2.9s**, mean +1.9s |
+| pooled, all three runs (n=24 pairs) | median **+1.2s**, mean **+1.6s** |
+| 95% CI on the pooled mean | **+0.55s … +2.60s** |
+| positive deltas | 17/24 (exact sign test p=0.064) |
+| order-adjusted, primary run | extra round **+1.8s**, running second in a pair +1.2s |
+| reuse-on median tool-free turn | 8.1s |
+
+Pooling is legitimate here: the three runs differ only in this probe's own classifier and
+reporting, never in the code being measured.
+
+**So the previous entry's arithmetic was wrong by more than a factor of four, in the
+direction that flatters the fix.** "Roughly half of an 18.55s median reply path" was a
+guess that two calls cost twice one call. The measurement says the second round costs
+**+1.6s on an 8.1s turn — about a fifth**, and that estimate now lives in
+`conversation_facilitator.py`, `CLAUDE.md` and the reasoning-layer map in place of the
+guess. The mechanism claim (one round, not two) was always right; only its price was
+inflated. Likely reason it is that cheap: Anthropic prompt caching is **already on** and
+unconditional in Mirascope's encoder, so the second round's 15.7k-token prefill is a
+cache read and what it really pays for is re-emitting the reply as output tokens. That is
+checkable against cache-read token counts in the caching work, and it is the first
+concrete prediction that work has to confront.
+
+#### The probe's own defects, and why one of them matters beyond the probe
+
+Three self-defects, each caught by an instrument added because the previous run's numbers
+would not sit still:
+
+1. **Classifying a turn by its provider-call count does not work on the conversational
+   path.** Only `_call_with_tools` is `@use_brain`-decorated; the tool loop advances with
+   `response.resume(tool_outputs)`, which is Mirascope's own request and reaches nothing
+   inside `use_brain`. A turn that ran five tool rounds records **one**
+   `format_name=None` call — the same as a turn that ran none. The 12-pair run admitted
+   **five tool-electing turns as clean single generations**, one of them 92.8s with 70
+   recorded concern calls, producing −48.2s and +77.5s deltas in a comparison of a
+   sub-second effect. `last_tool_calls` on the facilitator is the authoritative signal
+   and is now what classifies. **This is not probe-local:** the same blind spot means the
+   census undercounts every multi-round turn, and rounds 2..N of any tool loop also get
+   no concurrency slot, no rate-limit/ParseError retry, and no generation span.
+2. **One shared `sid` let a contaminated turn contaminate the rest.** A turn that elected
+   `anchor` wrote perspectives, and every LATER turn then rendered a bigger dump — the
+   prompt grew 62,794 → 63,246 → 67,414 → 74,808 chars mid-run, at which point the arms
+   were no longer paired on equal work. Each turn now gets its own `Case`, so a
+   tool-electing turn can only spoil itself, and the per-turn prompt size is printed as a
+   drift check rather than assumed.
+3. **A within-pair position effect the size of the effect being measured.** An early
+   6-pair run put the second turn of a pair slower in 5 of 6. Alternating which arm runs
+   first was already in the design, which makes this recoverable rather than fatal — with
+   the strata balanced the mean delta stays unbiased for the arm — but the report did not
+   show the split, so it took hand-mapping to notice. `_report_order` now separates the
+   two effects and says which line to quote when the strata are uneven.
+
+The two accidental findings are worth more than the number: the 74.9s `anchor` turn and
+the census blind spot both say that **tool election, not the reply path, is where a
+conversational turn's latency actually lives.**
