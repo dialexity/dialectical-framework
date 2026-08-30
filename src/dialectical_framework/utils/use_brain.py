@@ -558,7 +558,11 @@ def _trace_generation(
                 usage_details["cache_write"] = response.usage.cache_write_tokens
 
         input_messages = [_serialize_message(m) for m in response.messages[:-1]]
-        output_text = response.text if response.texts else str(response.tool_calls)
+        # `text` is a METHOD; the missing call recorded a bound-method repr as
+        # every traced generation's output. Default `sep="\n"` here rather than
+        # the `""` used at the parse sites above — those rebuild a JSON payload
+        # that a separator would corrupt, this one is read by a person.
+        output_text = response.text() if response.texts else str(response.tool_calls)
 
         metadata: dict[str, Any] = {"caller": caller, "attempt": attempt}
         if format_name:
