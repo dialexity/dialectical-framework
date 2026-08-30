@@ -262,6 +262,11 @@ class ConversationFacilitator(SettingsAware):
                 self._close_dangling_tool_calls(response)
                 self._strip_unsupported_input_fields()
 
+                # The answer is usually already written — see `_reuse_written_reply`.
+                reused = self._reuse_written_reply(response, response_model)
+                if reused is not None:
+                    return reused
+
                 # Extract structured response
                 return await self._call_with_response_model(response_model)
         finally:
@@ -356,8 +361,12 @@ class ConversationFacilitator(SettingsAware):
         self._messages = list(stream.messages)
         self._close_dangling_tool_calls(stream)
         self._strip_unsupported_input_fields()
-        with retry_account(turn):
-            result = await self._call_with_response_model(response_model)
+        # Same shortcut as `submit`, and it matters more here: the text this
+        # skips re-generating is the text already streamed as `TextDelta`s.
+        result = self._reuse_written_reply(stream, response_model)
+        if result is None:
+            with retry_account(turn):
+                result = await self._call_with_response_model(response_model)
         # Before the yield: the reply-path interval ends when the reply EXISTS,
         # and a consumer that stops iterating at ResponseComplete would otherwise
         # leave this unset on the very turns it is measuring.
@@ -588,8 +597,96 @@ class ConversationFacilitator(SettingsAware):
 
         return await _llm_call()
 
+    @staticmethod
+    def _response_text(response: Any) -> str:
+        """The response's own text, stripped — or `""` if it cannot be read.
+
+        `text` is a METHOD on every real mirascope response and stream alike
+        (`RootResponse.text`, which `BaseStreamResponse` inherits), but this
+        reads defensively on purpose: the suite is full of hand-rolled response
+        fakes, several of which have no `text` at all and one of which is an
+        `AsyncMock` where every attribute exists and returns a coroutine. A
+        fake that cannot answer must not fail a turn — `""` routes the caller
+        back to the extraction call, which is what it did before this existed.
+        """
+        raw = getattr(response, "text", None)
+        if raw is None:
+            return ""
+        try:
+            text = raw() if callable(raw) else raw
+        except Exception:  # any fake or provider shape — see above
+            logging.getLogger(__name__).debug(
+                "Could not read response text; falling back to extraction",
+                exc_info=True,
+            )
+            return ""
+        return text.strip() if isinstance(text, str) else ""
+
+    #: The one field a response model may declare for `_reuse_written_reply` to
+    #: apply. Not a coincidence of naming: `_assistant_history_text` already
+    #: treats `message` as "the prose the person reads", and all three agents'
+    #: `ChatResponse` is exactly this shape.
+    _REPLY_FIELD = "message"
+
+    @classmethod
+    def _is_plain_reply_model(cls, response_model: Any) -> bool:
+        """True iff the model is exactly one required `str` named `message`.
+
+        Any additional or differently-typed field means the structured call is
+        doing real extraction work that prose cannot stand in for, so the
+        shortcut must decline. Checked by shape rather than by identity because
+        `submit` is generic and each agent declares its own `ChatResponse`.
+        """
+        fields = getattr(response_model, "model_fields", None)
+        if not isinstance(fields, dict) or len(fields) != 1:
+            return False
+        field = fields.get(cls._REPLY_FIELD)
+        if field is None or field.annotation is not str:
+            return False
+        return field.is_required()
+
+    def _reuse_written_reply(self, response: Any, response_model: type[T]) -> T | None:
+        """The reply the model ALREADY wrote, as `response_model` — or None.
+
+        On a turn that ends without a tool call, the tools call has already
+        produced the finished answer as prose, and the extraction call that
+        follows pays a second full provider round-trip to restate that same
+        text inside a one-field envelope. It was roughly half of an 18.55s
+        median reply path (`tests/e2e/rounds.md`, the timing rounds), and it
+        also put the reply into history TWICE — once from the response chain,
+        once from `_call_with_response_model`'s own append.
+
+        None means "not eligible", and the caller must fall back to
+        `_call_with_response_model`, which stays a live path. Each gate is a
+        case where the first response's text is NOT the finished answer:
+
+        - **tool calls still pending.** The loop exited on its round budget,
+          not because the model was done, so the text is mid-work and
+          `_close_dangling_tool_calls` has just appended a synthetic user
+          message. Reusing here would end history on two adjacent user turns
+          and hand the person a half-finished thought.
+        - **a model that is not a plain reply.** See `_is_plain_reply_model`.
+        - **no readable text.** A thinking-only or tool-only response, or a
+          fake that cannot answer (see `_response_text`).
+
+        Deliberately does NOT append to `self._messages`: the response chain
+        this reads from already ends with this very assistant message, and
+        `self._messages` was just synced from it.
+        """
+        if getattr(response, "tool_calls", None):
+            return None
+        if not self._is_plain_reply_model(response_model):
+            return None
+        text = self._response_text(response)
+        if not text:
+            return None
+        return response_model(**{self._REPLY_FIELD: text})
+
     async def _call_with_response_model(self, response_model: type[T]) -> T:
-        """Call LLM with format for structured output."""
+        """Call LLM with format for structured output.
+
+        Still reached on every turn whose reply cannot be reused as written —
+        see `_reuse_written_reply` for which turns those are."""
         messages = self._messages
 
         # Bedrock requires conversations to end with a user message.
@@ -612,8 +709,10 @@ class ConversationFacilitator(SettingsAware):
         # to itself.
         #
         # So it is marked as machinery, not speech, and says what it is for.
-        # The structured result is load-bearing (the host renders it), so the
-        # call stays — only its framing changes.
+        # `_reuse_written_reply` removed this call from the common case, which
+        # shrinks the exposure but does not close it: the fallback turns are
+        # exactly the ones already going badly (budget exhausted, no text), so
+        # the framing here still has to hold.
         if messages and messages[-1].role == "assistant":
             messages = [*messages, llm.messages.user(_EXTRACTION_REQUEST)]
 

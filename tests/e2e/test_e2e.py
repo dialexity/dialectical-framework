@@ -2270,14 +2270,25 @@ class TestTheStatusBoardReadsTheArchiveCorrectly:
             )
 
         # And the section must still print the debt it exists for.
-        owed = [
-            stem
-            for stem in _stems()
-            if stem not in hand
-            and stem not in TELEMETRY_ONLY
-            and (load_records(RESULTS / f"{stem}.json").get("runs") or [])
-            and not (load_records(RESULTS / f"{stem}.json").get("comparisons") or [])
-        ]
+        #
+        # BOTH judge-off exclusions belong here, and this pin caught the second
+        # one missing: `TELEMETRY_ONLY` is the retroactive half, while every run
+        # saved since declares `judge_off` in its own payload. Checking only the
+        # constant called `timing-after-audit-gather` debt while the board itself
+        # correctly did not — a filter that disagrees with the board it is
+        # pinning tests nothing.
+        owed = []
+        for stem in _stems():
+            if stem in hand or stem in TELEMETRY_ONLY:
+                continue
+            payload = load_records(RESULTS / f"{stem}.json")
+            if payload.get("judge_off"):
+                continue
+            if not (payload.get("runs") or []):
+                continue
+            if payload.get("comparisons") or []:
+                continue
+            owed.append(stem)
         assert owed, "no unjudged runs left on disk — nothing to pin"
         for stem in owed:
             assert stem in debt_table, f"genuinely unjudged {stem} is not listed"
@@ -4178,6 +4189,12 @@ class TestInternalPromptEcho:
 
     8 turns across r7/r10/r11/r14, all tools-wired — `submit` skips this call
     entirely when no tools are wired, so 0 of 944 prompt-arm turns could hit it.
+
+    The exposure has since SHRUNK, which is a reason to keep the detector rather
+    than retire it: `_reuse_written_reply` skips the extraction call on any turn
+    whose reply is already written, so what still reaches it are the turns that
+    were going badly anyway (tool-round budget exhausted, no usable text). A
+    lower rate here now means a rarer call, not a safer message.
     """
 
     @staticmethod

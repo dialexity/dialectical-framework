@@ -19,6 +19,12 @@ from unittest.mock import AsyncMock
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
+#: What the mocked tools call "says". Under the reply-reuse shortcut this is the
+#: text a mocked `ChatResponse.message` carries, so a test asserting on a mocked
+#: agent reply asserts on THIS rather than on `build_mock_response`'s field-name
+#: placeholder.
+MOCK_REPLY_TEXT = "mocked response"
+
 
 def build_mock_response(model: type[BaseModel]) -> BaseModel:
     """
@@ -164,12 +170,30 @@ def install_mock_brain(monkeypatch: Any) -> None:
             async def wrapper(*args, **kwargs):
                 if format_model is not None and isinstance(format_model, type) and issubclass(format_model, BaseModel):
                     return build_mock_response(format_model)
-                # No format — return a mock AsyncResponse-like object
+
+                # No format — an AsyncResponse-like stand-in for the tools call.
+                #
+                # `messages` and `text()` are faithful on purpose. The tool path
+                # now BUILDS its reply from this response
+                # (`ConversationFacilitator._reuse_written_reply`) rather than
+                # paying a second structured call, so a stand-in with
+                # `messages = []` would wipe mocked conversation history — the
+                # facilitator syncs `self._messages` from here — and a stand-in
+                # with no text would route every mocked test down the fallback,
+                # hiding the path production actually takes. The decorated
+                # function returns its own input messages, which is how this
+                # learns what the conversation was.
+                input_messages = await method(*args, **kwargs)
                 mock = AsyncMock()
-                mock.text = lambda: "mocked response"
+                mock.text = lambda: MOCK_REPLY_TEXT
                 mock.tool_calls = []
-                mock.content = "mocked response"
-                mock.messages = []
+                mock.content = MOCK_REPLY_TEXT
+                mock.messages = [
+                    *(input_messages if isinstance(input_messages, list) else []),
+                    llm.messages.assistant(
+                        MOCK_REPLY_TEXT, model_id=None, provider_id=None
+                    ),
+                ]
                 return mock
 
             return wrapper

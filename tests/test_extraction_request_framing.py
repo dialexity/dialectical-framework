@@ -18,9 +18,15 @@ a numbered menu of internal operations ("the 'provide structured response'
 signal tells me you want more than conversation") and scored 1/5 on the judge's
 cross-turn coherence dimension, the lowest cell in that run.
 
-The extraction call itself is load-bearing — the host renders the JSON as a
-widget — so only the framing changes: the message declares itself machinery,
-disclaims the person, and forbids referring to itself.
+Only the framing changes here: the message declares itself machinery, disclaims
+the person, and forbids referring to itself. The call itself is now the FALLBACK
+(`_reuse_written_reply` answers the common turn from the text the model already
+wrote), so what still reaches this wording are the turns already going badly —
+budget exhausted, no usable text. The framing matters more there, not less.
+
+These tests call the real `_call_with_response_model` directly and so are
+unaffected by that shortcut, on purpose: they are about this call's behaviour
+whenever it runs.
 """
 
 from __future__ import annotations
@@ -109,7 +115,8 @@ class TestExtractionRequestWording:
         assert _EXTRACTION_REQUEST.strip() != "Provide your structured response."
 
     def test_it_still_asks_for_the_structured_format(self):
-        """The host renders the JSON — reframing must not lose the ask."""
+        """The caller parses the result into `ChatResponse` — reframing must
+        not lose the ask."""
         assert "structured format" in _EXTRACTION_REQUEST.lower()
 
 
@@ -161,7 +168,8 @@ class TestExtractionRequestInjection:
 
     @pytest.mark.llm
     async def test_the_structured_result_still_comes_back(self, captured):
-        """The reason the call exists at all: the host renders this object."""
+        """The reason the call exists at all: the caller needs the object,
+        and on this path there is no already-written reply to reuse."""
         facilitator = ConversationFacilitator()
         facilitator.add_user_message("hello")
         facilitator._messages.append(

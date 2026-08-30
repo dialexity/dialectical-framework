@@ -281,8 +281,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   answered emotional pushback with a numbered menu of internal operations (*"the 'provide structured response' signal
   tells me you want more than conversation"*) and scored **1/5 cross_turn_coherence**, the lowest cell in r14; another
   turn produced a machinery-as-actor leak *out of* it (*"as if there's a framework that will ratify what you've
-  already decided"*), so this defect manufactures hotspot #2's. Three constraints on any edit: the call **stays** (the
-  host renders the JSON as a widget — that is why it exists); the message must **declare itself machinery and
+  already decided"*), so this defect manufactures hotspot #2's. Three constraints on any edit: the call **stays** (as
+  the FALLBACK — see below); the message must **declare itself machinery and
   disclaim the person**, since Mirascope has no tool/control role (`system`/`user`/`assistant` only) and system is
   taken; and it must **forbid referring to itself**, because knowing the truth was not enough to stop the phrase
   reaching the reply. It is per-call and must never be persisted into `_messages` — a persisted fake user turn
@@ -292,6 +292,17 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   `score_machinery_leak`: a leak is the model choosing the wrong vocabulary and is fixed in the prompt, this is
   the framework mis-speaking in the person's voice and is fixed at the injection site. The detector matches the
   reply talking ABOUT the request, never the bare word "structured" — "a structured buyout" is ordinary counsel.
+- **The extraction call is now the FALLBACK, not the common path — which shrinks this surface without closing it.**
+  A turn that ends with no tool call has already written its answer as prose, so `_reuse_written_reply`
+  (`conversation_facilitator.py`) builds `ChatResponse` from `response.text()` and skips the second round entirely.
+  It was ~half of an 18.55s median reply path, and it also appended the reply to history TWICE (once from the
+  response chain, once from the extraction call's own append). The gate declines on: pending `tool_calls` (the
+  round-budget exit, where the text is mid-work and a synthetic user message has just been appended), a response
+  model that is not exactly one required `str` named `message` (`submit` is generic), and unreadable or empty text.
+  So the turns that still reach `_EXTRACTION_REQUEST` are precisely the ones already going badly — the framing above
+  still has to hold, and `score_internal_prompt_echo` stays. Reading consequence: an A2 reply is now the model's
+  own prose rather than a re-render of it, so a prompt reviewed at the "assembled context" altitude no longer has a
+  restatement step to hide behind. Pinned by `tests/test_reply_reuse.py`.
 - **Tool-budget exhaustion is a prompt surface too.** The agentic loop in `submit`/`submit_stream` stops after
   `max_tool_rounds` (10) even if the model just asked for another tool, and `self._messages` is then reassigned from the
   response chain — so an unanswered `tool_use` is PERSISTED and replayed every later turn, which every Anthropic-shaped

@@ -1278,8 +1278,10 @@ r14: **8 turns, all A2, 0 of 944 prompt-arm turns**, because `submit`
 short-circuits past this call when no tools are wired. The worst instance
 answered emotional pushback with a numbered menu of internal operations and
 scored **1/5 `cross_turn_coherence`**, the lowest cell in r14. Fixed by reframing
-only — the call stays, because the host renders its JSON as a widget: the
-message now declares itself machinery, disclaims the person, and forbids
+only — the call stays, because the caller needs a `ChatResponse` (the "widget"
+reading was already stale; the host reads `.message` as plain text, and by
+2026-08-30 the call is the FALLBACK only — see the timing-after-audit-gather
+section): the message now declares itself machinery, disclaims the person, and forbids
 referring to itself (`_EXTRACTION_REQUEST`, locked by
 `test_extraction_request_framing.py`).
 
@@ -4141,3 +4143,13 @@ a single large-prompt generation, which is a transport and prompt-shape problem 
 with an EXTRA non-streamed `_call_with_response_model` round to re-render prose that
 the tool-round call already produced (`conversation_facilitator.submit` and
 `submit_stream` both). Un-measured as of this round.
+
+**ACTED ON (2026-08-30), still un-measured on a bench:** that round is gone from the
+common turn — `_reuse_written_reply` builds `ChatResponse` from the text the model
+already wrote, and the structured call remains only as the fallback for the turns where
+that text is not the finished answer (round budget exhausted, richer response model,
+empty text). It also removes the duplicate assistant turn this build was replaying to
+the provider every turn. The saving is DERIVED from the two-call shape, not measured
+here, and the honest way to read it is: whatever fraction of the 18.55s median was the
+second round. A timing round after this change is what turns that into a number —
+until then it is arithmetic, and this file's own history is a warning about those.

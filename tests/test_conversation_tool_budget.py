@@ -117,6 +117,10 @@ class TestDanglingToolCallClosure:
         closure message must satisfy that check itself, so the extraction sees the
         tool_result as the final turn rather than a text message wedged between
         the tool_use and its answer.
+
+        This path is now the MAIN reason the extraction call still exists:
+        `_reuse_written_reply` declines whenever `tool_calls` are still pending,
+        which is exactly the overrun this module tests.
         """
         facilitator = ConversationFacilitator(tools=[lambda: None])
         facilitator._close_dangling_tool_calls(
