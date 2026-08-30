@@ -1227,7 +1227,8 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   (verified on a real provider, `tests/test_single_perspective_explore_real_llm.py`). Per deepened wheel that is
   2N×(1 apex + 3 extraction) + 6N×(4 generation + 2 audit *only when the eager audit is enabled*) calls. With the
   eager audit off (the default) the audit term is 0 here and the spend moves to whichever pathways a conversation
-  actually asks about — `audit_feasibility` charges 2 calls per named pathway, once. CLAUDE.md said "2N Transformations" until
+  actually asks about — `audit_feasibility` charges 2 calls per named pathway, once, and those two (Ac+/Re+) are
+  gathered, so the person waits one call's time for them. CLAUDE.md said "2N Transformations" until
   2026-08-13 — it was counting edges. If you are reasoning about explore latency or about how many pathways the
   model gets to choose between, this multiplier is the number that matters, and adding an insight category
   multiplies the whole stage. (`SynthesisGeneration` → S+/S-; the Advisor path syntheses only

@@ -31,7 +31,7 @@ from e2e.arms import (
 from e2e.config import E2EConfig
 from e2e.driver import E2EDriver
 from e2e.judge import _x_is_a, dimensions_for
-from e2e.across_runs import (RESULTS, _a2_deltas, _corr, _stems,
+from e2e.across_runs import (RESULTS, TELEMETRY_ONLY, _a2_deltas, _corr, _stems,
                                excluded_rows, fisher_exact, ladder_cells,
                                ladder_pairs, rung_rows, sign_flip_p,
                                sign_test, valid_comparisons, visibility_rows)
@@ -2274,12 +2274,75 @@ class TestTheStatusBoardReadsTheArchiveCorrectly:
             stem
             for stem in _stems()
             if stem not in hand
+            and stem not in TELEMETRY_ONLY
             and (load_records(RESULTS / f"{stem}.json").get("runs") or [])
             and not (load_records(RESULTS / f"{stem}.json").get("comparisons") or [])
         ]
         assert owed, "no unjudged runs left on disk — nothing to pin"
         for stem in owed:
             assert stem in debt_table, f"genuinely unjudged {stem} is not listed"
+
+    def test_judge_off_runs_are_not_debt_either(self):
+        """A run whose judging was switched OFF has no comparisons by design.
+
+        The second dialect of the same padding bug. `timing-check-building` and
+        `timing-instrumentation-check` were saved with
+        `DIALEXITY_E2E_JUDGE_OFF=1` to validate per-turn timing; `rounds.md` says
+        outright that neither carries a delta or is evidence about any arm. Left
+        in the debt column they sit there forever, and acting on the prompt this
+        section prints — re-judge it — would manufacture arm evidence from two
+        sessions chosen for their LENGTH.
+
+        Still visible, never dropped: a paid run that vanishes from the board is
+        the overstated-coverage failure, which is the worse one.
+        """
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            status.unread()
+        text = buffer.getvalue()
+
+        # Debt is whatever precedes the first not-debt block, whichever prints.
+        cuts = [text.index(m) for m in ("READ BY HAND-LABEL", "JUDGE OFF BY DESIGN")
+                if m in text]
+        assert cuts, "the board printed neither not-debt block"
+        debt_table = text[:min(cuts)]
+
+        assert TELEMETRY_ONLY, "no telemetry stems declared — the pin is vacuous"
+        for stem in TELEMETRY_ONLY:
+            assert (RESULTS / f"{stem}.json").exists(), (
+                f"{stem} is declared telemetry-only but has no saved run"
+            )
+            assert stem not in debt_table, (
+                f"{stem} is listed as unread debt, but it was run with judging "
+                "off — zero comparisons is the intended outcome, not a pass owed"
+            )
+            assert stem in text, (
+                f"{stem} vanished from the board; a paid run must stay visible"
+            )
+
+    def test_new_runs_declare_their_own_judge_off_state(self):
+        """`TELEMETRY_ONLY` is retroactive and must not need a third entry.
+
+        The list covers runs saved before `save_records` recorded the flag. Every
+        run saved since carries `judge_off` in its payload, so the board
+        classifies it without anybody remembering to edit a constant — that is
+        the whole reason the field exists.
+        """
+        import os
+
+        from e2e.report import save_records
+
+        tmp = RESULTS / "smoke-judge-off-field.json"
+        try:
+            os.environ["DIALEXITY_E2E_JUDGE_OFF"] = "1"
+            save_records(tmp, runs=[], comparisons=[], machine={})
+            assert load_records(tmp)["judge_off"] is True
+            del os.environ["DIALEXITY_E2E_JUDGE_OFF"]
+            save_records(tmp, runs=[], comparisons=[], machine={})
+            assert load_records(tmp)["judge_off"] is False
+        finally:
+            os.environ.pop("DIALEXITY_E2E_JUDGE_OFF", None)
+            tmp.unlink(missing_ok=True)
 
     def test_the_board_names_the_unopened_scenarios(self):
         """Declared-but-never-judged is the headline, not a footnote.

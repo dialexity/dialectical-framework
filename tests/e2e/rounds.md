@@ -3709,7 +3709,12 @@ about poor-fit requests in general.
 
 **Read this section as a disclaimer before it is a result.** Both stems were run to
 validate new per-turn timing (`TurnRecord.duration_s`, `reply_path_s`, `off_path_s`,
-`tool_seconds`), with `DIALEXITY_E2E_JUDGE_OFF=1`. **No cell was judged, so neither stem
+`tool_seconds`), with `DIALEXITY_E2E_JUDGE_OFF=1`. Both are declared in
+`across_runs.TELEMETRY_ONLY`, so `status.py unread` prints them as judge-off-by-design
+rather than as a judge pass somebody owes — they would otherwise have sat in the debt
+column forever, and acting on that prompt would manufacture arm evidence from two
+sessions chosen for their length. Runs saved after 2026-08-30 carry `judge_off` in the
+payload and need no entry. **No cell was judged, so neither stem
 carries a delta and neither is evidence about any arm.** `timing-instrumentation-check`
 names a control scenario (`premature_relocation`, A1+A2, weak, 1 replicate, 4 turns
 each) only because it is the cheapest single-session scenario in the file — it was

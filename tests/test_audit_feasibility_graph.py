@@ -17,6 +17,8 @@ is the case that pays double if the idempotency check reads the graph wrong.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from dialectical_framework.graph.nodes.case import Case
@@ -212,6 +214,46 @@ def test_a_critique_hashes_on_its_target(caplog):
         assert not [
             r for r in caplog.records if "no row in the database" in r.getMessage()
         ]
+
+
+async def test_the_two_positions_are_audited_at_once(monkeypatch):
+    """Ac+ and Re+ must be in flight together, not one after the other.
+
+    Sequential cost nothing anyone could feel while the audit lived inside a
+    `gather` over 6 Transformations. On the `audit_feasibility` path it IS the
+    wait — someone asked "is this doable?" and gets 2 × ~12.3s of silence.
+
+    The barrier below is the assertion: the first auditor blocks until the second
+    arrives. Under `gather` both are in flight, the second releases the first,
+    and the concern returns. Restore the `for` loop and the second call never
+    happens — the first waits out the timeout and this fails with TimeoutError
+    rather than passing slowly.
+    """
+    from dialectical_framework.concerns import transformation_audit as ta_mod
+
+    arrived = asyncio.Event()
+    entered: list[str] = []
+    real_run = ta_mod.TransformationAudit._run_audit
+
+    async def barrier(self, prompt: str):
+        entered.append(prompt)
+        if len(entered) == 1:
+            await asyncio.wait_for(arrived.wait(), timeout=10)
+        else:
+            arrived.set()
+        return await real_run(self, prompt)
+
+    monkeypatch.setattr(ta_mod.TransformationAudit, "_run_audit", barrier)
+
+    case = Case()
+    case.commit()
+
+    with scope(case.sid):
+        _, transformation = _built_transformation()
+        results = await ta_mod.TransformationAudit().resolve(transformation)
+
+    assert len(entered) == 2, "both positions must reach the provider"
+    assert {r.position for r in results} == {"Ac+", "Re+"}
 
 
 async def test_asking_again_costs_nothing(monkeypatch):

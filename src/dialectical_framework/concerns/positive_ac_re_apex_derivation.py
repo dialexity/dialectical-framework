@@ -174,33 +174,55 @@ Ac+/Re+ must: (1) not restate A+/T+, (2) be generative, (3) be valid BEFORE A+/T
 """
 
 
-class ApexCandidateDto(BaseModel):
-    """A candidate apex statement with coordinates."""
-
-    statement: str = Field(description="The apex statement (concise, longer than a headline)")
-    insight_label: str = Field(
-        description="Insight label from taxonomy (e.g., leverage, composition, anticipation)"
-    )
-    proactiveness_label: str = Field(
-        description="Proactiveness label from taxonomy (e.g., interpretation, intervention)"
-    )
-    explanation: str = Field(
-        description="Why this statement represents the path and how it fits the sweet spot"
-    )
-
-
 class ApexPairDto(BaseModel):
-    """Result of generating both Re+ and Ac+ apex candidates."""
+    """Both Re+ and Ac+ apex candidates.
 
-    re_plus_apex: ApexCandidateDto = Field(
-        description=f"Re+ apex: A- → T+ reflection path "
+    FLAT ON PURPOSE. This was two nested `ApexCandidateDto` objects and a real
+    provider answered with `re_plus_apex` complete and `ac_plus_apex` absent
+    (`probe_explore_cost.py`, 2026-08-29) — the SECOND half of the pair, exactly
+    as `SynthesisPairDto` dropped `s_minus`. Two observations of one shape: given
+    two identically shaped sub-objects, the model finishes the first and treats
+    the pattern as satisfied. A missing required field is also the one thing
+    `_salvage_envelope` must not repair, so it costs a full re-ask of an already
+    expensive call.
+
+    Eight independently named keys cannot be half-satisfied the same way — an
+    answer that stops after Re+ leaves four named keys visibly missing.
+
+    `*_explanation` is never read (`_to_apex_dto` uses statement + both labels).
+    It stays required because asking for the reasoning is what keeps the labels
+    honest, not because anything downstream consumes it.
+    """
+
+    re_plus_statement: str = Field(
+        description=f"Re+ apex statement: A- → T+ reflection path, concise but longer "
+        f"than a headline "
         f"(proactiveness {RE_PLUS_SWEET_SPOT['proactiveness_min']}-{RE_PLUS_SWEET_SPOT['proactiveness_max']}, "
         f"insight {RE_PLUS_SWEET_SPOT['insight_min']}-{RE_PLUS_SWEET_SPOT['insight_max']})"
     )
-    ac_plus_apex: ApexCandidateDto = Field(
-        description=f"Ac+ apex: T- → A+ action path "
+    re_plus_insight_label: str = Field(
+        description="Re+ insight label from taxonomy (e.g., leverage, composition, anticipation)"
+    )
+    re_plus_proactiveness_label: str = Field(
+        description="Re+ proactiveness label from taxonomy (e.g., interpretation, intervention)"
+    )
+    re_plus_explanation: str = Field(
+        description="Why the Re+ statement represents the reflection path and fits its sweet spot"
+    )
+    ac_plus_statement: str = Field(
+        description=f"Ac+ apex statement: T- → A+ action path, concise but longer "
+        f"than a headline "
         f"(proactiveness {AC_PLUS_SWEET_SPOT['proactiveness_min']}-{AC_PLUS_SWEET_SPOT['proactiveness_max']}, "
         f"insight {AC_PLUS_SWEET_SPOT['insight_min']}-{AC_PLUS_SWEET_SPOT['insight_max']})"
+    )
+    ac_plus_insight_label: str = Field(
+        description="Ac+ insight label from taxonomy (e.g., leverage, composition, anticipation)"
+    )
+    ac_plus_proactiveness_label: str = Field(
+        description="Ac+ proactiveness label from taxonomy (e.g., interpretation, intervention)"
+    )
+    ac_plus_explanation: str = Field(
+        description="Why the Ac+ statement represents the action path and fits its sweet spot"
     )
 
 
@@ -267,8 +289,18 @@ class AcReApexDerivation(
 
         apex_pair = await self._generate_apex_pair(context, input_text)
 
-        re_plus_apex = self._to_apex_dto(apex_pair.re_plus_apex, RE_PLUS_SWEET_SPOT)
-        ac_plus_apex = self._to_apex_dto(apex_pair.ac_plus_apex, AC_PLUS_SWEET_SPOT)
+        re_plus_apex = self._to_apex_dto(
+            apex_pair.re_plus_statement,
+            apex_pair.re_plus_insight_label,
+            apex_pair.re_plus_proactiveness_label,
+            RE_PLUS_SWEET_SPOT,
+        )
+        ac_plus_apex = self._to_apex_dto(
+            apex_pair.ac_plus_statement,
+            apex_pair.ac_plus_insight_label,
+            apex_pair.ac_plus_proactiveness_label,
+            AC_PLUS_SWEET_SPOT,
+        )
 
         result = AcReApexDerivationResultDto(
             re_plus_apex=re_plus_apex,
@@ -316,10 +348,14 @@ Generate apex statements for both transformation paths within the specified swee
    - MUST use proactiveness in range {AC_PLUS_SWEET_SPOT["proactiveness_min"]} - {AC_PLUS_SWEET_SPOT["proactiveness_max"]}
    - MUST use insight in range {AC_PLUS_SWEET_SPOT["insight_min"]} - {AC_PLUS_SWEET_SPOT["insight_max"]}
 
-For each apex, provide:
+For EACH of the two apexes, provide:
 - A statement (up to {self.settings.transition_length} words)
 - The exact insight_label and proactiveness_label from the taxonomy
-- An explanation of why this represents the transformation path"""
+- An explanation of why this represents the transformation path
+
+Both apexes are required. Re+ and Ac+ are the two halves of one circular
+causality — an answer carrying only one describes half a loop, and the loop is
+the whole point."""
 
         return await self._conversation.submit(
             response_model=ApexPairDto,
@@ -327,11 +363,15 @@ For each apex, provide:
         )
 
     def _to_apex_dto(
-        self, candidate: ApexCandidateDto, sweet_spot: dict[str, float]
+        self,
+        statement: str,
+        raw_insight_label: str,
+        raw_proactiveness_label: str,
+        sweet_spot: dict[str, float],
     ) -> ApexDto:
-        """Convert candidate to ApexDto with numeric coordinates, clamped to sweet spot."""
-        insight_label = candidate.insight_label.capitalize()
-        proactiveness_label = candidate.proactiveness_label.capitalize()
+        """Convert one side of the pair to ApexDto, clamped to its sweet spot."""
+        insight_label = raw_insight_label.capitalize()
+        proactiveness_label = raw_proactiveness_label.capitalize()
 
         # Get numeric values from labels
         try:
@@ -358,7 +398,7 @@ For each apex, provide:
         )
 
         return ApexDto(
-            statement=candidate.statement,
+            statement=statement,
             insight=insight,
             proactiveness=proactiveness,
             insight_label=insight_label,

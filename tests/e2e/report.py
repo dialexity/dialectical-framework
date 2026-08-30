@@ -416,13 +416,25 @@ def save_records(
 
     `build` is written on every save, so a run saved before this existed is
     identifiable by its ABSENCE rather than by a guess — see `build_provenance`.
+
+    `judge_off` is written for the same reason, one level down. A run with zero
+    comparisons is ambiguous from the file alone: either its judge phase owes a
+    pass, or it was never MEANT to be judged (telemetry, harness checks). The
+    board could not tell, so it read the two 2026-08-26 timing runs as permanent
+    debt — `status.py::unread`'s own docstring names an overstated board as
+    costing the same as an overstated one. Recorded here rather than passed in,
+    because the flag is read from the environment in exactly one place and a
+    parameter would let a caller save a value that contradicts the run.
     """
+    import os
+
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "runs": [r.model_dump(mode="json") for r in runs],
         "comparisons": [c.model_dump(mode="json") for c in comparisons],
         "machine": {k: v.model_dump(mode="json") for k, v in machine.items()},
         "build": build_provenance(),
+        "judge_off": bool(os.getenv("DIALEXITY_E2E_JUDGE_OFF")),
     }
     path.write_text(json.dumps(payload, indent=2))
 

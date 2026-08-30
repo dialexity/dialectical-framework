@@ -534,3 +534,81 @@ class TestRetryLoopIntegration:
         # occurrence count would be 3 here and would pass for the wrong reason.
         assert caplog.text.count("Raw payload") == 1
         assert caplog.text.count("backing off") == 2, "the retries themselves still log"
+
+
+class TestFramingLeakDiagnosis:
+    """The XML dialect has no salvage rule, on purpose. This names its trigger.
+
+    `probe_anchor_retry_cost.py` found tool-call parameter framing leaking into
+    structured output in two dialects — a JSON descriptor for the whole object
+    (which HAS a rule, because the model emitted it 3/3 times) and an XML
+    fragment inside one field (which does not). The stated reason for declining
+    the second: that response was also TRUNCATED, so unwrapping the field would
+    have failed validation anyway. The stated condition for revisiting it: "if
+    the XML dialect ever shows up in an otherwise complete response".
+
+    That condition used to require reading a clipped payload by eye. These pin it
+    as a log line, so the next occurrence classifies itself.
+    """
+
+    def test_truncated_xml_is_named_as_the_known_derailment(self):
+        from dialectical_framework.utils.use_brain import _framing_leak_note
+
+        # The payload as observed: an object slot filled with tool-call XML, and
+        # the response cut off mid-value so the container never closes.
+        truncated = (
+            '{"t_plus": "\\n<parameter name=\\"statement\\">Unified ownership '
+            'enabling decisive'
+        )
+        note = _framing_leak_note(truncated)
+        assert "tool-call XML framing" in note
+        assert "does not parse" in note
+        assert "the re-ask is correct" in note
+
+    def test_complete_xml_is_named_as_the_trigger_for_a_rule(self):
+        from dialectical_framework.utils.use_brain import _framing_leak_note
+
+        # Same leak, but the container closes — the case the archive said would
+        # earn a salvage rule.
+        complete = (
+            '{"t_plus": "<parameter name=\\"statement\\">Unified ownership'
+            '</parameter>", "t_minus": "x"}'
+        )
+        note = _framing_leak_note(complete)
+        assert "OTHERWISE COMPLETE" in note
+        assert "trigger" in note
+
+    def test_a_payload_without_the_leak_says_nothing(self):
+        """Silence is the point: a note on every parse failure is noise."""
+        from dialectical_framework.utils.use_brain import _framing_leak_note
+
+        assert _framing_leak_note('{"matches": "not xml at all"}') == ""
+        assert _framing_leak_note("") == ""
+
+    def test_the_note_reaches_the_dump_line(self):
+        """Wired into `_log_unsalvageable`, not just callable."""
+        import logging
+
+        from dialectical_framework.utils.use_brain import _log_unsalvageable
+
+        class _Resp:
+            def text(self, _default=""):
+                return (
+                    '{"t_plus": "<parameter name=\\"statement\\">x</parameter>"}'
+                )
+
+        logger = logging.getLogger("dialectical_framework.utils.use_brain")
+        records: list[str] = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        handler = _Capture()
+        logger.addHandler(handler)
+        try:
+            _log_unsalvageable(_Resp(), "TetradDto")
+        finally:
+            logger.removeHandler(handler)
+
+        assert any("DIAGNOSIS" in m for m in records)

@@ -14,6 +14,7 @@ Grouped by the review theme they guard:
 - H5: apex sweet-spot numbers match the computed constants
 - S4: transition length is settings-driven, no hardcoded "1-15 words"
 - Agent-prompt correctness (H2/H3/H6/S5) and Task 6/7 polish
+- Pair DTOs stay flat: a nested two-halves pair loses its second half (measured)
 
 Run: poetry run pytest tests/test_prompt_review_regressions.py -v
 """
@@ -453,8 +454,11 @@ class TestApexSweetSpots:
         from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
             ApexPairDto
 
-        re_desc = ApexPairDto.model_fields["re_plus_apex"].description
-        ac_desc = ApexPairDto.model_fields["ac_plus_apex"].description
+        # The sweet spot rides on each side's statement field — the pair was
+        # flattened (2026-08-29) after a provider dropped the whole nested
+        # `ac_plus_apex` object; see ApexPairDto.
+        re_desc = ApexPairDto.model_fields["re_plus_statement"].description
+        ac_desc = ApexPairDto.model_fields["ac_plus_statement"].description
         assert "proactiveness 0.15-0.35" in re_desc
         assert "proactiveness 0.55-0.75" in ac_desc
 
@@ -3590,3 +3594,74 @@ class TestCompletenessRegisterSplit:
         sections re-specify each other and the unscoped head has two rules."""
         p = self._unscoped()
         assert "governed by How You Speak" in p
+
+
+# --- Pair DTOs stay flat (measured, twice) -----------------------------------
+
+
+class TestPairDtosStayFlat:
+    """A two-halves pair DTO must be flat, because nesting loses the second half.
+
+    Measured twice on the same weak tier, both on `probe_explore_cost.py`:
+    `SynthesisPairDto` returned `s_plus` and no `s_minus` (2026-08-27), and
+    `ApexPairDto` returned `re_plus_apex` and no `ac_plus_apex` (2026-08-29).
+    Both times the dropped half was the SECOND of two identically shaped
+    sub-objects — the model finished one and treated the pattern as satisfied.
+
+    A missing required field is the one thing `_salvage_envelope` may not repair
+    (no rule may invent a field the model never sent), so each occurrence costs a
+    full re-ask of an already expensive call. This test exists because both DTOs
+    read more tidily nested, and re-nesting them would look like a cleanup.
+    """
+
+    @staticmethod
+    def _pair_dtos():
+        from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
+            ApexPairDto
+        from dialectical_framework.concerns.synthesis_generation import \
+            SynthesisPairDto
+
+        return [ApexPairDto, SynthesisPairDto]
+
+    def test_no_field_is_a_sub_object(self):
+        from pydantic import BaseModel
+
+        for dto in self._pair_dtos():
+            nested = [
+                name
+                for name, field in dto.model_fields.items()
+                if isinstance(field.annotation, type)
+                and issubclass(field.annotation, BaseModel)
+            ]
+            assert nested == [], (
+                f"{dto.__name__} nests {nested} — the shape that lost a half "
+                f"twice. Flatten to one required key per leaf."
+            )
+
+    def test_every_leaf_is_required(self):
+        """Optional halves would parse and silently store nothing."""
+        for dto in self._pair_dtos():
+            optional = [
+                name
+                for name, field in dto.model_fields.items()
+                if not field.is_required()
+            ]
+            assert optional == [], f"{dto.__name__} has optional leaves: {optional}"
+
+    def test_both_halves_are_present_as_named_keys(self):
+        """The point of flattening: stopping after one half leaves keys missing."""
+        from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
+            ApexPairDto
+        from dialectical_framework.concerns.synthesis_generation import \
+            SynthesisPairDto
+
+        apex = set(ApexPairDto.model_fields)
+        assert {"re_plus_statement", "ac_plus_statement"} <= apex
+        assert sum(n.startswith("re_plus_") for n in apex) == 4
+        assert sum(n.startswith("ac_plus_") for n in apex) == 4
+
+        synth = set(SynthesisPairDto.model_fields)
+        assert {
+            "s_plus_statement", "s_plus_explanation",
+            "s_minus_statement", "s_minus_explanation",
+        } == synth

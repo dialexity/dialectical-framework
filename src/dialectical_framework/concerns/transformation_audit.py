@@ -26,7 +26,9 @@ expensive thing per unit of consequence in the whole pipeline:
     cost      two provider calls per Transformation (Ac+ and Re+). At 1 PP that
               was 12 calls / 147.4s — 40% of `explore`'s ENTIRE provider spend,
               ~12.3s each against a 7.8s mean across all concerns, and the only
-              concern billed twice per Transformation.
+              concern billed twice per Transformation. The two are gathered, so
+              the LATENCY of one audited pathway is ~one call, not two — cost is
+              unchanged, and turning the eager path back on still buys 12 calls.
     consumers no code. `FeasibilityEstimation` is read at three render sites
               (`dialectical_context._format_transition_scores`, `inspect_node`,
               and now `audit_feasibility`), all display-only. The critique
@@ -53,6 +55,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
@@ -171,13 +174,34 @@ class TransformationAudit(
             self._report.summary = "No positions to audit"
             return []
 
+        # Ac+ and Re+ are independent judgements about two different transitions
+        # — nothing in the second reads the first. They ran sequentially because
+        # this used to live inside a `gather` over 6 Transformations, where the
+        # ordering cost nothing anyone could feel. On the `audit_feasibility`
+        # path it is the whole wait: 2 × ~12.3s of dead air for someone who just
+        # asked "is this actually doable?". Gathered, the pathway answers in one
+        # call's time.
+        #
+        # The DB reads stay OUT of the gathered tasks (GQLAlchemy is not
+        # concurrency-safe): prompts are built sequentially below, the tasks are
+        # pure provider calls, and every graph write happens in the loop after.
+        prompts: list[tuple[str, Transition, Rationale, str]] = []
+        for position_label, transition, rationale in positions:
+            prompt = self._build_audit_prompt(transition, rationale, input_text)
+            if prompt is None:
+                continue
+            prompts.append((position_label, transition, rationale, prompt))
+
+        audits = await asyncio.gather(
+            *(self._run_audit(prompt) for _, _, _, prompt in prompts)
+        )
+
         results: list[TransformationAuditResultDto] = []
         estimation_manager = EstimationManager()
 
-        for position_label, transition, rationale in positions:
-            audit = await self._audit_transition(
-                transition, rationale, input_text
-            )
+        for (position_label, transition, rationale, _), audit in zip(
+            prompts, audits
+        ):
             if not audit:
                 continue
 
@@ -251,13 +275,18 @@ class TransformationAudit(
 
         return results
 
-    async def _audit_transition(
+    def _build_audit_prompt(
         self,
         transition: Transition,
         rationale: Rationale,
         input_text: str,
-    ) -> Optional[TransitionAuditDto]:
-        """Run feasibility audit on a single transition."""
+    ) -> Optional[str]:
+        """Render the audit prompt for one transition — DB reads live HERE.
+
+        Kept separate from `_run_audit` so the source/target lookups happen on
+        the caller's sequential path; the gathered half must touch nothing but
+        the provider.
+        """
         source_result = transition.source.get()
         target_result = transition.target.get()
         if not source_result or not target_result:
@@ -270,7 +299,7 @@ class TransformationAudit(
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        prompt = f"""{context_section}Evaluate the practical feasibility of this transition:
+        return f"""{context_section}Evaluate the practical feasibility of this transition:
 
 **From:** "{source_text}"
 **To:** "{target_text}"
@@ -280,6 +309,8 @@ class TransformationAudit(
 Assess whether this transition is practically implementable in real-world conditions.
 Consider resource requirements, barriers, resistance factors, and timeline realism."""
 
+    async def _run_audit(self, prompt: str) -> Optional[TransitionAuditDto]:
+        """One provider call. No graph access — safe to gather."""
         try:
             return await self._conversation.isolate().submit(
                 response_model=TransitionAuditDto,

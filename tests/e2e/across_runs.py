@@ -114,6 +114,26 @@ SUPERSEDED: dict[str, str] = {
 }
 
 
+#: Stems saved with `DIALEXITY_E2E_JUDGE_OFF=1` BEFORE `save_records` recorded
+#: that flag, mapped to what they were measuring instead. Their zero comparisons
+#: are the intended outcome, not a judge pass someone still owes.
+#:
+#: Both were run to validate per-turn timing (`TurnRecord.duration_s`,
+#: `reply_path_s`, `off_path_s`, `tool_seconds`) on 2026-08-26 — see
+#: `rounds.md` "telemetry validation, NOT a control reading", which says outright
+#: that neither stem carries a delta or is evidence about any arm. Re-judging them
+#: would not be free-ish repair work; it would manufacture arm evidence out of two
+#: sessions chosen for their LENGTH.
+#:
+#: Nothing needs to be added here again: runs saved from now on carry
+#: `judge_off` in the payload and classify themselves. This list is only the
+#: retroactive half, and it should stay exactly two entries long.
+TELEMETRY_ONLY: dict[str, str] = {
+    "timing-check-building": "per-turn timing on a tool-heavy session (A2, weak, 16 turns)",
+    "timing-instrumentation-check": "per-turn timing on the cheapest scenario (A1+A2, weak, 4 turns)",
+}
+
+
 def superseded_rows() -> list[tuple[str, str]]:
     """(dead stem, the stem that replaces it) — printed, never silent."""
     return sorted(SUPERSEDED.items())

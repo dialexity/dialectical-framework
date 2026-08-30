@@ -75,21 +75,32 @@ S- manifests as imitation rather than transformation: external forms, metrics, o
 # --- DTOs ---
 
 
-class SynthesisComponentDto(BaseModel):
-    """Single synthesis component (S+ or S-)."""
-
-    statement: str = Field(description="Synthesis statement (declarative, naming an emergent state or quality)")
-    explanation: str = Field(description="How this emerges from the circular causality of the transformations")
-
-
 class SynthesisPairDto(BaseModel):
-    """S+ and S- pair emerging from a Wheel's circular causality."""
+    """S+ and S- pair emerging from a Wheel's circular causality.
 
-    s_plus: SynthesisComponentDto = Field(
-        description="Positive synthesis: emergent harmony (1+1>2), new qualitative dimension"
+    FLAT ON PURPOSE. This was two nested `SynthesisComponentDto` objects, and a
+    real provider answered with `s_plus` filled and `s_minus` absent
+    (`probe_explore_cost.py`, 2026-08-27). A missing REQUIRED field is the one
+    thing `_salvage_envelope` must not repair — no rule may invent a field the
+    model never sent — so the whole synthesis paid a full retry for half an
+    answer. Two identically shaped sub-objects read as one pattern to complete
+    once; four independently named required keys do not, and S- is the half a
+    person needs most (it names how the wheel collapses).
+    """
+
+    s_plus_statement: str = Field(
+        description="S+ statement — positive synthesis: emergent harmony (1+1>2), "
+                    "a new qualitative dimension. Declarative, naming the emergent state"
     )
-    s_minus: SynthesisComponentDto = Field(
-        description="Negative synthesis: collapse pattern (1+1<2), dominance or oscillation"
+    s_plus_explanation: str = Field(
+        description="How S+ emerges from the circular causality of the Ac+/Re+ transformations"
+    )
+    s_minus_statement: str = Field(
+        description="S- statement — negative synthesis: collapse pattern (1+1<2), "
+                    "dominance or oscillation. Declarative, naming the degraded state"
+    )
+    s_minus_explanation: str = Field(
+        description="How S- emerges when the failure modes (Ac-/Re-) reinforce each other"
     )
 
 
@@ -184,13 +195,13 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
         # Create S+ and S- Statements
         assert wheel.hash is not None
         s_plus_stmt = Statement(
-            text=synthesis_pair.s_plus.statement,
+            text=synthesis_pair.s_plus_statement,
             meaning=f"synthesis:positive:{wheel.hash}",
         )
         s_plus_stmt.commit()
 
         s_minus_stmt = Statement(
-            text=synthesis_pair.s_minus.statement,
+            text=synthesis_pair.s_minus_statement,
             meaning=f"synthesis:negative:{wheel.hash}",
         )
         s_minus_stmt.commit()
@@ -206,8 +217,8 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
         return SynthesisResult(
             s_plus_statement=s_plus_stmt,
             s_minus_statement=s_minus_stmt,
-            s_plus_explanation=synthesis_pair.s_plus.explanation,
-            s_minus_explanation=synthesis_pair.s_minus.explanation,
+            s_plus_explanation=synthesis_pair.s_plus_explanation,
+            s_minus_explanation=synthesis_pair.s_minus_explanation,
         )
 
     @staticmethod
@@ -349,7 +360,10 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             f"operate together simultaneously? What collapse pattern forms when the "
             f"failure modes (Ac-/Re-) reinforce each other?\n\n"
             f"Each statement should be approximately {max_words} words — "
-            f"a declarative label naming the emergent state or quality."
+            f"a declarative label naming the emergent state or quality.\n\n"
+            f"Answer BOTH halves. S- is not optional and not a footnote to S+ — "
+            f"a wheel whose collapse pattern is unnamed cannot be steered away "
+            f"from it."
         )
 
         return "\n\n".join(sections)

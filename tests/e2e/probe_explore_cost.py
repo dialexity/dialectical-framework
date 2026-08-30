@@ -140,6 +140,49 @@ Two things this run also surfaced, neither of them about cost:
 - Twelve `Rationale <hash> has a hash but no row in the database` warnings from
   `relationship_manager.py:393`. Not diagnosed here — could be a probe-setup
   artefact of committing outside a pipeline, or a genuine integrity bug.
+
+CONFIRMED BY RE-RUN, 2026-08-29 — the wall clock halved
+=======================================================
+Same command, same tier, 1 PP, 6 Transformations, audit off by default::
+
+    waited 52.2s   working 46.4s   slept 2.0s   retries 1 {'parse': 1}
+    calls 35   provider 194.0s   in-flight 50.6s   not in a call 1.6s
+    PARALLELISM 3.83x   depth ~9.1 stages   mean call 5.5s
+
+    54.6s  x6   ReSideCompletionDto
+    44.2s  x6   CategoryReframingDto
+    27.1s  x6   AcMinusCompletionDto
+    23.0s  x6   HsScoringDto
+    22.0s  x6   ActionCandidateDto
+    16.0s  x3   ApexPairDto
+     6.1s  x1   SynthesisPairDto
+     1.0s  x1   _AutoPresetResolutionDto via BuildWheels._resolve_auto_preset
+
+The predictions above held exactly where they were deterministic and only there.
+**47 -> 35 calls and `TransitionAuditDto` absent** is the change itself: 12 calls,
+2 per Transformation. Depth fell ~11.3 -> ~9.1 stages, the audit's closing stage,
+as predicted. Wall clock 103.8s -> 52.2s beat the ~79s that was DERIVED from
+removing the audit's critical-path contribution.
+
+**Do not read the whole halving as the audit's removal.** The mean call fell
+7.8s -> 5.5s on rows that did not change (`ReSideCompletionDto` went UP, 56.8s ->
+54.6s at the same 6 calls, while others fell by a third) — that is provider
+variance across two days, and it is doing part of the work here. The call count
+is the honest number; the wall clock is one sample of a noisy quantity that
+happens to agree.
+
+`ApexPairDto` x3 (was x2) with no perspective count change is the retry, and it
+is the second finding:
+
+- `ApexPairDto` returned `re_plus_apex` complete and `ac_plus_apex` ABSENT — the
+  same missing-required-field defect as `SynthesisPairDto`'s `s_minus` above, in
+  the same position: the SECOND of two identically shaped sub-objects. Two
+  observations of one shape stopped being a prompt problem and became a schema
+  one. Both DTOs are now FLAT (one required key per leaf, `re_plus_statement`
+  rather than `re_plus_apex.statement`), because a nested pair reads as one
+  pattern to complete once while four independently named missing keys do not.
+  Pinned by `TestPairDtosStayFlat` in `tests/test_prompt_review_regressions.py`
+  so re-nesting cannot pass as a tidy-up.
 """
 
 from __future__ import annotations

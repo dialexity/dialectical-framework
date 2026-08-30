@@ -332,6 +332,51 @@ _CONTAINER_KEYS = (
 _RAW_PAYLOAD_LOG_CHARS = 600
 
 
+#: Anthropic tool-call parameter framing, as it appears when it leaks into a
+#: structured-output payload. Observed inside a string slot that expected an
+#: object (`TetradDto.t_plus`, `probe_anchor_retry_cost.py`).
+#:
+#: Stops at the `=` on purpose. The leak lands INSIDE a JSON string value, so the
+#: attribute quote arrives escaped — the observed text reads
+#: `"t_plus": "\n<parameter name=\"statement\">…"`, and a marker that included
+#: the bare `"` would have matched nothing it was written for.
+_TOOL_CALL_XML_MARKER = "<parameter name="
+
+
+def _framing_leak_note(text: str) -> str:
+    """Name the tool-call-framing leak, and say whether it EARNS a salvage rule.
+
+    Two dialects of one tendency — tool-call parameter framing bleeding into
+    structured output. The JSON descriptor dialect has a rule
+    (`_envelope_candidates` #2) because the model emitted it 3/3 times: a
+    deterministic envelope cannot be re-sampled away. The XML dialect
+    deliberately has none, and the archive states the condition under which it
+    would earn one: the single observation was ALSO truncated, so unwrapping
+    would have failed validation anyway — it needed the re-ask it got.
+
+    That condition is a judgement someone had to make by eye on a clipped
+    payload. This makes it mechanical: if the container parses, the XML is riding
+    inside an otherwise complete answer and a rule is now justified; if it does
+    not, this is the derailment already known to recover on the next sample.
+    Detection only — no field name is inferred here, and nothing is salvaged.
+    """
+    if _TOOL_CALL_XML_MARKER not in text:
+        return ""
+    try:
+        json.loads(_utils.extract_serialized_json(text))
+    except Exception:  # noqa: BLE001
+        return (
+            " DIAGNOSIS: tool-call XML framing leaked into the payload AND the "
+            "container does not parse — the known stochastic derailment, which "
+            "the next sample fixes. Not salvageable; the re-ask is correct."
+        )
+    return (
+        " DIAGNOSIS: tool-call XML framing leaked into an OTHERWISE COMPLETE "
+        "payload. This is the documented trigger for adding an XML salvage rule "
+        "to _envelope_candidates — see probe_anchor_retry_cost.py."
+    )
+
+
 def _log_unsalvageable(response: Any, format_name: Optional[str]) -> None:
     """Log what the model actually sent, so the next envelope is a one-line fix.
 
@@ -352,11 +397,14 @@ def _log_unsalvageable(response: Any, format_name: Optional[str]) -> None:
         return
     clipped = text[:_RAW_PAYLOAD_LOG_CHARS]
     logging.getLogger(__name__).warning(
-        "Unsalvageable %s envelope, retrying blind. Raw payload (%d chars%s): %s",
+        "Unsalvageable %s envelope, retrying blind. Raw payload (%d chars%s): %s%s",
         format_name,
         len(text),
         ", truncated" if len(text) > _RAW_PAYLOAD_LOG_CHARS else "",
         clipped,
+        # Appended AFTER the payload on purpose: the clip is what someone reads
+        # first, and the note is only present when there is something to say.
+        _framing_leak_note(text),
     )
 
 

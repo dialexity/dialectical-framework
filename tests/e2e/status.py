@@ -37,7 +37,8 @@ E2E_DIR = Path(__file__).resolve().parent
 if str(E2E_DIR.parent) not in sys.path:  # `python tests/e2e/status.py` directly
     sys.path.insert(0, str(E2E_DIR.parent))
 
-from e2e.across_runs import RESULTS, SUPERSEDED, _stems, valid_comparisons
+from e2e.across_runs import (RESULTS, SUPERSEDED, TELEMETRY_ONLY, _stems,
+                             valid_comparisons)
 from e2e.models import SUBSTANCE_DIMENSIONS, Comparison, RunRecord
 from e2e.report import drop_invalid, load_records
 from e2e.scenarios import ALL_SCENARIOS
@@ -172,11 +173,18 @@ def unread() -> None:
     (`claim2-weak-r11-particulars`, 12 cells) sat buried among rows that were
     done. A board that overstates debt is read as noise, which costs the same as
     one that overstates coverage.
+
+    Telemetry runs are the same failure in a second dialect. A stem saved with
+    `DIALEXITY_E2E_JUDGE_OFF=1` has zero comparisons BY CONSTRUCTION, so it would
+    sit in the debt column forever, and re-judging it would invent arm evidence
+    from sessions picked for their length. Detected from `judge_off` in the
+    payload, with `TELEMETRY_ONLY` covering the two runs that predate that field.
     """
     print("## Unread — paid for, not yet read\n")
     hand = _hand_labelled()
     rows: list[tuple[str, int, str]] = []
     probed: list[tuple[str, int, str]] = []
+    telemetry: list[tuple[str, int, str]] = []
     for stem in _stems():
         payload = load_records(RESULTS / f"{stem}.json")
         runs = payload.get("runs") or []
@@ -184,7 +192,12 @@ def unread() -> None:
         if not runs or comparisons:
             continue
         scen = ",".join(sorted({r.get("scenario_key") for r in runs}))
-        (probed if stem in hand else rows).append((stem, len(runs), scen))
+        if payload.get("judge_off") or stem in TELEMETRY_ONLY:
+            telemetry.append((stem, len(runs), scen))
+        elif stem in hand:
+            probed.append((stem, len(runs), scen))
+        else:
+            rows.append((stem, len(runs), scen))
     if rows:
         print(f"{'stem':38} {'runs':>5}  scenarios")
         print("-" * 84)
@@ -203,6 +216,14 @@ def unread() -> None:
             print(f"  {stem:36} {n:>5}  {scen}")
         print("  Labels and their deciding quotes: "
               "probe_price_arithmetic.py::LABELS")
+
+    if telemetry:
+        print("\nJUDGE OFF BY DESIGN (not debt — these measured the harness, not "
+              "an arm):")
+        for stem, n, scen in telemetry:
+            why = TELEMETRY_ONLY.get(stem, "saved with DIALEXITY_E2E_JUDGE_OFF=1")
+            print(f"  {stem:36} {n:>5}  {scen}")
+            print(f"  {'':36} {'':>5}  {why}")
 
     if SUPERSEDED:
         print(f"\nSUPERSEDED (excluded from every pooled cut): "
