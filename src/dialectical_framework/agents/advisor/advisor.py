@@ -231,9 +231,12 @@ class Advisor:
             # Before the stream, for the same reason as in `chat`: this turn's
             # prompt must reflect what the last turn wrote.
             context_render_s = await self._refresh_context()
-            # The final reply comes from ResponseComplete, not from accumulated
-            # TextDeltas: deltas cover the tool rounds, and the structured
-            # message is what the person actually receives.
+            # The reply comes from ResponseComplete because that is the DURABLE
+            # one — text yielded before a ToolStart is the model saying what it
+            # is about to do, and only the last segment is counsel. This is not
+            # a claim that the person waited for it: on the ordinary turn
+            # `event.streamed` is True and `message` is byte-for-byte the deltas
+            # they already read, which is the point of streaming at all.
             reply = ""
             async for event in self._conversation.submit_stream(
                 ChatResponse, user_message

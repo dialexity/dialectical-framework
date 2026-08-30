@@ -38,6 +38,20 @@ Stream events: `ThinkingDelta`, `TextDelta`, `ToolStart`, `ToolResult` (carries 
 parsed `ExecutionReport` for graph-mutating tools; `report` is `None` for read-only
 tools like `query_graph`), `ResponseComplete`.
 
+**Render the `TextDelta`s — do not wait for `ResponseComplete` to show text.** On the
+ordinary turn `ResponseComplete.streamed` is `True`, and `message` is then byte-for-byte
+the deltas already yielded (the reply is *built* from them, not merely expected to
+match). A host that waits for the event pays the whole turn — ~18s measured — for text
+that started arriving in about a second. `streamed=False` means the deltas are not the
+reply and `message` must be rendered: either nothing streamed (the tool-free path makes
+one formatted call and cannot stream) or the streamed text was unusable and a separate
+structured call produced this one. Text yielded *before* a `ToolStart` is the model
+saying what it is about to do and is never part of `message` — fine to leave on screen
+as progress, never persisted as counsel.
+
+`chat()` returns the same durable reply with no streaming at all, so a host on `chat()`
+gets no first-token benefit; that is a host choice, not a framework limit.
+
 Construction is uniform except for what each is bound to:
 
 ```python

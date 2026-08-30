@@ -450,8 +450,9 @@ class TestTurnWiring:
 
         src = inspect.getsource(Advisor.chat_stream)
         assert "_repair_unrecorded_decision" in src
-        # From ResponseComplete, not accumulated deltas: deltas cover the tool
-        # rounds, the structured message is what the person receives.
+        # From ResponseComplete, because that is the DURABLE reply: deltas
+        # yielded before a ToolStart are the model narrating what it is about
+        # to do, and repairing against those would read a preamble as counsel.
         assert "ResponseComplete" in src
 
 

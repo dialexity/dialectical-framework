@@ -991,6 +991,14 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    the leak rate roughly 2×. Locked by `test_prompt_review_regressions.py::TestAdvisorFloorGuarantee::
    test_machinery_as_actor_examples_are_not_quotable` and `test_subject_and_opening_checks_are_mechanical`,
    measured by `test_machinery_silence_weak_tier.py` (xfail, non-strict).
+   **Blind spot in the measurement, not in the prompt: PREAMBLE text is never scored.** On the streaming
+   path the reply is the deltas yielded after the last tool result, so text the model writes *before* a
+   `ToolStart` — narrating what it is about to do, exactly the sentence-after-reading-a-tool-result site
+   where this class of leak lands — is progress, is not part of `ResponseComplete.message`, and is not in
+   what `score_machinery_leak` reads. The bench cannot see it at all because `tests/e2e/arms.py` calls
+   `chat()`, which does not stream. So a leak rate measured here is a rate for the *counsel*, and a host
+   that leaves preamble on screen shows the person prose no lane grades. Predates the streaming contract;
+   closing it means scoring the preamble channel, not tightening `_HOW_YOU_SPEAK`.
 3. **A concern's SYSTEM_PROMPT inline examples co-occur with interpolated shared constants + DTO field text.**
    In `aspect_generation.py`, the hand-written Love/Indifference example sits with interpolated `ASPECT_DEFINITIONS`
    / `HS_SCALE` / `COMPLEMENTARITY_SCALE` + live taxonomy apexes. Changing the constant reaches every consumer;

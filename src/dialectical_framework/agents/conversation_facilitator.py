@@ -308,6 +308,8 @@ class ConversationFacilitator(SettingsAware):
         turn = self.last_submit_retries
 
         if not self._tools:
+            # No stream at all on this path: one formatted call, so there is
+            # nothing to yield until it returns. `streamed=False` says so.
             with retry_account(turn):
                 result = await self._call_with_response_model(response_model)
             self.last_submit_seconds = time.monotonic() - started
@@ -317,11 +319,24 @@ class ConversationFacilitator(SettingsAware):
         with retry_account(turn):
             stream = await self._open_stream_with_retry()
 
+        # The text yielded THIS round, verbatim, and the reply is built from
+        # exactly these bytes (below). Same principle as `_record_tool_results`:
+        # what the person sees and what the caller receives are one construction,
+        # so they cannot disagree. Reading `stream.text()` instead would be a
+        # second construction — it joins multiple text parts with a separator the
+        # deltas never carried, and a host comparing the two would find them
+        # unequal for reasons no test would explain.
+        #
+        # Reset per round on purpose: text before a tool call is the model saying
+        # what it is about to do, and the reply is what it says afterwards.
+        answer: list[str] = []
         for _ in range(max_tool_rounds):
+            answer = []
             async for chunk in stream.chunk_stream():
                 if isinstance(chunk, ThoughtChunk):
                     yield ThinkingDelta(text=chunk.delta)
                 elif isinstance(chunk, TextChunk):
+                    answer.append(chunk.delta)
                     yield TextDelta(text=chunk.delta)
 
             if not stream.tool_calls:
@@ -362,8 +377,14 @@ class ConversationFacilitator(SettingsAware):
         self._close_dangling_tool_calls(stream)
         self._strip_unsupported_input_fields()
         # Same shortcut as `submit`, and it matters more here: the text this
-        # skips re-generating is the text already streamed as `TextDelta`s.
-        result = self._reuse_written_reply(stream, response_model)
+        # skips re-generating is the text already delivered as `TextDelta`s. So
+        # it is built from those deltas, and `streamed` tells the host that the
+        # reply is already on their screen — the difference between first-token
+        # latency and waiting out the whole turn.
+        result = self._reuse_written_reply(
+            stream, response_model, text="".join(answer)
+        )
+        streamed = result is not None
         if result is None:
             with retry_account(turn):
                 result = await self._call_with_response_model(response_model)
@@ -371,7 +392,7 @@ class ConversationFacilitator(SettingsAware):
         # and a consumer that stops iterating at ResponseComplete would otherwise
         # leave this unset on the very turns it is measuring.
         self.last_submit_seconds = time.monotonic() - started
-        yield ResponseComplete(result=result)
+        yield ResponseComplete(result=result, streamed=streamed)
 
     # --- Internal helpers ---
 
@@ -645,7 +666,9 @@ class ConversationFacilitator(SettingsAware):
             return False
         return field.is_required()
 
-    def _reuse_written_reply(self, response: Any, response_model: type[T]) -> T | None:
+    def _reuse_written_reply(
+        self, response: Any, response_model: type[T], *, text: str | None = None
+    ) -> T | None:
         """The reply the model ALREADY wrote, as `response_model` — or None.
 
         On a turn that ends without a tool call, the tools call has already
@@ -669,6 +692,11 @@ class ConversationFacilitator(SettingsAware):
         - **no readable text.** A thinking-only or tool-only response, or a
           fake that cannot answer (see `_response_text`).
 
+        `text` overrides where the prose comes from, and the streaming path
+        passes the deltas it actually yielded. That is not an optimisation: it
+        is what makes `ResponseComplete.streamed` a promise rather than a hope,
+        since the reply is then the same bytes the person watched arrive.
+
         Deliberately does NOT append to `self._messages`: the response chain
         this reads from already ends with this very assistant message, and
         `self._messages` was just synced from it.
@@ -677,10 +705,10 @@ class ConversationFacilitator(SettingsAware):
             return None
         if not self._is_plain_reply_model(response_model):
             return None
-        text = self._response_text(response)
-        if not text:
+        reply = text.strip() if text is not None else self._response_text(response)
+        if not reply:
             return None
-        return response_model(**{self._REPLY_FIELD: text})
+        return response_model(**{self._REPLY_FIELD: reply})
 
     async def _call_with_response_model(self, response_model: type[T]) -> T:
         """Call LLM with format for structured output.

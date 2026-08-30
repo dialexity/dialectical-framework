@@ -6,7 +6,14 @@ Consumers (Chainlit, CLI, test harness) iterate over these events to drive UX:
 - TextDelta: token-by-token LLM output (during tool-calling rounds)
 - ToolStart: LLM is invoking a tool
 - ToolResult: tool execution completed (with optional graph effects)
-- ResponseComplete: final structured response extracted
+- ResponseComplete: the turn's final structured response
+
+**Render the deltas; do not wait for `ResponseComplete` to show text.** On the
+ordinary turn `ResponseComplete.streamed` is True and its `message` is exactly
+the `TextDelta`s already yielded, so a host that waits pays the whole turn
+(~18s measured) for text it could have started showing in about a second. See
+`ResponseComplete` for the precise contract, including the turns where the
+deltas are NOT the reply.
 """
 
 from __future__ import annotations
@@ -65,9 +72,33 @@ class ToolResult:
 
 @dataclass(frozen=True)
 class ResponseComplete(Generic[T]):
-    """Final structured response extracted from the conversation."""
+    """The turn's final structured response.
+
+    `streamed` answers the one question a rendering host cannot answer for
+    itself: **have I already shown this text?**
+
+    True means `message` is byte-for-byte the `TextDelta`s yielded since the
+    last `ToolResult` this turn (or since the turn began, if no tool ran) —
+    built from those exact bytes, not merely expected to match. A host that
+    rendered the deltas as they arrived is already done: it should persist
+    `message` and render nothing further. That is the whole point of streaming,
+    and it is why waiting for this event before showing anything costs the
+    person the entire turn (~18s measured) instead of first-token latency.
+
+    False means the deltas are NOT the reply and `message` must be rendered:
+    either nothing streamed (the tool-free path calls the provider once, with
+    format, and cannot stream), or the streamed text was not usable as the
+    answer and a separate structured call produced this one — see
+    `ConversationFacilitator._reuse_written_reply` for exactly when.
+
+    Text yielded BEFORE a `ToolStart` is never part of `message`. It is the
+    model narrating what it is about to do, and the reply is what it says
+    afterwards; a host may keep it on screen as progress but must not persist it
+    as counsel.
+    """
 
     result: T
+    streamed: bool = False
 
     @property
     def message(self) -> str:
