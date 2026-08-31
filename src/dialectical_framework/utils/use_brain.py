@@ -143,11 +143,19 @@ def use_brain(
                 return await method(*args, **kwargs)
 
             # raw_call mode: return the AsyncCall for caller to .stream() or await.
-            # Skips retry and Langfuse _trace_generation intentionally:
-            # - Retry: stream lifecycle is owned by the caller (submit_stream retries
-            #   at the connection level, not per-token)
-            # - Tracing: @observe() on submit_stream creates the span; detailed token
-            #   usage requires post-consumption stats not available here
+            # Everything below this line belongs to the awaited path, and the
+            # streaming caller has to provide its own equivalent — which it now
+            # partly does. What that leaves, stated so nobody has to infer it:
+            # - Retry: NOT here. Stream lifecycle is owned by the caller
+            #   (`submit_stream` retries at the connection level, not per-token).
+            # - Concurrency slot: NOT taken. A streamed round is unthrottled by
+            #   `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`.
+            # - Census: the CALLER records it. `submit_stream` reports one record
+            #   per round with first-chunk latency and post-consumption usage,
+            #   because usage does not exist until the stream is drained.
+            # - Langfuse: still nothing per round. `@observe()` on `submit_stream`
+            #   creates the span, but there is no per-generation child, so token
+            #   usage for streamed turns is absent from the trace.
             if raw_call:
                 return _llm_call
 
@@ -188,7 +196,11 @@ def use_brain(
                             # `ConversationFacilitator`, so the qualname is a
                             # constant.
                             format_name=format_name,
-                            **_prefill_tokens(response),
+                            # This path is Mirascope's non-streaming decoder, which
+                            # pre-adds the cache tokens into `input_tokens`. Said
+                            # explicitly rather than left to the arithmetic, since
+                            # the arithmetic can only DISPROVE pre-adding.
+                            **prefill_token_kwargs(response, pre_added=True),
                         )
                     _trace_generation(
                         response=response,
@@ -536,42 +548,65 @@ def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
     return None
 
 
-def _prefill_tokens(response: Any) -> dict[str, Optional[int]]:
+def prefill_token_kwargs(
+    response: Any, *, pre_added: Optional[bool] = None
+) -> dict[str, Optional[int]]:
     """Cache-aware prefill breakdown for the census, as `record_call` kwargs.
 
-    All three are `None` when the response carries no usage, so the census can
-    tell "not reported" from "reported as zero" — see `record_call`.
+    All three are `None` when the response carries no usable prefill, so the census
+    can tell "not reported" from "reported as zero" — see `record_call`.
 
-    The subtraction is the whole point. Mirascope's non-streaming decoder defines
+    THE SUBTRACTION IS THE WHOLE POINT. Mirascope's non-streaming decoder defines
     `input_tokens = raw_input + cache_read + cache_write` (`anthropic/_utils/
     decode.py:99`) while its streaming decoder does not (`:286`), so the raw field
     means two different things depending on the path. Recording the difference
     once, here, is what stops every downstream ratio from inheriting the ambiguity.
 
-    The two conventions are told apart by ARITHMETIC rather than by asking which
-    path we are on, because the caller does not know. Under the pre-adding
-    convention `input_tokens >= cache_read + cache_write` always holds; a negative
-    difference is therefore proof that the field is already the uncached count, and
-    it is used as-is. Clamping to zero instead — the obvious defensive move — would
-    be wrong in the worst available direction: it reports 0 uncached against a large
+    `pre_added` says which convention this response follows, and a caller that
+    KNOWS must say so. `None` falls back to arithmetic, which is sound only in one
+    direction: `input_tokens >= cache_read + cache_write` always holds under the
+    pre-adding convention, so a negative difference proves the field is already the
+    uncached count — but a POSITIVE difference proves nothing. A streamed turn with
+    an 18k cache read and a 25k uncached dump satisfies the pre-adding inequality
+    comfortably and would be reported as 6,925 uncached out of 25,000 (a 0.72 cache
+    share) when the truth is 25,000 out of 43,075 (0.42). That is the failure mode
+    that matters: not a missing number, a confident wrong one. Hence the parameter.
+
+    Clamping a negative difference to zero — the obvious defensive move — would be
+    wrong in the worst available direction: it reports 0 uncached against a large
     cache_read, i.e. `cache_read_share` of 1.0, announcing perfect caching exactly
-    when the instrument has lost track. Today no streaming call reaches here at all
-    (`raw_call=True` returns before the retry loop), so this is a guard on a path
-    that a future caller is explicitly invited to open.
+    when the instrument has lost track.
+
+    ALL-ZERO PREFILL IS TREATED AS UNMEASURED, not as zero. A real round-trip
+    cannot prefill nothing — there is always a system prompt — so zeros mean the
+    provider did not tell us. That case is reachable: Mirascope's Anthropic stream
+    decoder has no `message_start` handler at all and reads usage only from
+    `message_delta` (`decode.py:277-291`), whose fields are optional on the SDK
+    type. The `Usage` object still comes back truthy because `output_tokens` is
+    populated, so without this guard a streamed round would be counted in
+    `calls_with_usage` and drag `cache_read_share` toward zero — publishing "the
+    cache fix does nothing" from an instrument that never saw a prefill token.
     """
     usage = getattr(response, "usage", None)
+    unmeasured: dict[str, Optional[int]] = {
+        "uncached_input_tokens": None,
+        "cache_read_tokens": None,
+        "cache_write_tokens": None,
+    }
     if not usage:
-        return {
-            "uncached_input_tokens": None,
-            "cache_read_tokens": None,
-            "cache_write_tokens": None,
-        }
+        return unmeasured
     cache_read = usage.cache_read_tokens or 0
     cache_write = usage.cache_write_tokens or 0
     reported_input = usage.input_tokens or 0
-    uncached = reported_input - cache_read - cache_write
+    if not (cache_read or cache_write or reported_input):
+        return unmeasured
+    if pre_added is False:
+        uncached = reported_input
+    else:
+        difference = reported_input - cache_read - cache_write
+        uncached = difference if difference >= 0 else reported_input
     return {
-        "uncached_input_tokens": uncached if uncached >= 0 else reported_input,
+        "uncached_input_tokens": uncached,
         "cache_read_tokens": cache_read,
         "cache_write_tokens": cache_write,
     }
@@ -590,7 +625,7 @@ def _trace_generation(
 
         usage_details: Optional[dict[str, int]] = None
         if response.usage:
-            prefill = _prefill_tokens(response)
+            prefill = prefill_token_kwargs(response, pre_added=True)
             # Reported unconditionally, and `input` is the UNCACHED count. Both
             # halves were wrong before: the cache keys were behind falsy guards,
             # so a zero read as "not measured" exactly when a cache miss is the

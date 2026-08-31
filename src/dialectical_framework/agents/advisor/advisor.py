@@ -255,10 +255,20 @@ class Advisor:
             # graph and no longer builds on it.
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, reply)
+            first_delta = self._conversation.last_submit_first_delta_s
             self._record_turn_timing(
                 reply_path_s,
                 time.monotonic() - repair_started,
                 context_render_s=context_render_s,
+                # Same construction as `reply_path_s` above and for the same
+                # reason: the person's wait starts before the submit does, so the
+                # re-render they waited through belongs inside the figure. None
+                # when nothing streamed, which is not the same as zero.
+                first_delta_s=(
+                    context_render_s + first_delta
+                    if first_delta is not None
+                    else None
+                ),
             )
 
     def _record_turn_timing(
@@ -267,6 +277,7 @@ class Advisor:
         off_path_s: float,
         *,
         context_render_s: float = 0.0,
+        first_delta_s: Optional[float] = None,
     ) -> None:
         """Publish where this turn's seconds went.
 
@@ -291,6 +302,7 @@ class Advisor:
             context_render_s=context_render_s,
             retry_seconds=retries.wasted_s,
             retry_count=retries.count,
+            first_delta_s=first_delta_s,
         )
 
     async def _repair_unrecorded_decision(

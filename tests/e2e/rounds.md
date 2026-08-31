@@ -4515,3 +4515,125 @@ convention that would have reported 0 uncached against a large cache_read — `c
 of 1.0, announcing perfect caching precisely when the instrument had lost track. A negative
 difference is now taken as proof of the non-pre-adding convention, since the pre-adding one
 guarantees `input >= read + write`.
+
+### stream-ttft instrument: built, not yet read (2026-08-31)
+
+**This is a telemetry entry with no reading in it.** `probe_stream_ttft.py` exists and its
+unit tests pass; it has never been run against a provider. Nothing below is evidence about
+caching, and the section will be replaced by a result when the probe runs.
+
+**Why it had to be built.** The section above quotes tokens and refuses to quote seconds,
+and the refusal is not modesty — it is the honest report of a wrong instrument. A prefill
+cache moves exactly one interval, the wait before the first token. `CallRecord.seconds` is
+whole-call wall time, which output length dominates, so it cannot see that interval at any
+n: the cost probe read 7.5s vs 9.2s at four reps and then **inverted to 8.9s vs 7.2s at
+two**, on the same configuration. Underpowered measurements get quieter as n grows; this one
+just points somewhere else.
+
+**And the interval was unobservable, because the whole streaming path was invisible.**
+`use_brain` hands back the raw callable and returns *before* its own recording when
+`raw_call=True`, so an entire `chat_stream` turn contributed nothing to any census — every
+token and latency number this archive has ever published came from the non-streaming path
+alone. `ConversationFacilitator._record_stream_round` is the first thing in the tree to
+record a streamed round: one `CallRecord` per round-trip, with `first_token_seconds`.
+
+**Two quantities, deliberately not one.** `CallRecord.first_token_seconds` is per round and
+is where a prefill effect would show. `TurnTiming.first_delta_s` is per turn and is the
+person's wait on a blank screen — and on this agent they are usually far apart, because the
+Advisor is contracted to call tools *without* narrating first (measured ~17% narration
+rate), so on most tool-electing turns the first delta lands after a full tool round. That is
+why the turn-level field is not called `ttft`, and why the probe selects round 1 by
+`min(started)` rather than averaging.
+
+**What the number is not, stated in the code so nobody promotes it later.** Not a provider
+RTT: `await call.stream()` issues no HTTP request — Anthropic's stream manager sends on
+`__aenter__`, which mirascope's decoder defers to the first `__anext__` — so the interval
+also contains the framework's own request construction, including the breakpoint scan over a
+~60k-char prompt. Those are on the person's critical path, which is why they are in, but
+"from asking to the first byte back" is the claim, not "how fast the model is".
+
+**Four ways the instrument could have shipped a confidently wrong number, all found by
+adversarial review before it ran.** (1) The token convention was going to be *inferred*
+arithmetically, and the arithmetic can only ever DISPROVE pre-adding: a streamed round with
+25,000 uncached against 18,075 read satisfies the pre-adding inequality and would have been
+published as 6,925 uncached / 0.72 cache share instead of 25,000 / 0.42. The caller knows
+which decoder produced its numbers, so it now says so (`pre_added=`). (2) An all-zero prefill
+would have counted as zero rather than unmeasured — mirascope's Anthropic stream decoder has
+no `message_start` handler and reads usage only from `message_delta`, whose token fields are
+optional, and the `Usage` object stays truthy because output tokens are populated. That
+publishes "the cache fix does nothing" from an instrument that never saw a prefill token.
+(3) The `yield`s are inside the chunk loop, so a slowly-rendering host would have been
+recorded as a slowly-responding model, and `parallelism` would have blamed the model for the
+terminal; the suspended intervals are now subtracted. (4) The record was placed after the
+`break`, which would have missed the round that is usually the *only* round.
+
+**Then a second review pass, against the implementation this time, found three more.** All
+three are the same species as the first four — a wrong number rather than a missing one — and
+two of them were in the *reader*, which is the half nobody thinks to review.
+
+1. **The probe's mechanism gate never compared the arms.** It asked only whether the ON arm
+   read from cache *at all*, which passes when the two arms are the same arm. If
+   `CACHE_SPLIT_SENTINEL` stops matching — a `system_prompts.py` edit moving `_CONTEXT_SLOT`
+   off the tail, or the header text changing — `split_system_for_cache` returns its input
+   unchanged, both arms read the warm prefix, and provider noise across two means of n=4 would
+   have printed **"the split arm starts sooner, and the cache read says why"**. Now
+   `_mechanism_verdict` compares ON against OFF on the cost probe's own criterion (multiples,
+   and over the engine floor), and the verdict sentence is barred from naming caching unless it
+   confirms. The seconds still print — an unconfirmed mechanism makes the *cause*
+   unattributable, not the clock unreadable.
+2. **The warm turn was printed and never analysed, so a failed setup would have read as a
+   null.** If the prefix fell under the 4,096-token minimum, or a warm turn retried, or the
+   graph rendered smaller than expected, both arms measure a cold miss, the seconds come out
+   equal, and the report says "NO RESOLVABLE DIFFERENCE at this n" — charging to effect size
+   what belongs to a condition that never ran. `_report_setup` now checks the warm turn wrote
+   the entry the measured turn is supposed to read, and separately warns if a warm turn *read*
+   (the contamination the cost probe caught once already).
+3. **`first_round` filtered on `first_token_seconds is not None` before taking
+   `min(started)`,** so a round 1 that took no reading would have silently promoted round 2 —
+   whose prefill is the system prompt *plus* accumulated tool results at a different breakpoint
+   — into the comparison, with a report that looked identical. Selection now happens first and
+   the reading is checked second: an unmeasured round 1 DROPS the turn rather than substituting
+   for it, and the round count prints on every line.
+
+**Also corrected: `REPS` defaulted to 3 while the arm order alternates on `rep % 2`,** so the
+warming-neutralisation the docstring claimed was not delivered. Default is 4 and an odd
+override warns rather than refuses, since a 1-rep smoke run is the cheapest way to check the
+instrument fires.
+
+**And one of my own claims was too strong.** I had written that streamed prefill is *likely
+always* unmeasured. The structural half checks out — mirascope iterates the raw event stream
+and discards the `message_start` usage the Anthropic SDK's own accumulator would have folded
+in — but `message_delta.usage` is not output-only in the current API: it declares
+`input_tokens` / `cache_read_input_tokens` / `cache_creation_input_tokens` as cumulative, and
+Anthropic's own caching example shows them populated there. So prefill is unmeasured *whenever
+the provider omits those fields*, not always. The all-zero guard is still necessary and the
+docs' hedge was already right; the claim is now phrased from the source.
+
+**Which turned up a token trap we cannot fix from here.** `message_delta.usage` is
+CUMULATIVE, the API may emit more than one `message_delta`, and mirascope `+=`s each into the
+running total. A stream with two would report roughly doubled prefill. One is the norm, so it
+is latent — but it is the second reason (after the two decoder conventions) that a streamed
+token figure deserves less trust than an awaited one, and it is now stated where the recording
+happens.
+
+**Three pre-existing defects flagged, one of which just acquired a live trigger.**
+`record_retry("stream_open", ...)` is effectively dead code — `_open_stream_with_retry` wraps
+only local encoding, so a connection failure raises on the first `__anext__` inside the chunk
+loop, with no retry and no accounting. Verified harder than the first pass claimed: Anthropic's
+`AsyncMessages.stream` builds an un-awaited request, and on Bedrock not even SigV4 signing has
+happened at `.stream()` time. The docstring that asserted otherwise (and "up to 35s" against a
+real 15s) is corrected in place rather than left to mislead the next reader.
+
+`submit_stream` still has no `try/finally` for `last_submit_seconds`, which is initialised to
+`0.0` and only assigned after the tool loop — so an abandoned or crashed stream reports **0.0
+for a turn that took eight seconds**, a wrong number where `None` would have been an honest
+missing one. It is pre-existing and out of this change's scope, but it now has a
+non-abandonment trigger: mirascope's decoder accepts a `redacted_thinking` block at
+`content_block_start` and then falls through to a bare `NotImplementedError` at
+`content_block_stop`, which raises *inside* the chunk loop. Gated on `DIALEXITY_THINKING_LEVEL`
+being set, since `thinking_level` defaults to `None`. The new `last_submit_first_delta_s` is
+not exposed to this — it initialises to `None` and is only ever set to a real reading.
+
+And `TurnTiming.first_delta_s` is not copied onto `TurnRecord`, so e2e runs drop it. Inert
+today because the bench arm calls `chat()`, not `chat_stream()`; whoever lands a streaming arm
+owes the field.

@@ -30,10 +30,12 @@ from dialectical_framework.agents.stream_events import (
 )
 from dialectical_framework.agents.turn_timing import ToolRound
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.retry_accounting import (RetryAccount,
                                                           record_retry,
                                                           retry_account)
-from dialectical_framework.utils.use_brain import use_brain
+from dialectical_framework.utils.use_brain import (prefill_token_kwargs,
+                                                  use_brain)
 
 from mirascope.llm import TextChunk, ThoughtChunk, ToolOutput
 
@@ -141,6 +143,17 @@ class ConversationFacilitator(SettingsAware):
         # when four of its ten rounds were ~40s of work plus a 750s ParseError
         # ladder, and nothing in the archive could tell the two apart.
         self.last_submit_retries: RetryAccount = RetryAccount()
+        # When the person first had something on screen, measured from the moment
+        # they hit send. `None` on every non-streaming submit, and on a streamed
+        # turn that produced no text or thought at all.
+        #
+        # NOT "time to first token" as a provider means it, and the name says so
+        # deliberately. The Advisor is contracted to call tools without narrating
+        # first (~17% narration rate, measured), so on most tool-electing turns the
+        # first delta arrives AFTER a full tool round and this reads 140-230s. The
+        # prefill-sensitive quantity — the one prompt caching can move — is
+        # `CallRecord.first_token_seconds` on the turn's first round, not this.
+        self.last_submit_first_delta_s: Optional[float] = None
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -219,6 +232,10 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_rounds = []
         self.last_submit_seconds = 0.0
         self.last_submit_retries = RetryAccount()
+        # Reset here too although this path can never set it: a facilitator is
+        # reused across turns, so without this a non-streaming submit would report
+        # the previous STREAMED turn's figure as its own.
+        self.last_submit_first_delta_s = None
 
         # `finally`, not a plain assignment before each return: a turn that
         # RAISED still waited the person's time, and a duration recorded only on
@@ -298,6 +315,7 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_rounds = []
         self.last_submit_seconds = 0.0
         self.last_submit_retries = RetryAccount()
+        self.last_submit_first_delta_s = None
         started = time.monotonic()
 
         # Re-entered per await instead of wrapped around the whole generator, and
@@ -316,6 +334,13 @@ class ConversationFacilitator(SettingsAware):
             yield ResponseComplete(result=result)
             return
 
+        # Set immediately before each open/resume and read after that round's chunk
+        # loop, so one census record covers one provider round-trip. It has to
+        # start HERE rather than at the top of the loop: request construction —
+        # `_get_tools_call`, `encode_request`, the cache-breakpoint scan over a
+        # ~60k-char prompt — happens between the two, and it is the framework's own
+        # cost on the person's critical path.
+        call_started = time.monotonic()
         with retry_account(turn):
             stream = await self._open_stream_with_retry()
 
@@ -332,12 +357,51 @@ class ConversationFacilitator(SettingsAware):
         answer: list[str] = []
         for _ in range(max_tool_rounds):
             answer = []
+            #: When the provider's first content chunk arrived, and when the first
+            #: thing a HOST could render did. Two different questions and they
+            #: diverge on the common case, not the rare one — the Advisor is
+            #: contracted to call tools without narrating first, measured at a ~17%
+            #: narration rate, so four rounds in five yield nothing at all here.
+            first_chunk_at: Optional[float] = None
+            first_delta_at: Optional[float] = None
+            #: Time this round spent suspended in a `yield`, i.e. the CONSUMER's
+            #: time, subtracted before recording. The yields below are inside the
+            #: chunk loop, so without this a host that renders slowly would be
+            #: recorded as a provider that responds slowly, and `parallelism` would
+            #: blame the model for the terminal.
+            yielded_s = 0.0
             async for chunk in stream.chunk_stream():
-                if isinstance(chunk, ThoughtChunk):
-                    yield ThinkingDelta(text=chunk.delta)
-                elif isinstance(chunk, TextChunk):
-                    answer.append(chunk.delta)
-                    yield TextDelta(text=chunk.delta)
+                if first_chunk_at is None:
+                    first_chunk_at = time.monotonic()
+                if isinstance(chunk, (ThoughtChunk, TextChunk)):
+                    if first_delta_at is None:
+                        first_delta_at = time.monotonic()
+                    event = (
+                        ThinkingDelta(text=chunk.delta)
+                        if isinstance(chunk, ThoughtChunk)
+                        else TextDelta(text=chunk.delta)
+                    )
+                    if isinstance(chunk, TextChunk):
+                        answer.append(chunk.delta)
+                    handed_off = time.monotonic()
+                    yield event
+                    yielded_s += time.monotonic() - handed_off
+
+            # BEFORE the `break`: the last round is usually the only round, and a
+            # record written after it would miss every turn that called no tools.
+            self._record_stream_round(
+                stream,
+                call_started=call_started,
+                first_chunk_at=first_chunk_at,
+                yielded_s=yielded_s,
+            )
+            if self.last_submit_first_delta_s is None and first_delta_at is not None:
+                # From the TURN's start, not this round's: the person has been
+                # waiting since they hit send, through the context re-render's
+                # caller, every earlier tool round, and any retry ladder. That is
+                # the number a UX decision needs, and it is why this is NOT the
+                # same quantity as the census record's `first_token_seconds`.
+                self.last_submit_first_delta_s = first_delta_at - started
 
             if not stream.tool_calls:
                 break
@@ -371,6 +435,7 @@ class ConversationFacilitator(SettingsAware):
 
             self._strip_caller_from_messages(stream.messages)
             with retry_account(turn):
+                call_started = time.monotonic()
                 stream = await stream.resume(tool_outputs)
 
         self._messages = list(stream.messages)
@@ -405,6 +470,86 @@ class ConversationFacilitator(SettingsAware):
         "Do not call more tools — answer now using what you already have, "
         "and say plainly which part is still unverified."
     )
+
+    #: Census `caller` for a streamed round. Deliberately NOT matched to the
+    #: awaited path's `_call_with_tools.<locals>._llm_call`: the two are different
+    #: code paths with different guarantees — no retry, no concurrency slot, usage
+    #: only after consumption — and merging them into one `by_caller()` row would
+    #: hide exactly the differences worth seeing.
+    _STREAM_ROUND_CALLER = "ConversationFacilitator.submit_stream"
+
+    def _record_stream_round(
+        self,
+        stream: Any,
+        *,
+        call_started: float,
+        first_chunk_at: Optional[float],
+        yielded_s: float,
+    ) -> None:
+        """Report one drained streaming round to the call census.
+
+        The streaming path reaches none of `use_brain`'s recording, because
+        `raw_call=True` returns before it (see the comment there for the full list
+        of what that skips). So this is the only place a streamed provider
+        round-trip can be counted, and until it existed a whole `chat_stream` turn
+        contributed nothing to any census — every token figure the framework
+        published came from the non-streaming path alone.
+
+        Called AFTER the chunk loop drains, which is not a preference: Mirascope
+        accumulates `stream.usage` from `usage_delta_chunk`s as the iterator runs
+        (`base_stream_response.py:722-731` on the async path this drives; `:499-508`
+        is its sync twin) and it is `None` before that. Verified that `resume()`
+        builds a fresh response with no carried-over usage (`base_provider.py:1253-
+        1284` rebuilds the messages and calls `stream_async`), so each round's
+        figures are its own rather than a running total.
+
+        One token trap we do not control and cannot fix from here: Anthropic
+        documents `message_delta.usage` as CUMULATIVE and says a stream may emit
+        more than one `message_delta`, while Mirascope `+=`s each one into the
+        running total. On a stream with two, the prefill counts come back roughly
+        doubled. One is the norm, so this is latent rather than live — but it is the
+        second reason (after the two decoder conventions) that a streamed token
+        figure deserves less trust than an awaited one.
+
+        `pre_added=False` because this is Mirascope's STREAMING decoder, which does
+        not fold cache tokens into `input_tokens` (`decode.py:286`, against `:99`
+        for the awaited path). Stated rather than inferred: the arithmetic fallback
+        can only disprove pre-adding, so a streamed turn whose uncached dump exceeds
+        its cache read would otherwise be reported with a confidently wrong cache
+        share. See `prefill_token_kwargs`.
+
+        One consequence of subtracting the consumer's time, since `record_call`
+        derives `ended` from `started + seconds`: a streamed round's recorded
+        interval is SHORTER than its wall span, so `busy_s` (a union of intervals)
+        does not cover the seconds the host spent rendering. That is the right side
+        of the line — those seconds are not an LLM call, so they belong in the
+        `wall - busy_s` remainder the census documents, not inside it.
+
+        Fail-soft. This is observability, and a census that raises would take down
+        a turn mid-stream — after the person has already read half their answer.
+        """
+        try:
+            ended = time.monotonic()
+            record_call(
+                self._STREAM_ROUND_CALLER,
+                # The consumer's time removed, so this is what the round cost us
+                # rather than what the host did with it.
+                seconds=max(0.0, ended - call_started - yielded_s),
+                started=call_started,
+                # `is not None`, not truthiness: this is the one line whose whole
+                # job is telling "no reading" apart from "a reading", and a
+                # `monotonic()` value is free to be 0.0.
+                first_token_seconds=(
+                    first_chunk_at - call_started
+                    if first_chunk_at is not None
+                    else None
+                ),
+                **prefill_token_kwargs(stream, pre_added=False),
+            )
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).debug(
+                "Streaming round not recorded to the census", exc_info=True
+            )
 
     def _close_dangling_tool_calls(self, response: Any) -> None:
         """Answer any tool_call left unanswered when the tool loop ended.
@@ -505,11 +650,23 @@ class ConversationFacilitator(SettingsAware):
             logger.log_tool_call(sid, agent, tc.name, args)
 
     async def _open_stream_with_retry(self, max_attempts: int = 3) -> Any:
-        """Open a streaming connection with retry on transient failures.
+        """Build the streaming call, with a retry ladder that no longer has a job.
 
-        Retries the initial stream connection (provider errors, network blips).
-        Once streaming begins and tokens are yielded, retry is no longer possible
-        for that round — only the connection handshake is retried.
+        **This retries local encoding, NOT the connection, and the docstring used to
+        claim otherwise.** `await call.stream()` issues no HTTP request: Anthropic's
+        `AsyncMessages.stream` builds an un-awaited request and returns a manager
+        that sends on `__aenter__`, which Mirascope's decoder defers to the stream's
+        first `__anext__` — and on Bedrock not even SigV4 signing has happened yet
+        (`anthropic/lib/bedrock/_client.py`). So a network blip or a provider error
+        surfaces inside the caller's `chunk_stream()` loop, where retry is impossible
+        because tokens may already be flowing, and this ladder never sees it.
+
+        What survives here is the local half: `_get_tools_call` rendering the system
+        prompt and Mirascope encoding the request. Those can raise, so the `try` is
+        not pointless — but `record_retry("stream_open", ...)` below is effectively
+        dead, and a streamed round that dies on the wire is accounted for nowhere.
+        Kept rather than removed so the accounting site stays visible; fixing it
+        means restructuring where the stream is opened, which is a separate change.
         """
         delay = 5.0
         last_error: Optional[Exception] = None
@@ -526,8 +683,9 @@ class ConversationFacilitator(SettingsAware):
                         attempt + 1, max_attempts, e,
                     )
                     # This ladder is the facilitator's own, so `use_brain` never
-                    # sees it — up to 35s of reply-path sleep that would
-                    # otherwise land in the generation residual unlabelled.
+                    # sees it — up to 15s of reply-path sleep (2 sleeps at
+                    # max_attempts=3) that would otherwise land in the generation
+                    # residual unlabelled. See the docstring for why it never runs.
                     record_retry(
                         "stream_open",
                         sleep_s=delay,

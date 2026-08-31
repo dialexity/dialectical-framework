@@ -38,7 +38,15 @@ matching read for depth: roughly how many sequential stages deep the work went.
 — **and any wait for the `utils/concurrency.py` semaphore**, because a call is
 timed inside its slot, not while queueing for one. Check whether
 `DIALEXITY_MAX_CONCURRENT_LLM_CALLS` is set before reading that remainder as
-orchestration; unset (the default) it is zero.
+orchestration; unset (the default) it is zero. Streamed rounds are the exception
+in the other direction: they never take a slot at all (`use_brain` hands back the
+raw callable before acquiring one), so their seconds are unthrottled by
+construction and no queueing hides in the remainder for them.
+
+Streamed rounds also have their CONSUMER's time removed before recording, since
+`submit_stream` yields each delta from inside its chunk loop. Otherwise a host
+that renders slowly would read here as slow provider calls, and `parallelism`
+would blame the model for the terminal.
 
 Overlaps `RetryAccount.failed_attempt_s` on purpose: a round-trip that then failed
 to parse is provider time this module counts and that one calls wasted. Same
@@ -111,6 +119,27 @@ class CallRecord:
     cache_read_tokens: Optional[int] = None
     #: Prefill written INTO the cache, billed at ~1.25x.
     cache_write_tokens: Optional[int] = None
+
+    #: Seconds from asking to the first content chunk coming back. `None` on every
+    #: non-streaming call, where the question has no answer: the response arrives
+    #: whole.
+    #:
+    #: THE ONLY LATENCY FIGURE A PREFILL CACHE CAN MOVE, which is why it exists.
+    #: `seconds` is whole-call wall time and output length dominates it — the
+    #: `probe_prompt_cache` round measured 7.5s vs 9.2s one way and 8.9s vs 7.2s
+    #: the other on the same configuration, i.e. the instrument could not see the
+    #: effect at all. Prefill happens before the first token and nothing after it,
+    #: so this is where the effect is or nowhere.
+    #:
+    #: NOT pure provider time, and the name would be a lie if it claimed to be:
+    #: `await call.stream()` issues no HTTP request (Anthropic's
+    #: `AsyncMessageStreamManager` sends on `__aenter__`, which Mirascope's decoder
+    #: defers to the first `__anext__`), so this interval also contains request
+    #: construction — the `use_brain` wrapper, `encode_request`, and
+    #: `_fix_cache_breakpoints` scanning a ~60k-char prompt. Those are the
+    #: framework's own cost on the same critical path, so including them is
+    #: deliberate; reading the figure as a provider RTT is the mistake.
+    first_token_seconds: Optional[float] = None
 
     @property
     def prefill_tokens(self) -> Optional[int]:
@@ -221,13 +250,47 @@ class CallCensus:
     def calls_with_usage(self) -> int:
         """Calls that reported token usage at all.
 
-        Read this before any of the token figures: the STREAMING path never
-        reaches `record_call` (`use_brain` returns the raw callable before the
-        retry loop for `raw_call=True`), and a tool loop's continuation rounds
-        bypass `use_brain` entirely — so a turn can make five provider calls and
-        contribute usage for one. A token total is only as complete as this count.
+        Read this before any of the token figures. `use_brain`'s non-streaming
+        path always reports; the streaming path reports what the provider sent in
+        its `message_delta` frames, and Mirascope has no `message_start` handler,
+        so a provider that puts prefill counts only in `message_start` yields a
+        round with output tokens and no prefill at all. That case is recorded as
+        UNMEASURED rather than as zero (see `prefill_token_kwargs`), so it shows
+        up here as a missing call rather than as "caching did nothing".
+
+        A token total is only as complete as this count.
         """
         return sum(1 for c in self.calls if c.prefill_tokens is not None)
+
+    @property
+    def calls_with_first_token(self) -> int:
+        """Calls that timed their first chunk — i.e. the streaming ones.
+
+        The gate for `mean_first_token_s`, for the same reason `calls_with_usage`
+        gates the token figures: a turn that made four provider calls and streamed
+        one of them contributes a single reading, and a mean over one call should
+        never be read as a mean over the turn.
+        """
+        return sum(1 for c in self.calls if c.first_token_seconds is not None)
+
+    @property
+    def mean_first_token_s(self) -> Optional[float]:
+        """Mean time-to-first-chunk over the calls that measured it, or None.
+
+        A SUMMARY, and the wrong statistic for an arm comparison. Round 1 of a
+        tool loop prefills the cacheable system prompt; round N prefills that plus
+        every accumulated tool result, at a different breakpoint and a different
+        size. Averaging the two blurs exactly the difference a caching arm is
+        trying to read. `probe_prompt_cache.engine_call` already solved the same
+        problem for tokens by selecting `min(started)`, and a first-token
+        comparison must select the same way.
+        """
+        readings = [
+            c.first_token_seconds
+            for c in self.calls
+            if c.first_token_seconds is not None
+        ]
+        return sum(readings) / len(readings) if readings else None
 
     @property
     def cache_read_share(self) -> float:
@@ -298,6 +361,7 @@ def record_call(
     uncached_input_tokens: Optional[int] = None,
     cache_read_tokens: Optional[int] = None,
     cache_write_tokens: Optional[int] = None,
+    first_token_seconds: Optional[float] = None,
 ) -> None:
     """Attribute one provider round-trip to every installed census.
 
@@ -305,11 +369,14 @@ def record_call(
     callers are pipelines nobody is measuring.
 
     The token arguments default to `None` and that is a THIRD state, not a zero:
-    `None` means the round-trip reported no usage (the streaming path, where usage
-    only exists once the stream has been consumed), while `0` means the provider
+    `None` means the round-trip reported no usage, while `0` means the provider
     reported it and there was none. Collapsing the two would turn "we did not
     look" into "caching is off", which is the wrong conclusion in the more
     alarming direction.
+
+    `first_token_seconds` is `None` for the same kind of reason and not the same
+    one: a non-streaming call has no first token to time, so the question does not
+    apply rather than going unanswered.
     """
     stack = _stack.get()
     if not stack:
@@ -323,6 +390,7 @@ def record_call(
         uncached_input_tokens=uncached_input_tokens,
         cache_read_tokens=cache_read_tokens,
         cache_write_tokens=cache_write_tokens,
+        first_token_seconds=first_token_seconds,
     )
     for census in stack:
         census.calls.append(record)

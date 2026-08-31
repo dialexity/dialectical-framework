@@ -23,6 +23,7 @@ handed over), then recorded onto `TurnRecord` by the e2e driver.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,20 @@ class TurnTiming:
     #: whether the model asks for anything or not, which makes it the first thing
     #: to check if turns get slower for no visible reason.
     context_render_s: float = 0.0
+    #: When the person first had something on screen, measured from their message
+    #: arriving. A PREFIX of `reply_path_s`, not a component and certainly not an
+    #: addend: the same clock, stopped earlier, so the `duration_s ==
+    #: reply_path_s + off_path_s` check above is untouched.
+    #:
+    #: `None` on every non-streaming turn, where the question does not apply — the
+    #: reply exists all at once, so `reply_path_s` already answers it.
+    #:
+    #: Read it as "when did the waiting stop looking like nothing happening", NOT
+    #: as time-to-first-token. On a turn where the model calls a tool before
+    #: narrating — the Advisor's contracted behaviour, ~83% of tool-electing turns
+    #: — this lands after the whole tool round. The prefill-sensitive figure lives
+    #: on `CallRecord.first_token_seconds`, per round.
+    first_delta_s: Optional[float] = None
 
     @property
     def total_s(self) -> float:

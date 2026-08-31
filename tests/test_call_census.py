@@ -457,7 +457,7 @@ class TestThePrefillBreakdown:
 
 
 class TestTheTwoTokenConventions:
-    """`_prefill_tokens` must survive both of Mirascope's definitions of
+    """`prefill_token_kwargs` must survive both of Mirascope's definitions of
     `input_tokens`: the non-streaming decoder pre-adds cache reads and writes
     (`anthropic/_utils/decode.py:99`), the streaming one does not (`:286`)."""
 
@@ -471,23 +471,35 @@ class TestTheTwoTokenConventions:
         def __init__(self, usage):
             self.usage = usage
 
-    def _breakdown(self, input_tokens, read, write):
-        return use_brain_module._prefill_tokens(
-            self._Response(self._Usage(input_tokens, read, write))
+    def _breakdown(self, input_tokens, read, write, **kwargs):
+        return use_brain_module.prefill_token_kwargs(
+            self._Response(self._Usage(input_tokens, read, write)), **kwargs
         )
 
     def test_the_pre_adding_convention_is_subtracted_back_out(self):
-        assert self._breakdown(19_101, 18_075, 0) == {
+        assert self._breakdown(19_101, 18_075, 0, pre_added=True) == {
             "uncached_input_tokens": 1_026,
             "cache_read_tokens": 18_075,
             "cache_write_tokens": 0,
         }
 
-    def test_the_non_pre_adding_convention_is_taken_as_is(self):
-        """A negative difference is PROOF of the streaming convention, since the
-        pre-adding one guarantees `input >= read + write`. Clamping to 0 instead
-        would report `cache_read_share` of 1.0 — perfect caching announced exactly
-        when the instrument has lost track."""
+    def test_the_streaming_convention_is_taken_as_is_when_declared(self):
+        """The case the arithmetic CANNOT catch, and the reason the parameter
+        exists. 25,000 uncached against an 18,075 read satisfies `input >= read +
+        write` comfortably, so a guess would report 6,925 uncached and a 0.72 cache
+        share instead of 25,000 and 0.42 — a confident wrong answer, which is worse
+        than a missing one."""
+        assert self._breakdown(25_000, 18_075, 0, pre_added=False) == {
+            "uncached_input_tokens": 25_000,
+            "cache_read_tokens": 18_075,
+            "cache_write_tokens": 0,
+        }
+
+    def test_an_undeclared_negative_difference_is_still_proof(self):
+        """The fallback for a caller that does not know: the pre-adding convention
+        guarantees `input >= read + write`, so a negative difference disproves it.
+        Clamping to 0 instead would report `cache_read_share` of 1.0 — perfect
+        caching announced exactly when the instrument has lost track."""
         assert self._breakdown(1_026, 18_075, 0) == {
             "uncached_input_tokens": 1_026,
             "cache_read_tokens": 18_075,
@@ -498,7 +510,20 @@ class TestTheTwoTokenConventions:
         class _Bare:
             usage = None
 
-        assert use_brain_module._prefill_tokens(_Bare()) == {
+        assert use_brain_module.prefill_token_kwargs(_Bare()) == {
+            "uncached_input_tokens": None,
+            "cache_read_tokens": None,
+            "cache_write_tokens": None,
+        }
+
+    def test_all_zero_prefill_is_unmeasured_not_zero(self):
+        """A round-trip cannot prefill nothing — there is always a system prompt.
+        Reachable: Mirascope's stream decoder has no `message_start` handler, so a
+        provider that reports prefill only there leaves a truthy `Usage` carrying
+        output tokens and nothing else. Counted as zero, that round would drag
+        `cache_read_share` down and publish "caching does nothing" from an
+        instrument that never saw a prefill token."""
+        assert self._breakdown(0, 0, 0, pre_added=False) == {
             "uncached_input_tokens": None,
             "cache_read_tokens": None,
             "cache_write_tokens": None,
