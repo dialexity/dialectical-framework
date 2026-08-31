@@ -4291,3 +4291,50 @@ would not sit still:
 The two accidental findings are worth more than the number: the 74.9s `anchor` turn and
 the census blind spot both say that **tool election, not the reply path, is where a
 conversational turn's latency actually lives.**
+
+### reply-hygiene re-read: the reasoning held, the SILENT contract slipped (2026-08-31)
+
+Free, offline, no provider — `tests/e2e/read_reply_hygiene.py` re-runs the two
+reply-content machine scorers over archived stems by validating stored sessions back into
+`SessionRecord`. Motivated by a direct question: three latency changes landed after the
+last judged round (r26) and nothing had re-read the replies.
+
+The `JUDGE_OFF` timing stems looked like they carried no quality evidence, and their
+`comparisons` list is indeed empty (single-arm runs, so nothing to compare). But they
+store every reply verbatim, and the machine scorers need nothing else.
+
+| quantity | `timing-after-audit-gather` (`17e459e`) | `timing-after-one-round` (`5e78fc7`) |
+|---|---|---|
+| replies scored | 16 | 16 |
+| **turns leaking machinery** | **1/16** | **4/16** |
+| machinery leak hits | 3 | 5 |
+| turns echoing `_EXTRACTION_REQUEST` | 0/16 | 0/16 |
+| tool calls / failed | 3 / 0 | 12 / 1 |
+| swallowed errors | 0 | 0 |
+| turns with an error | 0 | 0 |
+
+**The reasoning layer is clean.** Zero swallowed errors, zero turn errors, zero empty
+replies, and the single "failed" tool call is the framework CORRECTLY refusing a
+`discard` ("Perspective 41d9478 participates in Cycles"), not a break. Decision coherence
+is still scoring and still willing to fail a rationale.
+
+**The presentation contract is not.** Turns leaking framework vocabulary went 1/16 →
+4/16, and the hits are the machinery narrating itself in the person's counsel: "So the
+framework found five different readings", "The framework flagged three distinct
+readings", "if you do it the way the framework flagged". For A2 — the consultant
+*replacement* — that is the product claim, not a style preference.
+
+**Two candidate causes, and they are not exclusive.** (1) The confound: this stem elected
+**13 tool calls against 3**, so there was far more machinery for the model to narrate and
+a much bigger dump in front of it. (2) The mechanism, which is specific and testable:
+removing the second extraction round removed a re-render of the reply through
+`ChatResponse`, and that re-render was an accidental hygiene pass — a second chance to
+drop a stray label or an "the framework found". `score_internal_prompt_echo` moving 0 → 0
+is consistent either way (it was already clean, and the change can only reduce it, since
+`_EXTRACTION_REQUEST` is appended by exactly the call that was removed).
+
+**Not a verdict — 16 turns per side, confounded, unjudged.** What it establishes is that
+the question is live and cheap to settle: a two-arm judged round, or the same reader over
+a controlled A2-only pair at matched tool election. Until then the honest statement is
+that todo 1 bought +1.6s per turn and MAY have cost hygiene, and the silent-Advisor
+scorers are the endpoint to pre-register for the next round.
