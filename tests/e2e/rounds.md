@@ -4338,3 +4338,58 @@ the question is live and cheap to settle: a two-arm judged round, or the same re
 a controlled A2-only pair at matched tool election. Until then the honest statement is
 that todo 1 bought +1.6s per turn and MAY have cost hygiene, and the silent-Advisor
 scorers are the endpoint to pre-register for the next round.
+
+### probe-leak-reply-reuse: the extraction round was never the hygiene filter (2026-08-31)
+
+**Question.** The offline re-read above found turns leaking framework vocabulary went
+1/16 → 4/16 across the removal of the extraction round, and offered two explanations: the
+confound (13 tool calls against 3) or the mechanism (the removed re-render through
+`ChatResponse` was an accidental hygiene pass). Only one of those is a regression, so it
+had to be settled before more changes stacked on top of it.
+
+**Method** (`probe_leak_reply_reuse.py`). Everything the bench could not hold still, held
+still: ONE graph of five hand-built perspectives committed with no provider call, so both
+arms narrate byte-identical machinery; four fixed messages chosen to *invite* narration;
+`_reuse_written_reply` toggled as the only variable; fresh `Advisor` per turn; adjacent
+pairs with alternating order. 6 reps → 24 pairs / 48 turns, 16m56s on the weak tier.
+
+**The answer is a null for the toggle.**
+
+| | reuse ON (current) | reuse OFF (pre-change) | discordant | exact McNemar |
+|---|---|---|---|---|
+| all scorer terms | 4/20 | 3/20 | 4 on-only, 3 off-only | p=1.000 |
+| hard machinery only | 4/20 | 2/20 | 4 on-only, 2 off-only | p=0.688 |
+
+**Three things say this is a base rate, not an effect.** (1) The direction FLIPS by
+message: m2 ("which is closest to the truth") gave 3 on-only and 0 off-only, m3 ("what am
+I not seeing") gave 0 on-only and 2 off-only. A hygiene filter that was removed would
+push one way everywhere. (2) The rate is the same on both sides — 7 leaking turns across
+40, about **1 in 6 narration-inviting turns**, and the pre-change arm leaks too. (3) The
+two arms leak in DIFFERENT vocabulary, which is the strongest tell: reuse-on says
+`nexus`×3, `thesis`, `antithesis`, `wheel` — reading the dump aloud — while reuse-off says
+`the framework`×2, narrating its own method. Those are two failure modes at one rate, not
+one filter switched off.
+
+**So the hygiene claim about todo 1 is withdrawn, and the real finding is worse.** The
+leak is not a regression from the latency work; it is a **pre-existing prompt-level
+defect** that the archive's confound made look like one. `_HOW_YOU_SPEAK` bans these terms
+and roughly one narration-inviting turn in six says one anyway. The single most damning hit
+owes nothing to either arm: *"The cyclic reading (the main wheel) is 63.9% probable compared
+to its alte…"* — the reply reading a probability out of the Current Understanding dump and
+handing it to the person as counsel.
+
+**Two instrument notes worth reusing.** The probe scores each pair TWICE, on the full term
+list and on hard machinery only, because `perspective` and `transformation` are both banned
+and ordinary advisory English: if a high-base-rate term fires in both arms of every pair the
+discordant count goes to zero and the probe prints a null it manufactured itself. And the
+graph render is ASSERTED term-by-term before any provider time — `_refresh_context` is
+fail-soft, an empty prompt is 62,794 chars against the 64,711 five tetrads produce, so a
+silently failed render would have printed a plausible number while 48 turns measured nothing.
+
+**Null AT THIS DOSE, and the dose is small.** Each turn is a fresh Advisor with no history,
+where the archive's leaks landed behind seven prior exchanges; the graph is five 7-word
+tetrads, ~3% of the prompt, against real grown ones; and only the non-streaming path is
+covered, so `chat_stream` preamble leaks stay invisible. All three cut against the mechanism
+under test. What is NOT dose-limited is the base rate, because it was measured on both arms
+at once: the silent-Advisor contract is being broken at ~17% on turns that invite narration,
+and that is a prompt fix, not a plumbing one.

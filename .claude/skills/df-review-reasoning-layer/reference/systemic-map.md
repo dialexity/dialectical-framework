@@ -992,6 +992,22 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    the leak rate roughly 2×. Locked by `test_prompt_review_regressions.py::TestAdvisorFloorGuarantee::
    test_machinery_as_actor_examples_are_not_quotable` and `test_subject_and_opening_checks_are_mechanical`,
    measured by `test_machinery_silence_weak_tier.py` (xfail, non-strict).
+   **A tool result is not required — reading the DUMP is enough, and the floor is about 1 turn in 6.**
+   `probe_leak_reply_reuse.py` held a hand-built 5-perspective graph fixed and asked four
+   narration-inviting questions across 20 matched pairs; 7 of 40 replies on turns that elected **no tool at
+   all** said a banned term (`nexus`, `thesis`, `antithesis`, `wheel`, `the framework`), one handing over
+   "the main wheel is 63.9% probable" — a number that exists only in the context dump. So refine the r14
+   claim above: having a tool result to narrate raises the rate and explains WHERE the sentence lands, but
+   the standing dump supplies the vocabulary on its own, and no prompt fix should be judged against
+   tool-electing turns alone. The same run retires a plausible mechanical suspect: **the removed second
+   extraction round was never a hygiene filter** (leaking turns 4/20 with reply reuse against 2/20 without,
+   6 discordant pairs, p=0.688) — the two configurations leak at one rate in *different* vocabulary, reuse
+   reading the dump aloud and the extraction round narrating method, so latency work on the reply path is
+   not where this class is won or lost. Method rule for measuring it: score the arms TWICE, once on
+   `_MACHINERY_TERMS` whole and once with `perspective`/`transformation` removed. Those two are banned and
+   are also ordinary advisory English; the mirror of this section's `opposition`/`pathway` warning is that a
+   high-base-rate canonical term saturates both arms, drives the discordant count to zero, and MANUFACTURES
+   a null that reads exactly like a real one.
    **Blind spot in the measurement, not in the prompt: PREAMBLE text is never scored.** On the streaming
    path the reply is the deltas yielded after the last tool result, so text the model writes *before* a
    `ToolStart` — narrating what it is about to do, exactly the sentence-after-reading-a-tool-result site

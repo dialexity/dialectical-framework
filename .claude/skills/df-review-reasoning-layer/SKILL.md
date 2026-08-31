@@ -333,6 +333,14 @@ anchors.
       cells drop a frame with no bridge. Any rule about what the machinery does must say what the REPLY does:
       *the graph discards; the reply amends.* Same shape as the `record_decision` pair — prose without a call
       and a call without prose are both failures, so state both halves.
+- [ ] **Never accept a machinery-leak claim measured only on tool-electing turns, and never accept a null
+      measured on the whole term list.** Leaks run at roughly 1 turn in 6 on turns that elect NO tool, off the
+      standing context dump alone (`probe_leak_reply_reuse.py`, 7/40 replies), so a fix judged against
+      tool-heavy turns is judged against the loudest cases only. And `perspective`/`transformation` are both
+      banned and ordinary advisory English: leave them in and they fire on both arms of every comparison,
+      collapsing the discordant count and manufacturing a null. Score twice — whole list for comparability,
+      hard terms only for discrimination. The reply-path latency work is NOT a suspect here (reuse on vs off:
+      4/20 vs 2/20 leaking, p=0.688).
 - [ ] **The internal model describes positions, never the person.** A+ is "the obligation that falls on the
       T-sayer" (`docs/theory/generative-rules.md` Rule 3.1) — an obligation, not an incapacity. "Structurally
       blind" appears nowhere in `docs/theory/`; it was an application gloss, and it converted straight into
