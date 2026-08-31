@@ -278,8 +278,11 @@ def _report(pairs: list[tuple[_Turn, _Turn]]) -> None:
         print(f"    billed-equivalent prefill {billed:>9,.0f} tokens")
         # Printed, not analysed. This is WHOLE-CALL wall time, so output length —
         # uncontrolled between arms — dominates it, and the only quantity prefill
-        # caching should move is time-to-first-token, which `CallRecord` cannot see.
-        # Do not turn these into a latency claim; see the round write-up.
+        # caching should move is time-to-first-token, which `CallRecord.seconds`
+        # cannot see. `probe_stream_ttft.py` measured that quantity directly and
+        # came back with a null (1.46s vs 1.34s, 4/4, mechanism confirmed), so the
+        # latency claim is not merely unsupported here — it is settled elsewhere,
+        # against. Do not build one from these seconds; see the round write-up.
         print(f"    whole-call seconds {sum(seconds) / n:>6.1f}s mean"
               f"   ({', '.join(f'{s:.1f}' for s in seconds)})"
               "   <- NOT a latency measurement, see docstring")

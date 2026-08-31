@@ -1,5 +1,15 @@
 """Probe: does the relocated cache breakpoint make the reply START sooner?
 
+ANSWERED: NO — 1.46s with the split against 1.34s without, 4/4 pairs, weak tier,
+nominally slower and far inside the noise, while cache read was 18,075 against 0 and
+every warm turn wrote 18,075. Mechanism confirmed and setup verified, so that null is
+an effect size rather than a condition that never ran. **The caching change is a cost
+win only.** The reason transfers: TTFT was ~1.4s in BOTH arms, which send the same
+~19,100 prefill and differ only in how it is billed, so ~19k of prefix is not what
+that 1.4s is made of — the floor is the fixed cost of getting a request out and a
+first byte back. A prompt-size lever aimed at snappiness has nothing to bite on here.
+Re-run it after any change that could plausibly move prefill cost; see `rounds.md`.
+
 WHY
 ===
 `probe_prompt_cache.py` settled the COST question — moving the breakpoint off the
@@ -43,6 +53,12 @@ tool-electing turn it lands after the tool round — see its docstring.
 
 THE TOKENS MAY COME BACK UNMEASURED, AND THAT IS NOT A FAILURE
 ==============================================================
+In the event they did not: prefill came back MEASURED on 16/16 turns, so Bedrock does
+populate `message_delta.usage` and the branch below never ran. Keep it anyway — it is
+insurance against a provider or decoder that stops populating those optional fields,
+and the difference between insurance and description is worth stating rather than
+quietly deleting.
+
 Mirascope iterates the raw event stream and DISCARDS the `message_start` usage that
 Anthropic's own SDK accumulator would have folded in, reading prefill only from
 `message_delta` — whose token fields the API declares optional. So if Bedrock reports
@@ -60,8 +76,9 @@ a setup that never ran reports as a null.
 
     poetry run pytest tests/e2e/probe_stream_ttft.py -s --real-llm
 
-Assertions gate coherence only, never the direction of the result. A null is a real
-possible answer here — the ~19k prefix is small next to 7-11s of generation.
+Assertions gate coherence only, never the direction of the result. A null was always a
+real possible answer here — the ~19k prefix is small next to 7-11s of generation — and
+it is the answer that came back.
 """
 
 from __future__ import annotations

@@ -4516,11 +4516,47 @@ of 1.0, announcing perfect caching precisely when the instrument had lost track.
 difference is now taken as proof of the non-pre-adding convention, since the pre-adding one
 guarantees `input >= read + write`.
 
-### stream-ttft instrument: built, not yet read (2026-08-31)
+### probe-stream-ttft: the cache is a cost win and NOT a speed win, measured directly (2026-08-31)
 
-**This is a telemetry entry with no reading in it.** `probe_stream_ttft.py` exists and its
-unit tests pass; it has never been run against a provider. Nothing below is evidence about
-caching, and the section will be replaced by a result when the probe runs.
+**RESULT: a null on latency, with the mechanism confirmed and the setup verified — so it is an
+answer, not a failed measurement.** 4/4 pairs, weak tier. On the turn after the dump changed,
+time to first token was **1.46s with the split against 1.34s without** (1.24/1.77/1.35/1.47 vs
+1.14/1.19/1.52/1.51) — the split arm nominally SLOWER by 0.12s, far inside the noise at n=4 and
+in the opposite direction to the hypothesis. Meanwhile the arms demonstrably differed:
+**cache read 18,075 with the split against 0 without, 4/4**, and every warm turn wrote 18,075.
+Both gates the second review pass added therefore fired positively — `MECHANISM CONFIRMED`,
+warm entry written — which is what makes the null readable as an effect size rather than as a
+condition that never ran.
+
+**So the caching change's claim is settled and it is a cost claim only.** The archive can now
+say that on the basis of a measurement of the right quantity, instead of declining to say it on
+the basis of not having one. `probe_prompt_cache.py`'s 6.8x billed-equivalent prefill saving
+stands untouched; it simply does not convert into anything the person feels.
+
+**Why it does not, and this is the transferable part: TTFT was ~1.4s in BOTH arms, so ~19k of
+prefill is not what that 1.4s is made of.** Both arms send the same ~19,100 total prefill and
+differ only in how it is billed — read at ~0.1x versus write at ~1.25x. If the read path were
+substantially faster to process than fresh tokens, 18,075 of them would have shown it. It did
+not, so the floor here is the fixed cost of getting a request out and a first byte back
+(framework request construction included, per the instrument's own limits), not the prefix.
+**A prompt-size lever aimed at snappiness has nothing to bite on at this scale** — which is the
+same conclusion the deferred prompt-size todo was already argued down to, now with a number
+under it rather than an argument.
+
+**And the risk the instrument was hedged against did not materialise: streamed prefill came
+back MEASURED, 16/16 turns.** Bedrock does populate `message_delta.usage`, so the UNMEASURED
+branch never ran and the token columns carried the comparison. Worth stating because the code
+and docs are deliberately written to survive the other outcome, and that hedging is now known
+to be insurance rather than description.
+
+**One incidental reading, not a finding.** The whole-turn `first_delta_s` came to 1.9s / 1.5s,
+close to the per-round figure — because the measured turns were mostly tool-free (one streamed
+round each, no tool election). The turn that DID elect tools is visible in the log as the
+`split=on` warm turn with 73 calls, 3 streamed rounds and a 3.55s first token. That is the
+shape where the two figures diverge, and this probe deliberately does not measure it.
+
+Everything below is the instrument's own write-up, kept because the reasons it is built the way
+it is are what make the null above quotable.
 
 **Why it had to be built.** The section above quotes tokens and refuses to quote seconds,
 and the refusal is not modesty — it is the honest report of a wrong instrument. A prefill
