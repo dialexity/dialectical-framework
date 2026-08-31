@@ -110,6 +110,12 @@ co-occurrence hotspots. Then:
       interpolated text.
 - [ ] **Assert on the interpolated module attribute, not `inspect.getsource`** — f-string prompts show the
       literal `{CONST}` token in source, not the resolved text.
+- [ ] **Section ORDER in the Advisor engine is a cost contract, not a layout choice.** The provider's cache
+      breakpoint is placed at the `"\n\n## Current Understanding\n\n"` seam (`split_system_for_cache`), which
+      only works while `_CONTEXT_SLOT` is the LAST section `system_prompt()` appends and that heading is unique
+      in the render. Append a section after the dump, or repeat the heading in prose, and prefill cost on every
+      post-write turn goes up ~6.8x — silently, because the split fails soft by returning the prompt unchanged.
+      `tests/test_prompt_cache_split.py` is the tripwire; run it with any section-order edit.
 
 ---
 

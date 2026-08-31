@@ -61,6 +61,23 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     unchanged turn keeps its prefix cache. Cost measured at **0.245s median for 7 tensions**
     (`tests/test_context_refresh_cost.py`) and recorded per turn as `TurnTiming.context_render_s` /
     `TurnRecord.context_render_s`.
+  - **The caching objection is now REPAIRED at the provider seam, and that puts a hard constraint on this
+    prompt's section order (2026-08-31).** Mirascope stamps `cache_control` at the very END of the system
+    prompt (`anthropic/_utils/encode.py:471-478`), so with the dump last the breakpoint sat behind the only
+    mutable bytes and a changed turn re-prefilled the whole ~15.6k engine. `split_system_for_cache`
+    (`utils/bedrock_provider.py`) now splits the block at `"\n\n## Current Understanding\n\n"` and leaves
+    the breakpoint on the stable head — measured 4/4 at cache-read 18,075 vs 0, billed-equivalent prefill
+    6.8x cheaper on a post-write turn (`tests/e2e/probe_prompt_cache.py`). **Consequence for anyone editing
+    this prompt: `_CONTEXT_SLOT` must remain the LAST section appended in `system_prompt()`, and the
+    heading string must stay unique in the render.** Append a section after it and the split silently
+    degrades — it fails soft by returning the prompt unchanged, so nothing raises and caching just reverts.
+    `tests/test_prompt_cache_split.py::TestTheSeamTheSplitDependsOn` is the tripwire (suffix invariant,
+    sentinel count == 1 across tool sets × scoped/unscoped, head long enough to clear the 4,096-token
+    minimum). Assert the suffix on `system_prompt()`'s return value only — `providers/base/_utils.py:95-101`
+    appends formatting instructions to system when `format` is set, so it is false at the wire level.
+    Unrelated but load-bearing when reading cache numbers: the minimum cacheable prefix is **4,096 tokens
+    on haiku-4.5**, so no concern prompt in the tree (~0.8k–3.5k) has ever been cacheable and `cache_read=0`
+    there is correct.
   - **Priced on the bench, r26, 64 live A2 turns: median 0.300s = 1.49% of the median reply path, and
     0.7% of all reply-path seconds in the round.** Never above 1.6s on any of the 11 slow turns. The
     refresh is not a latency concern and this is no longer an argument, it is a measurement.

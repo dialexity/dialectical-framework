@@ -394,3 +394,119 @@ class TestTheUseBrainSeam:
             await _method()
 
         assert census.count == 3, "all three round-trips were provider time"
+
+
+class TestThePrefillBreakdown:
+    """Cache accounting has a third state, and collapsing it is the failure mode.
+
+    `None` means the round-trip reported no usage — which is EVERY streaming call,
+    since `use_brain` returns before the retry loop for `raw_call=True`, and every
+    tool-loop continuation. `0` means the provider reported it and there was none.
+    A reader that treats them alike turns "we did not look" into "caching is off",
+    which is the wrong conclusion in the more alarming direction — and in this
+    framework `0` is the CORRECT and expected value nearly everywhere, because only
+    the Advisor engine clears the 4,096-token minimum cacheable prefix.
+    """
+
+    def _record(self, **tokens) -> CallRecord:
+        return CallRecord(
+            caller="c", seconds=1.0, started=0.0, ended=1.0, **tokens
+        )
+
+    def test_unreported_usage_stays_none_not_zero(self):
+        assert self._record().prefill_tokens is None
+
+    def test_a_genuine_zero_is_not_unreported(self):
+        record = self._record(
+            uncached_input_tokens=500, cache_read_tokens=0, cache_write_tokens=0
+        )
+        assert record.prefill_tokens == 500
+
+    def test_prefill_is_the_sum_however_it_was_billed(self):
+        record = self._record(
+            uncached_input_tokens=1_000,
+            cache_read_tokens=18_000,
+            cache_write_tokens=0,
+        )
+        assert record.prefill_tokens == 19_000
+
+    def test_calls_with_usage_is_the_gate_on_every_token_total(self):
+        """A turn can make five provider calls and contribute usage for one, so a
+        token sum is only as complete as this count."""
+        census = CallCensus()
+        census.calls.append(self._record())  # a streamed call: reported nothing
+        census.calls.append(
+            self._record(
+                uncached_input_tokens=1_000,
+                cache_read_tokens=18_000,
+                cache_write_tokens=0,
+            )
+        )
+        assert census.count == 2
+        assert census.calls_with_usage == 1
+        assert census.cache_read_tokens == 18_000
+        assert census.cache_read_share == pytest.approx(18_000 / 19_000)
+
+    def test_cache_read_share_is_zero_when_nothing_was_measured(self):
+        """Same 0.0 as "caching is off", which is why `calls_with_usage` has to be
+        read first rather than being an optional extra."""
+        census = CallCensus()
+        census.calls.append(self._record())
+        assert census.cache_read_share == 0.0
+        assert census.calls_with_usage == 0
+
+
+class TestTheTwoTokenConventions:
+    """`_prefill_tokens` must survive both of Mirascope's definitions of
+    `input_tokens`: the non-streaming decoder pre-adds cache reads and writes
+    (`anthropic/_utils/decode.py:99`), the streaming one does not (`:286`)."""
+
+    class _Usage:
+        def __init__(self, input_tokens, cache_read_tokens, cache_write_tokens):
+            self.input_tokens = input_tokens
+            self.cache_read_tokens = cache_read_tokens
+            self.cache_write_tokens = cache_write_tokens
+
+    class _Response:
+        def __init__(self, usage):
+            self.usage = usage
+
+    def _breakdown(self, input_tokens, read, write):
+        return use_brain_module._prefill_tokens(
+            self._Response(self._Usage(input_tokens, read, write))
+        )
+
+    def test_the_pre_adding_convention_is_subtracted_back_out(self):
+        assert self._breakdown(19_101, 18_075, 0) == {
+            "uncached_input_tokens": 1_026,
+            "cache_read_tokens": 18_075,
+            "cache_write_tokens": 0,
+        }
+
+    def test_the_non_pre_adding_convention_is_taken_as_is(self):
+        """A negative difference is PROOF of the streaming convention, since the
+        pre-adding one guarantees `input >= read + write`. Clamping to 0 instead
+        would report `cache_read_share` of 1.0 — perfect caching announced exactly
+        when the instrument has lost track."""
+        assert self._breakdown(1_026, 18_075, 0) == {
+            "uncached_input_tokens": 1_026,
+            "cache_read_tokens": 18_075,
+            "cache_write_tokens": 0,
+        }
+
+    def test_no_usage_reports_all_three_as_unmeasured(self):
+        class _Bare:
+            usage = None
+
+        assert use_brain_module._prefill_tokens(_Bare()) == {
+            "uncached_input_tokens": None,
+            "cache_read_tokens": None,
+            "cache_write_tokens": None,
+        }
+
+    def test_provider_nones_do_not_become_a_crash_or_a_negative(self):
+        assert self._breakdown(500, None, None) == {
+            "uncached_input_tokens": 500,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+        }

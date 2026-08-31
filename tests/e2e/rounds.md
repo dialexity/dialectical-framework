@@ -4393,3 +4393,125 @@ covered, so `chat_stream` preamble leaks stay invisible. All three cut against t
 under test. What is NOT dose-limited is the base rate, because it was measured on both arms
 at once: the silent-Advisor contract is being broken at ~17% on turns that invite narration,
 and that is a prompt fix, not a plumbing one.
+
+### probe-prompt-cache: the breakpoint was sitting on the one part that moves (2026-08-31)
+
+**Question.** `probe_reply_reuse_saving.py` closed with a prediction: the removed second
+provider round was only worth +1.6s because "prompt caching is already on, so the second
+round's prefill is a cache read — a prediction the caching work can check against
+cache-read token counts." Checking it needed the counts, so the census learned to record
+them, and the first thing they said was that the prediction was **wrong in the more useful
+direction**: on a turn following any graph write, cache reads were **zero**.
+
+**Cause, in Mirascope rather than in this tree.** Its Anthropic encoder emits the system
+prompt as ONE text block with `cache_control` at the very END (`encode.py:471-478`). For
+every other agent that is right. The Advisor's prompt ends with `{dialectical_context}` —
+the Current Understanding dump — so the breakpoint sat *after* the only bytes that change,
+and every `anchor`, `explore`, `deepen` or `sync` write invalidated the entry for the whole
+~15.6k-token engine in front of it. The fix (`split_system_for_cache`, in
+`utils/bedrock_provider.py`) splits that block at the seam `"\n\n## Current Understanding\n\n"`
+and leaves the breakpoint on the stable head. It **relocates** a breakpoint rather than
+adding one, so the request still spends at most three of the provider's four.
+
+**Method** (`probe_prompt_cache.py`). The discriminating condition is not "does a repeated
+turn hit the cache" — an unchanged prompt matches at any breakpoint. Each arm runs
+`turn 1 → mutate the graph with no provider call → turn 2, measured`, and the number is
+turn 2's `cache_read_tokens`. `split_system_for_cache` is monkeypatched to identity for the
+OFF arm; each arm-run carries a unique persona marker so it cannot be served another arm's
+writes. 4 reps, both arms each, alternating order, 5m42s on the weak tier.
+
+**Deterministic, 4/4, on the turn after the dump changed:**
+
+| | cache READ | cache WRITE | uncached | billed-equivalent prefill |
+|---|---|---|---|---|
+| split ON | **18,075** | 0 | 1,670 | **3,477** |
+| split OFF (as shipped) | 0 | 18,732 | 365 | 23,780 |
+
+Billed-equivalent converts the split into one comparable number at the published multipliers
+(reads ~0.1x, writes ~1.25x): **prefill on a post-write turn costs 6.8x less**. Total prefill
+is 19,101 against 19,099 — nothing was added or lost, the same tokens are billed differently.
+The ON arm's higher `uncached` is the mechanism, not a leak: the dump tail is now ordinary
+input. The 1,670 mean is skewed by one rep whose warm turn elected `explore` and grew the
+dump to 3,606 uncached tokens — which is the fix working, since without it those bytes
+would have invalidated 18k more.
+
+**The cold turn is not paid for.** Warm (first-ever) turns come out at 18,933 total prefill
+with the split and 18,930 without, 23,452 against 23,572 billed-equivalent. Splitting a
+block does not cost a write; it only decides where the next turn can resume.
+
+**Latency: NOT measured, and the first draft of this entry got that wrong.** The 4-rep run
+gave 7.5s mean with the split against 9.2s without, which read as "directionally right,
+underpowered". A 2-rep confirmation run inverted it — 8.9s against 7.2s — and the inversion
+is the useful result, because the instrument was never able to see the effect. `CallRecord.
+seconds` is WHOLE-CALL wall time, so it is dominated by output length, which is uncontrolled
+between arms; the only quantity a prefill cache can move is time-to-first-token, and nothing
+in the census records it. So the correct statement is not "unproven" but "unmeasured": quote
+the tokens, and if the seconds matter, build a TTFT instrument on the streaming path.
+
+**Two things the cost claim does NOT include.** (1) On a turn whose dump did NOT change, the
+split is slightly WORSE: the single-block form would have read the whole prompt from cache
+(~1,910 billed-equivalent) while the split reads the head and pays full rate for the ~660-token
+tail (~2,470). The trade is taken because the changed-dump turn follows every tool write and
+goes the other way by ~20,000, but the win shrinks as the dump grows relative to the engine —
+counsel-mode dumps are exempt from the wheel cap, so a large graph erodes it. (2) Buying both
+would need a SECOND breakpoint at the end of the tail, and the budget will not carry one — see
+below.
+
+**What does NOT get cached, and it is most of the tree.** Prompt caching has a per-model
+minimum cacheable prefix — **4,096 tokens on haiku-4.5, not 1,024; the minimum is not
+monotonic across generations** — and under it the provider silently declines and bills at
+full rate without erroring. The Advisor engine (~15.6k) is the only prompt in the framework
+that clears it: Analyst `SYSTEM_PROMPT` is ~3.5k, Explorer ~2.8k, `transformation_generation`
+~1.9k, and `aspect_generation` / `statement_classification` / `antithesis_classification`
+~0.8k each. So **every concern call in an `explore` reads cache_read=0 and always has**, and
+that is correct rather than a defect. This fix helps the chat turn; it does not touch the
+196s tool paths.
+
+**Two instrument facts the token numbers depend on.** Mirascope's non-streaming decoder
+defines `input_tokens = raw + cache_read + cache_write` (`decode.py:99`) while the streaming
+one does not (`:286`), so any ratio built on the raw field is right on one path and wrong on
+the other — the subtraction now happens once at the recording site and the field is named
+`uncached_input_tokens` to say what survived it. (The same bug was live in Langfuse:
+`_trace_generation` was reporting the pre-subtraction figure as `input`.) And `None` is kept
+as a third state distinct from `0`: `None` means the round-trip reported no usage — which is
+every streaming call, since `use_brain` returns before the retry loop for `raw_call=True`,
+and every tool-loop continuation — while `0` means the provider looked and there was none.
+Collapsing them turns "we did not measure" into "caching is off". Read
+`CallCensus.calls_with_usage` before any token total.
+
+**And the validation pass found a live 400 waiting to happen, next door to the change.**
+Adversarial review of the split asked whether the request stays inside the provider's four
+breakpoints. It does — the split is count-neutral, block 0-of-1 becomes block 0-of-2 — but
+the *headroom* the first docstring asserted does not exist, because mirascope leaks tool
+breakpoints between requests. `convert_tool_to_tool_param` is `@lru_cache`d (`encode.py:380`)
+and returns a SHARED dict, and `last_tool["cache_control"] = ...` (`:458`) mutates that cached
+entry, so the stamp survives for the life of the process. Reproduced end-to-end: three tools
+sent in three different orders gave 1, then 2, then **3** tool breakpoints, one per distinct
+last-tool the process had ever seen.
+
+It is reachable in this tree today, not in principle. The Advisor's last tool is `discard`,
+which the Analyst carries mid-list while ending on `get_schema` — so an Advisor-then-Analyst
+process sends 2 tool breakpoints + system + last message = **exactly 4, zero headroom**, and
+`merge_app_tools` appends host tools LAST, so one registered app tool makes `get_schema`
+non-last-but-still-stamped and the request becomes 5, which the API rejects outright. Fixed
+alongside the split (`_normalize_tool_breakpoints`), by shallow-copying the non-last tools
+without the key rather than popping from the shared dict — popping would heal the cache entry
+that is aliased into every in-flight request using that tool, stripping a breakpoint from a
+request already on its way and trading a loud failure for a silent loss of caching.
+**Pre-existing, unrelated to the split, and the only reason it surfaced is that the split
+made someone count.**
+
+**Also corrected in review, each in the direction of the claim being weaker than written.**
+The probe selected the measured call by `max(prefill)` while its own docstring claimed the
+FIRST call — and the structured fallback re-sends the same system prompt plus accumulated
+messages, so it is strictly larger and would have read the first call's own write, a forged
+hit flattering the reuse-off arm. Now filtered to `format_name is None` and `min(started)`,
+with the structured-call count printed; the re-run confirms the numbers were never
+contaminated (every turn made exactly one structured call, the decision repair's classifier,
+far under the floor). `_MIN_CACHEABLE_HEAD_CHARS` went 16,384 → 20,480 because 16,384 assumed
+4 chars/token and is ~3,277 tokens at 5, i.e. under the minimum it was supposed to guarantee.
+And `_prefill_tokens` no longer clamps a negative difference to zero: under the streaming
+convention that would have reported 0 uncached against a large cache_read — `cache_read_share`
+of 1.0, announcing perfect caching precisely when the instrument had lost track. A negative
+difference is now taken as proof of the non-pre-adding convention, since the pre-adding one
+guarantees `input >= read + write`.

@@ -188,6 +188,7 @@ def use_brain(
                             # `ConversationFacilitator`, so the qualname is a
                             # constant.
                             format_name=format_name,
+                            **_prefill_tokens(response),
                         )
                     _trace_generation(
                         response=response,
@@ -535,6 +536,47 @@ def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
     return None
 
 
+def _prefill_tokens(response: Any) -> dict[str, Optional[int]]:
+    """Cache-aware prefill breakdown for the census, as `record_call` kwargs.
+
+    All three are `None` when the response carries no usage, so the census can
+    tell "not reported" from "reported as zero" — see `record_call`.
+
+    The subtraction is the whole point. Mirascope's non-streaming decoder defines
+    `input_tokens = raw_input + cache_read + cache_write` (`anthropic/_utils/
+    decode.py:99`) while its streaming decoder does not (`:286`), so the raw field
+    means two different things depending on the path. Recording the difference
+    once, here, is what stops every downstream ratio from inheriting the ambiguity.
+
+    The two conventions are told apart by ARITHMETIC rather than by asking which
+    path we are on, because the caller does not know. Under the pre-adding
+    convention `input_tokens >= cache_read + cache_write` always holds; a negative
+    difference is therefore proof that the field is already the uncached count, and
+    it is used as-is. Clamping to zero instead — the obvious defensive move — would
+    be wrong in the worst available direction: it reports 0 uncached against a large
+    cache_read, i.e. `cache_read_share` of 1.0, announcing perfect caching exactly
+    when the instrument has lost track. Today no streaming call reaches here at all
+    (`raw_call=True` returns before the retry loop), so this is a guard on a path
+    that a future caller is explicitly invited to open.
+    """
+    usage = getattr(response, "usage", None)
+    if not usage:
+        return {
+            "uncached_input_tokens": None,
+            "cache_read_tokens": None,
+            "cache_write_tokens": None,
+        }
+    cache_read = usage.cache_read_tokens or 0
+    cache_write = usage.cache_write_tokens or 0
+    reported_input = usage.input_tokens or 0
+    uncached = reported_input - cache_read - cache_write
+    return {
+        "uncached_input_tokens": uncached if uncached >= 0 else reported_input,
+        "cache_read_tokens": cache_read,
+        "cache_write_tokens": cache_write,
+    }
+
+
 def _trace_generation(
     response: Any,
     model: str,
@@ -548,14 +590,19 @@ def _trace_generation(
 
         usage_details: Optional[dict[str, int]] = None
         if response.usage:
+            prefill = _prefill_tokens(response)
+            # Reported unconditionally, and `input` is the UNCACHED count. Both
+            # halves were wrong before: the cache keys were behind falsy guards,
+            # so a zero read as "not measured" exactly when a cache miss is the
+            # thing worth seeing; and `input` was `usage.input_tokens`, which on
+            # this path already contains the cache tokens, so every cached call
+            # double-counted its prefill.
             usage_details = {
-                "input": response.usage.input_tokens,
+                "input": prefill["uncached_input_tokens"] or 0,
                 "output": response.usage.output_tokens,
+                "cache_read": prefill["cache_read_tokens"] or 0,
+                "cache_write": prefill["cache_write_tokens"] or 0,
             }
-            if response.usage.cache_read_tokens:
-                usage_details["cache_read"] = response.usage.cache_read_tokens
-            if response.usage.cache_write_tokens:
-                usage_details["cache_write"] = response.usage.cache_write_tokens
 
         input_messages = [_serialize_message(m) for m in response.messages[:-1]]
         # `text` is a METHOD; the missing call recorded a bound-method repr as

@@ -96,6 +96,32 @@ class CallRecord:
     #: survives the seam.
     format_name: Optional[str] = None
 
+    #: Prefill tokens the provider billed at full rate — cache reads and writes
+    #: EXCLUDED.
+    #:
+    #: Deliberately not called `input_tokens`, because Mirascope's `Usage`
+    #: disagrees with itself about what that means: on the non-streaming path
+    #: `input_tokens` already contains cache_read + cache_write (`decode.py:99`),
+    #: while on the streaming path it does not (`:286`). Any ratio built on the
+    #: raw field is therefore right on one path and wrong on the other, so the
+    #: subtraction happens once at the recording site and the name says what
+    #: survived it.
+    uncached_input_tokens: Optional[int] = None
+    #: Prefill served from the provider's prompt cache, billed at ~0.1x.
+    cache_read_tokens: Optional[int] = None
+    #: Prefill written INTO the cache, billed at ~1.25x.
+    cache_write_tokens: Optional[int] = None
+
+    @property
+    def prefill_tokens(self) -> Optional[int]:
+        """Total prompt tokens the provider processed, however they were billed."""
+        parts = (
+            self.uncached_input_tokens,
+            self.cache_read_tokens,
+            self.cache_write_tokens,
+        )
+        return None if all(p is None for p in parts) else sum(p or 0 for p in parts)
+
     @property
     def label(self) -> str:
         """How this call should be identified to a human reader.
@@ -179,6 +205,46 @@ class CallCensus:
         mean = self.mean_call_s
         return self.busy_s / mean if mean > 0 else 0.0
 
+    @property
+    def cache_read_tokens(self) -> int:
+        return sum(c.cache_read_tokens or 0 for c in self.calls)
+
+    @property
+    def cache_write_tokens(self) -> int:
+        return sum(c.cache_write_tokens or 0 for c in self.calls)
+
+    @property
+    def uncached_input_tokens(self) -> int:
+        return sum(c.uncached_input_tokens or 0 for c in self.calls)
+
+    @property
+    def calls_with_usage(self) -> int:
+        """Calls that reported token usage at all.
+
+        Read this before any of the token figures: the STREAMING path never
+        reaches `record_call` (`use_brain` returns the raw callable before the
+        retry loop for `raw_call=True`), and a tool loop's continuation rounds
+        bypass `use_brain` entirely — so a turn can make five provider calls and
+        contribute usage for one. A token total is only as complete as this count.
+        """
+        return sum(1 for c in self.calls if c.prefill_tokens is not None)
+
+    @property
+    def cache_read_share(self) -> float:
+        """Fraction of measured prefill that came from cache. 0.0 when none did.
+
+        **Zero is the EXPECTED value for almost every call in this framework, and
+        it is not a defect.** Prompt caching has a per-model minimum cacheable
+        prefix — 4,096 tokens on haiku-4.5 — and below it the provider silently
+        declines to cache and bills at full rate without erroring. Only the
+        Advisor's engine (~15.6k tokens) clears that bar; every concern prompt in
+        the tree is between ~0.8k and ~3.5k, so Analyst, Explorer and all 18
+        concerns can never be cached as they stand. Read this metric on Advisor
+        turns; elsewhere it says nothing about whether caching is configured.
+        """
+        total = self.cache_read_tokens + self.cache_write_tokens + self.uncached_input_tokens
+        return self.cache_read_tokens / total if total else 0.0
+
     def by_caller(self) -> list[tuple[str, int, float]]:
         """`(label, count, total_s)`, most provider time first.
 
@@ -229,11 +295,21 @@ def record_call(
     seconds: float,
     started: float,
     format_name: Optional[str] = None,
+    uncached_input_tokens: Optional[int] = None,
+    cache_read_tokens: Optional[int] = None,
+    cache_write_tokens: Optional[int] = None,
 ) -> None:
     """Attribute one provider round-trip to every installed census.
 
     A no-op when nothing is installed, which is the common case: most `use_brain`
     callers are pipelines nobody is measuring.
+
+    The token arguments default to `None` and that is a THIRD state, not a zero:
+    `None` means the round-trip reported no usage (the streaming path, where usage
+    only exists once the stream has been consumed), while `0` means the provider
+    reported it and there was none. Collapsing the two would turn "we did not
+    look" into "caching is off", which is the wrong conclusion in the more
+    alarming direction.
     """
     stack = _stack.get()
     if not stack:
@@ -244,6 +320,9 @@ def record_call(
         started=started,
         ended=started + seconds,
         format_name=format_name,
+        uncached_input_tokens=uncached_input_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_write_tokens=cache_write_tokens,
     )
     for census in stack:
         census.calls.append(record)
