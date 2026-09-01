@@ -478,6 +478,74 @@ class TestAnchorBranchesGroundAlike:
         assert AnalysisPipeline(thesis_hashes=["h1"], grounding_context="  ").grounding_context is None
 
     @pytest.mark.asyncio
+    async def test_both_poles_anchor_passes_context_as_grounding(self, monkeypatch):
+        """The mirror of `test_thesis_only_anchor_passes_context_as_grounding`,
+        for the branch nothing covered.
+
+        This class claims to cover "both `anchor` branches" and did not: every
+        anchor test in the tree passes `antithesis=None`, so no test had ever
+        called `anchor.fn` with both poles. `anchor.py`'s `grounding_context=`
+        on that branch could be deleted and the whole suite would stay green —
+        the exact regression the comment there records having already shipped
+        twice on the other branch.
+
+        Two files DO call it with both poles and neither guards anything:
+        `tests/probe_anchor_report.py` contains no `assert` at all, and
+        `tests/e2e/probe_anchor_retry_cost.py` asserts only its own timing
+        arithmetic. Both are `probe_*`, which pytest does not collect.
+        """
+        from dialectical_framework.agents.advisor.tools import anchor as anchor_mod
+
+        captured: dict = {}
+
+        class _Report:
+            ok = True
+            summary = ""
+
+            def __init__(self) -> None:
+                self.artifacts: dict = {}
+
+            def merge(self, other):
+                return self
+
+        class _FakeIntroduce:
+            def __init__(self, **kwargs) -> None:
+                self.report = _Report()
+
+            async def resolve(self):
+                return type("Res", (), {"primary_polarity_hash": "pol-1"})()
+
+        class _FakeExpand:
+            def __init__(self, **kwargs) -> None:
+                captured.update(kwargs)
+                self.report = _Report()
+
+            async def resolve(self):
+                return []
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.skills.introduce_polarity.IntroducePolarity",
+            _FakeIntroduce,
+        )
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.skills.expand_polarities.ExpandPolarity",
+            _FakeExpand,
+        )
+
+        await anchor_mod.anchor.fn(
+            thesis="Buy out the cofounder now",
+            antithesis="Keep the partnership intact",
+            context=CONTEXT,
+        )
+
+        assert captured.get("grounding_context") == CONTEXT
+        # The polarity the tetrad expands must be the one just introduced, not a
+        # re-lookup: a stubbed hash proves the value is threaded, so a future
+        # refactor cannot satisfy the assertion above while grounding some other
+        # polarity's tetrad.
+        assert captured.get("polarity_hash") == "pol-1"
+
+    @pytest.mark.asyncio
     async def test_thesis_only_anchor_passes_context_as_grounding(self, monkeypatch):
         """The regression itself: `intent` alone is not grounding."""
         from dialectical_framework.agents.advisor.tools import anchor as anchor_mod
