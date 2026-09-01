@@ -285,7 +285,17 @@ makes the levers costable, and it prices two of them DOWN:
   a ~4s average stage; the actual call is the cheapest on the board. The argument
   for doing it anyway is no longer latency, and it was dropped on that basis.
 - Gathering the two `_resolve_statement` calls saves one pole's ~5.8s (~14%),
-  which is the largest safe structural saving available.
+  which is the largest safe structural saving available. **DONE** — that method is
+  now split into `IntroducePolarity._classify_statement` (gathered for both poles)
+  and `_commit_statement` (sequential, on the parent). The saving is UNVERIFIED
+  against a provider: a clean re-run of this probe on the fixed per-branch `Case`
+  is owed, and until it exists the ~5.8s is arithmetic from the table above, not a
+  measurement of the change.
+  A second, much smaller gather went in beside it — `AnchorTheses` ran its
+  classification and headline lists in two sequential `gather`s — but that one is
+  worth ~1.0s at most and usually nothing, because `HeadlineDto` fired once in
+  five calls here. Do not read the ~2.8s + ~3.0s pair as its cost: both of those
+  rows are `StatementClassification`'s own two submits.
 
 RETRIES: 0 of 5 calls laddered, so the retry sleep the archive records on three
 post-fix `anchor` rounds — 8.1s, 9.8s and 10.2s — did NOT reproduce here. (Stated

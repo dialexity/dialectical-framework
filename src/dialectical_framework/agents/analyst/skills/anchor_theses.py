@@ -30,6 +30,8 @@ from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                 report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -44,6 +46,11 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
 
     No LLM intent parsing — the caller already decided these are literal statements.
     """
+
+    #: ONE step regardless of how many statements were handed in: they are all
+    #: classified in a single gathered stage, so a per-statement denominator would
+    #: jump from 0 to N at one instant and tell the person nothing.
+    PROGRESS_STEPS = 1
 
     def __init__(
         self, statements: list[str], input_hashes: list[str] | None = None
@@ -60,6 +67,8 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
 
         text = await self._get_input_text()
 
+        expect_progress(self.PROGRESS_STEPS)
+        report_progress("Taking in the position you named")
         components = await self._classify_and_create(self.statements, text=text)
 
         if not components:
@@ -102,8 +111,26 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
             for headliner, stmt in zip(headliners, statements)
         ]
 
-        results: list[ClassificationResult] = await asyncio.gather(*tasks)
-        headlines: list[str] = await asyncio.gather(*headline_tasks)
+        # ONE gather over both lists, not one per list. A coroutine does not start
+        # until something awaits it, so two sequential `gather`s ran every
+        # classification to completion and only then every headline, where the two
+        # are independent: each concern gets `stmt` and `text`, neither reads the
+        # other's output, and `_create_component` consumes both only after this
+        # line.
+        #
+        # Worth ~1.0s AT MOST, and usually nothing — `HeadlineDto` is ~1.0s and it
+        # fired once in five `anchor` calls, because `StatementHeadline`
+        # short-circuits without an LLM call at `component_length` (7) and a
+        # thesis the model hands this skill is normally already that short
+        # (`probe_anchor_retry_cost.py`). Structural correctness is the reason to
+        # do it, not the saving. Do NOT read the ~2.8s + ~3.0s pair from that
+        # probe's table as this stage's cost: both of those are
+        # `StatementClassification`'s own two submits, i.e. both live in `tasks`.
+        both = await asyncio.gather(
+            asyncio.gather(*tasks), asyncio.gather(*headline_tasks)
+        )
+        results: list[ClassificationResult] = both[0]
+        headlines: list[str] = both[1]
 
         components: list[Statement] = []
         for classifier, headliner, result, headline in zip(

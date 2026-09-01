@@ -25,6 +25,8 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
+from dialectical_framework.utils.progress import (expect_progress,
+                                                 report_progress)
 
 if TYPE_CHECKING:
     pass
@@ -316,6 +318,11 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 return AnalysisResult(errors=errors, reports=reports)
 
         try:
+            # The `anchor` thesis-only branch's own long stage: nothing has been
+            # said since the position was classified, and this is where the
+            # opposition is discovered and scored.
+            expect_progress(1)
+            report_progress("Looking for what genuinely pushes back")
             find = FindPolarities(thesis_hashes=thesis_hashes)
             await find.resolve()
             reports.append(find.report)

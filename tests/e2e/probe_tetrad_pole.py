@@ -665,7 +665,7 @@ async def _classify(text: str, cache: dict[str, ClassificationResult]) -> Classi
     under test. The archive's meanings came from this classifier, so the probe
     uses this classifier.
 
-    `anchor`'s `IntroducePolarity._resolve_statement` classifies each pole
+    `anchor`'s `IntroducePolarity._classify_statement` classifies each pole
     independently of its role, so a text's meaning does not depend on whether it
     is sitting at T or at A. That is what makes the label-vs-content swap sound:
     the only thing the swap changes is the POSITION, and one classification per

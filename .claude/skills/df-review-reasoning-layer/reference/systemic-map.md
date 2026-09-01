@@ -2341,7 +2341,7 @@ That cannot work, and the reason generalises to any test that constructs a Polar
 
 Two consequences worth carrying:
 - **Classify both poles through the real `StatementClassification`** (as `anchor`'s
-  `IntroducePolarity._resolve_statement` does), never a hand-picked branch. The branch **selects the
+  `IntroducePolarity._classify_statement` does), never a hand-picked branch. The branch **selects the
   apex row the prompt teaches from**, so choosing it by hand silently changes the prompt under test.
   Classification is role-independent, which is what lets one classification per distinct text be
   reused across a T/A swap.

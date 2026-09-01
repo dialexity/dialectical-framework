@@ -942,7 +942,11 @@ class TestAnchorHeadlineClamp:
         from dialectical_framework.agents.analyst.skills import \
             introduce_polarity as ip
 
-        ip_src = inspect.getsource(ip.IntroducePolarity._resolve_statement)
+        # Whole class, not one method: the two halves of `_resolve_statement`
+        # were split apart so both poles' LLM work can be gathered, and a
+        # method-scoped grep would have gone green on the leg that no longer
+        # contains either line. `AnchorTheses` below was always read whole.
+        ip_src = inspect.getsource(ip.IntroducePolarity)
         assert "StatementHeadline()" in ip_src
         assert "Statement(text=headline" in ip_src
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, NamedTuple, Optional
 
 from dependency_injector.wiring import Provide, inject
 from mirascope import llm
@@ -30,7 +30,7 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.concerns.antithesis_classification import \
     AntithesisClassification
 from dialectical_framework.concerns.statement_classification import \
-    StatementClassification
+    ClassificationResult, StatementClassification
 from dialectical_framework.concerns.statement_headline import StatementHeadline
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.estimation_manager import EstimationManager
@@ -43,9 +43,25 @@ from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                 report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+class _StatementDraft(NamedTuple):
+    """One pole's two concern results, before anything has been written.
+
+    Exists to keep `_classify_statement` free of side effects. Both poles' LLM
+    work runs in gathered tasks; everything that touches the graph or the report
+    is done afterwards by `_commit_statement`, on the parent, one pole at a time.
+    """
+
+    classifier: StatementClassification
+    headliner: StatementHeadline
+    classification: ClassificationResult
+    headline: str
 
 
 @dataclass
@@ -65,6 +81,10 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
     Use find_polarities to discover alternative antitheses separately.
     """
 
+    #: Steps `resolve()` reports, for callers sizing a progress denominator.
+    #: Pinned against the actual `report_progress` calls by `tests/test_progress.py`.
+    PROGRESS_STEPS = 2
+
     def __init__(self, thesis: str, antithesis: str, text: str = "") -> None:
         self.thesis_text = thesis.strip()
         self.antithesis_text = antithesis.strip()
@@ -81,11 +101,34 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         input_text = await self._get_input_text()
         context = f"{input_text}\n\n{self.text}".strip() if self.text else input_text
 
-        # 1. Create or find thesis Statement
-        thesis_stmt = await self._resolve_statement(self.thesis_text, context)
-
-        # 2. Create or find antithesis Statement
-        antithesis_stmt = await self._resolve_statement(self.antithesis_text, context)
+        # 1-2. Create or find both Statements. The two poles are resolved
+        # CONCURRENTLY: neither reads the other, each builds its own concerns with
+        # its own conversation, and the `OPPOSITE_OF` connect below is the first
+        # thing that needs both. They were sequential `await`s purely because the
+        # code was written for one pole and called twice, which cost a whole ~5.8s
+        # stage of the tool's ~40s wall clock (2 x (2.8 classification + 3.0
+        # taxonomy), `probe_anchor_retry_cost.py`).
+        #
+        # Only the LLM half is gathered. The commits and the report merges run
+        # after, on this task, one pole at a time — GQLAlchemy is not
+        # concurrency-safe, and `merge` returns a NEW report rather than mutating,
+        # so two tasks assigning `self._report` would silently drop one pole's
+        # nodes from the report. Same reason the order below is thesis-then-
+        # antithesis: it keeps the report's node sequence identical to before.
+        #
+        # No `return_exceptions=True`, deliberately: a failing pole must abort the
+        # whole tool, exactly as the sequential version did. The one thing it costs
+        # is that the surviving pole's calls run on to completion in the background
+        # and are discarded — wasted spend on an error path, never a wrong result,
+        # since nothing has been committed at that point.
+        expect_progress(self.PROGRESS_STEPS)
+        report_progress("Taking in both sides of what you described")
+        thesis_draft, antithesis_draft = await asyncio.gather(
+            self._classify_statement(self.thesis_text, context),
+            self._classify_statement(self.antithesis_text, context),
+        )
+        thesis_stmt = self._commit_statement(thesis_draft)
+        antithesis_stmt = self._commit_statement(antithesis_draft)
 
         # 3. Connect OPPOSITE_OF
         thesis_stmt.oppositions.connect(antithesis_stmt)
@@ -94,6 +137,7 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         )
 
         # 4. Classify the antithesis against the thesis (get HS)
+        report_progress("Weighing how strongly the two pull against each other")
         classifier = AntithesisClassification()
         classification = await classifier.resolve(
             thesis=thesis_stmt,
@@ -180,13 +224,25 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 
         return result
 
-    async def _resolve_statement(self, text: str, context: str) -> Statement:
-        """Classify and commit a Statement. Commit is an upsert — same text reuses existing node.
+    async def _classify_statement(self, text: str, context: str) -> _StatementDraft:
+        """The LLM half of placing a Statement: NO graph writes and NO report
+        mutation, so this is safe to run for both poles at once.
+
+        This and `_commit_statement` replace `_resolve_statement`, which did both
+        halves for one pole and was called twice. Deliberately NOT kept as a
+        composition wrapper: nothing calls it, and a dead method still satisfies
+        the class-scoped grep in
+        `test_prompt_review_regressions.py::test_both_anchor_legs_condense_the_stored_text`,
+        so leaving it would let that tripwire pass on code the tool no longer runs.
 
         The agent may pass verbose prose (the anchor path has no extraction step
         to clamp length), so condense to a headline in parallel with
         classification. Classification reads the full text for richer taxonomy
-        anchoring; only the stored ``text`` becomes the headline.
+        anchoring; only the stored ``text`` becomes the headline. Both concerns
+        therefore receive ``statement=text`` — the FULL text, not the headline.
+        Feeding the classifier the condensed form instead would be invisible here
+        and would degrade the meaning URI, which is a hash input and selects the
+        taxonomy row every downstream aspect is generated against.
         """
         classifier = StatementClassification()
         headliner = StatementHeadline()
@@ -194,6 +250,21 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             classifier.resolve(statement=text, text=context),
             headliner.resolve(statement=text, text=context),
         )
+        return _StatementDraft(classifier, headliner, result, headline)
+
+    def _commit_statement(self, draft: _StatementDraft) -> Statement:
+        """The graph half: MUST run on the parent task, one pole at a time.
+
+        `commit()` is an upsert — a Statement with the same text reuses the
+        existing node rather than duplicating it.
+
+        Synchronous on purpose — there is nothing to await here, and a coroutine
+        would invite a future caller to gather it, which is exactly what must not
+        happen: `Statement.commit()` and `Rationale.commit()` go through
+        GQLAlchemy, which is not concurrency-safe, and each `merge` below returns
+        a new report that is then assigned to `self._report`.
+        """
+        classifier, headliner, result, headline = draft
         self._report = self._report.merge(classifier.report)
         self._report = self._report.merge(headliner.report)
 

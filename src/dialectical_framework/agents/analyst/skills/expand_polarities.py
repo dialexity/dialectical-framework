@@ -48,6 +48,8 @@ from dialectical_framework.graph.repositories.statement_repository import (
     StatementRepository,
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                 report_progress)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.perspective_repository import (
     PerspectiveRepository,
@@ -132,9 +134,18 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         #: this call's `grounding_context` is still about them.
         dedup_targets: list[Perspective] = []
 
+        # Declared where the work is discovered, per `utils/progress.py`: the
+        # count is not knowable above this line (it depends on what was already
+        # in the graph), and the grounding and validation stages add their own.
+        expect_progress(len(partial_pps))
+
         for pp in partial_pps:
             not_like_these = complete_pps + completed_pps
 
+            # The single most expensive stage in `anchor` — ~10.2s of a ~38s
+            # chain, one call, nothing to overlap it with, and no graph node
+            # written until it returns.
+            report_progress("Working out how each side helps and how each overreaches")
             generator = AspectGeneration()
             aspects = await generator.resolve(
                 perspective=pp,
@@ -254,6 +265,11 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         if not self.grounding_context or not perspectives:
             return
 
+        # AFTER the early return, not before: a caller with no context runs no
+        # step here, and expecting one would leave every bar permanently short.
+        expect_progress(1)
+        report_progress("Keeping hold of your specifics")
+
         from dialectical_framework.concerns.tetrad_grounding import \
             TetradGrounding
 
@@ -306,8 +322,11 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         from dialectical_framework.concerns.perspective_validation import \
             PerspectiveValidation
 
+        expect_progress(len(perspectives))
+
         validation_summary: list[dict] = []
         for pp in perspectives:
+            report_progress("Checking that the picture holds together")
             try:
                 result = await PerspectiveValidation().resolve(
                     perspective=pp, text=input_text

@@ -8,10 +8,23 @@ Two modes:
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
+
+
+def _progress_key(thesis: str, antithesis: str | None) -> str:
+    """A stable, opaque id for ONE anchor call's progress stream.
+
+    Content-derived rather than a counter so it is stable across a retry of the
+    same call, and hashed rather than truncated text so a host that renders the
+    key verbatim cannot put the person's own words in a progress label — the
+    convention `key=wheel.short_hash` already established elsewhere.
+    """
+    material = f"{thesis}\n{antithesis or ''}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
 
 
 @llm.tool
@@ -41,6 +54,40 @@ async def anchor(
     ] = "",
 ) -> str:
     """Plant a specific tension into the graph. With both thesis and antithesis: creates the opposition directly and generates the full tetrad. With thesis only: anchors the position and discovers what opposes it. Use when you can see the person's position clearly."""
+    from dialectical_framework.utils.progress import progress_scope
+
+    # Measured at ~40s during which the person is told nothing: `call_census` puts
+    # this tool at parallelism ~1.15, and nothing writes a graph node until a
+    # perspective commits, so there is a single stage — tetrad generation, ~10.2s
+    # of the ~38s on its own — that a person waits through with no signal at all.
+    #
+    # Progress is worth adding REGARDLESS of how much latency is left to remove,
+    # which is the honest framing: `parallelism 1.15` reports overlap ACHIEVED, not
+    # overlap available (`utils/call_census.py`), so it cannot say the chain is out
+    # of opportunities — the gather in `IntroducePolarity.resolve` was found after
+    # that reading and is exactly the opportunity such a claim would have closed.
+    #
+    # Installed HERE, above every branch, because a scope reaches a gathered child
+    # only if the child's task is created after the scope is installed
+    # (`utils/progress.py`) — `AnalysisPipeline` gathers its expansions, and
+    # opening the scope inside a skill would leave those children silent.
+    # `total` is left at 0 and grown by whoever discovers the work.
+    #
+    # `key` distinguishes CONCURRENT anchors: `execute_tools()` gathers a tool
+    # round and runs it concurrently, so two `anchor` calls in one round share a
+    # sid and publish two interleaved streams with two `final` events. Without a
+    # key a host cannot tell them apart and clears its indicator on the first one
+    # while the second is still working.
+    with progress_scope("anchor", key=_progress_key(thesis, antithesis)):
+        return await _anchor(thesis=thesis, antithesis=antithesis, context=context)
+
+
+async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
+    """The tool's body, so the progress scope wraps it without re-indenting it.
+
+    Split out rather than nested purely to keep the diff on the reasoning path
+    empty: every line below is unchanged from when it was inline.
+    """
     from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
     from dialectical_framework.agents.analyst.skills.anchor_theses import \
         AnchorTheses

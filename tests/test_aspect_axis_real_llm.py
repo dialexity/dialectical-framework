@@ -44,7 +44,7 @@ async def _generate_tetrad_capturing_axis(t_text: str, a_text: str) -> TetradDto
     """Run the real full-tetrad generation and return the raw DTO (with axes).
 
     Both poles are classified through the real `StatementClassification`, as
-    `anchor`'s `IntroducePolarity._resolve_statement` does. This is not optional
+    `anchor`'s `IntroducePolarity._classify_statement` does. This is not optional
     fixture polish: `AspectGeneration._tetrad_prompt` interpolates
     `lookup_aspect_apex()` for all four positions, and that lookup raises on a
     meaning that does not parse to a known taxonomy branch. This test previously

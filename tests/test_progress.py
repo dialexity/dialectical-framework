@@ -357,19 +357,42 @@ class TestNestingKeepsOnlyTheInnermost:
 class TestProgressStepsMatchesTheCalls:
     """`PROGRESS_STEPS` is a denominator; drift makes every bar wrong, silently."""
 
-    def test_the_declared_step_count_equals_the_reporting_calls(self):
+    def _assert_matches(self, cls) -> None:
         import inspect
 
+        # The WHOLE class, not `resolve` alone: a step moved into a helper (as
+        # `ExpandPolarity` already does) would otherwise leave the constant wrong
+        # while this test stayed green — the same reasoning as the anchor-headline
+        # tripwire in `test_prompt_review_regressions.py`.
+        source = inspect.getsource(cls)
+        calls = source.count("report_progress(")
+        assert calls == cls.PROGRESS_STEPS, (
+            f"{cls.__name__}.resolve() reports {calls} step(s) but PROGRESS_STEPS"
+            f" says {cls.PROGRESS_STEPS} — callers size their denominator from the"
+            " constant, so every progress fraction is now wrong"
+        )
+
+    def test_the_declared_step_count_equals_the_reporting_calls(self):
         from dialectical_framework.concerns.transformation_generation import \
             TransformationGeneration
 
-        source = inspect.getsource(TransformationGeneration.resolve)
-        calls = source.count("report_progress(")
-        assert calls == TransformationGeneration.PROGRESS_STEPS, (
-            f"`resolve()` reports {calls} step(s) but PROGRESS_STEPS says"
-            f" {TransformationGeneration.PROGRESS_STEPS} — callers size their"
-            " denominator from the constant, so every progress fraction is now wrong"
-        )
+        self._assert_matches(TransformationGeneration)
+
+    def test_the_anchor_skills_declare_what_they_report(self):
+        """The two `anchor` legs, whose constants are their OWN denominator.
+
+        Unlike `TransformationGeneration`, these two call `expect_progress` with
+        their own `PROGRESS_STEPS`, so drift here does not merely mis-size a
+        caller's bar — it makes the skill lie about itself, and the fraction it
+        publishes can never reach its own total.
+        """
+        from dialectical_framework.agents.analyst.skills.anchor_theses import \
+            AnchorTheses
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        self._assert_matches(IntroducePolarity)
+        self._assert_matches(AnchorTheses)
 
 
 async def _drain_list(received: list, *, timeout: float = 1.0) -> list:
