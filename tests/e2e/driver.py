@@ -210,6 +210,7 @@ class E2EDriver:
             if beat.is_literal:
                 user_text = beat.text
             else:
+                simulator_started = time.monotonic()
                 with using_model(self._container, self._simulator_model):
                     try:
                         user_text = await simulator.next_turn(beat.text)
@@ -221,6 +222,18 @@ class E2EDriver:
                                 user="",
                                 assistant="",
                                 tag=beat.tag,
+                                # Timed, not left at the 0.0 default. This record
+                                # is `duration_s`'s one exception — the arm was
+                                # never reached, so these are the SIMULATOR's
+                                # seconds — but a failure that hung for two
+                                # minutes must not enter `median turn` as an
+                                # instant turn, which is the same argument that
+                                # made every field below Optional. The
+                                # `simulator:` prefix on `error` is what tells a
+                                # reader whose seconds these are.
+                                duration_s=round(
+                                    time.monotonic() - simulator_started, 1
+                                ),
                                 error=f"simulator: {type(exc).__name__}: {exc}",
                             )
                         )
@@ -250,6 +263,11 @@ class E2EDriver:
             # Outside the try: a turn that RAISED still cost the person its
             # seconds, and the expensive failures are the ones worth seeing.
             duration_s = time.monotonic() - turn_started
+            # `None` when the arm crashed before it could publish a split, or
+            # when the arm does not time itself at all. Every field below that
+            # derives from it records `None` in that case rather than 0.0 — a
+            # crashed turn is not a turn that took no time, and the readers skip
+            # it instead of averaging a fiction. See TurnRecord.reply_path_s.
             timing = getattr(arm, "last_turn_timing", None)
 
             simulator.observe("assistant", assistant_text)
@@ -267,8 +285,16 @@ class E2EDriver:
                     tool_outcomes=tool_outcomes,
                     grounding_args=grounding_args,
                     duration_s=round(duration_s, 1),
-                    reply_path_s=round(timing.reply_path_s, 1) if timing else 0.0,
-                    off_path_s=round(timing.off_path_s, 1) if timing else 0.0,
+                    reply_path_s=round(timing.reply_path_s, 1) if timing else None,
+                    off_path_s=round(timing.off_path_s, 1) if timing else None,
+                    # Stays `None` on every arm here: they all call `chat()`,
+                    # which has no first delta to report. Plumbed anyway so a
+                    # streaming arm needs no driver change to be measured.
+                    first_delta_s=(
+                        round(timing.first_delta_s, 1)
+                        if timing and timing.first_delta_s is not None
+                        else None
+                    ),
                     # THREE decimals, unlike its neighbours. r26 registered
                     # "the refresh fires on >90% of turns" as an endpoint and
                     # then could not test it: at 0.1s precision every read
@@ -279,14 +305,16 @@ class E2EDriver:
                     # precision. A field whose whole point is that it is small
                     # must be recorded finer than the thing it is small against.
                     context_render_s=(
-                        round(timing.context_render_s, 3) if timing else 0.0
+                        round(timing.context_render_s, 3) if timing else None
                     ),
+                    # The two lists stay lists: empty already reads as "nothing
+                    # recorded", and every consumer iterates them.
                     tool_seconds=timing.format_rounds() if timing else [],
                     tool_retry_seconds=(
                         timing.format_retry_rounds() if timing else []
                     ),
-                    retry_seconds=round(timing.retry_seconds, 1) if timing else 0.0,
-                    retry_count=timing.retry_count if timing else 0,
+                    retry_seconds=round(timing.retry_seconds, 1) if timing else None,
+                    retry_count=timing.retry_count if timing else None,
                     error=error,
                     swallowed_errors=list(swallowed),
                 )

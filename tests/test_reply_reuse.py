@@ -304,11 +304,11 @@ class TestThroughSubmitStream:
         facilitator = _facilitator()
         reply = "Buy him out before the raise."
 
-        async def fake_open(self, max_attempts: int = 3):
+        async def fake_open(self):
             return _FakeStream(reply, [*self._messages, _assistant(reply)])
 
         monkeypatch.setattr(
-            ConversationFacilitator, "_open_stream_with_retry", fake_open
+            ConversationFacilitator, "_open_tools_stream", fake_open
         )
 
         events = [e async for e in facilitator.submit_stream(_Chat, "well?")]
@@ -332,11 +332,13 @@ class TestTheStreamingContract:
 
     @staticmethod
     def _run(monkeypatch, first: _FakeStream):
-        async def fake_open(self, max_attempts: int = 3):
+        async def fake_open(self):
             return first
 
+        # The OPENER, not the round start: `_start_stream_round` stays live so the
+        # retry ladder and the first-chunk pull are exercised rather than stubbed.
         monkeypatch.setattr(
-            ConversationFacilitator, "_open_stream_with_retry", fake_open
+            ConversationFacilitator, "_open_tools_stream", fake_open
         )
         return _facilitator()
 

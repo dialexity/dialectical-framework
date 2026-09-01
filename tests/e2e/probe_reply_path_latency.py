@@ -32,7 +32,7 @@ WHAT IT CANNOT DO, STATED UP FRONT
 **`TurnRecord` has no timing field.** Timing exists only per cell
 (`RunRecord.duration_s`, `models.py:490`). So this is run-level ATTRIBUTION, not
 measurement: it regresses each A2 run's machinery seconds onto its tool-call
-histogram. A per-tool figure here is an average marginal cost across 187 runs,
+histogram. A per-tool figure here is an average marginal cost across 177 runs,
 not a stopwatch reading, and two tools that nearly always co-occur cannot be told
 apart no matter how many runs there are (the condition number is printed for
 exactly this reason).
@@ -83,7 +83,7 @@ BOOTSTRAP = 2000
 READ_ONLY = frozenset({"inspect_node", "sync"})
 
 #: Below this many observed calls, a fitted coefficient is one run's noise wearing
-#: a number's clothes. `ingest` was called ONCE in 187 A2 runs and the first
+#: a number's clothes. `ingest` was called ONCE in the A2 archive and the first
 #: version of this probe printed `-900s [-1511, 0]` for it, which is not a slow
 #: tool but a regression with nothing to regress on. Flagged rather than dropped:
 #: "we cannot say" is a finding, and a silently missing row reads as a missing
@@ -95,8 +95,16 @@ def _stems(needle: str | None) -> list[str]:
     return sorted(
         p.stem
         for p in RESULTS.glob("*.json")
-        # `-runs.json` duplicates the same runs; including it doubles every count.
-        if not p.stem.endswith(("-runs", "-rejudged"))
+        # Every suffix here is a stem that REPEATS runs already counted under its
+        # base name — `-runs.json` is the same cells in a second layout, and a
+        # re-judged copy re-scores the identical runs (verified: the `runs` payload
+        # of `r22-strong-pooled-rejudge.json` is byte-identical to
+        # `r22-strong-pooled.json`). `-rejudge` was missing from this tuple, and a
+        # double count here does not merely inflate `n`: it weights 20 strong-tier
+        # runs twice in the median AND hands the bootstrap fake independent
+        # observations, which is how `explore` was reported with an interval
+        # excluding zero. Compare only against a base name, never a suffix.
+        if not p.stem.endswith(("-runs", "-rejudged", "-rejudge"))
         and not p.stem.startswith("smoke")
         and (needle is None or needle in p.stem)
     )
@@ -165,9 +173,21 @@ def retry_seconds_by_round(turn) -> list[float]:
 def _is_measured(run: RunRecord) -> bool:
     """True when this run's turns carry their own timing.
 
-    Any turn with a non-zero `reply_path_s` is enough: the field defaults to 0.0,
-    so every run archived before the field existed reads as unmeasured, and a run
-    recorded after it cannot have a whole cell of zero-second turns.
+    Any turn with a non-zero `reply_path_s` is enough: the field is absent in
+    every run archived before it existed (and deserializes to `None`), so those
+    read as unmeasured, and a run recorded after it cannot have a whole cell of
+    zero-second turns.
+
+    Truthiness rather than `is not None` on purpose, and NOT for the reason this
+    docstring gave first: an all-crashed cell is rejected by both predicates,
+    since every one of its turns carries `None`. The shape that separates them is
+    a cell written by the OLD driver, whose crashed turns carry a zero-filled
+    `reply_path_s = 0.0` — truthiness sends it to the regression path with the
+    other pre-fix archives, `is not None` would admit it to a MEASURED block
+    whose every split is an invented zero. Pinned that way round in
+    `tests/test_turn_record_timing.py`, which is where the distinction is worth
+    reading; the previous phrasing described a difference that does not exist and
+    left the real one untested.
     """
     return any(t.reply_path_s for t in _all_turns(run))
 
@@ -180,15 +200,45 @@ def _report_measured(runs: list[RunRecord]) -> None:
 
     for tier in sorted(per_tier):
         cells = per_tier[tier]
-        turns = [t for r in cells for t in _all_turns(r)]
+        # Turns that published no split are dropped, not zero-filled: a crashed
+        # turn is not an instant turn, and the crashes here are concentrated in
+        # the expensive tool-heavy turns this probe exists to price. Every figure
+        # below — including the wall-clock shares, whose denominator is these
+        # turns' own `duration_s` — is therefore about the timed turns only, and
+        # the count of dropped ones is printed in the header so no share is read
+        # as covering the whole cell. See `TurnRecord.reply_path_s`.
+        recorded = [t for r in cells for t in _all_turns(r)]
+        turns = [t for t in recorded if t.reply_path_s is not None]
+        untimed = len(recorded) - len(turns)
+        if not turns:
+            print(f"=== {tier} tier, MEASURED, n={len(cells)} runs / 0 timed turns ===")
+            print(f"  every one of {untimed} turns published no timing — nothing to report")
+            continue
         reply = [t.reply_path_s for t in turns]
-        off = [t.off_path_s for t in turns]
+        # Presence-checked like every other field, and NOT `or 0.0`. Nothing in
+        # the archive needs it — all 184 timed turns carry an off path, and
+        # `TurnTiming.off_path_s` is non-Optional so this driver cannot write one
+        # without the other — but an arm that timed its reply path and not its
+        # off path would otherwise publish "off path 0% of the turn" as a
+        # measurement, which is the exact defect class this block was fixed for.
+        # The seconds of a turn that recorded no off path land in the harness
+        # remainder below, where an unaccounted second belongs.
+        off = [t.off_path_s for t in turns if t.off_path_s is not None]
         total = sum(t.duration_s for t in turns) or 1.0
-        print(f"=== {tier} tier, MEASURED, n={len(cells)} runs / {len(turns)} turns ===")
+        dropped = f" ({untimed} untimed, dropped)" if untimed else ""
+        print(
+            f"=== {tier} tier, MEASURED, n={len(cells)} runs /"
+            f" {len(turns)} turns{dropped} ==="
+        )
+        # `not recorded` rather than 0.0s when no turn published an off path: an
+        # empty sample has no median, and printing one would complete the
+        # arithmetic with a term nobody measured.
+        off_median = f"{statistics.median(off):.1f}s" if off else "not recorded"
+        off_note = "" if len(off) == len(turns) else f" (on {len(off)} of them)"
         print(
             f"  median turn {statistics.median([t.duration_s for t in turns]):.1f}s"
             f"  =  reply path {statistics.median(reply):.1f}s"
-            f"  +  off path {statistics.median(off):.1f}s"
+            f"  +  off path {off_median}{off_note}"
         )
         print(
             f"  share of wall clock: reply path {sum(reply) / total * 100:.0f}%,"
@@ -200,35 +250,72 @@ def _report_measured(runs: list[RunRecord]) -> None:
         # would otherwise read as if the arithmetic no longer closed. The residual
         # is generation plus whatever the framework does that nothing times yet,
         # which is the only honest label for it.
-        rendered = [t.context_render_s for t in turns]
+        # A turn can publish a split and still predate `context_render_s`: 20 of
+        # the 116 measured turns do (both 2026-08-26 stems), which is why this
+        # field gets its own subset rather than sharing `turns` (archive-wide it is
+        # 24 of 184). Zero-filling them
+        # counted a missing field as "the refresh did not fire" and printed 72%
+        # where the turns that recorded it say 86% — against a >90% endpoint r26
+        # pre-registered and then could not test. The denominator is printed for
+        # the same reason the tier header prints its own.
+        with_render = [t for t in turns if t.context_render_s is not None]
+        rendered = [t.context_render_s for t in with_render]
         if any(rendered):
             firing = sum(1 for t in rendered if t) / len(rendered) * 100
+            # Composition over `with_render` too: a median that mixes turns
+            # missing a term with turns that have it is a median of two different
+            # quantities, and the residual would absorb the difference silently.
             print(
-                f"  reply path composition (median): context refresh"
+                f"  reply path composition (median of {len(with_render)} turns"
+                f" carrying the field): context refresh"
                 f" {statistics.median(rendered):.2f}s"
-                f"  +  tools {statistics.median([sum_tool_seconds(t) for t in turns]):.1f}s"
+                f"  +  tools {statistics.median([sum_tool_seconds(t) for t in with_render]):.1f}s"
                 f"  +  generation/residual"
-                f" {statistics.median([t.reply_path_s - t.context_render_s - sum_tool_seconds(t) for t in turns]):.1f}s"
+                f" {statistics.median([t.reply_path_s - t.context_render_s - sum_tool_seconds(t) for t in with_render]):.1f}s"
             )
             print(
-                f"  context refresh: fired on {firing:.0f}% of turns,"
-                f" {sum(rendered) / (sum(reply) or 1.0) * 100:.1f}% of all"
-                f" reply-path seconds, worst turn"
+                f"  context refresh: fired on {firing:.0f}% of the"
+                f" {len(rendered)} turns that recorded it,"
+                f" {sum(rendered) / (sum(t.reply_path_s for t in with_render) or 1.0) * 100:.1f}%"
+                f" of their reply-path seconds, worst turn"
                 f" {max(rendered):.2f}s"
+            )
+        # The blank-screen wait, printed only when an arm reports one. A PREFIX
+        # of the reply path, so it is a fraction of the figures above and never
+        # an addend — printed as a share for exactly that reason. Silent on every
+        # stem so far (the bench awaits `chat()`), and the silence is honest: a
+        # turn that streams nothing has no first delta, and 0.0 would read as
+        # instant. The share is what a streaming arm has to move.
+        deltas = [t.first_delta_s for t in turns if t.first_delta_s is not None]
+        if deltas:
+            print(
+                f"  first delta (blank-screen wait): median"
+                f" {statistics.median(deltas):.1f}s on {len(deltas)}/{len(turns)}"
+                f" turns, worst {max(deltas):.1f}s"
+                f" — {statistics.median(deltas) / (statistics.median(reply) or 1.0) * 100:.0f}%"
+                " of the median reply path"
             )
         # Retry waste, reported as a share of the reply path rather than beside
         # it: it is INSIDE the tools and the generation printed above, so adding
         # it as another term would double-count the same seconds. The question it
         # answers is the one r26 could not — of the wait, how much was working?
-        wasted = [getattr(t, "retry_seconds", 0.0) or 0.0 for t in turns]
-        retried = [t for t in turns if (getattr(t, "retry_count", 0) or 0)]
+        # Same vintage trap as the refresh above, and much larger: 84 of the weak
+        # tier's 116 measured turns predate these two fields, 152 of 184
+        # archive-wide (r26 and both 2026-08-26 stems). Counting them in the
+        # denominator reported "on 3/116 turns" where the turns that recorded the
+        # field are 32 — understating how often a turn retries by ~4x, and
+        # publishing it as if it were clean data.
+        with_retry = [t for t in turns if t.retry_seconds is not None]
+        wasted = [t.retry_seconds for t in with_retry]
+        retried = [t for t in with_retry if t.retry_count]
         if any(wasted):
-            in_tools = sum(sum(retry_seconds_by_round(t)) for t in turns)
+            in_tools = sum(sum(retry_seconds_by_round(t)) for t in with_retry)
             print(
-                f"  retry waste: {sum(wasted) / (sum(reply) or 1.0) * 100:.0f}% of all"
-                f" reply-path seconds, on {len(retried)}/{len(turns)} turns"
+                f"  retry waste: {sum(wasted) / (sum(t.reply_path_s for t in with_retry) or 1.0) * 100:.0f}%"
+                f" of the reply-path seconds of the {len(with_retry)} turns that"
+                f" recorded it, on {len(retried)} of them"
                 f" (worst turn {max(wasted):.1f}s,"
-                f" {sum(t.retry_count for t in retried)} attempts retried in total)"
+                f" {sum(t.retry_count or 0 for t in retried)} attempts retried in total)"
             )
             print(
                 f"    of which {in_tools:.0f}s inside tool rounds and"
@@ -277,10 +364,22 @@ def _report_measured(runs: list[RunRecord]) -> None:
             # costs and what an optimisation could move. Neither replaces the
             # other, so neither is printed alone.
             #
-            # Withheld entirely on runs older than the field: there the two
-            # columns would print identical numbers, which reads as "measured, no
-            # waste" when it means "never looked". Those are the runs where the
+            # Withheld on TIERS whose runs are all older than the field: there the
+            # two columns would print identical numbers, which reads as "measured,
+            # no waste" when it means "never looked". Those are the runs where the
             # 810s anchors actually happened.
+            #
+            # The gate is per-TIER while the rows are built per-TURN, and that
+            # asymmetry is a live limitation, not a rounding: in a mixed-vintage
+            # tier the turns that predate `tool_retry_seconds` contribute rows
+            # where working == waited, so a name whose calls are mostly pre-field
+            # reads as mostly clean. `anchor n=18` in the weak tier is exactly
+            # that shape — r26 turns pooled with r27 ones. It is not fixed
+            # per-turn because the per-turn vintage signal is `retry_seconds is
+            # not None` on the TURN, and narrowing the rows to those turns would
+            # change the published per-tool table this output is checked against;
+            # so the limitation is stated instead. Read a row's working column as
+            # a lower bound on waste, never as a measurement of it.
             print("\n  Seconds per tool, from single-tool rounds (median):")
             if any(wasted):
                 print(f"    {'':16}{'':11}{'waited':>8}{'working':>9}")

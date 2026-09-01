@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import aclosing
 from typing import AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
@@ -211,6 +212,12 @@ class Advisor:
     async def chat(self, user_message: str) -> str:
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
+            # Cleared before the work, not after it: `_record_turn_timing` is the
+            # LAST thing this turn does, so anything that raises before it would
+            # otherwise leave the previous turn's split standing as if it were
+            # this one's. A reader cannot tell a stale figure from a fresh one;
+            # they can tell None.
+            self.last_turn_timing = None
             # Before submit, so this turn's prompt reflects what the LAST turn
             # wrote. The person waits for it, so it counts against the reply path.
             context_render_s = await self._refresh_context()
@@ -226,8 +233,29 @@ class Advisor:
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        """Stream one turn's events.
+
+        **The caller owes this generator a CLOSE, not merely a `break`.** Every
+        `chat_stream` in the tree is an async generator wrapping another one, and an
+        async generator's cleanup runs when it is CLOSED — so a host that stops
+        iterating leaves this frame suspended at its `yield`, and the whole chain
+        below it suspended with it. What is deferred is the turn's recorded seconds
+        (`last_submit_seconds`, which a newer turn may have claimed the slot for by
+        the time the collector arrives) and the provider's open HTTP response. There
+        is no way for the library to reach up and fix that: only the outermost
+        consumer can close the outermost generator. So on disconnect, do
+
+            async with aclosing(advisor.chat_stream(msg)) as events:
+                async for event in events:
+                    ...
+
+        or hand it to a host that closes for you — an ASGI server closes the
+        generator behind an SSE response when the client goes away. A bare
+        `async for` with a `break` is the one shape that leaks.
+        """
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
+            self.last_turn_timing = None  # see `chat` — a crashed turn reports nothing
             # Before the stream, for the same reason as in `chat`: this turn's
             # prompt must reflect what the last turn wrote.
             context_render_s = await self._refresh_context()
@@ -238,12 +266,25 @@ class Advisor:
             # `event.streamed` is True and `message` is byte-for-byte the deltas
             # they already read, which is the point of streaming at all.
             reply = ""
-            async for event in self._conversation.submit_stream(
-                ChatResponse, user_message
-            ):
-                if isinstance(event, ResponseComplete):
-                    reply = event.message
-                yield event
+            # `aclosing`, not a bare `async for`: unwinding an `async for` does not
+            # close what it iterates, so without this, `submit_stream`'s cleanup on
+            # the ABANDONED exit — the turn's seconds, and letting go of the
+            # provider's connection — waits for the collector, by which time a newer
+            # turn may have claimed the slot and the seconds are lost for good. (The
+            # crashed and completed exits need none of this: the exception, or
+            # StopAsyncIteration, unwinds `submit_stream` on its own.)
+            #
+            # This link only fires when THIS generator is closed, which is the
+            # caller's job — see the docstring. It is still worth writing: it makes
+            # the chain complete from the host's close downward, and it is the half
+            # that is ours to get right.
+            async with aclosing(
+                self._conversation.submit_stream(ChatResponse, user_message)
+            ) as rounds:
+                async for event in rounds:
+                    if isinstance(event, ResponseComplete):
+                        reply = event.message
+                    yield event
             reply_path_s = context_render_s + self._conversation.last_submit_seconds
             # After the stream, so the text is on screen before the repair runs.
             # NOT the same as being free: this generator cannot finish until the

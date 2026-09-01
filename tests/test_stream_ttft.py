@@ -197,6 +197,27 @@ class TestTheStreamingRoundReachesTheCensus:
         assert census.calls_with_usage == 0
         assert census.calls[0].prefill_tokens is None
 
+    async def test_a_round_that_said_nothing_at_all_has_no_first_token_reading(self):
+        """A stream that ends without one chunk is neither an error nor a zero.
+
+        This is the branch the first-chunk pull created: `anext` raises
+        `StopAsyncIteration` before the round has produced anything, and the round
+        still has to be recorded (its usage exists) with `first_token_seconds`
+        UNSET. A zero here would read as an instant prefill and drag any mean it
+        entered downwards. Note this is not the tool-only shape — those emit
+        tool-call chunks, so they do get a reading.
+        """
+        stream = _Stream(chunks=[], usage=_Usage(input_tokens=900))
+        census = CallCensus()
+        with call_census(census):
+            await _drain(_facilitator(stream))
+
+        assert census.count == 1
+        assert census.calls[0].first_token_seconds is None
+        assert census.calls_with_first_token == 0
+        assert census.mean_first_token_s is None
+        assert census.calls[0].uncached_input_tokens == 900
+
     async def test_each_tool_round_is_its_own_record(self):
         """One record per provider round-trip, each carrying its OWN prefill.
 

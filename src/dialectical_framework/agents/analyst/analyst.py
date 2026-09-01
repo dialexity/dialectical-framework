@@ -10,6 +10,7 @@ Also contains AnalysisPipeline — the headless pipeline exposed as @llm.tool an
 from __future__ import annotations
 
 import asyncio
+from contextlib import aclosing
 from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
 from mirascope import llm
@@ -100,12 +101,20 @@ class Analyst:
             return result.message
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
+        """Stream one turn's events. **The caller owes this generator a CLOSE** —
+        see `Advisor.chat_stream`, which carries the whole argument; a bare
+        `async for` with a `break` defers the provider connection to the collector.
+        """
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
-            async for event in self._conversation.submit_stream(
-                ChatResponse, user_message
-            ):
-                yield event
+            # `aclosing` for the reason spelled out in `Advisor.chat_stream`: only a
+            # close runs `submit_stream`'s cleanup on the abandoned exit, and this
+            # link fires only once the caller closes THIS generator.
+            async with aclosing(
+                self._conversation.submit_stream(ChatResponse, user_message)
+            ) as rounds:
+                async for event in rounds:
+                    yield event
 
     @property
     def messages(self) -> list:

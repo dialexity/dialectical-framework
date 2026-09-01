@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import Counter
 from functools import wraps
 from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Iterator, Literal,
                     Optional, TypeVar, overload)
@@ -146,8 +147,11 @@ def use_brain(
             # Everything below this line belongs to the awaited path, and the
             # streaming caller has to provide its own equivalent — which it now
             # partly does. What that leaves, stated so nobody has to infer it:
-            # - Retry: NOT here. Stream lifecycle is owned by the caller
-            #   (`submit_stream` retries at the connection level, not per-token).
+            # - Retry: NOT here, and not on the same terms. The caller owns the
+            #   stream lifecycle, so it retries with `retry_transient` around the
+            #   open PLUS the first chunk — the largest unit that can still be
+            #   re-asked. Once a chunk has been handed to the host, nothing can be
+            #   retried, so a failure mid-stream still surfaces to the caller.
             # - Concurrency slot: NOT taken. A streamed round is unthrottled by
             #   `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`.
             # - Census: the CALLER records it. `submit_stream` reports one record
@@ -161,7 +165,7 @@ def use_brain(
 
             attempts = max(1, retry_max)
             parse_delay = _PARSE_RETRY_DELAY_S
-            rate_delay = 10.0
+            rate_delay = _RATE_LIMIT_BASE_S
             connect_delay = _CONNECT_RETRY_BASE_S
             connect_attempts = 0
             server_delay = _SERVER_RETRY_BASE_S
@@ -272,7 +276,7 @@ def use_brain(
                                 attempt_s=time.monotonic() - attempt_started,
                             )
                             await asyncio.sleep(rate_delay)
-                            rate_delay = min(rate_delay * 2.0, 60.0)
+                            rate_delay = min(rate_delay * 2.0, _RATE_LIMIT_CAP_S)
                     elif _is_connection_error(e):
                         # Bounded separately from `attempts`: a down endpoint must
                         # surface as an error, not consume the whole retry budget.
@@ -774,6 +778,29 @@ def _is_transient_server_error(e: Exception) -> bool:
     )
 
 
+#: Throttle curve. Long and doubling, unlike the connect and 5xx curves above:
+#: throttling is the service explicitly telling us to wait, so waiting is the
+#: correct response rather than a hope that something clears.
+_RATE_LIMIT_BASE_S = 10.0
+_RATE_LIMIT_CAP_S = 60.0
+
+#: How many attempts a throttle gets in `retry_transient` — i.e. on the STREAMING
+#: path. Deliberately NOT the ladder's budget, which is `retry_max` (default 10)
+#: and therefore ~430s of sleep at the cap. That number was never chosen for
+#: throttles; it is the shared attempt budget sized for parse re-asks, and the
+#: throttle branch merely inherits it, the same accident `_CONNECT_RETRY_MAX` and
+#: `_SERVER_RETRY_MAX` exist to correct.
+#:
+#: Three (30s) because of who is waiting. A ladder call is one concern inside a
+#: pipeline nobody is watching, so seven more minutes is cheaper than a failed
+#: run. A streamed round is a person who has just hit send and is looking at a
+#: blank screen; seven minutes there is not patience, it is an abandoned session,
+#: and a surfaced error at least lets the host say what happened. The honest
+#: consequence: a sustained throttle still fails a streamed turn earlier than an
+#: awaited one. That is the trade, not an oversight.
+_RATE_LIMIT_RETRY_MAX = 3
+
+
 def _is_rate_limit_error(e: Exception) -> bool:
     """Detect rate-limit / throttling errors from various providers."""
     if hasattr(e, "status_code") and getattr(e, "status_code", None) == 429:
@@ -784,6 +811,116 @@ def _is_rate_limit_error(e: Exception) -> bool:
     if "rate" in msg.lower() and ("limit" in msg.lower() or "exceeded" in msg.lower()):
         return True
     return False
+
+
+def _transient_kind(e: Exception) -> Optional[str]:
+    """Which retry curve this failure belongs on, or None if it belongs on none.
+
+    The three predicates above in one place, in the same order the ladder above
+    tests them, so a second caller cannot drift from the first.
+
+    The order is load-bearing and it costs something. `_is_rate_limit_error`'s last
+    branch is a loose text match ("rate" plus "limit"/"exceeded"), so a 5xx whose
+    message happens to mention a rate limit is classified as a throttle and gets
+    the 10s curve instead of the 5s one. Asking either predicate first trades one
+    misfiling for the other; this order is the ladder's, and matching the ladder is
+    worth more than winning that coin flip, because the whole point of this function
+    is that the two paths cannot disagree about what a failure IS.
+    """
+    if _is_rate_limit_error(e):
+        return "rate_limit"
+    if _is_connection_error(e):
+        return "connection"
+    if _is_transient_server_error(e):
+        return "server"
+    return None
+
+
+async def retry_transient(
+    operation: Callable[[], Awaitable[T]], *, what: str
+) -> T:
+    """Run `operation`, retrying the transient failures `@use_brain` retries.
+
+    Exists because the streaming path cannot use the ladder above. `use_brain`
+    returns the raw callable before its own retry loop (`raw_call=True`), and the
+    failure does not surface where the call is made anyway: `await call.stream()`
+    issues no HTTP request, so a throttle or a 503 arrives on the stream's first
+    `__anext__`, several frames away in the caller's chunk loop. Until this
+    existed, a streamed round that hit a 429 took the whole turn down while the
+    awaited path retried the same 429 up to ten times — the SAME failure, treated
+    two ways depending on which path the person's turn happened to take.
+
+    Same classification and the same three curves as the ladder, by construction:
+    `_transient_kind` IS the ladder's branch order, and the delays are its
+    constants. The budgets match for `connection` and `server`; the throttle budget
+    does NOT, on purpose, and `_RATE_LIMIT_RETRY_MAX` is where that choice and its
+    consequence are written down. Deliberately does NOT retry anything else: the
+    ladder it replaces caught bare `Exception` and would sleep 15s over three
+    attempts on a malformed request or a local encoding bug — buying nothing, for the
+    same reason `_PARSE_RETRY_DELAY_S` is flat: waiting does not change a
+    deterministic answer.
+
+    Bounded per kind, with no overall ceiling, so the worst case is not any single
+    curve: a failure sequence that keeps CHANGING kind gets each budget in full, 7
+    attempts and ~51s of sleep before it surfaces. Bounded is what matters here, but
+    "30s" is the throttle-only figure and not the promise.
+
+    `operation` must be safe to call again. That is a real precondition and not a
+    formality: the caller re-sends a whole prompt, so it must have no side effects
+    of its own before the provider answers. On the streaming path's resume leg that
+    means the tool outputs are already in hand — `execute_tools()` stays OUTSIDE, or
+    a network blip re-runs a turn's worth of concern calls.
+
+    Nothing is retried once content has arrived. The caller decides how much of
+    itself to put inside `operation` — for a stream that is the open plus the
+    first chunk, which is the largest unit that can still be re-asked safely.
+    """
+    delay = {
+        "rate_limit": _RATE_LIMIT_BASE_S,
+        "connection": _CONNECT_RETRY_BASE_S,
+        "server": _SERVER_RETRY_BASE_S,
+    }
+    #: Only the throttle curve is capped, matching the ladder: a connect or 5xx
+    #: curve is bounded by its attempt budget long before the delay matters. With
+    #: `_RATE_LIMIT_RETRY_MAX` at 3 the throttle curve is too (10s then 20s), so this
+    #: cap cannot currently bind HERE — it is carried so that raising the budget
+    #: stays a one-line change that inherits the ladder's ceiling rather than
+    #: doubling past it.
+    cap = {"rate_limit": _RATE_LIMIT_CAP_S}
+    #: Per KIND, not shared, and for the ladder's reason: a down endpoint must
+    #: surface as an error instead of spending a throttle-sized budget on it.
+    budget = {
+        "rate_limit": _RATE_LIMIT_RETRY_MAX,
+        "connection": _CONNECT_RETRY_MAX,
+        "server": _SERVER_RETRY_MAX,
+    }
+    used: Counter = Counter()
+    while True:
+        attempt_started = time.monotonic()
+        try:
+            return await operation()
+        except Exception as e:
+            kind = _transient_kind(e)
+            if kind is None:
+                raise
+            used[kind] += 1
+            if used[kind] >= budget[kind]:
+                raise
+            sleep_s = delay[kind]
+            logging.getLogger(__name__).warning(
+                "%s failed (%s %d/%d), retrying in %.0fs: %s",
+                what, kind, used[kind], budget[kind], sleep_s, e,
+            )
+            # The SAME kind the awaited path records, so `RetryAccount.kinds`
+            # answers "which curve spent the seconds" across both paths. Where it
+            # happened is in the log line above and in which account holds it — a
+            # stream open is not inside any tool round, so it lands in
+            # `TurnTiming.generation_retry_seconds`.
+            record_retry(
+                kind, sleep_s=sleep_s, attempt_s=time.monotonic() - attempt_started
+            )
+            await asyncio.sleep(sleep_s)
+            delay[kind] = min(sleep_s * 2.0, cap.get(kind, float("inf")))
 
 
 @inject

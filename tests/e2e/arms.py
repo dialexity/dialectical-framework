@@ -369,10 +369,34 @@ class PromptArm:
         measurement: a prompt arm has no graph to re-read, so the whole of
         A2's per-turn refresh cost shows up as a difference against this arm
         rather than having to be isolated inside it.
+
+        Worth knowing when comparing crashed turns across arms: this property
+        never returns None, because `submit`'s own `finally` fills
+        `last_submit_seconds` whatever happened, so a prompt turn that raised is
+        still archived with real seconds. `AdvisorArm` reports None there — its
+        timing is assembled AFTER the reply, so a crash leaves nothing to
+        publish. Neither is a figure the other can be differenced against;
+        compare crashed turns on `duration_s`, which the driver measures for
+        every arm alike.
+
+        The retry account is read rather than left to default, and that is not
+        cosmetic: `TurnRecord.retry_count`'s own documentation calls 0 "the turn
+        ran clean, which is a finding", so omitting it here would have published
+        that finding — falsely — for every prompt-arm turn from here on. Nothing
+        false is in the archive: 68 A0/A1/A1.7 turns carry a split and NONE of
+        them carries `retry_count`, because the field postdates every one of them
+        (the only 32 records that have it are A2). Forward-looking, then, like the
+        rest of this fix. This arm throttles like any other; `retry_account` wraps
+        its `submit` the same way (`ConversationFacilitator.submit`), so the figure
+        was one attribute away the whole time. `tool_rounds` stays empty because it
+        genuinely is.
         """
+        retries = self._conversation.last_submit_retries
         return TurnTiming(
             reply_path_s=self._conversation.last_submit_seconds,
             off_path_s=0.0,
+            retry_seconds=retries.wasted_s,
+            retry_count=retries.count,
         )
 
     async def write_journal(self) -> str:

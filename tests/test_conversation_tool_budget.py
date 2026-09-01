@@ -505,11 +505,13 @@ class TestToolCallArgsAreRecorded:
                 return
                 yield  # pragma: no cover - makes this an async generator
 
-        async def _fake_open(self, max_attempts: int = 3):
+        async def _fake_open(self):
             return _NoToolStream()
 
+        # The OPENER, not the round start: `_start_stream_round` stays live so the
+        # retry ladder and the first-chunk pull are exercised rather than stubbed.
         monkeypatch.setattr(
-            ConversationFacilitator, "_open_stream_with_retry", _fake_open
+            ConversationFacilitator, "_open_tools_stream", _fake_open
         )
 
         async for _ in facilitator.submit_stream(_Chat, "go", max_tool_rounds=3):

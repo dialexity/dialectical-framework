@@ -49,6 +49,27 @@ structured call produced this one. Text yielded *before* a `ToolStart` is the mo
 saying what it is about to do and is never part of `message` — fine to leave on screen
 as progress, never persisted as counsel.
 
+**A host that stops iterating early must CLOSE the generator.** `chat_stream` is an
+async generator, and an async generator's cleanup runs when it is closed — not when the
+consumer walks away. Two things wait on that close: the turn's recorded wall clock
+(`last_submit_seconds`, which a *newer* turn may have taken ownership of by the time the
+garbage collector arrives, at which point this turn's seconds are lost) and the
+provider's open HTTP response, which stays suspended inside the streaming decoder's
+`async with`. The framework closes every generator it owns; the outermost one is the
+host's, and nothing inside can reach up to it.
+
+```python
+async with aclosing(advisor.chat_stream(msg)) as events:   # contextlib.aclosing
+    async for event in events:
+        if client_gone:
+            break        # safe: the `async with` closes on the way out
+```
+
+Consuming to exhaustion needs nothing extra, and neither does an exception — both
+unwind the chain on their own. An ASGI server also closes the generator behind an SSE
+response when the client disconnects. The one shape that leaks is a bare `async for`
+with a `break`.
+
 `chat()` returns the same durable reply with no streaming at all, so a host on `chat()`
 gets no first-token benefit; that is a host choice, not a framework limit.
 

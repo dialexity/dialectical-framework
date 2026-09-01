@@ -88,6 +88,8 @@ Wherever the answer is a tension rather than a fact, this drops in as the reason
 Analyst + Explorer are the structure-forward "graph navigator" experience; the Advisor is a chat-only product over the same graph. See [docs/agents.md](docs/agents.md) for full specs, tool lists, and the UX to build around each.
 
 ```python
+from contextlib import aclosing
+
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning
 from dialectical_framework.settings import Settings
 from dialectical_framework.graph.nodes.case import Case
@@ -102,9 +104,15 @@ case = Case(); case.commit()
 
 with scope(case.sid):
     advisor = Advisor(app_preamble="You are a systems thinking coach...")
-    async for event in advisor.chat_stream("Analyze the tension between growth and sustainability"):
-        # ThinkingDelta, TextDelta, ToolStart, ToolResult, ResponseComplete
-        handle(event)
+    # `aclosing` because a host that stops early must CLOSE the generator — that
+    # is what releases the provider connection and records the turn's seconds.
+    # See docs/agents.md.
+    async with aclosing(
+        advisor.chat_stream("Analyze the tension between growth and sustainability")
+    ) as events:
+        async for event in events:
+            # ThinkingDelta, TextDelta, ToolStart, ToolResult, ResponseComplete
+            handle(event)
 ```
 
 ## Setup

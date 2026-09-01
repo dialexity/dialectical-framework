@@ -3736,6 +3736,17 @@ regression's direction held; almost none of its specific numbers did.
 | `record_decision` | 44s | 2.4s |
 | off-path share | 2% of wall clock | 1.4–1.9s/turn normally; **127.7s and 387.7s** when pathway construction fired |
 
+> **The attributed column shifted on 2026-09-01, and the reason is worth more than the shift.**
+> `_stems` excluded `-rejudged` but not `-rejudge`, so `r22-strong-pooled.json` and
+> `r22-strong-pooled-rejudge.json` — byte-identical `runs` payloads, re-scored judging — both
+> entered the strong-tier regression: 20 of 75 "runs" were the same 20 runs twice. Deduped, the
+> attributed figures read `anchor` **236s** and `record_decision` **37s** (n=65, median run 574s
+> rather than 664s). The conclusion of this table is untouched — attribution was wrong by ~5x
+> either way — but the double count did something a mere inflated `n` does not: it handed the
+> bootstrap 20 fake independent observations, and `explore` was published with an interval
+> excluding zero that, deduped, includes it. A duplicate does not just move a median, it
+> manufactures significance.
+
 Per-turn arithmetic closed exactly (`duration_s == reply_path_s + off_path_s` on all 16
 turns, 0% unexplained harness overhead), and the reply-path/off-path boundary behaved:
 the one turn that called `record_decision` is the one turn with `off_path_s == 0.0`,
@@ -4581,6 +4592,17 @@ rate), so on most tool-electing turns the first delta lands after a full tool ro
 why the turn-level field is not called `ttft`, and why the probe selects round 1 by
 `min(started)` rather than averaging.
 
+> **Correction, 2026-09-01: "measured ~17% narration rate" is a misattribution, and "usually
+> far apart" rests on nothing.** There is no measurement of how often this agent narrates
+> before calling a tool — counting text deltas ahead of the first `ToolStart` needs the
+> streaming path, and nothing has run it. The ~17% is the vocabulary-leak rate off the AWAITED
+> path (7 of 40 replies, `probe_leak_reply_reuse.py`): a different quantity, about different
+> turns, measured on a path that has no deltas at all. The distinction between the two fields
+> stands on the contract and on the mechanism — a first delta arriving after a tool round is
+> what makes `first_delta_s` not TTFT — and the frequency is simply UNMEASURED. Corrected at
+> the code sites the same day (`turn_timing.py`, `conversation_facilitator.py`, `CLAUDE.md`);
+> this entry is left standing with its error visible because the number was published here.
+
 **What the number is not, stated in the code so nobody promotes it later.** Not a provider
 RTT: `await call.stream()` issues no HTTP request — Anthropic's stream manager sends on
 `__aenter__`, which mirascope's decoder defers to the first `__anext__` — so the interval
@@ -4673,3 +4695,208 @@ not exposed to this — it initialises to `None` and is only ever set to a real 
 And `TurnTiming.first_delta_s` is not copied onto `TurnRecord`, so e2e runs drop it. Inert
 today because the bench arm calls `chat()`, not `chat_stream()`; whoever lands a streaming arm
 owes the field.
+
+> **Fixed 2026-09-01 — the field is plumbed, and "whoever lands a streaming arm owes the field"
+> is now narrower than it reads above.** `TurnRecord.first_delta_s` exists, the driver copies it,
+> and both readers report it (`turns with a first delta` / `median first delta` in
+> `read_turn_timing.py`; a share-of-the-median-reply-path line in `probe_reply_path_latency.py`,
+> printed only when some turn has one). What a streaming arm still owes is the OTHER end:
+> `PromptArm.last_turn_timing` does not populate the field, and no arm in the bench streams
+> (`AdvisorArm` awaits `chat()`, `PromptArm` awaits `submit()`), so every archived value is `None`
+> — which is the honest reading and not a zero. The plumbing being in place is what makes the
+> readers comparable across stems the day an arm does stream: a blank-screen figure that appears
+> only once someone remembers to look for it is a figure nobody compares.
+
+> **Fixed after this round, 2026-09-01, and the first two turned out to be one defect.**
+> `record_retry("stream_open", ...)` was dead *because* the ladder wrapped a call that issues no
+> HTTP request — one root cause, not two. The retried unit is now the open PLUS the first chunk
+> (`_start_stream_round`), which is the largest unit that can still be re-asked: past the first
+> chunk the host has text on screen. Restructuring for it surfaced something the flag had not
+> seen. The loop used to end with an unconsumed `resume()` dangling, which *looked* free — and
+> an unconsumed mirascope stream reports no tool calls, no text and empty content, so
+> everything below the loop ran against that emptiness. Every overrun streamed turn was
+> returning the previous round's mid-work narration as the reply with `streamed=True`,
+> never firing `_close_dangling_tool_calls` (it has never once fired on that path), and
+> persisting an empty assistant message that the next request 400s on. Consuming `N+1` rounds
+> and refusing to spend tools on the last one fixes all of it, plus the round-trip the retry
+> fix would otherwise have charged for. `tests/test_stream_retry.py`.
+>
+> `last_submit_seconds` now has its `finally`, and it needed more than one: the clock moved up
+> into `submit_stream` (the rounds went to `_stream_turn`), because an async generator's
+> `finally` runs at CLOSE, not when the consumer walks away — which can be after a newer turn
+> has started, so an unguarded write would stamp the abandoned turn's elapsed time onto a
+> healthy one. Guarded by a `_turn_epoch`, which `submit` claims too.
+>
+> Letting go of the connection turned out to be a separate cleanup in a separate `finally`
+> (`_stream_turn`'s, around the chunk loop) and to need two closes rather than one. Unwinding an
+> `async for` does not close what it iterates, and the `async with` that owns the HTTP response
+> is three generators down: `chunk_stream()` → the response's `_chunk_iterator` → the provider's
+> decoder. `_chunk_iterator` hangs off the response object, which outlives the round, so closing
+> the outermost generator frees nothing at all — the first version of this fix was a no-op that
+> read as a fix. `_release_round` closes both; the decoder then has zero references and the event
+> loop's finaliser hook runs its `__aexit__`, which is as far as this can reach, since mirascope
+> exposes no close on a stream response. Of the two closes only the second is load-bearing; the
+> first drops a frame that holds nothing, and is made anyway because it is the generator this
+> module owns.
+>
+> The third cleanup is the one that does not end inside the framework, and it took a second
+> review to see. On the ABANDONED exit — only that one; a crash or a normal finish unwinds
+> `submit_stream` by itself — nothing runs until someone CLOSES the generator, so every
+> `chat_stream` now wraps `submit_stream` in `contextlib.aclosing`, which was missing entirely
+> and made the abandonment half dead code on the only path that mattered. But `chat_stream` is
+> an async generator too, so that link fires only once the HOST closes `chat_stream`; a bare
+> `async for` with a `break` leaves the outermost frame suspended and the chain behind it. There
+> is no way to fix that from inside — only the outermost consumer can close the outermost
+> generator — so it is now a stated obligation in three places (`Advisor.chat_stream`'s
+> docstring, `docs/agents.md`, the README example) rather than a guarantee. The framework's half
+> is complete from the host's close downward, and both halves are pinned, including what the
+> `break` costs. `Advisor.last_turn_timing` gained the mirror reset, for the mirror reason.
+>
+> `tests/test_turn_finalization.py`, whose mock is layered the same way because a one-layer one
+> cannot fail; each guarantee verified by mutating it away. Two honest exceptions, both now
+> written into the tests themselves: `submit`'s epoch claim has no test behind it (symmetry), and
+> a cancelled turn's connection is released by the collector regardless, because cancellation
+> destroys the frame that held it. One of the new tests passed under mutation on the first
+> attempt for exactly that reason and had to be rebuilt around a pinned reference — which is the
+> whole argument for mutating, again.
+>
+> The `first_delta_s` field is next, and the note above still describes it.
+>
+> **Done the same day — see the annotation on that note.** The plumbing landed together with the
+> `TurnRecord` Optional fix, because they are the same argument at the same seam: a field that
+> defaults to `0.0` publishes "instant" for a turn that never reported.
+
+### the archive said instant: the zero-filled `TurnRecord`, and the readers that would have re-created it (2026-09-01)
+
+**No cells were run.** This round closed the four defects the latency rounds had written down and
+not fixed — the dead `stream_open` retry, the missing `last_submit_seconds` `finally`, the
+unreleased connection, and `first_delta_s` never reaching `TurnRecord`. The first three are
+annotated in place above, at the notes that flagged them. This section is the fourth, which
+turned out to be the smallest of the four to fix and the only one that changed a number already
+published on this board.
+
+**Three numbers on this board moved, and one interval lost its significance.**
+
+| where | published | corrected |
+|---|---|---|
+| probe refresh share, whole measured tier | 72% of turns | **86%** of the 96 turns that recorded the field |
+| README first measured read (n=11 / 84 turns) | 0.20s / 61% of turns / 0.6% of the reply path | **0.30s / 80% (51 of 64 recording turns) / 0.7%** |
+| strong-tier attributed `anchor` | 229s (n=75, median run 664s) | **236s** (n=65, median run 574s) — and `explore` no longer excludes zero |
+
+The first two are the same defect: **`context_render_s` is younger than the archive, and a reader
+that fills its absence with `0.0` reports a refresh that did not fire.** The 20 weak-tier turns
+that predate the field were entering the denominator as misses, against a pre-registered `>90%`
+endpoint — so the probe understated the very endpoint it was run to test, and the README was
+printing the pre-fix share inside the cell that explains why zero-filling is wrong. **r26's own
+P2 cell is the cross-check that should have caught it two rounds earlier**: computed over r26's
+64 A2 turns it read `80% (13 zero turns) MISS`, while the README's 61% covered those same 64 turns
+plus 20 more that predate the field — a superset, not a second measurement, and a superset cannot
+drive the share *down* unless the added turns are being counted as misses. Which they were. A
+verdict of MISS survives either way — the corrected 86% is over the whole
+measured tier (96 recording turns, a larger population than r26's own), and it is still short of
+90%; what the zero-fill changed was how badly, and it left two disagreeing numbers on the board
+for the same quantity. The third row is unrelated in mechanism and worse in kind; it has its own
+annotation on the attribution table (search `-rejudge`), and the short version is that a
+duplicated stem does not merely inflate `n`, it manufactures significance.
+
+**The defect underneath all of it: `0.0` is not a gap, it is a claim.** Five of `TurnRecord`'s
+timing fields defaulted to zero — `reply_path_s`, `off_path_s`, `context_render_s` and
+`retry_seconds` at `0.0`, `retry_count` at `0` — and the driver wrote those defaults whenever
+`arm.last_turn_timing` was `None`, which is exactly a crashed turn, since timing is assembled
+after the reply lands. (The sixth field, `first_delta_s`, is new in this round and was born
+`None`; it never defaulted to anything.) Stated as mechanism, because **the archive shows no
+instance of the damage**: all 62 error turns predate the fields and not one of them carries a
+timing key at all. What it would have done is worth keeping, because the same shape will recur at
+the next seam: a crashed turn would have entered every split column as instant; `retry_count=0`
+would have reported a clean run for a turn that died mid-ladder; and since `duration_s` is real
+and often large on a crashed record, the `duration_s ≈ reply_path_s + off_path_s` check would
+have filed the entire turn as harness overhead. All six fields are now `Optional` with `None`
+defaults. `duration_s` stays non-Optional — it is timed outside the `try`, so it is always a real
+reading — and the simulator-failure branch now times its own call instead of writing the default
+it had been exempted into.
+
+**One tempting version of that argument does NOT hold, and the archive cannot even be asked.** I
+had written that a crash lands disproportionately in the tool-heavy turns, which would make the
+zero-fill worst exactly where it matters most. There is no evidence for it here: `driver.py`'s
+`except` branch sets `tool_calls = []`, so **all 62 error turns record zero tool calls by
+construction**, and the question is unanswerable from this archive by design. The fix does not
+need the premise — a wrong split is wrong on an ordinary turn too — so the premise is withdrawn
+rather than defended.
+
+**`None` together holds only for records this driver writes, which is why every reader still needs
+per-field presence checks.** Across the archive 152 of 184 timed turns predate
+`retry_seconds`/`retry_count` and 24 predate `context_render_s`. `reply_path_s is None` is the
+"this turn published no split" signal; nothing else generalises.
+
+**The half that stays wrong quietly is the readers.** A reader that coerces with `or 0.0`
+reinstates the whole bug while the record stays honest — harder to notice than the original,
+because the archive can be audited and a reader's arithmetic cannot. Both readers now skip and
+say how many: `untimed turns (dropped)` as a row, the dropped count in the probe's tier header
+(every share under it has those turns as its denominator), and a per-field denominator on every
+line whose field is younger than the archive. `arithmetic closes` is scoped to the turns carrying
+both halves of the identity — `off_path_s or 0.0` would have been worse than the usual zero-fill
+there, since it makes the identity *easier* to satisfy for a record missing the term, and would
+have reported the invariant as holding on a turn where two of its three terms were never measured.
+
+**The coercion has a second form, and it was live in the one output stem-to-stem comparisons get
+quoted from.** `median(x) if x else 0.0`: an empty sample has no statistic, and printing `0.0`
+fabricates one. `read_turn_timing.py` was printing `median context_render 0.00` for
+`timing-check-building` (0 of 16 turns carry the field) beside `0.19` for
+`timing-after-audit-gather` (16 of 16) — a stem that predates the field reading as one where the
+refresh was free, and the newer build reading as the one that introduced a cost. Empty samples now
+print `not recorded`, a string on purpose: it cannot be averaged by eye against the column beside
+it and cannot be quoted into this file as a measurement.
+
+**Review caught six defects in this round's own prose, not in its mechanism, and that is the
+finding to carry forward.** The mechanism was sound and pinned; what needed re-measuring was
+everything I had written *about* the archive. The count of error turns was wrong at three sites in
+the round's own draft — 80, against a measured **62** across the 43 archived run files, of which
+the probe's own 36-stem population sees 56. The simulator-failure count was wrong and its
+consequence doubly so (18
+records, and since none carries `duration_s`, the number of zero-second claims actually archived
+is not 36 but zero). `arms.py` claimed a false "ran clean" had been published for every archived
+prompt-arm turn — 68 of them carry a split and **none** carries `retry_count`, which postdates
+them all. One test's docstring claimed a guarantee it did not provide, and the mutation confirmed
+it: `_is_measured` rejects an all-crashed cell under both the truthiness form and `is not None`,
+so the shape that separates them is an *old-driver* crash carrying `0.0`, which is what the test
+now constructs. And the `~17% narration rate` misattribution — the vocabulary-leak rate off the
+awaited path, 7 of 40 replies, a different quantity about different turns — was re-introduced by
+this very diff at a site documenting elsewhere that it is a misattribution. **Writing "was
+archived as" for a defect the archive never recorded is the repeating failure mode here; every
+such claim now reads "would have".**
+
+**A second review pass caught eight more, all of the same kind, and the pattern is now the
+finding.** Two were miscounts of the fix's own diff (five fields defaulted to zero, not six;
+`duration_s` is non-Optional with a default, not "required"). One was a premise the archive cannot
+support (the tool-heavy-crash claim, withdrawn above). One compared two populations as though they
+were one (r26's 64 against the README's 84). One claimed two invented zeros where the pre-fix
+reader printed exactly one. One claimed both residual limits were documented at their sites when
+only the probe's was — the reader's arm-pooling limit is now written into its module docstring, so
+the claim is true rather than deleted. One left the corrected `_is_measured` docstring still
+asserting the difference the test had just disproved. And the eighth is the sharpest: **the
+`~17% narration rate` misattribution was still standing in this very file**, at the r26-era
+streaming entry, having been corrected at every code site while the place it was published stayed
+wrong. It now carries a correction block. **Reviewing the mechanism twice and the prose about the
+mechanism once is not enough; the prose is where every defect this round found actually lived.**
+
+**Two limits left in place deliberately, both now documented at their sites rather than fixed.**
+The probe's per-tool *working* column is gated per-tier while its rows are per-turn, so a
+mixed-vintage tier (`anchor n=18` is the shape) reads cleaner than it is; fixing it per-turn would
+change the published per-tool table, so it is labelled a lower bound instead. And
+`read_turn_timing.py` pools arms within a stem, which is why `r26-latency-price` shows
+`median context_render 0.00` across 128 turns — all 128 record the field, so this one is not the
+empty-sample defect at all: 64 of the turns are A1.7, which renders no context and truthfully
+spent `0.0`, and the median lands on the boundary between the arms. Splitting the columns by arm
+would change every figure this file has published off that reader, so it is documented instead.
+
+**Verification.** `tests/test_turn_record_timing.py` (18 tests) drives the driver's real turn loop
+rather than constructing records, because the defect lived in the `if timing else 0.0`, and
+includes a mixed-vintage turn because deleting a reader's presence check raises `TypeError` on
+real data while a synthetic same-vintage sample stays green. Both readers reproduce every
+published anchor for the two timing stems after all edits (16/16 closes on both, medians
+17.95/18.55, worsts 823.60/52.10, cell walls 1872.80/451.90, 6 tool calls against 3, 0 dropped),
+with the one invented zero now reading `not recorded` alongside the new first-delta row's two.
+Suites: 18 new; 126 across the nine timing/streaming/reuse modules (`turn_record_timing`,
+`turn_timing`, `retry_accounting`, `advisor_context_render`, `context_refresh_cost`,
+`turn_finalization`, `stream_retry`, `stream_ttft`, `reply_reuse`); 626 in
+`tests/e2e/test_e2e.py`; and 1406 passed / 37 skipped for the rest of the tree.

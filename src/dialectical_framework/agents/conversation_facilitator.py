@@ -10,11 +10,11 @@ Facilitator that:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional, Sequence, TypeVar
+from typing import (TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable,
+                    NamedTuple, Optional, Sequence, TypeVar)
 
 from langfuse import observe
 from mirascope import llm
@@ -32,10 +32,9 @@ from dialectical_framework.agents.turn_timing import ToolRound
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.retry_accounting import (RetryAccount,
-                                                          record_retry,
                                                           retry_account)
 from dialectical_framework.utils.use_brain import (prefill_token_kwargs,
-                                                  use_brain)
+                                                  retry_transient, use_brain)
 
 from mirascope.llm import TextChunk, ThoughtChunk, ToolOutput
 
@@ -75,6 +74,96 @@ def _tool_output_text(output: Any) -> str:
     """
     result = getattr(output, "result", output)
     return result if isinstance(result, str) else str(result)
+
+
+class _RoundStart(NamedTuple):
+    """A streaming round that has already proven it can answer.
+
+    The first chunk is pulled as part of STARTING the round, not as part of
+    consuming it, because that is where a streamed round actually fails: no HTTP
+    request is issued by `await call.stream()`, so a throttle or a 503 arrives on
+    the first `__anext__`. Pulling it here is what makes the failure retryable —
+    and the chunk has to be carried out again so the caller can put it back at the
+    front of the loop (`_replay_first_chunk`), since it must still reach the host.
+    """
+
+    stream: Any
+    #: An async GENERATOR, not merely an iterator, because an abandoned turn has to
+    #: close it — see `_release_round`, which also explains why closing this one
+    #: alone is not enough.
+    chunks: AsyncGenerator
+    #: `None` only if the provider ended the stream without a single chunk, which
+    #: is not the same as a tool-only round: those still emit tool-call chunks.
+    first_chunk: Optional[Any]
+    #: When the attempt that SUCCEEDED began — not when the round was first
+    #: attempted. The difference is the retry ladder, and it must stay out of
+    #: `first_token_seconds` or one throttled round would report as a 10-second
+    #: prefill and quietly ruin an arm comparison.
+    provider_started: float
+    first_chunk_at: Optional[float]
+
+
+async def _replay_first_chunk(start: _RoundStart) -> AsyncGenerator[Any, None]:
+    """The round's chunks, with the one already pulled put back at the front."""
+    if start.first_chunk is not None:
+        yield start.first_chunk
+    async for chunk in start.chunks:
+        yield chunk
+
+
+async def _release_round(start: _RoundStart) -> None:
+    """Let go of the round's provider connection, as far as it can be reached.
+
+    Only needed when a turn is ABANDONED: an exhausted round is already closed and
+    so is one that raised, which makes both calls below no-ops on every ordinary
+    exit. What abandonment leaves behind is three suspended generators, and only
+    the deepest of them holds the HTTP response:
+
+    1. `start.chunks` — `AsyncStreamResponse.chunk_stream()`, which iterates
+    2. `stream._chunk_iterator` — mirascope's `_wrap_async_iterator_errors`
+       (`providers/base/base_provider.py:_wrap_async_iterator_errors`, bound onto
+       the response), whose body is a SYNCHRONOUS `with self._wrap_errors()` around
+       the relay — so it runs on unwind but holds nothing and cannot swallow the
+       `GeneratorExit` (that handler catches `Exception`, and `contextlib`
+       re-propagates a `BaseException` unchanged). It iterates
+    3. the provider decoder's `decode_async_stream`, suspended inside
+       `async with anthropic_stream_manager` — THE one whose `__aexit__` closes
+       the SSE response.
+
+    Closing an async generator does not close what it was iterating (that is the
+    same fact that makes this cleanup necessary at all, one level up), so closing
+    (1) alone frees nothing: `_chunk_iterator` is an ATTRIBUTE of the response
+    object, and the response outlives the round because the code after the chunk
+    loop reads its usage and tool calls from it. (2) would therefore stay suspended
+    with (3) inside it until the whole response became garbage — which is exactly
+    the behaviour this is meant to replace.
+
+    Closing (2) as well drops (3) to zero references, and the event loop's
+    async-generator finaliser hook then runs its `aclose` and with it the
+    `__aexit__`. That last hop is the interpreter's rather than ours: mirascope
+    exposes no close on a stream response, which is also why reaching through
+    `_chunk_iterator` — private, and flagged as such in mirascope's own source — is
+    the deliberate choice it looks like.
+
+    So of the two closes, (2) is the load-bearing one; (1) merely drops its own
+    frame, since the real `chunk_stream()` has no cleanup of its own. It is kept
+    because it is the generator this module actually owns, and because a future
+    mirascope that DID clean up there would otherwise be missed silently.
+
+    One thing this leaves behind, for whoever touches the round after it: the
+    response object survives with `consumed` still False and `usage` still None,
+    over a chunk iterator that is now closed. Anything that re-entered
+    `chunk_stream()` would get `StopAsyncIteration` on the first pull and read as a
+    complete, empty stream rather than an error. Nothing does today — the round is
+    dead by the time this runs, and `resume` is only called on exhausted rounds,
+    where both closes are no-ops.
+    """
+    await start.chunks.aclose()
+    inner = getattr(start.stream, "_chunk_iterator", None)
+    # Guarded rather than assumed: it is private, and on a sync response it is a
+    # plain generator with `close` instead.
+    if inner is not None and hasattr(inner, "aclose"):
+        await inner.aclose()
 
 
 class ConversationFacilitator(SettingsAware):
@@ -149,11 +238,45 @@ class ConversationFacilitator(SettingsAware):
         #
         # NOT "time to first token" as a provider means it, and the name says so
         # deliberately. The Advisor is contracted to call tools without narrating
-        # first (~17% narration rate, measured), so on most tool-electing turns the
-        # first delta arrives AFTER a full tool round and this reads 140-230s. The
+        # first, so on a tool-electing turn the first delta can arrive AFTER a full
+        # tool round and read 140-230s. HOW OFTEN it does is unmeasured: counting
+        # text deltas before the first `ToolStart` needs this streaming path, and
+        # nothing has done it. (The ~17% once quoted here was the vocabulary-leak
+        # rate off the AWAITED path — `probe_leak_reply_reuse.py`, 7 of 40 replies —
+        # a different quantity about different turns.) The
         # prefill-sensitive quantity — the one prompt caching can move — is
         # `CallRecord.first_token_seconds` on the turn's first round, not this.
         self.last_submit_first_delta_s: Optional[float] = None
+        # Bumped once per submit, and captured by `submit_stream` so its `finally`
+        # can tell "this turn is still the current one" from "a turn the consumer
+        # walked away from, being finalised now".
+        #
+        # An async generator's `finally` does not run when the consumer stops
+        # iterating — it runs when the generator is CLOSED, which for an abandoned
+        # one is whenever the collector gets to it. That can be after the next turn
+        # has started, and a `finally` writing `last_submit_seconds` unconditionally
+        # would then stamp the abandoned turn's elapsed time (measured from ITS
+        # `started`, so arbitrarily large) onto the healthy turn now in flight.
+        # Recording nothing is a gap; recording a stale figure on a good turn is a
+        # lie, and it is the same class of bug as the unreset `last_tool_results`
+        # that once attributed a crash to a healthy turn.
+        #
+        # What it does NOT do is make overlapping turns safe, and it is worth being
+        # exact about that, since the guard looks like it might. Only the `finally`
+        # write consults the epoch; the write at `ResponseComplete` does not, and
+        # must not — that is the turn reporting its own good figure. So if two
+        # submits ever overlapped on one facilitator, whichever finished LAST would
+        # own `last_submit_seconds`, epoch or no epoch. The epoch narrows one case
+        # only: a turn already abandoned cannot come back later and overwrite a
+        # healthy one. ONE turn at a time is still the contract, same as every other
+        # `last_*` field here; that is what `isolate()` is for, and no caller shares
+        # a facilitator across concurrent turns today.
+        self._turn_epoch = 0
+
+    def _begin_turn(self) -> int:
+        """Claim the "current turn" slot, returning this turn's epoch."""
+        self._turn_epoch += 1
+        return self._turn_epoch
 
     def set_system_prompt(self, system_prompt: str) -> None:
         """
@@ -241,6 +364,9 @@ class ConversationFacilitator(SettingsAware):
         # RAISED still waited the person's time, and a duration recorded only on
         # the happy path makes the expensive failures the invisible ones.
         started = time.monotonic()
+        # Claimed here too, so an abandoned `submit_stream` generator finalised
+        # during THIS turn cannot overwrite what this turn records.
+        epoch = self._begin_turn()
         try:
             # One account over the whole submit, nested accounts per tool round.
             # Both see every retry (see `retry_accounting._stack`), so the outer
@@ -287,7 +413,8 @@ class ConversationFacilitator(SettingsAware):
                 # Extract structured response
                 return await self._call_with_response_model(response_model)
         finally:
-            self.last_submit_seconds = time.monotonic() - started
+            if epoch == self._turn_epoch:
+                self.last_submit_seconds = time.monotonic() - started
 
     @observe()
     async def submit_stream(
@@ -304,6 +431,71 @@ class ConversationFacilitator(SettingsAware):
             ToolStart: when LLM invokes a tool
             ToolResult: after tool execution (with optional ExecutionReport)
             ResponseComplete: final structured message
+
+        Owns the turn's WALL CLOCK and nothing else; `_stream_turn` owns the
+        rounds. Split that way because the two guarantees this method makes are
+        about exits the round loop does not control — a consumer that walks away
+        mid-stream, and a round that raises where nothing can retry:
+
+        - `last_submit_seconds` is recorded on EVERY exit. It used to be assigned
+          only after the tool loop, so an abandoned or crashed stream reported 0.0
+          for a turn that took eight seconds. A wrong number is worse than a
+          missing one: 0.0 reads as "instant" and drags down any mean it enters,
+          and the turns it hides are the expensive ones. (The live trigger is not
+          hypothetical — mirascope raises `NotImplementedError` from inside the
+          chunk loop on a `redacted_thinking` block, so any turn with
+          `DIALEXITY_THINKING_LEVEL` set can take this path.)
+        - The generator chain is CLOSED rather than left to the collector, which is
+          what lets go of the provider's connection. An abandoned turn is suspended
+          inside mirascope's decoder, holding the HTTP response open in an
+          `async with`; unwinding an `async for` does not close what it iterates, so
+          nothing runs those exits unless something closes the chain. See
+          `_release_round` for how far down that reaches.
+
+        Both guarantees need the CALLER to close this generator rather than merely
+        stop iterating — `contextlib.aclosing`, which every `chat_stream` in the
+        tree uses. Left to the collector, the `finally` runs at some later moment
+        the epoch guard may well decline to write from.
+        """
+        started = time.monotonic()
+        epoch = self._begin_turn()
+        #: Set the moment the reply EXISTS. The `finally` must not overwrite that
+        #: with a later reading, or every ordinary turn would silently absorb
+        #: however long the consumer took to come back for the last event.
+        recorded = False
+        # Held in a name so it can be closed; see the docstring.
+        rounds = self._stream_turn(
+            response_model,
+            user_content,
+            started=started,
+            max_tool_rounds=max_tool_rounds,
+        )
+        try:
+            async for event in rounds:
+                if isinstance(event, ResponseComplete):
+                    self.last_submit_seconds = time.monotonic() - started
+                    recorded = True
+                yield event
+        finally:
+            # Before the close, which can raise: the figure is the point.
+            if not recorded and epoch == self._turn_epoch:
+                self.last_submit_seconds = time.monotonic() - started
+            await rounds.aclose()
+
+    async def _stream_turn(
+        self,
+        response_model: type[T],
+        user_content: UserContent,
+        *,
+        started: float,
+        max_tool_rounds: int,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """The rounds themselves. See `submit_stream`, which owns the clock.
+
+        `started` is passed in rather than taken here so that the turn has ONE
+        clock: `last_submit_first_delta_s` below and `last_submit_seconds` in the
+        caller are both offsets from the same instant, and a second
+        `time.monotonic()` could only disagree with the first.
         """
         self._messages.append(llm.messages.user(user_content))
         self.last_tool_calls = []
@@ -313,16 +505,17 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_results = []
         self.last_tool_call_args = []
         self.last_tool_rounds = []
+        # Reset only; the final value is the caller's to write, on every exit.
         self.last_submit_seconds = 0.0
         self.last_submit_retries = RetryAccount()
         self.last_submit_first_delta_s = None
-        started = time.monotonic()
 
         # Re-entered per await instead of wrapped around the whole generator, and
         # `retry_account` explains why: a contextvar set across a `yield` installs
         # itself in the consumer's context and never resets if the consumer stops
-        # iterating. The uncovered gap is the `chunk_stream()` loop below, which
-        # cannot retry anyway once tokens are flowing.
+        # iterating. The uncovered gap is the chunk loop below, PAST its first
+        # chunk — which is exactly the part that cannot be retried anyway, since
+        # re-asking would duplicate text the host has already shown.
         turn = self.last_submit_retries
 
         if not self._tools:
@@ -330,7 +523,6 @@ class ConversationFacilitator(SettingsAware):
             # nothing to yield until it returns. `streamed=False` says so.
             with retry_account(turn):
                 result = await self._call_with_response_model(response_model)
-            self.last_submit_seconds = time.monotonic() - started
             yield ResponseComplete(result=result)
             return
 
@@ -342,7 +534,10 @@ class ConversationFacilitator(SettingsAware):
         # cost on the person's critical path.
         call_started = time.monotonic()
         with retry_account(turn):
-            stream = await self._open_stream_with_retry()
+            start = await self._start_stream_round(
+                self._open_tools_stream, what="Stream open"
+            )
+        stream = start.stream
 
         # The text yielded THIS round, verbatim, and the reply is built from
         # exactly these bytes (below). Same principle as `_record_tool_results`:
@@ -355,14 +550,44 @@ class ConversationFacilitator(SettingsAware):
         # Reset per round on purpose: text before a tool call is the model saying
         # what it is about to do, and the reply is what it says afterwards.
         answer: list[str] = []
-        for _ in range(max_tool_rounds):
+        # One iteration per provider round, and the budget counts the TOOL rounds
+        # BETWEEN them: `max_tool_rounds=3` means three rounds of tools plus the
+        # fourth generation that reads the last round's outputs. That is the same
+        # arithmetic `submit` does above (one call, then up to `max_tool_rounds`
+        # resumes), and the `+ 1` is what makes it so here, because this loop
+        # consumes at the TOP of the iteration rather than the bottom.
+        #
+        # Spelled out because the shape it replaces was quietly corrupting every
+        # overrun turn, and it read as harmless. This loop used to end with an
+        # unconsumed round dangling: `resume()` issues no HTTP, so it looked free.
+        # It was not. Everything below the loop then ran against that UNCONSUMED
+        # stream, and an unconsumed mirascope stream reports no tool calls, no text
+        # and empty content — so three things went wrong at once, none of them
+        # visible as an error:
+        #
+        # - `_reuse_written_reply` saw no pending tool calls, so its budget-overrun
+        #   guard could not fire, and it returned the PREVIOUS round's mid-work
+        #   narration as the final reply, with `streamed=True`.
+        # - `_close_dangling_tool_calls` saw no tool calls either, so it returned
+        #   immediately. It has never once fired on this path.
+        # - `self._messages` ended on an assistant message whose `content` is a
+        #   live alias of the stream's own empty content list, i.e. an empty
+        #   assistant message — which the next turn's request 400s on.
+        #
+        # Since the retry fix that dangling round also PAYS for itself, because
+        # opening a round now pulls its first chunk. Consuming N+1 rounds and
+        # refusing to spend tools on the last one fixes all four together.
+        for round_index in range(max_tool_rounds + 1):
             answer = []
             #: When the provider's first content chunk arrived, and when the first
             #: thing a HOST could render did. Two different questions and they
             #: diverge on the common case, not the rare one — the Advisor is
-            #: contracted to call tools without narrating first, measured at a ~17%
-            #: narration rate, so four rounds in five yield nothing at all here.
-            first_chunk_at: Optional[float] = None
+            #: contracted to call tools without narrating first, so a round can yield
+            #: nothing at all here. How often it does is UNMEASURED — this is the
+            #: path that would have to count it, and it does not.
+            #: Seeded from the round's start rather than measured here: the first
+            #: chunk was pulled there, as the retryable half of opening the round.
+            first_chunk_at: Optional[float] = start.first_chunk_at
             first_delta_at: Optional[float] = None
             #: Time this round spent suspended in a `yield`, i.e. the CONSUMER's
             #: time, subtracted before recording. The yields below are inside the
@@ -370,28 +595,42 @@ class ConversationFacilitator(SettingsAware):
             #: recorded as a provider that responds slowly, and `parallelism` would
             #: blame the model for the terminal.
             yielded_s = 0.0
-            async for chunk in stream.chunk_stream():
-                if first_chunk_at is None:
-                    first_chunk_at = time.monotonic()
-                if isinstance(chunk, (ThoughtChunk, TextChunk)):
-                    if first_delta_at is None:
-                        first_delta_at = time.monotonic()
-                    event = (
-                        ThinkingDelta(text=chunk.delta)
-                        if isinstance(chunk, ThoughtChunk)
-                        else TextDelta(text=chunk.delta)
-                    )
-                    if isinstance(chunk, TextChunk):
-                        answer.append(chunk.delta)
-                    handed_off = time.monotonic()
-                    yield event
-                    yielded_s += time.monotonic() - handed_off
+            try:
+                async for chunk in _replay_first_chunk(start):
+                    if first_chunk_at is None:
+                        first_chunk_at = time.monotonic()
+                    if isinstance(chunk, (ThoughtChunk, TextChunk)):
+                        if first_delta_at is None:
+                            first_delta_at = time.monotonic()
+                        event = (
+                            ThinkingDelta(text=chunk.delta)
+                            if isinstance(chunk, ThoughtChunk)
+                            else TextDelta(text=chunk.delta)
+                        )
+                        if isinstance(chunk, TextChunk):
+                            answer.append(chunk.delta)
+                        handed_off = time.monotonic()
+                        yield event
+                        yielded_s += time.monotonic() - handed_off
+            finally:
+                # The provider's generators, closed explicitly. Exhausting them
+                # makes this a no-op; the case it exists for is the consumer walking
+                # away mid-round, where GeneratorExit arrives at the `yield` above
+                # and unwinds this `async for` WITHOUT closing what it iterates —
+                # leaving mirascope's decoder suspended inside an `async with`,
+                # holding the HTTP response. `_release_round` explains why that
+                # takes two closes rather than one, and which last hop is still the
+                # interpreter's. Called from here and not from inside
+                # `_replay_first_chunk`, which has the same problem one level down
+                # and is likewise never closed — it holds only a frame.
+                await _release_round(start)
 
             # BEFORE the `break`: the last round is usually the only round, and a
             # record written after it would miss every turn that called no tools.
             self._record_stream_round(
                 stream,
                 call_started=call_started,
+                provider_started=start.provider_started,
                 first_chunk_at=first_chunk_at,
                 yielded_s=yielded_s,
             )
@@ -404,6 +643,36 @@ class ConversationFacilitator(SettingsAware):
                 self.last_submit_first_delta_s = first_delta_at - started
 
             if not stream.tool_calls:
+                break
+
+            if round_index == max_tool_rounds:
+                # The budget is spent, so these calls have nowhere to go: sending
+                # their outputs means opening a round, and nothing below would read
+                # it. Executing them anyway would spend minutes of concern work to
+                # throw the results away, and — since the ladder now wraps a real
+                # request — a throttle on that round would raise out of
+                # `submit_stream` AFTER the answer had already been streamed.
+                #
+                # Falling through instead leaves the calls unanswered, which is
+                # precisely what `_close_dangling_tool_calls` is for: it answers
+                # them with `_BUDGET_STOP_NOTICE` so history stays valid and the
+                # model is told why it was cut off. Same exit as `submit`.
+                #
+                # Two things this exit costs, both accepted:
+                #
+                # - One extra provider call. `_reuse_written_reply` now correctly
+                #   declines (tool calls ARE pending), so the structured extraction
+                #   runs. That is the price of a correct reply and valid history.
+                # - This round's text has already been yielded as `TextDelta`s and
+                #   is NOT part of `message`, while `ResponseComplete.streamed` is
+                #   False — so a host honouring the documented contract renders
+                #   both. Unavoidable without buffering the whole round, since
+                #   nothing reveals the overrun until after the text has streamed.
+                #
+                # And the requested calls are reported ONLY by the warning inside
+                # `_close_dangling_tool_calls` — no `ToolStart`, nothing in
+                # `last_tool_calls`. That matches `submit`, which is the reason it
+                # is left alone rather than the reason it is right.
                 break
 
             for tc in stream.tool_calls:
@@ -434,9 +703,13 @@ class ConversationFacilitator(SettingsAware):
                 yield result
 
             self._strip_caller_from_messages(stream.messages)
+            resuming = stream
             with retry_account(turn):
                 call_started = time.monotonic()
-                stream = await stream.resume(tool_outputs)
+                start = await self._start_stream_round(
+                    lambda: resuming.resume(tool_outputs), what="Stream resume"
+                )
+            stream = start.stream
 
         self._messages = list(stream.messages)
         self._close_dangling_tool_calls(stream)
@@ -453,10 +726,8 @@ class ConversationFacilitator(SettingsAware):
         if result is None:
             with retry_account(turn):
                 result = await self._call_with_response_model(response_model)
-        # Before the yield: the reply-path interval ends when the reply EXISTS,
-        # and a consumer that stops iterating at ResponseComplete would otherwise
-        # leave this unset on the very turns it is measuring.
-        self.last_submit_seconds = time.monotonic() - started
+        # The caller stamps `last_submit_seconds` as this event passes through it,
+        # i.e. when the reply EXISTS — not when the consumer next asks for an event.
         yield ResponseComplete(result=result, streamed=streamed)
 
     # --- Internal helpers ---
@@ -483,6 +754,7 @@ class ConversationFacilitator(SettingsAware):
         stream: Any,
         *,
         call_started: float,
+        provider_started: float,
         first_chunk_at: Optional[float],
         yielded_s: float,
     ) -> None:
@@ -518,6 +790,17 @@ class ConversationFacilitator(SettingsAware):
         its cache read would otherwise be reported with a confidently wrong cache
         share. See `prefill_token_kwargs`.
 
+        TWO clocks, on purpose. `seconds` runs from `call_started` — the whole
+        round including any retry ladder, because the person waited through it —
+        while `first_token_seconds` runs from `provider_started`, the start of the
+        attempt that actually answered. Averaging a throttled round's 10s of
+        backoff into a prefill figure would not just be wrong, it would be wrong in
+        the direction that makes a prompt-size or caching arm look worse than it is.
+        With no retry the two are the same instant to within a microsecond, and both
+        deliberately include request construction (`_get_tools_call`, the
+        cache-breakpoint scan) — that is the framework's own cost, on the person's
+        critical path, and hiding it would flatter us.
+
         One consequence of subtracting the consumer's time, since `record_call`
         derives `ended` from `started + seconds`: a streamed round's recorded
         interval is SHORTER than its wall span, so `busy_s` (a union of intervals)
@@ -540,7 +823,7 @@ class ConversationFacilitator(SettingsAware):
                 # job is telling "no reading" apart from "a reading", and a
                 # `monotonic()` value is free to be 0.0.
                 first_token_seconds=(
-                    first_chunk_at - call_started
+                    first_chunk_at - provider_started
                     if first_chunk_at is not None
                     else None
                 ),
@@ -649,51 +932,59 @@ class ConversationFacilitator(SettingsAware):
             args = json.loads(tc.args) if tc.args else {}
             logger.log_tool_call(sid, agent, tc.name, args)
 
-    async def _open_stream_with_retry(self, max_attempts: int = 3) -> Any:
-        """Build the streaming call, with a retry ladder that no longer has a job.
+    async def _start_stream_round(
+        self, open_round: Callable[[], Awaitable[Any]], *, what: str
+    ) -> _RoundStart:
+        """Open (or resume) a streaming round, retrying where it actually fails.
 
-        **This retries local encoding, NOT the connection, and the docstring used to
-        claim otherwise.** `await call.stream()` issues no HTTP request: Anthropic's
+        The retried unit is the open PLUS the first chunk, and that pairing is the
+        whole point. `await call.stream()` issues no HTTP request — Anthropic's
         `AsyncMessages.stream` builds an un-awaited request and returns a manager
-        that sends on `__aenter__`, which Mirascope's decoder defers to the stream's
-        first `__anext__` — and on Bedrock not even SigV4 signing has happened yet
-        (`anthropic/lib/bedrock/_client.py`). So a network blip or a provider error
-        surfaces inside the caller's `chunk_stream()` loop, where retry is impossible
-        because tokens may already be flowing, and this ladder never sees it.
+        that sends on `__aenter__`, which Mirascope's decoder defers to the first
+        `__anext__`, and on Bedrock not even SigV4 signing has happened yet
+        (`anthropic/lib/bedrock/_client.py`). So retrying the open alone retried
+        local encoding and nothing else, which is what the ladder here used to do
+        while its docstring claimed to retry connections. A 429 or a 503 landed
+        inside the caller's chunk loop and took the turn down, on a path where the
+        awaited equivalent would have retried it up to ten times.
 
-        What survives here is the local half: `_get_tools_call` rendering the system
-        prompt and Mirascope encoding the request. Those can raise, so the `try` is
-        not pointless — but `record_retry("stream_open", ...)` below is effectively
-        dead, and a streamed round that dies on the wire is accounted for nowhere.
-        Kept rather than removed so the accounting site stays visible; fixing it
-        means restructuring where the stream is opened, which is a separate change.
+        Retried on a NEW stream, never the same one: Mirascope's `chunk_stream()`
+        caches consumed chunks and drives a single underlying iterator
+        (`base_stream_response.py:687-735`), which is spent once it has raised.
+        Re-asking is safe on both entry points — `_get_tools_call` re-renders from
+        `self._messages`, and `resume_stream_async` is `response.messages + [user(
+        content)]` with no mutation of the response it resumes
+        (`base_provider.py:1253-1284`) — so a second call re-sends the same request
+        rather than a different one. It DOES pay for the prefill twice, which is the
+        price of a retry and is why the ladder stays narrow (see `retry_transient`).
+
+        Nothing beyond the first chunk is retryable, and this is where that line
+        gets drawn rather than hidden: once a chunk has been handed to the host,
+        re-asking would duplicate text on their screen. A failure after that still
+        propagates out of `submit_stream`.
         """
-        delay = 5.0
-        last_error: Optional[Exception] = None
-        for attempt in range(max_attempts):
-            attempt_started = time.monotonic()
+
+        async def _attempt() -> _RoundStart:
+            provider_started = time.monotonic()
+            stream = await open_round()
+            chunks = stream.chunk_stream()
             try:
-                call = await self._get_tools_call()
-                return await call.stream()
-            except Exception as e:
-                last_error = e
-                if attempt < max_attempts - 1:
-                    logging.getLogger(__name__).warning(
-                        "Stream connection failed (attempt %d/%d): %s",
-                        attempt + 1, max_attempts, e,
-                    )
-                    # This ladder is the facilitator's own, so `use_brain` never
-                    # sees it — up to 15s of reply-path sleep (2 sleeps at
-                    # max_attempts=3) that would otherwise land in the generation
-                    # residual unlabelled. See the docstring for why it never runs.
-                    record_retry(
-                        "stream_open",
-                        sleep_s=delay,
-                        attempt_s=time.monotonic() - attempt_started,
-                    )
-                    await asyncio.sleep(delay)
-                    delay = min(delay * 2.0, 30.0)
-        raise last_error  # type: ignore[misc]
+                first_chunk = await anext(chunks)
+            except StopAsyncIteration:
+                # A stream that ended before saying anything. Not an error and not
+                # a reading: `first_chunk_at` stays None so the census records this
+                # round as unmeasured rather than as instant.
+                return _RoundStart(stream, chunks, None, provider_started, None)
+            return _RoundStart(
+                stream, chunks, first_chunk, provider_started, time.monotonic()
+            )
+
+        return await retry_transient(_attempt, what=what)
+
+    async def _open_tools_stream(self) -> Any:
+        """Open the turn's first streaming round from the current messages."""
+        call = await self._get_tools_call()
+        return await call.stream()
 
     async def _get_tools_call(self) -> AsyncCall:
         """Get AsyncCall object for streaming tool-calling mode."""

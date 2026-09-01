@@ -97,8 +97,8 @@ class TurnTiming:
     #: generation. A COMPONENT of `reply_path_s`, never a third addend.
     #:
     #: Covers only the submit. The off-path repair runs outside it, so a retry
-    #: there is in `off_path_s` and not here; and in the streaming path the
-    #: `chunk_stream()` loop is uncovered, which cannot retry once tokens flow.
+    #: there is in `off_path_s` and not here; and in the streaming path the chunk
+    #: loop past its FIRST chunk is uncovered, which cannot retry once tokens flow.
     retry_seconds: float = 0.0
     #: Attempts retried under the submit (0 = the turn ran clean).
     retry_count: int = 0
@@ -118,8 +118,10 @@ class TurnTiming:
     #:
     #: Read it as "when did the waiting stop looking like nothing happening", NOT
     #: as time-to-first-token. On a turn where the model calls a tool before
-    #: narrating — the Advisor's contracted behaviour, ~83% of tool-electing turns
-    #: — this lands after the whole tool round. The prefill-sensitive figure lives
+    #: narrating — the Advisor's contracted behaviour — this lands after the whole
+    #: tool round. How often that happens is UNMEASURED: it needs a count of text
+    #: deltas before the first `ToolStart`, which needs the streaming path, and no
+    #: probe has taken it. The prefill-sensitive figure lives
     #: on `CallRecord.first_token_seconds`, per round.
     first_delta_s: Optional[float] = None
 

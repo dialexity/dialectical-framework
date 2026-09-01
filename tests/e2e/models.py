@@ -407,7 +407,60 @@ class TurnRecord(BaseModel):
     #: Wall clock for the whole turn, timed by the driver around `arm.reply()`.
     #: The outer bound: `reply_path_s + off_path_s` should account for nearly all
     #: of it, and a gap between them is harness overhead worth seeing.
+    #:
+    #: The one timing field that is never `None`, because the driver times it
+    #: OUTSIDE the try — a turn that raised still cost the person its seconds. On
+    #: a SIMULATOR-failure record it is the simulator call's own seconds, since
+    #: the arm was never reached; the `simulator:` prefix on `error` is what tells
+    #: the two apart, and it is timed rather than left 0.0 for the same reason as
+    #: everything below.
     duration_s: float = 0.0
+    #: ---- The fields below come from `TurnTiming`. See `reply_path_s`. ----
+    #:
+    #: `None` means the turn published no split, not that the split was zero. Two
+    #: ways to get there, and both are real: the arm crashed before
+    #: `Advisor._record_turn_timing` (which is the LAST thing a turn does, so any
+    #: failure in the model, the tools or the repair lands here), or the arm does
+    #: not record timing at all.
+    #:
+    #: For records written by THIS driver they are `None` together. Across the
+    #: archive they are not, and a reader that assumes otherwise raises: of the
+    #: 184 turns carrying a split today, 152 predate `retry_seconds`/`retry_count`
+    #: and 24 predate `context_render_s`. So `reply_path_s is None` is the
+    #: authoritative "no split" signal, and every OTHER field still needs its own
+    #: presence check before arithmetic.
+    #:
+    #: They defaulted to zero until 2026-09-01 (`retry_count` to `0`, the rest to
+    #: `0.0`; `first_delta_s` arrived with the fix and was never zero-filled), and
+    #: that default was the same lie `last_submit_seconds` used to tell one layer
+    #: down. No archived record shows it — all 62 error turns in the archive
+    #: predate the fields entirely, and none of them carries a timing key at all —
+    #: so this is the mechanism, not an observation: a crashed turn would have
+    #: entered every split column as instant; `retry_count=0` would have claimed
+    #: a clean turn for one that died mid-ladder; and since `duration_s` on those
+    #: records is real and often large, the arithmetic check
+    #: (`duration_s ≈ reply_path_s + off_path_s`) would have reported the whole
+    #: turn as harness overhead. **Anything aggregating these must SKIP the
+    #: `None`s and say how many it skipped** — coercing them back with `or 0.0`
+    #: reinstates the bug in the reader while the record stays honest, which is
+    #: harder to notice. `read_turn_timing.py` prints `untimed turns (dropped)`
+    #: and `probe_reply_path_latency.py` puts the count in its tier header; a
+    #: third reader owes the same line. **And an EMPTY sample has no statistic**:
+    #: the same `or 0.0` reappears as `median(x) if x else 0.0`, which is how the
+    #: reader printed `median context_render 0.00` for a stem carrying the field
+    #: on 0 of 16 turns, beside a stem carrying it on 16 of 16 — reading as a cost
+    #: the newer build introduced. It prints `not recorded` and a per-field count
+    #: row instead.
+    #:
+    #: `tool_seconds` / `tool_retry_seconds` stay `[]` rather than `None`, because
+    #: every consumer iterates them and an empty list is the natural "nothing
+    #: recorded". The cost of that choice is real and worth stating: an untimed
+    #: turn is indistinguishable from a tool-free one in those lists, and the
+    #: driver discards the rounds the facilitator DID record when a turn crashes
+    #: (`if timing else []`), so a crashed turn that ran two `anchor` rounds
+    #: archives as a bare generation. Readers counting tool calls therefore scope
+    #: themselves to timed turns rather than trusting an empty list.
+    #:
     #: Seconds between the person's message and their reply EXISTING — model
     #: generation plus every tool round the model elected, since `Advisor.chat`
     #: awaits `submit()` before it holds any text. This is the number a UX
@@ -416,12 +469,34 @@ class TurnRecord(BaseModel):
     #: `probe_reply_path_latency.py` estimated the split by regressing 187 runs'
     #: cell duration onto their tool histograms (81% strong / 88% weak on the
     #: reply path) — defensible as attribution, and no substitute for this.
-    reply_path_s: float = 0.0
+    reply_path_s: Optional[float] = None
+    #: When the person first had something on screen, measured from their message
+    #: arriving — the blank-screen wait. A PREFIX of `reply_path_s`: the same clock
+    #: stopped earlier, so it is never an addend and the arithmetic check above is
+    #: untouched.
+    #:
+    #: `None` on every arm in this bench today: none of them stream — `AdvisorArm`
+    #: awaits `chat()`, `PromptArm` awaits `submit()` directly — so there is no
+    #: first delta to report. A measurement gap, not a zero, and the reason this
+    #: field exists before anything populates it. The driver is plumbed for it;
+    #: `PromptArm.last_turn_timing` still is not, so a streaming arm owes its own
+    #: `first_delta_s` there. Also `None` on any turn whose split is `None`.
+    #:
+    #: NOT time-to-first-token. The Advisor is contracted to call tools without
+    #: narrating first, so on a tool-electing turn this can land AFTER a full tool
+    #: round — read it as "when did the waiting stop looking like nothing
+    #: happening". How OFTEN it does is unmeasured: nothing has counted text
+    #: deltas before the first `ToolStart`, which needs the streaming path, and
+    #: the ~17% quoted elsewhere is the vocabulary-leak rate off the awaited path
+    #: (`probe_leak_reply_reuse.py`) — a different quantity. The
+    #: prefill-sensitive figure is
+    #: `CallRecord.first_token_seconds`, which is per round and lives in the census.
+    first_delta_s: Optional[float] = None
     #: Seconds spent AFTER the reply was handed over: the decision repair and the
     #: pathway seam. `Advisor` already treats that boundary as load-bearing ("so
     #: the person's reply is never delayed by the repair"); this measures it
     #: instead of trusting the comment.
-    off_path_s: float = 0.0
+    off_path_s: Optional[float] = None
     #: Reply-path seconds spent re-reading the graph into the system prompt. A
     #: COMPONENT of `reply_path_s`, never an addition to it — otherwise the
     #: `duration_s ≈ reply_path_s + off_path_s` check above starts reporting this
@@ -431,7 +506,7 @@ class TurnRecord(BaseModel):
     #: (the read-side half of this archive's primary defect — 14 of 18 first
     #: sessions built 390 transformations against `EMPTY_UNDERSTANDING`). If turns
     #: get slower for no visible reason, look here first.
-    context_render_s: float = 0.0
+    context_render_s: Optional[float] = None
     #: Per tool ROUND: `"anchor:229.4s"`, or `"anchor+explore:301.2s"` when the
     #: round ran several tools concurrently. Same `list[str]` idiom as
     #: `tool_outcomes` and `grounding_args`, and the `+` is load-bearing — a
@@ -455,11 +530,14 @@ class TurnRecord(BaseModel):
     #: The generation share is this minus the `tool_retry_seconds` sum, and it is
     #: the share nothing else could ever see: r26 had a turn with 644.1s of
     #: residual and no tool calls at all.
-    retry_seconds: float = 0.0
+    retry_seconds: Optional[float] = None
     #: Attempts retried on the reply path. 0 means the turn ran clean, which is
     #: a finding — the difference between "this tool is slow" and "this tool
     #: failed nine times quietly" is otherwise unrecoverable from the archive.
-    retry_count: int = 0
+    #: `None` is the different claim that the turn never said — see the block on
+    #: `reply_path_s`. A crashed turn retrying nine times before it died would
+    #: otherwise be archived as the cleanest turn in the run.
+    retry_count: Optional[int] = None
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
     #: logs and continues by design (a graph fault must not break a live

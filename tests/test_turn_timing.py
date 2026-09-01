@@ -219,6 +219,16 @@ _REPAIR_SLEEP = 0.05
 #: exactly, and the repair's own seconds must not be able to leak into it.
 _REPLY_PATH_S = 7.5
 
+#: What the fake context re-render costs when a test opts into one. Zero by
+#: default (see `_StubAdvisor._refresh_context`), because most tests here are
+#: about the repair boundary and a nonzero render would only add a term to every
+#: assertion. The tests that DO set it are the ones about what the person waited:
+#: the re-render happens before the request is sent, so it is a prefix of BOTH
+#: `reply_path_s` and `first_delta_s`, and with this at zero either addition could
+#: be deleted without a test noticing. Deliberately not a multiple of the other
+#: constants, so a figure built from the wrong ones cannot land on the right total.
+_CONTEXT_RENDER_S = 0.4
+
 
 class _StubAdvisor:
     """`Advisor.chat` in isolation, at the boundary this module is about.
@@ -238,9 +248,14 @@ class _StubAdvisor:
 
     AGENT_NAME = Advisor.AGENT_NAME
 
-    def __init__(self, tool_rounds: tuple[ToolRound, ...] = ()) -> None:
+    def __init__(
+        self,
+        tool_rounds: tuple[ToolRound, ...] = (),
+        context_render_s: float = 0.0,
+    ) -> None:
         self.last_turn_timing = None
         self.repaired = False
+        self.context_render_s = context_render_s
 
         class _Conv:
             last_submit_seconds = _REPLY_PATH_S
@@ -250,23 +265,40 @@ class _StubAdvisor:
             # retry inside a tool round is attributed to that round rather than
             # to generation — is pinned in `test_retry_accounting.py`.
             last_submit_retries = RetryAccount()
+            last_submit_first_delta_s = 1.25
+            #: Flipped between turns by the staleness tests below. A provider that
+            #: fails on the SECOND turn is the shape that matters: a facilitator
+            #: and an Advisor are both reused across turns, so what a failure can
+            #: corrupt is whatever the previous turn left behind.
+            fail = False
 
             async def submit(self, _model, _message):
+                if self.fail:
+                    raise RuntimeError("provider down")
                 return _Reply(message="counsel")
+
+            async def submit_stream(self, _model, _message):
+                if self.fail:
+                    raise RuntimeError("provider down")
+                yield ResponseComplete(result=_Reply(message="counsel"))
 
         self._conversation = _Conv()
 
     async def _refresh_context(self) -> float:
-        # Zero, so this module's assertions stay exactly about the repair
-        # boundary. The refresh's own contribution to `reply_path_s` is pinned
-        # in `test_advisor_context_render.py`.
-        return 0.0
+        # Reported rather than measured, like `_REPLY_PATH_S`: the figures under
+        # test are sums of what this returns and what the facilitator reports, so
+        # both terms have to be exactly known for the sum to be asserted exactly.
+        # Zero by default, so most of this module's assertions stay about the
+        # repair boundary alone. The refresh's real seconds are pinned in
+        # `test_advisor_context_render.py`.
+        return self.context_render_s
 
     async def _repair_unrecorded_decision(self, _user, _assistant) -> None:
         await asyncio.sleep(_REPAIR_SLEEP)
         self.repaired = True
 
     chat = Advisor.chat
+    chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
 
 
@@ -321,6 +353,53 @@ class TestTheReplyPathBoundaryIsWhereTheAdvisorSaysItIs:
         # 7.5s reply path, 4.5s of it inside tools → 3.0s of generation.
         assert timing.generation_s == pytest.approx(3.0)
 
+    async def test_a_streamed_turn_reports_the_first_delta_from_the_turns_start(self):
+        """Both figures are offsets from the same instant — the person's message —
+        which is why the re-render's seconds are added to EACH rather than to only
+        one. The facilitator's clock starts when the request is built, so it cannot
+        see the render that preceded it, and a `first_delta_s` measured from that
+        later instant would under-report the blank screen by exactly the render.
+
+        Rendered with a nonzero cost on purpose: at zero, both additions could be
+        deleted and this test would still pass.
+        """
+        advisor = _StubAdvisor(context_render_s=_CONTEXT_RENDER_S)
+
+        with scope("sid-test"):
+            async for _ in advisor.chat_stream("here is my situation"):
+                pass
+
+        timing = advisor.last_turn_timing
+        assert timing is not None
+        assert timing.first_delta_s == pytest.approx(_CONTEXT_RENDER_S + 1.25)
+        assert timing.reply_path_s == pytest.approx(
+            _CONTEXT_RENDER_S + _REPLY_PATH_S
+        )
+        assert timing.context_render_s == pytest.approx(_CONTEXT_RENDER_S)
+        # A prefix, never an addend: the deltas arrive DURING the reply path.
+        assert timing.first_delta_s < timing.reply_path_s
+
+    async def test_an_awaited_turn_counts_the_render_into_the_reply_path_too(self):
+        """The same addition on the other method, which shares no body with it.
+
+        `chat` has no first delta to report, but the person still waited through
+        the render before their reply existed — and the two methods having to
+        write this twice is how the field came to be published from two places.
+        """
+        advisor = _StubAdvisor(context_render_s=_CONTEXT_RENDER_S)
+
+        with scope("sid-test"):
+            await advisor.chat("here is my situation")
+
+        timing = advisor.last_turn_timing
+        assert timing.reply_path_s == pytest.approx(
+            _CONTEXT_RENDER_S + _REPLY_PATH_S
+        )
+        assert timing.context_render_s == pytest.approx(_CONTEXT_RENDER_S)
+        # Nothing streamed, so there is no blank-screen reading to publish — and
+        # `None` says that, where `0.0` would claim an instant first token.
+        assert timing.first_delta_s is None
+
     async def test_an_unscoped_turn_still_refuses_to_run(self):
         """Timing must not have loosened the scope guard.
 
@@ -333,5 +412,50 @@ class TestTheReplyPathBoundaryIsWhereTheAdvisorSaysItIs:
 
         with pytest.raises(Exception):
             await advisor.chat("no scope set")
+
+        assert advisor.last_turn_timing is None
+
+
+@pytest.mark.llm
+class TestACrashedTurnPublishesNothingRatherThanTheLastTurns:
+    """`None` is a gap a reader can see; the previous turn's split is not.
+
+    `_record_turn_timing` is the LAST thing a turn does, so every failure before
+    it — the provider, the tools, the repair — used to leave the field holding the
+    turn before's numbers, still labelled `last_turn_timing`. The e2e driver reads
+    exactly that field per turn (`getattr(arm, "last_turn_timing", None)`), so a
+    crashed turn would have been archived wearing a healthy turn's seconds, which
+    is worse than being archived with none: it is the same class of bug as the
+    unreset `last_tool_results` that once attributed a crash to a healthy turn.
+    """
+
+    async def test_a_crashed_awaited_turn_clears_the_previous_turns_numbers(self):
+        advisor = _StubAdvisor()
+
+        with scope("sid-test"):
+            await advisor.chat("first, which goes fine")
+            assert advisor.last_turn_timing is not None
+
+            advisor._conversation.fail = True
+            with pytest.raises(RuntimeError, match="provider down"):
+                await advisor.chat("second, which does not")
+
+        assert advisor.last_turn_timing is None
+
+    async def test_a_crashed_streamed_turn_does_the_same(self):
+        """Separately, because the reset has to be written twice — the two methods
+        share no body, which is how the field came to be published from two places
+        and reset from none."""
+        advisor = _StubAdvisor()
+
+        with scope("sid-test"):
+            async for _ in advisor.chat_stream("first, which goes fine"):
+                pass
+            assert advisor.last_turn_timing is not None
+
+            advisor._conversation.fail = True
+            with pytest.raises(RuntimeError, match="provider down"):
+                async for _ in advisor.chat_stream("second, which does not"):
+                    pass
 
         assert advisor.last_turn_timing is None
