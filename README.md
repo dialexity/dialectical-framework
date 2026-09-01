@@ -1,6 +1,6 @@
 # Dialectical Framework
 
-**Make an LLM reason in oppositions, not averages.**
+**Dialectical AI: Achieving Objectivity and Synthesis in LLM Reasoning via Structured Tension Graphs**
 
 Ask a model a hard question and it tends to collapse the tension into one confident answer — or hedge with a bland "on one hand… on the other." This framework does neither. For every thesis it generates a genuine antithesis, maps precisely where each side overreaches (T-, A-) and where it constructively balances the other (T+, A+), and drives the pair toward a **synthesis** — not a compromise, but a new quality that emerges from their circular causality and that neither pole held alone.
 
