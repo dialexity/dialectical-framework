@@ -117,12 +117,26 @@ class TurnTiming:
     #: reply exists all at once, so `reply_path_s` already answers it.
     #:
     #: Read it as "when did the waiting stop looking like nothing happening", NOT
-    #: as time-to-first-token. On a turn where the model calls a tool before
-    #: narrating — the Advisor's contracted behaviour — this lands after the whole
-    #: tool round. How often that happens is UNMEASURED: it needs a count of text
-    #: deltas before the first `ToolStart`, which needs the streaming path, and no
-    #: probe has taken it. The prefill-sensitive figure lives
-    #: on `CallRecord.first_token_seconds`, per round.
+    #: as time-to-first-token.
+    #:
+    #: This used to warn that on a turn where the model calls a tool before
+    #: narrating — the Advisor's contracted behaviour — the figure lands after the
+    #: whole tool round, and that how often that happens was UNMEASURED. Measured
+    #: now, and the warning is CONDITIONAL on a setting it never named
+    #: (`probe_first_delta.py`, 2026-09-02). Model text did indeed never precede the
+    #: first `ToolStart` (0 of 3 tool-electing turns, so the premise holds — though
+    #: 0/3 only bounds narration-first below ~63% one-sided, it does not measure it). But this
+    #: field is stamped on the first Text **or** Thinking chunk, and with
+    #: `DIALEXITY_THINKING_LEVEL` set it read 1.3–3.7s on those very turns, tracking
+    #: `ThinkingDelta`, while their first TEXT was 45.7–66.8s. So:
+    #:
+    #: - thinking ON — this is a genuine ~2s "something is happening", every turn
+    #:   shape, and the old warning does not apply;
+    #: - thinking OFF (`thinking_level` defaults to `None`) — it collapses onto first
+    #:   text and the old warning is exactly right, tool round included.
+    #:
+    #: Never quote it without saying which. The prefill-sensitive figure lives on
+    #: `CallRecord.first_token_seconds`, per round.
     first_delta_s: Optional[float] = None
 
     @property

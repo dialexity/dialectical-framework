@@ -106,11 +106,28 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         # its own conversation, and the `OPPOSITE_OF` connect below is the first
         # thing that needs both. They were sequential `await`s purely because the
         # code was written for one pole and called twice, which cost a whole stage
-        # of the tool's ~40s wall clock. MEASURED at ~3.3s (median working time
-        # 40.1s -> 36.8s, parallelism 1.15 -> 1.33). The per-DTO arithmetic said
-        # ~5.8s — 2 x (2.8 classification + 3.0 taxonomy) — and overshot by ~2.5s
-        # for reasons that run did not settle; `probe_anchor_retry_cost.py` holds
-        # both numbers and why the difference is still open. Quote the ~3.3s.
+        # of the tool's ~40s wall clock.
+        #
+        # Two measurements, and they disagree — quote whichever matches the question.
+        # THIS STAGE frees ~6.2s: the two poles' provider intervals overlap almost
+        # perfectly (12.5s serial -> 6.3s gathered, median, `probe_pole_overlap.py`),
+        # slightly MORE than the ~5.8s the per-DTO arithmetic predicted. The TOOL
+        # moved ~3.3s (median working 40.1s -> 36.8s, parallelism 1.15 -> 1.33,
+        # `probe_anchor_retry_cost.py`). The difference is ~2.5s against the
+        # PREDICTION (5.8 - 3.3, which is the base the probe pre-registered) or
+        # ~2.9s against this measurement (6.2 - 3.3) — say which.
+        #
+        # Either way it is NOT in this stage. The poles cost near-identically
+        # (median |A-B| 0.15s over 5 rows; the min-vs-mean bias is 0.33s, which
+        # is mean spread 0.66s / 2 on the retry-free same-DTO-mix subgroup — a
+        # different statistic on a different subgroup, NOT half the median).
+        # There is no interference: median gathered wall equals median max(busy),
+        # within 0.1s on every row, at 0.000s start skew. Contention is small and
+        # not zero: +9% of provider time, which works out to ~0.5s of wall on the
+        # larger of a gathered pair (derived, not printed), against a reference
+        # pooled from a different Case regime. What is left is downstream overhead
+        # growth, or imprecision in the 3.3s itself — a difference of medians at
+        # n=3 with two retrying calls, against a directly measured 6.2s here.
         #
         # Only the LLM half is gathered. The commits and the report merges run
         # after, on this task, one pole at a time — GQLAlchemy is not

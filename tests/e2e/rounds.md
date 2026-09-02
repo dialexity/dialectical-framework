@@ -4900,3 +4900,223 @@ Suites: 18 new; 126 across the nine timing/streaming/reuse modules (`turn_record
 `turn_timing`, `retry_accounting`, `advisor_context_render`, `context_refresh_cost`,
 `turn_finalization`, `stream_retry`, `stream_ttft`, `reply_reuse`); 626 in
 `tests/e2e/test_e2e.py`; and 1406 passed / 37 skipped for the rest of the tree.
+
+### anchor-pole-gather: the stage frees 6.2s, the tool moved 3.3s, and neither number was the finding (2026-09-02)
+
+**The lever worked, the arithmetic that predicted it was refuted twice over, and the thing that
+actually makes a turn feel snappy turned out to be already switched on.** Three measurements, taken
+in that order, and each one moved the question rather than answering it.
+
+The arc started as UX, not as optimisation: an Advisor with the theory in its system prompt feels
+snappy, an Advisor that walks the full ceremony "is very lengthy", and the ask was for both at
+once. `probe_reply_path_latency.py` had already said where the wall clock is — `anchor` **107.8s**
+and `explore` **196.0s** medians against ≤1.8s for every other tool — so `anchor` was the lever and
+`IntroducePolarity`'s two poles were the one place in it where two independent chains ran
+sequentially for no reason but the order the code was written in.
+
+**What shipped.** Two changes, both in `1a21fd4`. The pole classifications are gathered
+(`introduce_polarity.py:137-140`), with the LLM half split out of the graph half —
+`_classify_statement` has no graph writes and no report mutation, `_commit_statement` runs on the
+parent one pole at a time, because GQLAlchemy is not concurrency-safe and `report.merge` returns a
+NEW report rather than mutating, so two tasks assigning `self._report` would silently drop one
+pole's nodes. No `return_exceptions=True`, deliberately: a failing pole must abort the tool exactly
+as the sequential version did, at the price that the surviving pole's calls run on and are
+discarded. And `anchor` now speaks while it works, on the separate `f"{sid}:progress"` channel, so
+a host that ignores it sees byte-for-byte what it saw before.
+
+**Measurement 1: the tool moved ~3.3s, against ~5.8s predicted.** `probe_anchor_retry_cost.py`, n=3
+per side: median *working* seconds 40.1s → 36.8s, parallelism 1.15 → 1.33. The prediction had come
+from per-DTO arithmetic (`ClassificationDto` 22.3s and `TaxonomyLocationDto` 24.1s over 8 calls
+each, `HeadlineDto` ~1.0s), and the shortfall is what the round then spent itself on.
+
+**Measurement 2: the STAGE frees ~6.2s — MORE than predicted — so the gap is not where I looked
+for it.** `probe_pole_overlap.py`, n=5, no retries. The two poles' provider intervals overlap a
+median **6.25s**; the stage goes **12.5s serial → 6.3s gathered**, with median `max(busy)` equal
+to the median gathered wall at 6.3s and within 0.1s of it on every row, at **0.000s** start skew
+throughout. Near-perfect overlap, no interference.
+
+**Which makes the gap 2.9s, not the 2.5s the round was framed around, and both numbers belong in
+the record.** 2.5s is `5.8 predicted − 3.3 at the tool`; that is what the probe pre-registered
+against and where its 5.0s spread threshold came from (2 × 2.5). Once the stage is measured at 6.2s
+freed, the stage-vs-tool discrepancy is `6.2 − 3.3 = 2.9s`. Nothing below changes sign, but a
+decomposition quoted against the wrong base is the kind of error this file exists to catch.
+
+My explanation for the shortfall was pre-registered and is **REFUTED**. The hypothesis was
+min-vs-mean: a gather saves `min(A, B)`, arithmetic over means predicts `mean`, and the difference
+is `E|A−B| / 2`, which needs a spread of **5.0s** to account for 2.5s. Measured spread is a median
+**0.15s** over the 5 rows (mean 0.56s, max 2.17s). The bias is **0.33s** — which is mean spread
+0.66s halved on the retry-free same-DTO-mix subgroup, a different statistic on a different subgroup
+and *not* half the median, a "so" that does not follow and was written that way in an earlier draft.
+That leaves a residual of **+2.17s** against the 2.5s base, **+2.57s** against the 2.9s one.
+Contention is small and NOT zero: +9% of provider time, which works out to ~0.5s of wall on the
+larger of a gathered pair (derived, not printed) — ~20% of the gap — measured against a reference
+pooled from a sequential run in a different `Case` regime, so it is weak evidence rather than
+absence.
+
+**The pre-registration is the whole reason that is a refutation and not a shrug.** Had the 5.0s
+threshold not been fixed in advance, 0.33s would have been written up as "poles do vary, so the
+prediction was biased high" — which is *true*, and explains nearly none of the gap. Two structural
+pre-registrations fired as well, which is why the spread is trustworthy: **1 of 5 rows had a mixed
+DTO set** (an 8-word pole crossed `StatementHeadline`'s 7-word short-circuit and made a
+`HeadlineDto` call its 6-word partner did not — both counts read off the probe's `TENSIONS`
+constant, not off the report, which truncates pole text to 24 chars), and **0 poles classified
+`is_simple`**.
+
+**So the 2.5s is RELOCATED, not closed, and the honest reading is that the loose figure is the
+3.3s.** What survives is downstream overhead growth — freed provider time reappearing as graph
+writes later in the tool — and imprecision in the tool-level figure itself, which is a difference
+of medians at n=3 with two retrying calls and no error bar, set against a directly measured 6.2s.
+The instrument with the error bar is the pole probe. "The tool-level saving was underestimated" is
+as live an explanation as anything about the framework, and it is stated that way at every site.
+
+**Measurement 3: the field that had carried UNMEASURED since it was written, and its warning is
+CONDITIONAL on a setting it never named.** `TurnTiming.first_delta_s` warned that on a
+tool-electing turn — the Advisor's contracted behaviour — it lands after the whole tool round, and
+that how often that happens was unmeasured. `probe_first_delta.py` took it, 2 reps × 5 turns.
+
+| channel | n | median |
+|---|---|---|
+| model thinking | 10 | **2.39s** |
+| ToolStart | 3 | 9.80s |
+| progress event | 2 | 7.68s |
+| model text | 10 | 12.20s |
+| ANY of them | 10 | **2.39s** |
+
+The premise holds: **model text never preceded the first `ToolStart`**, 0 of 3 tool-electing turns.
+The conclusion does not. `first_delta_s` is stamped on the first Text **or** Thinking chunk, and
+with `DIALEXITY_THINKING_LEVEL=medium` it read **3.71 / 1.31 / 1.67s on those very turns**
+(r1t1 / r2t1 / r2t5, turn order), tracking `ThinkingDelta`, while their first TEXT in the same order
+was **55.65 / 45.69 / 66.79s**. Unset thinking (the `settings.py` default) and the field collapses
+onto first text and the old warning is exactly right, tool round included. Two provenance notes,
+because this is the claim the entry rests on: the level was read out of the environment but
+SEPARATELY — the first run of the probe did not print the knob, so its log shows only that
+`ThinkingDelta`s arrived on 10/10 turns, and the header now prints it so a re-run archives what this
+paragraph asserts. And quote those two lists in turn order or as ranges; sorting each independently,
+as an earlier draft did, pairs 1.67s with 55.7s and misattributes both.
+
+**The figure that outranks the lever: time-to-first-anything is 2.39s against 12.20s for text, so
+thinking is what makes a turn feel snappy.** Take the ratio WITHIN a population or it is arithmetic
+across two: **~3×** on the tool-free majority (text 7.46s against thinking 2.50s, both over those 7
+turns), **~33×** on the three tool turns (55.65s against 1.67s, both over those 3), ~5× pooled over
+all 10. An earlier draft wrote ~5× for the tool-free subset — the pooled figure mislabelled — and
+~23× for the tool turns, which divides a subgroup numerator by the pooled denominator. Every
+prompt-size and gather lever this arc pursued is small beside a switch that was never the subject of
+a measurement. That is the answer to the original UX
+question, and it was not the answer the round was built to find.
+
+The progress channel held where it exists: 2 of 3 `silent-first` turns emitted progress a median
+**42.99s before any model text** (`anchor` at 5.52s / 9.84s, 15–18 events across the round), so
+`silent-first` never meant the person saw nothing. **The third turn is an actionable hole, and it is ~5.6s rather than the ~65s an earlier
+draft of this entry claimed.** `record_decision` has no `progress_scope`, so nothing narrated its
+execution — but progress only exists WHILE a tool runs (on `anchor` the first event lands 0.04s
+after `ToolStart`), and on that turn `ToolStart` was at 61.21s against first text at 66.79s, so the
+missing scope accounts for the 5.6s between them. The larger stretch, 1.67s to 61.21s, is round 1
+generating the tool call: not a progress gap, and no scope anywhere could fill it. The clause "while
+a 61s round ran" contained the refutation — that round ran BEFORE the tool. The 5.6s is the same
+class of hole `utils/progress.py` closed in `explore` and is left open on purpose, named here rather
+than fixed inside a measurement round; the 59s is a different problem, and one this probe cannot
+even size.
+
+The field itself validates: **+0.001s** median against a consumer-side reading of the same event,
+n=10, no turn negative.
+
+**What does NOT hold, stated so it cannot be quoted otherwise.**
+
+- **0/3 is not 0%.** Three is the probe's own floor for a denominator; the ONE-SIDED 95%
+  Clopper-Pearson upper bound on narration-first is **63%** (`1 − 0.05^(1/3)`; two-sided it is
+  70.8%, and at this denominator which one is meant is load-bearing). It rules out "narration first
+  is the norm" and nothing narrower.
+- **The 2.5s is not explained.** It is excluded from the pole stage. Three candidates were tested
+  and all three failed: imperfect overlap (near-perfect), pole spread (0.33s), contention (~0.5s
+  and weakly referenced).
+- **`min(A,B)` and the span bias from the overlap run are refutations only.** The spread is at its
+  floor, so every span statistic there is near-degenerate.
+- **`probe_first_delta.py` records FIRSTS**, so a turn whose thinking stopped early and whose text
+  arrived a minute later is indistinguishable from one that streamed thinking throughout. r2t5
+  (thinking from 1.67s, text at 66.79s) is a turn it cannot tell apart from either — which is why
+  the 59s above is unsized and not merely unexplained. Sizing it needs last-delta-before-tool, which
+  nothing takes.
+- **2.39s is not comparable with `probe_stream_ttft.py`'s 1.46s.** That is
+  `CallRecord.first_token_seconds`: first chunk of ANY kind, clocked from that ROUND's
+  `call_started`. This one runs from the person's message. Different clocks, and the ratio of them
+  is not a number.
+- **Weak tier throughout.** It is the tier documented to UNDER-elect tools, which is the whole
+  reason the tool denominator is 3.
+
+**Three instrument lessons, and they cost more of this round than the lever did.** Two review
+passes rejected `probe_pole_overlap.py` before it ran, both times for measuring its own
+construction:
+
+1. **`realized = serial − overlap_wall` is identically `min(A,B) − skew`, and `skew ≈ 0` by
+   construction**, because `asyncio.gather` schedules both coroutines in the same event-loop tick.
+   An instrument built on it restates why it was built.
+2. **A span-based reading books INTERFERENCE as its own thesis.** Queueing shows up as duration,
+   not skew, so two *fully serialized* 5.8s poles read spans 5.8/11.6 → spread 5.8s → "bias 2.9s
+   explains the whole gap", with the true cause invisible. The replacement headline —
+   inclusion-exclusion over per-pole `CallCensus` intervals, `overlap = busy_A + busy_B −
+   busy_union` — reads exactly **0.00s** on that pair, by construction: a serialized pair has an
+   empty intersection. That is a proof, not a test; nothing in the tree pins it.
+3. **`bias = mean_pole − mean(min(A,B))` IS `mean_spread / 2`**, per row, identically. Reporting
+   both is one reading printed twice, not two that agree — and the same trap sat in "`bias = gap`"
+   beside "`E[min] = measured`", which are one statement rearranged.
+
+A fourth, specific to this codebase: **a single parse retry satisfies a 5.0s spread threshold by
+itself** (~2.0s sleep plus a ~3.4s discarded attempt, and `record_call` fires BEFORE
+`response.parse()`, so the discard is a full extra `CallRecord` that also inflates
+`expected_provider_s` by a whole mean). Span statistics are therefore gated to a retry-free,
+same-DTO-mix subgroup. And for the delta probe: **classifying on `TextDelta` alone would have
+reported a bogus 52-second field discrepancy** — validate against `min(first_text,
+first_thinking)`, because that is what the field is stamped on. Iterating `chat_stream` to
+EXHAUSTION is load-bearing rather than leak hygiene: `_record_turn_timing` runs after the
+`async with` inside it, so a `break` plus `aclose()` leaves `last_turn_timing` at `None` and every
+field column prints "none".
+
+**One defect found in an already-committed probe, and it is the kind that survives review.**
+`probe_anchor_retry_cost.py` read "RETRIES: 0 of 5 calls laddered" fifty lines below a note that two
+of three calls took a single parse retry each. Both were true — "laddered" was carrying two
+meanings and only the second was zero — and the file would have let a retry-contaminated spread be
+quoted as clean. It now says what it means, and its stale citation to the pre-gather sequential
+`await`s is corrected. **A probe's prose ages against the code it cites, and nothing checks it.**
+
+**Verification.** **This round added no tests, and that is a real limit rather than an omission
+to skip past.** It is a measurement round: the code it documents (the gather, the progress channel)
+landed in `1a21fd4` and is pinned there — `test_progress.py` pins `IntroducePolarity.PROGRESS_STEPS`
+against the actual `report_progress` calls, so a step added or removed fails free. Everything this
+round produced is prose and two probes, and **`probe_*.py` is not collected by a plain
+`poetry run pytest`** (pytest's `test_*.py` pattern), so both probes' coherence assertions run only
+when the probe itself runs against a provider. Neither has free guards worth re-collecting into
+`test_e2e.py` the way `probe_option_pair_tetrads.py` did — they are pure measurement — which means
+the figures above are defended by the pre-registrations and the two review passes, not by CI.
+
+Suites, all green after every edit: **79** across the five timing/streaming/progress modules
+(`test_progress`, `test_turn_timing`, `test_turn_finalization`, `test_stream_ttft`,
+`test_retry_accounting`); **626** in `tests/e2e/test_e2e.py`; **1426 passed / 37 skipped** for the
+rest of the tree (1406/37 at the previous entry).
+
+**And a second review pass on this entry's own prose found ten more defects, none of them in the
+mechanism — the same pattern the previous round closed with.** Four were wrong numbers: the
+`record_decision` hole was published as ~65s when the missing scope can only account for ~5.6s (the
+other 59s is round-1 generation, which no progress channel reaches, and the clause "while a 61s
+round ran" contained its own refutation); "~5× on the tool-free majority" was the pooled figure
+mislabelled (it is ~3×); "~23× on the tool turns" divided a subgroup numerator by the pooled
+denominator (~33× within the population); and the whole gap decomposition was quoted against 2.5s
+after the measurement had moved the stage-vs-tool base to 2.9s. Two were fabricated precision: a
+per-row `|A-B|` table transcribed to two decimals the report never printed, whose median came to
+0.10 against the summary's own 0.15s, and a "6-word partner" that review flagged as invented because the report truncates
+pole text to 24 characters — **this one was a false alarm and is restored**: both word counts are
+read off the probe's own `TENSIONS` constant, and the citation now says so. Worth recording, because
+a reviewer checking the log alone cannot distinguish a fabricated figure from one whose provenance is
+the source file. One was a causal connective that does not hold ("median 0.15s, **so** the bias is
+0.33s" — different statistic, different subgroup). One was a provenance claim the archive cannot
+support: `DIALEXITY_THINKING_LEVEL=medium` was asserted as "read out of the environment" while the
+probe never printed it, so its log proves only that thinking was on, not at what level (the header
+prints it now). One paired two lists sorted independently, silently matching 1.67s to 55.7s. And
+one is the sharpest, because **this entry congratulates itself on catching exactly it**: the boast
+that "a probe's prose ages against the code it cites, and nothing checks it" sat beside two
+citations — `introduce_polarity.py:129-132` and `:128` — that the comment rewrite in this very
+commit had pushed to 137-140 and 136. Both now cite by symbol.
+
+Probe runs behind the figures: `probe_pole_overlap.py` n=5 in 2m41s (0 retries in 5 calls),
+`probe_first_delta.py` 2×5 turns in 5m09s, `probe_anchor_retry_cost.py` n=3 per side. Both new
+probes carry a RESULT section and a row in `tests/e2e/README.md`'s registry, which is the file a
+reader consults before spending provider budget.

@@ -220,8 +220,11 @@ Consequences:
 - `parallelism 1.15` says only 15% of both-poles' provider time is CURRENTLY
   overlapped. It does not say the branch is out of opportunities — parallelism
   measures overlap achieved, not overlap available, and the two independent pole
-  resolutions at `introduce_polarity.py:85-88` are sequential `await`s that this
-  figure is precisely the evidence for.
+  resolutions were sequential `await`s that this figure is precisely the evidence
+  for. (They are now gathered — `IntroducePolarity.resolve`'s `asyncio.gather`
+  over `_classify_statement`, cited by symbol because two earlier line-number
+  citations here went stale within one commit; this bullet
+  describes the pre-change code the 1.15 was measured on.)
 
 THE CONFOUND, and why the comparison is weaker than it looks
 -----------------------------------------------------------
@@ -290,8 +293,11 @@ makes the levers costable, and it prices two of them DOWN:
 - Gathering the two `_resolve_statement` calls saves one pole's ~5.8s (~14%),
   which is the largest safe structural saving available. **DONE** — that method is
   now split into `IntroducePolarity._classify_statement` (gathered for both poles)
-  and `_commit_statement` (sequential, on the parent). It was MEASURED at ~3.3s,
-  not ~5.8s; see the section below, and prefer that number.
+  and `_commit_statement` (sequential, on the parent). Two measurements that
+  disagree: the TOOL moved ~3.3s (below), while the STAGE frees a directly measured
+  ~6.2s (`probe_pole_overlap.py`, 12.5s serial -> 6.3s gathered). Quote whichever
+  matches the question, and see "SETTLED, PARTLY" below for why the difference is
+  not in this stage.
   A second, much smaller gather went in beside it — `AnchorTheses` ran its
   classification and headline lists in two sequential `gather`s — but that one is
   worth ~1.0s at most and usually nothing, because `HeadlineDto` fired once in
@@ -330,10 +336,30 @@ writes, framework overhead) — but the pre-change run recorded `parallelism` pe
 and never `busy_s` or `provider_s` per row, and the only provider figure preserved
 is a branch-level "~44s". Recovering baseline `busy_s` from that means dividing a
 rounded number by a 2-decimal ratio, and the whole 2.5s question is inside that
-rounding. So the gap is UNEXPLAINED, and the two candidate explanations — real
+rounding. So the gap is UNEXPLAINED here, and the two candidate explanations — real
 overhead growth vs. the two gathered poles contending so the pair costs more than
 `max(pole)` — are not distinguishable from this run. n=3 with two retries is thin.
 If it matters later, print `busy_s`/`provider_s` per row and re-run both arms.
+
+SETTLED, PARTLY, 2026-09-02 by `probe_pole_overlap.py` — which measured the pole
+stage directly with a per-pole census. **The stage's saving is LARGER than
+predicted**: the two poles' provider intervals overlap near-perfectly (median 12.5s
+serial -> 6.3s gathered, so the stage frees ~6.2s against the ~5.8s arithmetic), at
+0.000s start skew. **Contention is small and weakly referenced, NOT out** — retry-free
+poles ran +9% of provider time against the pre-change per-DTO means, which works out
+to ~0.5s of wall on the larger of a gathered pair (derived, not printed) and is ~20%
+of the gap being decomposed; the reference is pooled from a sequential run in a
+different `Case` regime, so it is weak evidence rather than absence. A third candidate
+that probe was built to test — that the ~5.8s used E[pole] where a gather saves
+`min(A,B)` — was REFUTED against a pre-registered threshold: the poles cost
+near-identically (median `|A-B|` 0.15s over 5 rows), and the bias is 0.33s, which is
+mean spread 0.66s / 2 on the retry-free same-DTO-mix subgroup — a different statistic
+on a different subgroup, not half the median. Read that 0.33s against a gap of 2.5s
+(5.8 predicted - 3.3 measured, the base the probe pre-registered) or 2.9s (6.2
+measured - 3.3); say which.
+**What survives is overhead growth, plus the possibility that the 3.3s above is
+simply low** — it is a difference of medians at n=3 with two retrying calls, and it
+is now the loose figure in the comparison rather than the firm one.
 
 WHAT THE CALL COUNTS PROVE ABOUT THE REASONING (the part wall clock cannot show)
 -------------------------------------------------------------------------------
@@ -360,8 +386,15 @@ now the SLOWER branch on wall clock (median 43.1s vs 42.0s) where the confounded
 run had it faster. "thesis-only is not slower" survives; "thesis-only is faster"
 is retired, as that section warned it would have to be.
 
-RETRIES: 0 of 5 calls laddered, so the retry sleep the archive records on three
-post-fix `anchor` rounds — 8.1s, 9.8s and 10.2s — did NOT reproduce here. (Stated
+RETRIES: 2 of 5 calls took a SINGLE parse retry each (~2.0s sleep + ~3.4s discarded
+attempt, both on `TetradDto`, as the `working` note above records); none climbed
+further. So no call LADDERED in the sense this probe was built to detect, and the
+retry sleep the archive records on three post-fix `anchor` rounds — 8.1s, 9.8s and
+10.2s — did NOT reproduce here. (This line read "0 of 5 calls laddered" until
+2026-09-02, which contradicted the `working` note 50 lines above it and would have
+let a retry-contaminated spread be quoted as clean; "laddered" was carrying two
+meanings — "retried at all" and "climbed multiple rungs" — and only the second was
+zero.) (Stated
 without a denominator on purpose: whether that is 3 of 5 or 3 of 7 depends on
 whether a turn whose `tool_retry_seconds` entry is labelled `discard+anchor`
 counts as an `anchor` round, and nothing in `rounds.md` settles it.) The sleep
