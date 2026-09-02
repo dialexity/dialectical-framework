@@ -203,6 +203,9 @@ thesis-only's extra calls sit inside gathers. And the simplest account of the 3.
 gap is not depth at all — **both-poles runs one serial stage pair that thesis-only
 never runs**, the second `_resolve_statement` at ~5.8s, which is also lever 1
 below. That the gap and the lever are the same size is corroboration, not proof.
+(And the "same size" agreement was partly luck: removing that stage bought ~3.3s,
+not ~5.8s, and the 3.8s gap it was matched against was itself confounded. Both
+figures were wrong in ways that cancelled — see the 2026-09-02 section.)
 
 Consequences:
 - Steering the model toward one branch for speed is pointless. thesis-only buys
@@ -287,15 +290,75 @@ makes the levers costable, and it prices two of them DOWN:
 - Gathering the two `_resolve_statement` calls saves one pole's ~5.8s (~14%),
   which is the largest safe structural saving available. **DONE** — that method is
   now split into `IntroducePolarity._classify_statement` (gathered for both poles)
-  and `_commit_statement` (sequential, on the parent). The saving is UNVERIFIED
-  against a provider: a clean re-run of this probe on the fixed per-branch `Case`
-  is owed, and until it exists the ~5.8s is arithmetic from the table above, not a
-  measurement of the change.
+  and `_commit_statement` (sequential, on the parent). It was MEASURED at ~3.3s,
+  not ~5.8s; see the section below, and prefer that number.
   A second, much smaller gather went in beside it — `AnchorTheses` ran its
   classification and headline lists in two sequential `gather`s — but that one is
   worth ~1.0s at most and usually nothing, because `HeadlineDto` fired once in
   five calls here. Do not read the ~2.8s + ~3.0s pair as its cost: both of those
   rows are `StatementClassification`'s own two submits.
+
+AFTER LEVER 1, ON A FRESH PER-BRANCH CASE (2026-09-02, haiku-4.5, 3m42s)
+=======================================================================
+The re-run that was owed above. Both branches, fresh `Case` each, so the
+thesis-only rows are NOT comparable with the confounded ones above — that is the
+point of the fix, and the confound resolves in the direction predicted.
+
+    both-poles   waited  45.8s  35.6s  42.0s   working  40.4s  35.6s  36.8s
+                 calls   11  11  13     parallelism 1.33  1.33  1.37
+    thesis-only  waited  45.4s  40.9s          working  45.4s  40.9s
+                 calls   39  39           parallelism 5.00  5.02
+
+**Read `working`, not `waited`.** Two of three both-poles calls took one parse
+retry each (2.0s sleep + ~3.4s discarded attempt); the pre-change run took none in
+five calls, so `waited` compares a retrying run against a clean one. Both retries
+were on `TetradDto`, i.e. the XML-derailment dialect described above, unrelated to
+this change.
+
+    median working   40.1s -> 36.8s     about 3.3s, ~8%
+    parallelism      1.15  -> 1.33
+
+The arithmetic predicted ~5.8s and the measurement is ~3.3s, so **the prediction
+overshot by roughly 2.5s and the recorded saving is the measured one.** The
+cleanest single pairing agrees and is not a median artifact: "Move the anchor
+accounts to my name" is the same thesis at the same position in the same branch
+with zero retries on both sides, 38.9s -> 35.6s.
+
+Why the shortfall is NOT settled here. The tempting derivation is that `busy_s`
+fell by the full ~5.8s and ~2.5s of it reappeared as non-provider time (graph
+writes, framework overhead) — but the pre-change run recorded `parallelism` per row
+and never `busy_s` or `provider_s` per row, and the only provider figure preserved
+is a branch-level "~44s". Recovering baseline `busy_s` from that means dividing a
+rounded number by a 2-decimal ratio, and the whole 2.5s question is inside that
+rounding. So the gap is UNEXPLAINED, and the two candidate explanations — real
+overhead growth vs. the two gathered poles contending so the pair costs more than
+`max(pole)` — are not distinguishable from this run. n=3 with two retries is thin.
+If it matters later, print `busy_s`/`provider_s` per row and re-run both arms.
+
+WHAT THE CALL COUNTS PROVE ABOUT THE REASONING (the part wall clock cannot show)
+-------------------------------------------------------------------------------
+Pooled, against the pre-change run. Every DTO this change touches is UNCHANGED in
+count, which is the evidence that the gather moved WHEN work happens and not WHAT
+is asked:
+
+    ClassificationDto           8 ->  8      the two gathered submits, per pole
+    TaxonomyLocationDto         8 ->  8
+    HeadlineDto                 1 ->  1      still short-circuits at 7 words
+    ContextualizedTaxonomyDto   5 ->  5
+    ModePointResultDto         22 -> 22      all 11 mode branches, twice, again
+    SemanticDedupDto           12 -> 12
+    TetradDto                  11 -> 15
+    CoherenceEvaluationDto     22 -> 26
+    GroundingDto               11 -> 13
+
+The three that moved are the confound lifting, and they move in lockstep: 2 of the
+4 extra `TetradDto` are the discarded parse attempts (a failed attempt still
+records a call), leaving 2 extra expansions — which is exactly +4 coherence at two
+per expansion and +2 grounding at one per expansion. Fresh-Case thesis-only has no
+`OPPOSITE_OF` edges or Polarities waiting for it, so it expands more, and it is
+now the SLOWER branch on wall clock (median 43.1s vs 42.0s) where the confounded
+run had it faster. "thesis-only is not slower" survives; "thesis-only is faster"
+is retired, as that section warned it would have to be.
 
 RETRIES: 0 of 5 calls laddered, so the retry sleep the archive records on three
 post-fix `anchor` rounds — 8.1s, 9.8s and 10.2s — did NOT reproduce here. (Stated

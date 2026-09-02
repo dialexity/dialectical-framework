@@ -105,9 +105,12 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         # CONCURRENTLY: neither reads the other, each builds its own concerns with
         # its own conversation, and the `OPPOSITE_OF` connect below is the first
         # thing that needs both. They were sequential `await`s purely because the
-        # code was written for one pole and called twice, which cost a whole ~5.8s
-        # stage of the tool's ~40s wall clock (2 x (2.8 classification + 3.0
-        # taxonomy), `probe_anchor_retry_cost.py`).
+        # code was written for one pole and called twice, which cost a whole stage
+        # of the tool's ~40s wall clock. MEASURED at ~3.3s (median working time
+        # 40.1s -> 36.8s, parallelism 1.15 -> 1.33). The per-DTO arithmetic said
+        # ~5.8s — 2 x (2.8 classification + 3.0 taxonomy) — and overshot by ~2.5s
+        # for reasons that run did not settle; `probe_anchor_retry_cost.py` holds
+        # both numbers and why the difference is still open. Quote the ~3.3s.
         #
         # Only the LLM half is gathered. The commits and the report merges run
         # after, on this task, one pole at a time — GQLAlchemy is not
