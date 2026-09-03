@@ -1226,6 +1226,18 @@ model did not also pass `intent` (which has a default one line below). Whether m
 unresolvable hashes → `ok=False`; `inputs_read == 0` → "No input material in scope"; material read, nothing
 extracted → the anchor-instead advice the Advisor prompt's empty-ingest fallback expects. Collapsing the
 last two would deliver a verdict on material that does not exist.
+**`ingest`'s `SourceDigest` step is fail-soft, and the except must stay WIDE.** It was
+`except (ValueError, RuntimeError): pass`, which caught only `SourceDigest`'s own two guards ("Input not
+found", "no resolvable content") — the least likely failures there, since the Input was created two lines
+up — and let the likely ones (provider error, response-model validation, a URL fetch dying inside
+`resolve_native`) abort the whole tool, losing an analysis over a summary. Now `except Exception`, logged at
+WARNING, following `TetradGrounding`'s fail-soft idiom. And it no longer `pass`es: the outcome lands in
+`artifacts["digest"]` ("created" / "failed softly (Type: msg)…"), because a swallowed failure is
+indistinguishable from "digest not written yet" — to the model, and to `input_context`, which then silently
+ships full content where a digest was intended. The note deliberately names NO retry tool: `ingest` is
+Advisor-only and the Advisor carries `read_digest` but not `digest_input`, so a pointer would be a dead
+off-ramp. `digest_input` itself keeps raising — there the model asked for a digest, so failing is the answer.
+Locked by `tests/test_ingest_digest_fail_soft.py`.
 
 **Aspect dedup excludes the tetrad's own poles — and must keep doing so.** An aspect is a development OF
 a pole, so it is by construction the most similar node in the graph to that pole, while Rule 1 requires
