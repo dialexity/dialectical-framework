@@ -2105,7 +2105,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   conversation** (the text sits in history for steps 2 and 3) run under **up to 3 param variations** each building
   a fresh `ThesisExtraction` — so 1.2 MB is up to ~9 sends of ~300k tokens, and that one is still open. The
   distinction that decides the instrument: **digestion and extraction want COVERAGE, grounding wants RELEVANCE.**
-  Grounding HAS a query (the pole being validated, the statement being classified), so top-k retrieval fits it.
+  Grounding HAS a query (the pole being validated, the statement being classified), so top-k retrieval fits it —
+  but **retrieval is the APPLICATION's job, decided 2026-09-03, and the framework will not grow embeddings.**
+  `InputResolver` is the seam and it was designed for exactly this: its docstring says the resolver "can traverse
+  the graph to access related context (e.g. `Ideas.intent` for RAG relevance hints)", and that traversal is real
+  (`Input.ideas` → `Ideas.intent` via `IntentMixin`), so an app can serve retrieved passages from `resolve()` with
+  **no protocol change** — no embedding-provider setting, no `Chunk` node, no vector index in the reasoning graph.
+  (Memgraph 3.9.0 *does* support native vector indexes — verified live, `CREATE VECTOR INDEX ... WITH CONFIG
+  {"dimension": N, "capacity": N, "metric": "cos"}` plus `CALL vector_search.search(...)`; `SHOW VECTOR INDICES`
+  is NOT valid syntax, it is `SHOW VECTOR INDEX INFO`. So the option is open, it is just not ours to take. Note
+  that embeddings would need their OWN provider setting regardless, independent of `DIALEXITY_DEFAULT_MODEL`,
+  because Anthropic has no embeddings API.) The decisive argument is not ownership though: **grounding reads
+  DIGESTS, not raw content** — `input_context` prefers `Input.digest` and falls back to resolved content only when
+  one is missing, which after the coverage fix above is the exception. The digest already IS the semantic
+  compression, and it is built by sweeping for coverage rather than selecting top-k. Framework-side retrieval
+  would only help a concern needing a specific passage VERBATIM, and no consumer asks for that.
   Extraction has NO query — the theses are the thing being looked for — so top-k against the intent string
   returns what the intent already anticipated and systematically misses the tensions nobody thought to ask about,
   which is the framework's whole job. **Retrieval therefore cannot substitute for a sweep**, and no vector index

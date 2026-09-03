@@ -13,7 +13,10 @@ about none of them:
   the understanding is of the first N pages and says otherwise. That is a sweep
   over all chunks plus a merge, not a selection.
 - **Grounding wants RELEVANCE** — the passages bearing on one pole. That is a
-  selection, and a retrieval index is the right instrument for it.
+  selection, and a retrieval index is the right instrument for it — but that index belongs to the APPLICATION,
+  served through `InputResolver` (whose docstring already names `Ideas.intent` as the relevance hint). The
+  framework grows no embeddings: grounding reads `Input.digest`, which is already a semantic compression built by
+  sweeping for coverage.
 
 Retrieval cannot do coverage: extraction has no query to retrieve against, since
 the theses are the thing being looked for, so top-k against the intent string
