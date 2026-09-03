@@ -128,3 +128,56 @@ class TestAddInputIsIdempotent:
 
             assert concern.report.artifacts["input_hash"] == node.hash
             assert len(node.hash) == 64
+
+
+class TestEveryCaptureSiteDigests:
+    """"Whoever adds the input, digests it" — only `ingest` used to.
+
+    No LLM involved: content under `DIGEST_THRESHOLD` is used as its own
+    digest, which is also why adding this step left a short proactive capture
+    as instant as it was.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_add_input_tool_digests(self):
+        from dialectical_framework.agents.orchestrator.tools.add_input import \
+            add_input
+
+        case = _new_case()
+        text = "The cofounder wants out and the runway is eight months."
+        with scope(case.sid):
+            out = await add_input.fn(content=text)
+
+            captured = InputRepository().get_all()
+            assert [i.digest for i in captured] == [text]
+            assert '"digest": "created"' in out
+
+    @pytest.mark.asyncio
+    async def test_the_pipelines_own_capture_digests(self):
+        """Material captured through `analyze` used to stay undigested forever."""
+        case = _new_case()
+        with scope(case.sid):
+            pipeline = AnalysisPipeline(text="Growth stalls whenever we hire fast.")
+            await pipeline.resolve()
+
+            captured = InputRepository().get_all()
+            assert len(captured) == 1
+            assert captured[0].digest == "Growth stalls whenever we hire fast."
+            assert pipeline.report.artifacts["digest"] == "created"
+
+    @pytest.mark.asyncio
+    async def test_the_second_capture_pays_nothing(self):
+        """`ingest` digests, then the pipeline's own capture must not re-do it."""
+        case = _new_case()
+        text = "Runway is eight months and the cofounder wants out."
+        with scope(case.sid):
+            from dialectical_framework.concerns.source_digest import \
+                ensure_digest
+
+            node = await AddInput().resolve(content=text)
+            assert await ensure_digest(node.hash) == "created"
+
+            pipeline = AnalysisPipeline(text=text)
+            await pipeline.resolve()
+
+            assert pipeline.report.artifacts["digest"] == "already present"

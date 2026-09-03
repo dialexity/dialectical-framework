@@ -19,6 +19,7 @@ Programmatic usage:
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Union
 
 from dependency_injector.wiring import Provide, inject
@@ -37,6 +38,8 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
+
+logger = logging.getLogger(__name__)
 
 DIGEST_THRESHOLD = 1500
 
@@ -193,3 +196,74 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         else:
             parts.append(content)
         return parts
+
+
+async def ensure_digest(
+    input_hash: str,
+    context: str = "",
+    *,
+    refresh: bool = False,
+) -> str:
+    """Digest an Input if it needs one. Never raises; returns a status note.
+
+    "Whoever adds the input, digests it" was a convention two of the three
+    capture sites did not keep: only `ingest` digested, while the `add_input`
+    tool and `AnalysisPipeline`'s own capture left `Input.digest` empty. An
+    undigested Input is not a cosmetic gap — `input_context` falls back to its
+    full content for every downstream concern, so the whole analysis paid the
+    raw source repeatedly (that rendering is bounded now, which turns the same
+    gap from a failure into lost fidelity: the model reasons from the head of
+    a document instead of an understanding of all of it).
+
+    Fail-soft, and the whole point of the helper is that the three call sites
+    fail-soft the SAME way. The digest is enrichment: perspectives are built
+    from the rendered context either way, so a provider hiccup on a summary
+    must not cost the analysis. The wide `except` is deliberate — the narrow
+    `(ValueError, RuntimeError)` this replaces caught only `SourceDigest`'s own
+    guards, the least likely failures at a capture site, and let provider,
+    validation and fetch errors abort the caller.
+
+    Takes a HASH, not the node object, and that is not a style choice. On a
+    dedup hit `commit()` copies the stored node's `_id` onto the fresh object
+    and returns THAT (`base_node.py`), so every mutable hash-excluded field —
+    `digest` among them — reads as the caller's fresh value rather than what is
+    stored. `AddInput` builds a new `Input(content=...)` every time, so the node
+    it hands back reports `digest=None` even for material digested an hour ago.
+    Deciding from the passed object therefore re-digested on every capture,
+    which is exactly the double call this helper exists to avoid.
+
+    Args:
+        input_hash: Hash of a committed Input.
+        context: Focus for the digest — the user's intent, where there is one.
+        refresh: Re-run even when a digest exists, letting `SourceDigest`
+            REFINE it toward `context`. True only where the caller has a fresh
+            intent worth spending a call on (`ingest`); gap-filling callers
+            leave it False so they never pay for work already done.
+
+    Returns:
+        One of "created", "refreshed", "already present", or a
+        "failed softly (...)" note. Short on purpose: callers put this in a
+        report the model pays for.
+    """
+    stored = NodeRepository().find_by_hash(input_hash, node_type=Input)
+    existing_digest = stored.digest if stored else None
+
+    if existing_digest and not refresh:
+        return "already present"
+
+    outcome = "refreshed" if existing_digest else "created"
+    try:
+        await SourceDigest().resolve(input_hash=input_hash, context=context)
+    except Exception as e:  # noqa: BLE001
+        # Loud, unlike the `pass` this replaces: that left no trace anywhere,
+        # so `read_digest` returning nothing and `input_context` falling back
+        # read as "not written yet" rather than "tried and failed". No retry
+        # tool is named — `ingest` is Advisor-only and the Advisor carries
+        # `read_digest` but NOT `digest_input`, so pointing at one would be a
+        # dead off-ramp for the caller most likely to hit this.
+        logger.warning("Digest generation failed softly for an input: %s", e)
+        return (
+            f"failed softly ({type(e).__name__}: {e}); no digest stored for "
+            f"this input, so its source context is rendered from raw content"
+        )
+    return outcome

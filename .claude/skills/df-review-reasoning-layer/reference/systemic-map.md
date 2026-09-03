@@ -1226,18 +1226,34 @@ model did not also pass `intent` (which has a default one line below). Whether m
 unresolvable hashes → `ok=False`; `inputs_read == 0` → "No input material in scope"; material read, nothing
 extracted → the anchor-instead advice the Advisor prompt's empty-ingest fallback expects. Collapsing the
 last two would deliver a verdict on material that does not exist.
-**`ingest`'s `SourceDigest` step is fail-soft, and the except must stay WIDE.** It was
-`except (ValueError, RuntimeError): pass`, which caught only `SourceDigest`'s own two guards ("Input not
-found", "no resolvable content") — the least likely failures there, since the Input was created two lines
-up — and let the likely ones (provider error, response-model validation, a URL fetch dying inside
-`resolve_native`) abort the whole tool, losing an analysis over a summary. Now `except Exception`, logged at
-WARNING, following `TetradGrounding`'s fail-soft idiom. And it no longer `pass`es: the outcome lands in
-`artifacts["digest"]` ("created" / "failed softly (Type: msg)…"), because a swallowed failure is
-indistinguishable from "digest not written yet" — to the model, and to `input_context`, which then silently
-ships full content where a digest was intended. The note deliberately names NO retry tool: `ingest` is
-Advisor-only and the Advisor carries `read_digest` but not `digest_input`, so a pointer would be a dead
-off-ramp. `digest_input` itself keeps raising — there the model asked for a digest, so failing is the answer.
-Locked by `tests/test_ingest_digest_fail_soft.py`.
+**Every capture site digests, through ONE fail-soft helper — `ensure_digest` in `concerns/source_digest.py`.**
+"Whoever adds the input, digests it" (CLAUDE.md) was a convention only `ingest` kept: `AnalysisPipeline`'s own
+capture and the `add_input` tool both left `Input.digest` empty, so anything the Analyst or Explorer captured
+reached every downstream concern as raw content forever. All three now call the helper. Three properties it
+centralizes, each of which was a separate bug waiting at each site:
+  - **The except stays WIDE.** It was `except (ValueError, RuntimeError): pass`, which caught only
+    `SourceDigest`'s own two guards ("Input not found", "no resolvable content") — the least likely failures
+    there, since the Input was created two lines up — and let the likely ones (provider error, response-model
+    validation, a URL fetch dying inside `resolve_native`) abort the whole tool, losing an analysis over a
+    summary. Now `except Exception`, logged at WARNING, following `TetradGrounding`'s fail-soft idiom. And it
+    no longer `pass`es: the outcome lands in `artifacts["digest"]` ("created" / "refreshed" / "already
+    present" / "failed softly (Type: msg)…"), because a swallowed failure is indistinguishable from "digest
+    not written yet" — to the model, and to `input_context`, which then falls back to raw content where a
+    digest was intended. The note deliberately names NO retry tool: `ingest` is Advisor-only and the Advisor
+    carries `read_digest` but not `digest_input`, so a pointer would be a dead off-ramp. `digest_input` itself
+    keeps raising — there the model asked for a digest, so failing is the answer.
+  - **It takes a HASH, not the node object, and that is load-bearing.** On a dedup hit `commit()` copies the
+    stored node's `_id` onto the FRESH object and returns that (`base_node.py`), so every mutable
+    hash-excluded field — `digest` among them — reads as the caller's value rather than what is stored.
+    `AddInput` builds a new `Input(content=…)` every call, so the node it hands back reports `digest=None` for
+    material digested an hour ago. Deciding from that object re-digested on every capture, which is the exact
+    double call the helper exists to prevent.
+  - **`refresh=True` only where there is a fresh intent** — `ingest` passes the user's `intent`, which is what
+    `SourceDigest` refines an existing digest toward. Gap-filling callers leave it False so they never pay for
+    work already done. Cost is proportional to need anyway: content under `DIGEST_THRESHOLD` (1500) is used as
+    its own digest with no LLM call, so a short proactive `add_input` stays as instant as it was.
+Locked by `tests/test_ingest_digest_fail_soft.py`, `tests/test_input_context_bounding.py`
+(`TestEnsureDigestGapFilling`) and `TestEveryCaptureSiteDigests` in `tests/test_analysis_entry_points.py`.
 
 **Aspect dedup excludes the tetrad's own poles — and must keep doing so.** An aspect is a development OF
 a pole, so it is by construction the most similar node in the graph to that pole, while Rule 1 requires
@@ -2043,8 +2059,8 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   **"Informed classification/headlining" was itself conditional, and the condition was document length.**
   `IntroducePolarity` builds ONE context string from the caller's particulars plus case-wide `input_context`, and
   hands it to three consumers, two of which truncate from the FRONT: `StatementHeadline` at 1500 chars, both
-  `StatementClassification` prompts at 2000 (`AntithesisClassification` does not truncate). `input_context` is
-  unbounded — it falls back to full content for any Input whose digest is not written yet — so with the document
+  `StatementClassification` prompts at 2000 (`AntithesisClassification` does not truncate). `input_context` was
+  unbounded — it fell back to full content for any Input whose digest was not written yet — so with the document
   first, one pasted file pushed the particulars entirely out of both prompts, deleting the only part of the context
   that was about the two statements being classified. Particulars now go FIRST
   (`IntroducePolarity._compose_context`, locked by `TestIntroducePolarityContextOrder`): the caps cut the bulk
@@ -2054,6 +2070,27 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   are precisely the judgements that go wrong when incomplete material looks complete. Now appends `"..."` past the
   cap, the same idiom the other two sites already used; locked by `TestTruncationIsMarked`, which also asserts the
   siblings keep theirs.
+  **`input_context` is BOUNDED now, and both halves of how matter** (`utils/input_context.py`,
+  `INPUT_CONTEXT_BUDGET = 24_000` chars ≈ 6k tokens — a module constant, not a setting, per "Policy is not
+  config"). Measured before changing anything: three undigested ~400 KB files rendered **1.22 MB, ~300k tokens**
+  (`tests/probe_input_text_cost.py`), and of the seven consumers of that string **five never truncate what they
+  are handed** — `aspect_generation`, `perspective_validation`, `control_statements_check`,
+  `antithesis_classification`, `tetrad_grounding` (only `statement_headline` at 1500 and
+  `statement_classification` at 2000 cut). Per polarity, per perspective: a context-limit failure or a ruinous
+  bill. So: (1) the budget is **SHARED across all Inputs, water-filled** (`_allocate`), not a per-Input cap — a
+  per-Input cap still grows with however many files the person pasted; sources needing less than their share
+  release the remainder, which is re-shared until everyone left wants more than their share, and a share under
+  `_MIN_USEFUL_ALLOCATION` (200) becomes zero because two sentences of a 400 KB document is a misleading fragment
+  rather than grounding. (2) The cut **announces itself** — `<Input id shown="N" of="M" truncated="true">` plus
+  `"..."`, and a source squeezed to zero is still NAMED with an empty tag, because "there is a third source you
+  saw none of" is its own fact. An uncut source renders byte-for-byte as before. Head-only truncation, matching
+  every other truncation in the tree — head+tail would be a reasoning change, not a bound. **This makes a missing
+  digest lossy instead of fatal**, which is the structural reason it is worth having on top of the coverage fix
+  above: the model then reasons from the head of a document instead of an understanding of all of it. No tool is
+  named as an off-ramp — this string goes to concern prompts, whose model has no tools. **Still exposed:**
+  `surface_theses._get_input_text` does NOT go through `input_context` (extraction genuinely needs the raw
+  material) and concatenates every Input's full content unbounded — so huge-file *extraction* remains an open
+  design question, not a solved one. Locked by `tests/test_input_context_bounding.py`.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which

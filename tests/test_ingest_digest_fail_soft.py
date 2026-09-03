@@ -81,6 +81,10 @@ def _wire(monkeypatch, digest_resolve):
     monkeypatch.setattr(
         "dialectical_framework.concerns.add_input.AddInput", _FakeAddInput
     )
+    # `ingest` calls `ensure_digest`, which lives in this module and reads
+    # `SourceDigest` at module scope, so patching the name here still reaches it.
+    # The stored-node lookup is left real: nothing under `"a" * 64` exists, so
+    # there is no digest and the helper proceeds to the (faked) concern.
     monkeypatch.setattr(
         "dialectical_framework.concerns.source_digest.SourceDigest", _FakeDigest
     )

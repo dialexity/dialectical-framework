@@ -256,6 +256,7 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             SurfaceTheses
         from dialectical_framework.agents.orchestrator.tools.add_input import \
             AddInput
+        from dialectical_framework.concerns.source_digest import ensure_digest
 
         errors: list[StepError] = []
         reports: list = []
@@ -267,8 +268,18 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         if self.text:
             try:
                 add_input = AddInput()
-                await add_input.resolve(content=self.text)
+                captured = await add_input.resolve(content=self.text)
                 reports.append(add_input.report)
+                # Whoever adds the input, digests it — and this site did not,
+                # so material captured through `analyze` reached every
+                # downstream concern as raw content forever. No refresh: on the
+                # `ingest` path that tool has already digested this exact node
+                # (the double `AddInput` dedups by content), so this is
+                # gap-filling only and costs nothing there.
+                assert captured.hash is not None
+                self._report.artifacts["digest"] = await ensure_digest(
+                    captured.hash, context=self.intent or ""
+                )
             except Exception as e:
                 self._report.ok = False
                 self._report.summary = f"Failed to capture input: {e}"

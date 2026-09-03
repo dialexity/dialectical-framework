@@ -7,13 +7,10 @@ perspectives. Does NOT create a nexus — that's explore's job.
 
 from __future__ import annotations
 
-import logging
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
-
-logger = logging.getLogger(__name__)
 
 
 @llm.tool
@@ -34,7 +31,7 @@ async def ingest(
     """Process raw material through dialectical analysis to discover tensions. Extracts theses, finds oppositions, and builds full perspectives (T/A/T+/T-/A+/A-). Use when substantial material exists but tensions aren't yet clear to you."""
     from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
     from dialectical_framework.concerns.add_input import AddInput
-    from dialectical_framework.concerns.source_digest import SourceDigest
+    from dialectical_framework.concerns.source_digest import ensure_digest
 
     added_hash: str | None = None
     digest_status: str | None = None
@@ -49,37 +46,14 @@ async def ingest(
         # prefix so either form works, and full is what a creation site hands out.
         added_hash = input_node.hash
 
-        try:
-            digest = SourceDigest()
-            await digest.resolve(input_hash=added_hash, context=intent or "")
-        except Exception as e:  # noqa: BLE001
-            # Fail-soft, because the digest is enrichment: the perspectives this
-            # call is about are built from full content either way, and a
-            # provider hiccup on a summary must not cost the analysis. But
-            # `except (ValueError, RuntimeError): pass` got both halves wrong.
-            #
-            # Too narrow: those two cover only `SourceDigest`'s own guards
-            # ("Input not found", "no resolvable content"), which are the LEAST
-            # likely failures here — the Input was created two lines up. The
-            # likely ones are a provider error, response-model validation, or a
-            # URL fetch dying inside `resolve_native`, and every one of them
-            # aborted the whole tool.
-            #
-            # Too quiet: `pass` left no trace anywhere. `read_digest` returned
-            # nothing and `input_context` fell back to full content, both
-            # without explanation, so the absence read as "not written yet"
-            # rather than "tried and failed". The note below is short on
-            # purpose (the report is JSON the model pays for) and names no
-            # retry tool: `ingest` is Advisor-only and the Advisor carries
-            # `read_digest` but NOT `digest_input`, so pointing at one would be
-            # a dead off-ramp.
-            logger.warning("Digest generation failed softly during ingest: %s", e)
-            digest_status = (
-                f"failed softly ({type(e).__name__}: {e}); no digest stored for "
-                f"this input, analysis proceeded on its full content"
-            )
-        else:
-            digest_status = "created"
+        # `refresh=True`: this call has the user's `intent`, which is exactly
+        # what `SourceDigest` refines an existing digest toward, so re-ingesting
+        # the same material under a new focus is worth the call. The gap-filling
+        # callers (`AnalysisPipeline`, the `add_input` tool) pass no refresh and
+        # so never pay twice for what this line already did.
+        digest_status = await ensure_digest(
+            added_hash, context=intent or "", refresh=True
+        )
 
     effective_hashes = input_hashes
     if added_hash and not effective_hashes:
