@@ -3669,3 +3669,61 @@ class TestPairDtosStayFlat:
             "s_plus_statement", "s_plus_explanation",
             "s_minus_statement", "s_minus_explanation",
         } == synth
+
+
+# --- Truncated source context must announce that it was truncated ------------
+
+
+class TestTruncationIsMarked:
+    """A silent cut reads as a document that simply ended there.
+
+    Three prompt builders inject source material under a char cap. Two already
+    appended "..." past the cap; `synthesis_generation` did not, so a 50k-char
+    input arrived as a 1500-char fragment presented as the whole source — and S+
+    /S- are exactly the judgements that go wrong when the material looks
+    complete and is not.
+    """
+
+    def test_synthesis_marks_a_cut_source(self):
+        from dialectical_framework.concerns.synthesis_generation import \
+            SynthesisGeneration
+
+        prompt = SynthesisGeneration._build_user_prompt(
+            spiral_context=["step"],
+            input_text="y" * 5000,
+            lower_layer_context="",
+            max_words=7,
+        )
+
+        assert "## Source Context" in prompt
+        assert "y" * 1500 in prompt
+        assert "y" * 1501 not in prompt, "the cap itself moved"
+        assert ("y" * 1500) + "..." in prompt, "the cut is unannounced"
+
+    def test_synthesis_does_not_mark_an_uncut_source(self):
+        from dialectical_framework.concerns.synthesis_generation import \
+            SynthesisGeneration
+
+        prompt = SynthesisGeneration._build_user_prompt(
+            spiral_context=["step"],
+            input_text="a short source",
+            lower_layer_context="",
+            max_words=7,
+        )
+
+        assert "a short source" in prompt
+        assert "a short source..." not in prompt
+
+    def test_the_other_two_builders_still_mark_theirs(self):
+        """Sibling sites the fix was made consistent with."""
+        import inspect as _inspect
+
+        from dialectical_framework.concerns import (statement_classification,
+                                                    statement_headline)
+
+        for module in (statement_headline, statement_classification):
+            source = _inspect.getsource(module)
+            assert '"..." if len(' in source, (
+                f"{module.__name__} lost its truncation marker — "
+                "synthesis_generation was aligned to it"
+            )

@@ -351,8 +351,13 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             )
 
         if input_text:
+            # The marker matters: without it a document cut at 1500 chars reads
+            # as one that simply ended there, so the model treats a fragment as
+            # the whole source. Same idiom as `statement_headline` and both
+            # `statement_classification` prompts.
             truncated = input_text[:1500]
-            sections.append(f"## Source Context\n\n{truncated}")
+            marker = "..." if len(input_text) > 1500 else ""
+            sections.append(f"## Source Context\n\n{truncated}{marker}")
 
         sections.append(
             f"## Generate S+ and S-\n\n"

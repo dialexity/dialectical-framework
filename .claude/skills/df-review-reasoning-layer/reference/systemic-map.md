@@ -2028,6 +2028,20 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   OF it), before `_validate_and_flag` so a validation blow-up cannot cost an already-committed tetrad its evidence.
   Fail-soft at every step — grounding is enrichment, never a gate; the Analyst path passes no context and is
   byte-for-byte unaffected.
+  **"Informed classification/headlining" was itself conditional, and the condition was document length.**
+  `IntroducePolarity` builds ONE context string from the caller's particulars plus case-wide `input_context`, and
+  hands it to three consumers, two of which truncate from the FRONT: `StatementHeadline` at 1500 chars, both
+  `StatementClassification` prompts at 2000 (`AntithesisClassification` does not truncate). `input_context` is
+  unbounded — it falls back to full content for any Input whose digest is not written yet — so with the document
+  first, one pasted file pushed the particulars entirely out of both prompts, deleting the only part of the context
+  that was about the two statements being classified. Particulars now go FIRST
+  (`IntroducePolarity._compose_context`, locked by `TestIntroducePolarityContextOrder`): the caps cut the bulk
+  material instead. Any new consumer of that string, or any new front-truncating prompt, inherits the same rule.
+  **And a cap must announce itself.** `synthesis_generation`'s `## Source Context` cut at 1500 chars with no marker,
+  so a 50k-char input arrived as a fragment presented as the whole source — worst possible place for it, since S+/S-
+  are precisely the judgements that go wrong when incomplete material looks complete. Now appends `"..."` past the
+  cap, the same idiom the other two sites already used; locked by `TestTruncationIsMarked`, which also asserts the
+  siblings keep theirs.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which
@@ -2275,7 +2289,8 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   string/logic assertions: shared scoring constants exist and are imported by `aspect_generation`/
   `aspect_classification`; transformation worked-example directions; CC both-scores rule; apex sweet-spots;
   settings-driven transition length; Explorer dead-tool + 1-PP claims; `NAVIGATOR_APP_ADVANCED_TOGGLE` override wording;
-  causality alias format; Advisor discard wiring + empty-ingest fallback; anchor headline clamp; Analyst
+  causality alias format; Advisor discard wiring + empty-ingest fallback; anchor headline clamp; source-context
+  truncation markers (`TestTruncationIsMarked`); Analyst
   nexus grouping phrase; dedup report merge; elemental taxonomy; **`TestAdvisorFloorGuarantee`** — the
   Advisor floor contract (full-native-capability guarantee, eager-thinking/ungated-speech section, no
   speech-gating or fabricate-a-tension language, Default Arc not Sequence, no unwired "structural guarantee"

@@ -596,3 +596,62 @@ class TestGroundingDtoShape:
     def test_particulars_is_the_only_field(self):
         """Flat single-field DTO — the real LLM drops branches the mock fills in."""
         assert list(GroundingDto.model_fields) == ["particulars"]
+
+
+class TestIntroducePolarityContextOrder:
+    """The same particulars must also survive the CLASSIFICATION prompts.
+
+    `IntroducePolarity` hands one string to three consumers, two of which cut it
+    from the front: `StatementHeadline` at 1500 chars and both
+    `StatementClassification` prompts at 2000 (bare literals in those files, so
+    the numbers below are duplicated on purpose — they are what the caps are,
+    not a contract this test owns). The other half of the string is case-wide
+    `input_context`, which is unbounded: it falls back to full content for any
+    Input whose digest is not written yet. Document-first meant one pasted file
+    silently deleted the person's particulars from both prompts.
+    """
+
+    PARTICULARS = "He wants out by March and the runway is eight months."
+
+    def test_particulars_come_first(self):
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        composed = IntroducePolarity._compose_context(
+            self.PARTICULARS, '<Input id="abc">a document</Input>'
+        )
+
+        assert composed.startswith(self.PARTICULARS)
+        assert "a document" in composed
+
+    def test_particulars_survive_a_document_longer_than_both_caps(self):
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        huge = '<Input id="abc">\n' + ("x" * 50_000) + "\n</Input>"
+        composed = IntroducePolarity._compose_context(self.PARTICULARS, huge)
+
+        assert self.PARTICULARS in composed[:1500], "cut by StatementHeadline"
+        assert self.PARTICULARS in composed[:2000], "cut by StatementClassification"
+
+    def test_no_particulars_is_just_the_input(self):
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        assert IntroducePolarity._compose_context("", "material") == "material"
+        assert IntroducePolarity._compose_context("   ", "material") == "material"
+
+    def test_no_input_is_just_the_particulars(self):
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        assert (
+            IntroducePolarity._compose_context(self.PARTICULARS, "")
+            == self.PARTICULARS
+        )
+
+    def test_neither_is_empty_string(self):
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+
+        assert IntroducePolarity._compose_context("", "") == ""

@@ -99,7 +99,7 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             return IntroducePolarityResult()
 
         input_text = await self._get_input_text()
-        context = f"{input_text}\n\n{self.text}".strip() if self.text else input_text
+        context = self._compose_context(self.text, input_text)
 
         # 1-2. Create or find both Statements. The two poles are resolved
         # CONCURRENTLY: neither reads the other, each builds its own concerns with
@@ -305,6 +305,29 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         self._report.node_created(rationale)
 
         return stmt
+
+    @staticmethod
+    def _compose_context(particulars: str, input_text: str) -> str:
+        """Particulars FIRST, case-wide material after.
+
+        Two of the three consumers truncate this from the front —
+        `StatementHeadline` at 1500 chars, both `StatementClassification`
+        prompts at 2000 — while `input_text` is case-wide and unbounded
+        (`input_context` falls back to full content for any Input whose digest
+        has not been written yet). Document-first therefore pushed the caller's
+        particulars about THIS tension clean out of both prompts as soon as one
+        pasted file exceeded the cap, discarding the only part of the context
+        that is actually about the two statements being classified.
+        `AntithesisClassification` does not truncate, so order is cosmetic
+        there.
+        """
+        particulars = (particulars or "").strip()
+        input_text = (input_text or "").strip()
+        if not particulars:
+            return input_text
+        if not input_text:
+            return particulars
+        return f"{particulars}\n\n{input_text}"
 
     @inject
     async def _get_input_text(
