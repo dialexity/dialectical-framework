@@ -245,6 +245,8 @@ All DB queries must go through `graph/repositories/` classes, scoped by `sid`. N
 
 **Allowed exceptions:** `dialectical_reasoning.py` (schema init), `relationship_manager.py`, `estimation_manager.py`, `query_graph.py` (LLM read-only Cypher).
 
+**Hash lookups match by PREFIX, never by equality.** Any query taking a caller- or LLM-supplied hash uses `STARTS WITH` (`find_by_hash`, `find_by_hashes`, `nexus_repository`), so both forms the framework hands out are usable to look the node back up: **full hash on creation** (`AddInput`, `CreateDxInput` — the caller gets something unambiguous to store) and **`short_hash` everywhere it is rendered into a prompt** (to save tokens). Ambiguous prefixes raise rather than guess — substituting some other node's content into an analysis is worse than refusing. An equality match here is a silent break: `ingest` reported `short_hash`, looked it up by equality, resolved nothing, and reported success while advising the model to stop ingesting. In-process comparison of two full hashes (e.g. `transformation_repository`) stays exact — this rule is about lookups, not comparisons.
+
 ### Truncation Rules for Node Text
 
 `__str__` on graph nodes is LLM-visible (used by `present_analysis`, `inspect_node`, format strings). Must show full text — never truncate. `__repr__` is debug-only and may truncate freely. Internal LLM prompts (dedup, query_graph results, report summaries) may truncate since hashes serve as identifiers; agent system prompts instruct the LLM to use `inspect_node` for exact text.

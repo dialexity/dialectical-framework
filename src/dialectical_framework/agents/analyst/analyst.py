@@ -302,6 +302,18 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                     thesis_hashes = surface.report.artifacts.get("thesis_hashes", [])
 
                 if not thesis_hashes:
+                    # "Nothing to extract" and "could not read the material at
+                    # all" are different answers, and only the first one should
+                    # advise abandoning the tool. `SurfaceTheses` has already
+                    # drawn that line, so honour its verdict rather than
+                    # overwriting it with `ok=True` — doing so is what turned an
+                    # unresolvable input hash into a confident "anchor instead".
+                    if not surface.report.ok:
+                        self._report.ok = False
+                        self._report.summary = surface.report.summary
+                        return AnalysisResult(
+                            ideas_hash=ideas_hash, errors=errors, reports=reports
+                        )
                     self._report.ok = True
                     self._report.summary = (
                         "No tensions extracted from this material. Anchor an "

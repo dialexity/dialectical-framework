@@ -193,11 +193,23 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
         return ideas
 
     def _get_inputs(self) -> list:
+        """Inputs to attach as this Ideas container's provenance.
+
+        Unresolved hashes are recorded, not raised: anchoring an explicit thesis
+        does not depend on the material, so a miss here costs provenance edges
+        rather than the analysis. It was silent before, which is how `anchor`
+        carried the same `find_by_hashes` prefix bug as `ingest` without anyone
+        noticing — `ingest` at least reported a (misleading) summary.
+        """
         if self.input_hashes:
             from dialectical_framework.graph.nodes.input import Input
 
             repo = NodeRepository()
-            return repo.find_by_hashes(self.input_hashes, node_type=Input)
+            inputs = repo.find_by_hashes(self.input_hashes, node_type=Input)
+            unresolved = len(self.input_hashes) - len(inputs)
+            if unresolved > 0:
+                self._report.artifacts["unresolved_input_hashes"] = unresolved
+            return inputs
         return InputRepository().get_all()
 
     @inject

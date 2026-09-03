@@ -114,9 +114,23 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
         # 1. Get input text — required for extraction
         input_text = await self._get_input_text()
         if not input_text:
-            self._report.ok = True
-            self._report.summary = "No inputs in scope for extraction"
+            # Two different situations, and conflating them is what made the
+            # `find_by_hashes` prefix bug invisible for so long. An empty scope
+            # is a legitimate no-op the caller should shrug at; being handed
+            # hashes that resolve to nothing is a failure, and reporting it as
+            # `ok=True` let `AnalysisPipeline` go on to tell the model "no
+            # tensions extracted — anchor a position instead of ingesting",
+            # i.e. to blame the material and stop using the tool.
             self._report.artifacts["thesis_hashes"] = []
+            if self.input_hashes:
+                self._report.ok = False
+                self._report.summary = (
+                    f"None of the {len(self.input_hashes)} requested input hash(es) "
+                    f"resolved to an input in scope: {', '.join(self.input_hashes)}"
+                )
+            else:
+                self._report.ok = True
+                self._report.summary = "No inputs in scope for extraction"
             return None
 
         # 2. Parse extraction intent
@@ -317,12 +331,21 @@ Determine:
     # --- Helpers ---
 
     def _get_inputs(self) -> list:
-        """Get inputs: filtered by input_hashes if provided, otherwise all in scope."""
+        """Get inputs: filtered by input_hashes if provided, otherwise all in scope.
+
+        A partial miss is recorded rather than raised: extracting from the two
+        inputs that resolved beats refusing because a third went away. The
+        TOTAL miss is handled in `resolve()`, where it fails the report.
+        """
         if self.input_hashes:
             from dialectical_framework.graph.nodes.input import Input
 
             repo = NodeRepository()
-            return repo.find_by_hashes(self.input_hashes, node_type=Input)
+            inputs = repo.find_by_hashes(self.input_hashes, node_type=Input)
+            unresolved = len(self.input_hashes) - len(inputs)
+            if inputs and unresolved > 0:
+                self._report.artifacts["unresolved_input_hashes"] = unresolved
+            return inputs
         return InputRepository().get_all()
 
     @inject

@@ -38,7 +38,12 @@ async def ingest(
     if text:
         add_input = AddInput()
         input_node = await add_input.resolve(content=text)
-        added_hash = input_node.short_hash
+        # FULL hash, not `short_hash`. This line was the whole bug: the 7-char
+        # form went into `input_hashes` below, `find_by_hashes` matched on
+        # equality, nothing resolved, and the tool reported success while
+        # telling the model to stop ingesting. `find_by_hashes` now matches by
+        # prefix so either form works, and full is what a creation site hands out.
+        added_hash = input_node.hash
 
         try:
             digest = SourceDigest()

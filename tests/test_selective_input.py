@@ -103,6 +103,80 @@ class TestFindByHashes:
             repo = NodeRepository()
             assert repo.find_by_hashes([]) == []
 
+    def test_matches_short_hash_prefix(self):
+        """A `short_hash` resolves — the regression that broke `ingest` outright.
+
+        `ingest` reported `Input.short_hash` and passed that same 7-char string
+        back as `input_hashes`. Under the old equality match nothing resolved,
+        extraction was skipped, and the tool reported success while advising the
+        model to anchor instead of ingesting. Nothing failed loudly, so the
+        archive recorded exactly one `ingest` call across 90 runs.
+        """
+        sid = _new_sid()
+        with scope(sid):
+            i1 = Input(content="Remote work boosts productivity")
+            i1.commit()
+
+            repo = NodeRepository()
+            results = repo.find_by_hashes([i1.short_hash], node_type=Input)
+
+            assert len(results) == 1
+            assert results[0].hash == i1.hash
+
+    def test_mixes_full_and_prefix_hashes(self):
+        """Both forms in one call, deduplicated when they name the same node."""
+        sid = _new_sid()
+        with scope(sid):
+            s1 = Statement(text="First thesis", meaning="test")
+            s1.commit()
+            s2 = Statement(text="Second thesis", meaning="test")
+            s2.commit()
+
+            repo = NodeRepository()
+            results = repo.find_by_hashes([s1.hash, s2.short_hash, s1.short_hash])
+
+            assert [n.hash for n in results] == [s1.hash, s2.hash]
+
+    def test_returns_results_in_requested_order(self):
+        """Results follow the requested hash order, so prompts render stably."""
+        sid = _new_sid()
+        with scope(sid):
+            s1 = Statement(text="First thesis", meaning="test")
+            s1.commit()
+            s2 = Statement(text="Second thesis", meaning="test")
+            s2.commit()
+
+            repo = NodeRepository()
+            forward = repo.find_by_hashes([s1.hash, s2.hash])
+            reverse = repo.find_by_hashes([s2.hash, s1.hash])
+
+            assert [n.hash for n in forward] == [s1.hash, s2.hash]
+            assert [n.hash for n in reverse] == [s2.hash, s1.hash]
+
+    def test_raises_on_ambiguous_prefix(self):
+        """An ambiguous prefix refuses rather than substituting some other node."""
+        sid = _new_sid()
+        with scope(sid):
+            # Commit until two hashes share a first character. Bounded and
+            # deterministic: hashes are sha256 hex, so 17 nodes force a
+            # collision by pigeonhole over 16 possible leading characters.
+            seen: dict[str, str] = {}
+            shared: str | None = None
+            for i in range(17):
+                s = Statement(text=f"Thesis number {i}", meaning="test")
+                s.commit()
+                first = s.hash[0]
+                if first in seen:
+                    shared = first
+                    break
+                seen[first] = s.hash
+
+            assert shared is not None, "pigeonhole guarantees a shared leading char"
+
+            repo = NodeRepository()
+            with pytest.raises(ValueError, match="Ambiguous hash prefix"):
+                repo.find_by_hashes([shared])
+
 
 class TestResolverTransitionSupport:
     """Tests for DialexityInputResolver Transition content extraction."""
@@ -594,3 +668,40 @@ class TestSelectiveInputProcessing:
             inputs = concern._get_inputs()
 
             assert len(inputs) == 2
+
+    @pytest.mark.asyncio
+    async def test_unresolvable_hashes_fail_loudly(self):
+        """Requested-but-missing inputs fail; they do not report success.
+
+        No `llm` marker: `resolve()` returns before building a conversation when
+        there is no input text, so this exercises the real path without a
+        provider. Reporting `ok=True` here is what let `AnalysisPipeline` tell
+        the model "no tensions extracted — anchor instead", blaming material it
+        had never actually read.
+        """
+        from dialectical_framework.agents.analyst.skills.surface_theses import \
+            SurfaceTheses
+
+        sid = _new_sid()
+        with scope(sid):
+            concern = SurfaceTheses(intent="extract theses", input_hashes=["0" * 64])
+            result = await concern.resolve()
+
+            assert result is None
+            assert concern.report.ok is False
+            assert "resolved to an input in scope" in concern.report.summary
+
+    @pytest.mark.asyncio
+    async def test_empty_scope_is_not_a_failure(self):
+        """An empty scope stays a benign no-op — the other half of the distinction."""
+        from dialectical_framework.agents.analyst.skills.surface_theses import \
+            SurfaceTheses
+
+        sid = _new_sid()
+        with scope(sid):
+            concern = SurfaceTheses(intent="extract theses")
+            result = await concern.resolve()
+
+            assert result is None
+            assert concern.report.ok is True
+            assert "No inputs in scope" in concern.report.summary
