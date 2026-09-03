@@ -2087,7 +2087,14 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   every other truncation in the tree — head+tail would be a reasoning change, not a bound. **This makes a missing
   digest lossy instead of fatal**, which is the structural reason it is worth having on top of the coverage fix
   above: the model then reasons from the head of a document instead of an understanding of all of it. No tool is
-  named as an off-ramp — this string goes to concern prompts, whose model has no tools. **Still exposed:**
+  named as an off-ramp — this string goes to concern prompts, whose model has no tools. **The order it renders in
+  is now stable** — `InputRepository.get_all()` had no `ORDER BY`, so the same graph rendered a different prompt
+  run to run (lost prompt-cache hits, irreproducible bench arms); it is `committed_at ASC, id(i) ASC` like its
+  sibling repositories. Rendering order only: `_allocate` is order-independent by construction. The
+  identifiers-only `# Sources` line in the context dump reads `all_hashes()` instead, a projection that does not
+  ship `content` — 34 ms for three 400 KB sources through `get_all()`, 113 ms for ten, against a flat ~2-3 ms
+  (`tests/probe_source_listing_cost.py`), on a dump that fires on most turns. `present_analysis` still takes full
+  nodes because it renders previews. Locked by `tests/test_source_listing.py`. **Still exposed:**
   `surface_theses._get_input_text` does NOT go through `input_context` (extraction genuinely needs the raw
   material) and concatenates every Input's full content unbounded — so huge-file *extraction* remains an open
   design question, not a solved one. Locked by `tests/test_input_context_bounding.py`.

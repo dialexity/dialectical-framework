@@ -317,25 +317,33 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         Pending inputs matter: without them the model cannot see material
         that was captured but never processed (e.g. a fresh dx:// insight),
         so it could never pick it up.
+
+        Hashes only, deliberately: this renders identifiers and no text, so it
+        asks the repository for identifiers. Going through `get_all()` shipped
+        every source's full `content` to print seven characters of each —
+        34 ms for three 400 KB inputs, 113 ms for ten, on a dump that fires on
+        most turns (`tests/probe_source_listing_cost.py`).
         """
         input_repo = InputRepository()
-        inputs = input_repo.get_all()
-        if not inputs:
+        all_hashes = input_repo.all_hashes()
+        if not all_hashes:
             return None
 
         # Analyzed-ness follows both provenance paths (direct HAS_STATEMENT and
         # via Ideas); checking only `inp.statements` reported every Input as
         # pending forever, because extraction writes the path through Ideas.
         analyzed = input_repo.analyzed_hashes()
-        used = [inp for inp in inputs if inp.hash in analyzed]
-        pending = [inp for inp in inputs if inp.hash not in analyzed]
+        used = [h for h in all_hashes if h in analyzed]
+        pending = [h for h in all_hashes if h not in analyzed]
 
+        # `[:7]` is `BaseNode.short_hash`, inlined because there is no node here
+        # to ask — the whole point of the projection above.
         lines = ["# Sources"]
         if used:
-            hashes = ", ".join(f"[[{inp.short_hash}]]" for inp in used)
+            hashes = ", ".join(f"[[{h[:7]}]]" for h in used)
             lines.append(f"Inputs: {hashes}")
         if pending:
-            hashes = ", ".join(f"[[{inp.short_hash}]]" for inp in pending)
+            hashes = ", ".join(f"[[{h[:7]}]]" for h in pending)
             lines.append(
                 f"Pending (captured, not yet analyzed): {hashes} — "
                 f"use read_digest for content."

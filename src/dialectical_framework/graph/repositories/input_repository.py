@@ -34,6 +34,19 @@ class InputRepository:
         """
         Get all Input nodes in the current scope.
 
+        Oldest first, matching the sibling repositories. Unordered, the same
+        graph rendered a different prompt run to run: this list is what
+        `input_context` walks, so the source order in every concern prompt (and
+        in the Advisor's `# Sources` line) was whatever Memgraph happened to
+        return, which costs prompt-cache hits and makes a bench arm
+        irreproducible for no benefit. Allocation is unaffected either way —
+        `_allocate` is order-independent by construction — so this moves
+        rendering order only.
+
+        Returns full nodes, `content` included. Callers that render nothing but
+        identifiers want `all_hashes()` instead: a 400 KB source costs real
+        milliseconds to ship and this is on the per-turn context-dump path.
+
         Args:
             sid: Case ID (injected from DI context)
 
@@ -47,9 +60,42 @@ class InputRepository:
         MATCH (i:Input)
         WHERE i.sid = $sid AND i.hash IS NOT NULL
         RETURN i
+        ORDER BY i.committed_at ASC, id(i) ASC
         """
         results = graph_db.execute_and_fetch(query, {"sid": sid})
         return [record["i"] for record in results if record["i"] is not None]
+
+    @inject
+    def all_hashes(
+        self,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> list[str]:
+        """Hashes of every committed Input in scope, oldest first.
+
+        Same filter and order as `get_all()`, without shipping `content`. The
+        `# Sources` line in the context dump renders identifiers and nothing
+        else, and it was paying for the full material to do it: measured at
+        34 ms for three 400 KB sources and 113 ms for ten, against a flat
+        ~2-3 ms here, on a dump that fires on the large majority of turns
+        (`tests/probe_source_listing_cost.py`). Negligible for short captures —
+        this exists for the pasted-document case, where the cost grows with the
+        document and nothing bounds it.
+
+        Returns:
+            Full hashes; abbreviate at the render site.
+        """
+        if not sid:
+            return []
+
+        query = """
+        MATCH (i:Input)
+        WHERE i.sid = $sid AND i.hash IS NOT NULL
+        RETURN i.hash AS hash
+        ORDER BY i.committed_at ASC, id(i) ASC
+        """
+        results = graph_db.execute_and_fetch(query, {"sid": sid})
+        return [record["hash"] for record in results if record["hash"]]
 
     @inject
     def analyzed_hashes(
