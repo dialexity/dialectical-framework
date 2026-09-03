@@ -1212,6 +1212,21 @@ the agent files: `AnalysisPipeline` in `analyst/analyst.py`, `ExplorationPipelin
 per thesis → Phase-2 dedup) → **`_rank_polarities` gate** → **ExpandPolarity ×N** (`AspectGeneration` →
 aspect dedup). `create_nexus` is the Analyst-only handoff.
 
+**`AddInput` runs TWICE on an `ingest(text=...)` call, on purpose.** `ingest` needs the hash before the
+pipeline (for `SourceDigest` and for `input_hashes`), and the pipeline needs the capture for callers that
+hand it raw text and nothing else (`analyze`, direct `AnalysisPipeline(text=...)`) — neither call can be
+dropped. It is safe only because `Input.compute_hash` excludes `committed_at`, so `commit()` dedups by
+content, and `AddInput` checks `case.inputs` before connecting: one node, one `HAS_INPUT` edge, second
+report says "already exists". Locked by `TestAddInputIsIdempotent`. **There is no entry guard on
+`text`/`intent`.** There was one ("No text or thesis_hashes provided"), and it contradicted both tools'
+documented contracts — `ingest`'s "omit to process pre-loaded inputs" and `analyze`'s "If None, processes
+all inputs in scope" were refused outright, with a message naming neither inputs nor scope, whenever the
+model did not also pass `intent` (which has a default one line below). Whether material exists is
+`SurfaceTheses`' question; it distinguishes three answers and the pipeline must keep all three distinct:
+unresolvable hashes → `ok=False`; `inputs_read == 0` → "No input material in scope"; material read, nothing
+extracted → the anchor-instead advice the Advisor prompt's empty-ingest fallback expects. Collapsing the
+last two would deliver a verdict on material that does not exist.
+
 **Aspect dedup excludes the tetrad's own poles — and must keep doing so.** An aspect is a development OF
 a pole, so it is by construction the most similar node in the graph to that pole, while Rule 1 requires
 them to stay distinct (T- is what T degenerates into when A+ is absent, *not* T itself). Handed the full

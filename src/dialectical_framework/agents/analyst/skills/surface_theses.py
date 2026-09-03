@@ -336,6 +336,10 @@ Determine:
         A partial miss is recorded rather than raised: extracting from the two
         inputs that resolved beats refusing because a third went away. The
         TOTAL miss is handled in `resolve()`, where it fails the report.
+
+        `inputs_read` is recorded because "no material was there" and "the
+        material yielded no tensions" call for opposite advice, and only this
+        method can tell them apart.
         """
         if self.input_hashes:
             from dialectical_framework.graph.nodes.input import Input
@@ -345,8 +349,11 @@ Determine:
             unresolved = len(self.input_hashes) - len(inputs)
             if inputs and unresolved > 0:
                 self._report.artifacts["unresolved_input_hashes"] = unresolved
-            return inputs
-        return InputRepository().get_all()
+        else:
+            inputs = InputRepository().get_all()
+
+        self._report.artifacts["inputs_read"] = len(inputs)
+        return inputs
 
     @inject
     async def _get_input_text(

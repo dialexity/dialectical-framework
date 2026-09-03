@@ -277,18 +277,15 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 )
 
         if not thesis_hashes:
-            if not self.text and not self.intent:
-                self._report.ok = False
-                self._report.summary = "No text or thesis_hashes provided"
-                return AnalysisResult(
-                    errors=[
-                        StepError(
-                            step="surface_theses",
-                            message="No text or thesis_hashes provided",
-                        )
-                    ]
-                )
-
+            # No guard on `text`/`intent` here. Both tools document omitting
+            # text — `ingest`'s "omit to process pre-loaded inputs", `analyze`'s
+            # "If None, processes all inputs in scope" — and `intent` has a
+            # default a line below, so demanding one of the two rejected the
+            # documented pre-loaded path outright: a model that passed only
+            # `input_hashes`, or nothing at all, was told "No text or
+            # thesis_hashes provided" without a word about the inputs already
+            # sitting in scope. Whether there is anything to read is
+            # `SurfaceTheses`' question, and it answers it precisely.
             try:
                 surface = SurfaceTheses(
                     intent=self.intent or "extract key theses from the input",
@@ -315,11 +312,21 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                             ideas_hash=ideas_hash, errors=errors, reports=reports
                         )
                     self._report.ok = True
-                    self._report.summary = (
-                        "No tensions extracted from this material. Anchor an "
-                        "explicit position (and its opposition, if visible) "
-                        "instead of ingesting."
-                    )
+                    if surface.report.artifacts.get("inputs_read") == 0:
+                        # Nothing was read, so "no tensions in this material"
+                        # would be a verdict on material that does not exist,
+                        # and the anchor advice below would be answering a
+                        # question nobody asked.
+                        self._report.summary = (
+                            "No input material in scope to analyze. Capture "
+                            "something first, or anchor a position directly."
+                        )
+                    else:
+                        self._report.summary = (
+                            "No tensions extracted from this material. Anchor an "
+                            "explicit position (and its opposition, if visible) "
+                            "instead of ingesting."
+                        )
                     return AnalysisResult(
                         ideas_hash=ideas_hash, errors=errors, reports=reports
                     )
