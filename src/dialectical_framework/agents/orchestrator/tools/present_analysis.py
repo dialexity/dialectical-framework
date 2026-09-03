@@ -76,7 +76,8 @@ class PresentAnalysis(ReasonableConcern[str]):
         unconnected_statements = stmt_repo.find_unconnected()
         unconnected_polarities = pol_repo.find_unconnected()
         nexuses = nexus_repo.find_all()
-        inputs = InputRepository().get_all()
+        input_repo = InputRepository()
+        inputs = input_repo.get_all()
 
         if (
             not perspectives
@@ -89,7 +90,9 @@ class PresentAnalysis(ReasonableConcern[str]):
             return "Empty scope — no data has been built yet."
 
         if inputs:
-            sections.append(self._format_inputs(inputs))
+            sections.append(
+                self._format_inputs(inputs, input_repo.analyzed_hashes())
+            )
 
         if perspectives:
             sections.append(self._format_perspectives(perspectives))
@@ -119,14 +122,19 @@ class PresentAnalysis(ReasonableConcern[str]):
         return "[DRAFT]"
 
     @staticmethod
-    def _format_inputs(inputs: list) -> str:
+    def _format_inputs(inputs: list, analyzed_hashes: set[str]) -> str:
         """Sources overview: pending inputs are the actionable ones.
 
         dx:// inputs (exploration feedback) surface their origin from the
         digest so the round-trip stays traceable. Previews may truncate —
         hashes are the identifiers (read_input/read_digest for full text).
+
+        `analyzed_hashes` comes from the repository, which follows both the
+        direct HAS_STATEMENT edge and the path through Ideas that extraction
+        actually writes — reading `i.statements` alone listed every Input as
+        pending no matter how thoroughly it had been analyzed.
         """
-        pending = [i for i in inputs if not list(i.statements.all())]
+        pending = [i for i in inputs if i.hash not in analyzed_hashes]
         processed_count = len(inputs) - len(pending)
 
         lines = [f"## Sources ({len(inputs)} total, {len(pending)} pending)"]

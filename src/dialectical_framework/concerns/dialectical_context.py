@@ -323,8 +323,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if not inputs:
             return None
 
-        used = [inp for inp in inputs if list(inp.statements.all())]
-        pending = [inp for inp in inputs if not list(inp.statements.all())]
+        # Analyzed-ness follows both provenance paths (direct HAS_STATEMENT and
+        # via Ideas); checking only `inp.statements` reported every Input as
+        # pending forever, because extraction writes the path through Ideas.
+        analyzed = input_repo.analyzed_hashes()
+        used = [inp for inp in inputs if inp.hash in analyzed]
+        pending = [inp for inp in inputs if inp.hash not in analyzed]
 
         lines = ["# Sources"]
         if used:

@@ -400,18 +400,33 @@ class CausalityEstimatorBalanced(CausalityEstimator):
             Resolved and concatenated source text from all unique Inputs
         """
         from dialectical_framework.graph.nodes.input import Input
+        from dialectical_framework.graph.repositories.input_repository import \
+            InputRepository
 
-        # Collect unique Input nodes
-        seen_inputs: set[str] = set()
-        input_nodes: list[Input] = []
-
+        # Statement order across the sequences decides concatenation order, so
+        # collect the hashes first and keep first-appearance position below.
+        statement_hashes: list[str] = []
+        seen_statements: set[str] = set()
         for sequence in sequences:
             for component in sequence:
-                for input_node, _ in component.inputs.all():
-                    assert input_node.hash is not None
-                    if input_node.hash not in seen_inputs:
-                        seen_inputs.add(input_node.hash)
-                        input_nodes.append(input_node)
+                if component.hash and component.hash not in seen_statements:
+                    seen_statements.add(component.hash)
+                    statement_hashes.append(component.hash)
+
+        # One query for the whole set, and it follows both provenance paths:
+        # `component.inputs` alone only sees the direct HAS_STATEMENT edge, but
+        # extraction writes Input-[:DISTILLED_TO]->Ideas-[:HAS_STATEMENT]->,
+        # which left this estimator grounding its causality in no source text.
+        by_statement = InputRepository().find_by_statement_hashes(statement_hashes)
+
+        seen_inputs: set[str] = set()
+        input_nodes: list[Input] = []
+        for statement_hash in statement_hashes:
+            for input_node in by_statement.get(statement_hash, ()):
+                assert input_node.hash is not None
+                if input_node.hash not in seen_inputs:
+                    seen_inputs.add(input_node.hash)
+                    input_nodes.append(input_node)
 
         if not input_nodes:
             return ""
