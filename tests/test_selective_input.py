@@ -178,6 +178,59 @@ class TestFindByHashes:
                 repo.find_by_hashes([shared])
 
 
+class TestRequireCaseForCurrentScope:
+    """`find_by_sid` returns None for two unrelated reasons; keep them apart.
+
+    Collapsing "no sid in context" and "sid set but no Case" into one
+    "Case not found for current scope" message is why an archived e2e `ingest`
+    failure against a committed, in-scope Case is still open in
+    `tests/e2e/rounds.md`. These pin the distinction so the next occurrence
+    names which half failed.
+
+    Lives here rather than in `test_scope_guard.py`, which overrides the DB
+    fixtures to run DB-free — two of these three need the graph.
+    """
+
+    def test_raises_missing_scope_when_unscoped(self):
+        from dialectical_framework.exceptions.node_errors import \
+            MissingScopeError
+        from dialectical_framework.graph.repositories.case_repository import \
+            CaseRepository
+
+        with pytest.raises(MissingScopeError, match="No scope set"):
+            CaseRepository().require_for_current_scope()
+
+    def test_raises_value_error_when_scope_has_no_case(self):
+        import uuid
+
+        from dialectical_framework.graph.repositories.case_repository import \
+            CaseRepository
+
+        orphan_sid = str(uuid.uuid4())
+        with scope(orphan_sid):
+            with pytest.raises(ValueError, match="No Case exists for scope"):
+                CaseRepository().require_for_current_scope()
+
+    def test_returns_case_when_present(self):
+        from dialectical_framework.graph.repositories.case_repository import \
+            CaseRepository
+
+        sid = _new_sid()
+        with scope(sid):
+            case = CaseRepository().require_for_current_scope()
+            assert case.sid == sid
+
+    @pytest.mark.asyncio
+    async def test_add_input_refuses_unscoped(self):
+        """The refusal reaches the concern, naming scope rather than the Case."""
+        from dialectical_framework.concerns.add_input import AddInput
+        from dialectical_framework.exceptions.node_errors import \
+            MissingScopeError
+
+        with pytest.raises(MissingScopeError, match="No scope set"):
+            await AddInput().resolve(content="some material")
+
+
 class TestResolverTransitionSupport:
     """Tests for DialexityInputResolver Transition content extraction."""
 

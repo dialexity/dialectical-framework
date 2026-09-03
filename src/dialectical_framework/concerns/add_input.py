@@ -21,10 +21,7 @@ class AddInput(ReasonableConcern[Input]):
 
     async def resolve(self, content: str) -> Input:
         repo = CaseRepository()
-        case = repo.find_by_sid()
-
-        if not case:
-            raise ValueError("Case not found for current scope")
+        case = repo.require_for_current_scope()
 
         input_node = Input(content=content)
         input_node.commit()

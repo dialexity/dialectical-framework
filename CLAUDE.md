@@ -306,6 +306,8 @@ perspectives = RelationshipFrom("Perspective", "BELONGS_TO_NEXUS")  # on Nexus â
 
 All nodes share `sid` from their Case. Enforced at connect time. Use `with scope(case.sid):` to set context.
 
+**The application owns Case creation; the framework only reads scope.** The app creates the `Case` and injects its `sid` as the scope the whole round works on (`graph/scope_context.py`). Nothing in `src/` creates a Case, and nothing should: one the framework invented would be a second scope root whose sid the app never learns, making every node written under it invisible to the app's own listings. So `AddInput`/`CreateDxInput` refuse rather than auto-create, via `CaseRepository.require_for_current_scope()` â€” which distinguishes **no sid in context** (`MissingScopeError`; scope never entered, or entered outside the task that ran the work) from **sid set but no Case** (`ValueError`). Keep them distinguishable: collapsing both into one message is why an archived e2e `ingest` failure against a committed, in-scope Case is still recorded as open in `tests/e2e/rounds.md` rather than explained. Agent chat entry points already guard with `require_current_sid()`.
+
 ### Input Digest (Living Understanding)
 
 `Input.digest`: mutable field (excluded from hash) storing LLM-generated understanding of a source. Populated by `SourceDigest`; content <1500 chars skips the LLM (used as its own digest). Whoever adds the input, digests it.

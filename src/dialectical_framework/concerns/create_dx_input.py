@@ -45,9 +45,7 @@ class CreateDxInput(ReasonableConcern[Input]):
             raise ValueError(f"No Transition found with hash: {transition_hash}")
 
         case_repo = CaseRepository()
-        case = case_repo.find_by_sid()
-        if not case:
-            raise ValueError("Case not found for current scope")
+        case = case_repo.require_for_current_scope()
 
         uri = f"dx://{sid}/{node.hash}"
         nexus = self._find_source_nexus(node)
