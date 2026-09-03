@@ -5,6 +5,12 @@ The digest is the framework's evolving understanding of a source — not a naked
 but a directed analytical document shaped by both the source material and user/framework
 guidance.
 
+A source larger than one prompt is READ IN PARTS (`utils/chunking.py`): a reading
+per window, then one reduce over the readings. Coverage is the guarantee — a
+digest of the first few pages that presents itself as the understanding of the
+source is a lie nothing downstream can detect, since the digest is what every
+other concern reasons from.
+
 Programmatic usage:
     concern = SourceDigest()
     input_node = await concern.resolve(input_hash="abc123")
@@ -19,6 +25,7 @@ Programmatic usage:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Union
 
@@ -38,10 +45,30 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
+from dialectical_framework.utils.chunking import chunk_text
 
 logger = logging.getLogger(__name__)
 
 DIGEST_THRESHOLD = 1500
+
+#: How many part-readings may be in flight at once when a long source is read in
+#: parts. A module constant, not a setting, per "Policy is not config".
+#:
+#: Every other fan-out in the tree gathers without a private bound, and rightly:
+#: their width comes from graph structure the framework itself produced (edge
+#: pairs, candidates, wheels), so it is bounded by `max_wheel_layer` and the
+#: like. This one's width is the SIZE OF A FILE SOMEBODY PASTED — 1.2 MB is 30
+#: windows and a 10 MB source is 250, all opened in the same instant. Past the
+#: provider's ceiling that is not parallelism, it is the throttle ladder: 10
+#: attempts backing off to 60s, paid on most of the calls, so a wider gather
+#: finishes LATER than a narrower one while costing the same tokens. 8 keeps the
+#: overlap that makes this fast (the reduce still waits for the slowest window)
+#: without turning file size into request rate.
+#:
+#: `DIALEXITY_MAX_CONCURRENT_LLM_CALLS` remains the process-wide lever and
+#: composes with this: it is disabled by default, and it cannot express "bound
+#: THIS fan-out" without bounding every other one too.
+MAX_CONCURRENT_PART_READINGS = 8
 
 SYSTEM_PROMPT = """You are an analytical reader producing a **digest** — a living document that captures understanding of a source.
 
@@ -57,6 +84,46 @@ When refining an existing digest with new context:
 - Sharpen focus on aspects identified as relevant
 - Remove or de-emphasize aspects identified as irrelevant
 - Keep the digest self-contained — it should make sense on its own
+
+Keep the digest concise but substantive — aim for the minimum text that preserves analytical utility."""
+
+PART_SYSTEM_PROMPT = """You are an analytical reader working through ONE PART of a longer source.
+
+Read the part you are given and report what it contains:
+
+1. The key claims, arguments, and positions stated in THIS part
+2. Important details, examples, and data points that ground them
+3. Any domain, stakeholder, or discourse signals visible here
+
+Two rules matter more than concision:
+
+- Report only what this part says. You cannot see the rest of the source, so do
+  not infer what the whole document argues, and do not present a conclusion the
+  part does not state.
+- Preserve specifics exactly: numbers, shares, dates, named events, quoted
+  wording. A later pass combines these part-readings and cannot recover a figure
+  you rounded away or a name you generalised.
+
+Parts overlap slightly, so material may repeat from the previous part. That is
+expected — report it as you find it."""
+
+COMBINE_SYSTEM_PROMPT = """You are an analytical reader assembling ONE digest of a source you have read in parts.
+
+You are given the part-readings in document order. Produce the digest of the
+whole source:
+
+1. Capture the key claims, arguments, and positions of the source as a whole
+2. Keep the details, examples, and data points that ground them
+3. Identify the domain, stakeholders, and discourse context
+4. Preserve enough specificity that the source can be reasoned about without re-reading it in full
+
+The parts overlapped, so the same claim may appear in two readings — merge such
+repetitions rather than listing them twice. Where the readings genuinely disagree
+or a position develops across the source, say so; a source that argues with
+itself is a finding, not a defect to smooth over.
+
+Never invent a synthesis the parts do not support, and never drop a figure, date
+or name a part preserved.
 
 Keep the digest concise but substantive — aim for the minimum text that preserves analytical utility."""
 
@@ -141,6 +208,16 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         existing_digest: str | None = None,
         context: str = "",
     ) -> str:
+        # Only text can be chunked — a window into an image or a PDF part is
+        # meaningless, and `SourceDigest` is the sole `resolve_native` consumer,
+        # so media always takes the single native pass below.
+        if isinstance(content, str):
+            chunks = chunk_text(content)
+            if len(chunks) > 1:
+                return await self._generate_digest_from_parts(
+                    chunks, existing_digest, context
+                )
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         prompt = self._build_prompt(content, existing_digest, context)
@@ -152,6 +229,138 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
 
         self._report.artifacts["reasoning"] = result.reasoning
         return result.digest
+
+    async def _generate_digest_from_parts(
+        self,
+        chunks: list[str],
+        existing_digest: str | None,
+        context: str,
+    ) -> str:
+        """Map a reading over every part, then reduce the readings to one digest.
+
+        A source too big for one prompt used to be interpolated whole anyway
+        (`_build_prompt` f-strings it in), so three 400 KB files meant ~300k
+        tokens per call and, past the provider's window, an error instead of a
+        digest. Truncating to the head would be worse than the error: the digest
+        is what every downstream concern reasons from, and one describing the
+        first few pages while presenting itself as the understanding of the
+        source is a lie the rest of the pipeline cannot detect.
+
+        So every part is read, and coverage is the guarantee (`chunk_text`), not
+        best-effort. The reduce step is where the source becomes one thing again.
+        """
+        total = len(chunks)
+
+        # A FRESH facilitator per part, and this is the load-bearing detail of the
+        # whole method: `self._conversation` is one conversation, so reusing it
+        # would accumulate every part in its history and the last call would
+        # carry the entire document — exactly the send this exists to avoid,
+        # arrived at by a longer road.
+        # Bounded, because this fan-out's width is a pasted file's size — see
+        # MAX_CONCURRENT_PART_READINGS. The semaphore is built here rather than
+        # module-level: one bound per digest, and an `asyncio.Semaphore` created
+        # at import binds to whichever loop happens to be running.
+        slots = asyncio.Semaphore(MAX_CONCURRENT_PART_READINGS)
+
+        async def _read_part(index: int, chunk: str) -> str:
+            async with slots:
+                conversation = ConversationFacilitator()
+                conversation.set_system_prompt(PART_SYSTEM_PROMPT)
+                result = await conversation.submit(
+                    response_model=DigestDto,
+                    user_content=self._build_part_prompt(chunk, index, total, context),
+                )
+                return result.digest
+
+        # `gather` preserves ARGUMENT order, not completion order, and the reduce
+        # depends on that: readings shuffled into completion order would hand the
+        # model a document whose argument develops backwards.
+        part_digests = await asyncio.gather(
+            *[_read_part(i, chunk) for i, chunk in enumerate(chunks, start=1)]
+        )
+
+        # The reduce may reuse `self._conversation`: it sees the readings, which
+        # are short, and never the parts.
+        self._conversation.set_system_prompt(COMBINE_SYSTEM_PROMPT)
+        result = await self._conversation.submit(
+            response_model=DigestDto,
+            user_content=self._build_combine_prompt(
+                list(part_digests), existing_digest, context
+            ),
+        )
+
+        self._report.artifacts["chunks"] = total
+        self._report.artifacts["reasoning"] = result.reasoning
+        return result.digest
+
+    def _build_part_prompt(
+        self,
+        chunk: str,
+        index: int,
+        total: int,
+        context: str,
+    ) -> str:
+        """Prompt for ONE part, framed so it cannot mistake itself for the whole.
+
+        The position is stated twice — in the instruction and on the tag — because
+        a model handed a few thousand words with no frame writes "this document
+        argues X", and that sentence survives into the combined digest as a claim
+        about the source.
+        """
+        sections = [
+            f"You are reading part {index} of {total} of a source that was split "
+            f"because it does not fit in one reading. This is a PART, not the "
+            f"whole source: earlier and later material exists that you cannot see."
+        ]
+
+        if context:
+            sections.append(f"<context>\n{context}\n</context>")
+
+        sections.append(
+            f'<source_part index="{index}" of="{total}">\n{chunk}\n</source_part>'
+        )
+        sections.append(
+            "Report what this part contains, preserving its specifics. Do not "
+            "summarise the source as a whole — you have not seen it."
+        )
+
+        return "\n\n".join(sections)
+
+    def _build_combine_prompt(
+        self,
+        part_digests: list[str],
+        existing_digest: str | None,
+        context: str,
+    ) -> str:
+        """Prompt for the reduce step: the readings, in document order."""
+        sections = []
+
+        if existing_digest:
+            sections.append(f"<existing_digest>\n{existing_digest}\n</existing_digest>")
+
+        if context:
+            sections.append(f"<context>\n{context}\n</context>")
+
+        total = len(part_digests)
+        readings = "\n\n".join(
+            f'<part index="{i}" of="{total}">\n{digest}\n</part>'
+            for i, digest in enumerate(part_digests, start=1)
+        )
+        sections.append(f"<source_read_in_parts>\n{readings}\n</source_read_in_parts>")
+
+        if existing_digest:
+            sections.append(
+                "Refine the existing digest using these part-readings and the "
+                "context provided. Sharpen focus, add relevant details, remove "
+                "irrelevant parts."
+            )
+        else:
+            sections.append(
+                "Produce one analytical digest of the whole source from these "
+                "part-readings."
+            )
+
+        return "\n\n".join(sections)
 
     def _build_prompt(
         self,

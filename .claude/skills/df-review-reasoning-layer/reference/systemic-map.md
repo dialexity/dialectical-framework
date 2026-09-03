@@ -2098,6 +2098,50 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `surface_theses._get_input_text` does NOT go through `input_context` (extraction genuinely needs the raw
   material) and concatenates every Input's full content unbounded — so huge-file *extraction* remains an open
   design question, not a solved one. Locked by `tests/test_input_context_bounding.py`.
+  **There were THREE unbounded raw-content paths, not one, and they want different things from a long source**
+  (`utils/chunking.py`, `CHUNK_SIZE = 40_000` chars ≈ 10k tokens, `CHUNK_OVERLAP = 2_000`). Besides
+  `input_context`: `SourceDigest._build_prompt` f-strings the whole resolved source inline, and
+  `SurfaceTheses._get_input_text` concatenates every Input and hands the result to `ThesisExtraction`, a **3-hop
+  conversation** (the text sits in history for steps 2 and 3) run under **up to 3 param variations** each building
+  a fresh `ThesisExtraction` — so 1.2 MB is up to ~9 sends of ~300k tokens, and that one is still open. The
+  distinction that decides the instrument: **digestion and extraction want COVERAGE, grounding wants RELEVANCE.**
+  Grounding HAS a query (the pole being validated, the statement being classified), so top-k retrieval fits it.
+  Extraction has NO query — the theses are the thing being looked for — so top-k against the intent string
+  returns what the intent already anticipated and systematically misses the tensions nobody thought to ask about,
+  which is the framework's whole job. **Retrieval therefore cannot substitute for a sweep**, and no vector index
+  changes that. Storage was never the problem either: `Input.content` already holds the whole document (or a URL
+  the resolver fetches), and nothing truncates on write — rendering is the problem. Nor does retrieval retire
+  bound-and-announce: the budget must stay (a concern also needs room to reason), what changes is that the bytes
+  spent become the RELEVANT ones instead of the FIRST ones — and the announcement matters MORE, because "3
+  passages selected from a 400 KB document" is a different epistemic situation from "the document" and the model
+  must not mistake fragments for the whole. `chunk_text` seeks boundaries BACKWARDS (paragraph → line → sentence,
+  at most 25% back) and windows OVERLAP, so a tension stated across a seam is whole in at least one chunk;
+  consequently the chunks are **not a partition** (`"".join(chunks) != text`, deliberately) and nothing may
+  reassemble them and call the result the source. Locked by `tests/test_chunking.py`, whose load-bearing property
+  is coverage, not plausibility.
+  **`SourceDigest` now READS A LONG SOURCE IN PARTS** — `PART_SYSTEM_PROMPT` per window, then
+  `COMBINE_SYSTEM_PROMPT` over the readings. Four things about it are load-bearing. (1) It branches on
+  `len(chunks) == 1`, so a fitting source keeps the original single-pass prompt byte-for-byte and there is no
+  second threshold constant beyond `CHUNK_SIZE`. (2) Each part gets a **FRESH `ConversationFacilitator`** —
+  `__init__` builds ONE `self._conversation`, and reusing it would accumulate every part in history so the last
+  call carried the whole document again, arriving at the unbounded send by a longer road; the reduce may reuse it
+  because it sees only the short readings. (3) A part is framed as `part i of n` **twice** (instruction and tag)
+  and told "you have not seen it", because a model handed a few thousand words with no frame writes "this
+  document argues X" and that sentence survives into the combined digest as a claim about the source; the part
+  prompt also orders specifics preserved verbatim, since the reduce cannot recover a figure a part rounded away.
+  (4) The **media branch is untouched** — chunking a window of an image is meaningless, and `SourceDigest` is the
+  sole `resolve_native` consumer, so the branch is on TYPE not size. `report.artifacts["chunks"]` appears only on
+  the parts path, so the cost is visible. Cost shape: n+1 calls instead of 1, gathered — but **bounded at
+  `MAX_CONCURRENT_PART_READINGS = 8`, the one fan-out in the tree that carries a private cap**, because every
+  other one's width comes from graph structure the framework produced while this one's is the size of a file
+  somebody pasted (1.2 MB is 30 windows, 10 MB is 250, all opened at once). Past the provider's ceiling that is
+  not parallelism but the throttle ladder, so a wider gather finishes LATER for the same tokens.
+  `DIALEXITY_MAX_CONCURRENT_LLM_CALLS` cannot express this — it bounds every fan-out or none, and is off by
+  default. The semaphore is built per digest, not at module level, since one created at import binds to whichever
+  loop is running.
+  Locked by `tests/test_source_digest_chunked.py`, which asserts prompt-level coverage (a rewiring that dropped
+  the last window would still pass the chunker's own tests), that the whole document never goes out in one
+  prompt, and that the readings reach the reduce in DOCUMENT order rather than completion order.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which
