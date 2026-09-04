@@ -4,6 +4,12 @@ ThesisExtraction: Concern for extracting theses from content.
 Extracts thesis candidates from source content (Step 1-2), then uses
 StatementClassification to classify and anchor each candidate (Step 3-4).
 
+The two halves are separately callable — `extract_candidates()` returns candidate
+strings and writes nothing, `classify_candidates()` writes the graph — so a
+caller sweeping a source too long for one prompt can gather candidates from every
+window before deciding which ones deserve a Statement. `resolve()` is the two in
+sequence and behaves exactly as before.
+
 For direct theses (not extracted from content), use StatementClassification directly.
 
 Usage:
@@ -133,7 +139,50 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         Returns:
             List of extracted Statement theses
         """
+        all_candidates = await self.extract_candidates(
+            text=text,
+            count=count,
+            focus=focus,
+            not_like_these=not_like_these,
+        )
+        if not all_candidates:
+            return []
 
+        # Limit to requested count
+        candidates_to_process = all_candidates[: self._count]
+
+        # STEP 3-4: Classify and anchor each candidate using StatementClassification
+        components = await self.classify_candidates(
+            [(candidate, self._text) for candidate in candidates_to_process],
+            domain_hint=domain_hint,
+        )
+
+        # Build artifacts
+        self._report.artifacts["thesis_hashes"] = [c.hash for c in components]
+        self._report.ok = True
+        self._report.summary = f"Extracted {len(components)} thesis(es) from content"
+
+        return components
+
+    async def extract_candidates(
+        self,
+        text: str,
+        count: int = 4,
+        focus: str = "",
+        not_like_these: Optional[list[str]] = None,
+    ) -> list[str]:
+        """Steps 1-2 only: candidate thesis STRINGS, with no graph writes.
+
+        Split out of `resolve()` so a caller sweeping a long source window by
+        window can gather candidates from everywhere before deciding which
+        deserve a `Statement`. Doing the whole of `resolve()` per window instead
+        would commit a Statement AND a Rationale for every candidate in every
+        window — 30 windows asking for 3 theses is 180 nodes written so that
+        deduplication can delete most of them again.
+
+        Every prompt here is unchanged from when this was inline; `resolve()`
+        still calls it first, so the single-pass behaviour is identical.
+        """
         # Early validation - don't hit LLM for nothing
         text = text.strip() if text else ""
         if not text or count <= 0:
@@ -145,7 +194,6 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         self._text = text
         self._count = min(count, 4)
         self._focus = focus
-        self._domain_hint = domain_hint
         self._not_like_these = not_like_these or []
 
         # Initialize conversation
@@ -181,19 +229,8 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
             self._report.artifacts["thesis_hashes"] = []
             return []
 
-        # Limit to requested count
-        candidates_to_process = all_candidates[: self._count]
-
-        # STEP 3-4: Classify and anchor each candidate using StatementClassification
-        components = await self._classify_candidates(candidates_to_process)
-
-        # Build artifacts
-        self._report.artifacts["thesis_hashes"] = [c.hash for c in components]
         self._report.artifacts["candidate_count"] = len(all_candidates)
-        self._report.ok = True
-        self._report.summary = f"Extracted {len(components)} thesis(es) from content"
-
-        return components
+        return all_candidates
 
     # --- STEP 1: Extract Assertable Content ---
 
@@ -277,19 +314,33 @@ Return:
 
     # --- STEP 3-4: Classify using StatementClassification ---
 
-    async def _classify_candidates(
-        self, candidates: list[str]
+    async def classify_candidates(
+        self,
+        candidates: list[tuple[str, str]],
+        domain_hint: str = "",
     ) -> list[Statement]:
-        """Classify each candidate and create components."""
+        """Classify candidates and create components. Writes to the graph.
+
+        Args:
+            candidates: `(candidate, source_context)` pairs. The context is
+                PER CANDIDATE rather than one shared string because a swept
+                source has no single relevant context: `StatementClassification`
+                uses it to determine the taxonomy domain and truncates it to
+                2000 chars, so handing it the head of a 400 KB concatenation
+                would ask it to place a claim from page 300 using page 1. The
+                window the candidate actually came from is what the parameter
+                always meant.
+            domain_hint: Taxonomy domain hint forwarded to classification.
+        """
         # Create classifiers and run in parallel
         classifiers = [StatementClassification() for _ in candidates]
         tasks = [
             classifier.resolve(
                 statement=statement,
-                text=self._text,
-                domain_hint=self._domain_hint,
+                text=context,
+                domain_hint=domain_hint,
             )
-            for classifier, statement in zip(classifiers, candidates)
+            for classifier, (statement, context) in zip(classifiers, candidates)
         ]
 
         results: list[ClassificationResult] = await asyncio.gather(*tasks)

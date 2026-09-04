@@ -6,7 +6,9 @@ Extraction-only — does NOT anchor literal concepts (use AnchorTheses for that)
 Flow:
 1. Get input text (required — returns None if no inputs)
 2. Parse intent → extraction parameters (count, focus, domain_hint)
-3. Extract fresh theses via ThesisExtraction (with retries on different params)
+3. Extract fresh theses via ThesisExtraction — one pass with retries on
+   different params when the source fits a prompt, a window-by-window SWEEP
+   when it does not (`_extraction_sweep`)
 4. Semantic dedup against existing vocabulary
 5. Create Ideas with final set
 
@@ -17,6 +19,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Annotated, Optional
 
 from dependency_injector.wiring import Provide, inject
@@ -40,9 +43,21 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.statement_repository import \
     StatementRepository
+from dialectical_framework.utils.chunking import chunk_text
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
+
+
+#: Windows extracted from concurrently when a source is swept. A module constant,
+#: not a setting, per "Policy is not config".
+#:
+#: Deliberately lower than `SourceDigest`'s cap: each window is itself a fan-out
+#: (step 2 of `ThesisExtraction` issues one call per content item, up to
+#: `count + 2`), so the calls actually in flight are roughly this times six. Same
+#: underlying reason for having a cap at all — the width comes from the size of a
+#: file somebody pasted, not from graph structure the framework produced.
+MAX_CONCURRENT_WINDOW_SWEEPS = 3
 
 
 # --- System Prompt ---
@@ -99,7 +114,8 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
     Flow:
     1. Gets input text (required)
     2. Parses extraction intent (count, focus, domain_hint, constraints)
-    3. Extracts fresh theses via ThesisExtraction (with retries)
+    3. Extracts fresh theses via ThesisExtraction (retries on a source that
+       fits one prompt; a sweep over overlapping windows on one that does not)
     4. Deduplicates against existing vocabulary (prefers DB versions)
     5. Creates Ideas node with final component set
     """
@@ -143,13 +159,23 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
         vocab = comp_repo.get_vocabulary_with_rationales()
         not_like_these = [c["statement"] for c in vocab]
 
-        # 4. Extraction loop
-        extracted_components, extraction_reports = await self._extraction_loop(
-            input_text=input_text,
-            parsed=parsed,
-            target_count=parsed.count,
-            not_like_these=not_like_these,
-        )
+        # 4. Extraction — one pass if the source fits a prompt, a sweep if not
+        windows = chunk_text(input_text)
+        self._report.artifacts["source_windows"] = len(windows)
+        if len(windows) > 1:
+            extracted_components, extraction_reports = await self._extraction_sweep(
+                windows=windows,
+                parsed=parsed,
+                target_count=parsed.count,
+                not_like_these=not_like_these,
+            )
+        else:
+            extracted_components, extraction_reports = await self._extraction_loop(
+                input_text=input_text,
+                parsed=parsed,
+                target_count=parsed.count,
+                not_like_these=not_like_these,
+            )
         for r in extraction_reports:
             self._report = self._report.merge(r)
 
@@ -276,6 +302,132 @@ Determine:
                     not_like_these.append(comp.text)
 
         return extracted_components[:target_count], reports
+
+    async def _extraction_sweep(
+        self,
+        windows: list[str],
+        parsed: ParsedIntentDto,
+        target_count: int,
+        not_like_these: list[str],
+    ) -> tuple[list[Statement], list[ExecutionReport]]:
+        """Extract from a source too long for one prompt: sweep, merge, classify.
+
+        `_extraction_loop` hands the WHOLE concatenated source to
+        `ThesisExtraction` up to four times. That is the last of the three
+        unbounded raw-content paths and by far the worst, because the cost is
+        multiplied twice over: `_step2_identify_candidates` fans out one call per
+        content item through `self._conversation.isolate()`, which COPIES the
+        message history — and that history is step 1's prompt, i.e. the entire
+        source. So one `ThesisExtraction` is ~7 full-source sends, and four
+        attempts plus the deduplication pass is ~29. At 1.2 MB (~300k tokens)
+        that is millions of tokens, or a context-limit failure before any of it.
+
+        Why a sweep and not retrieval: extraction has NO query. The theses are
+        the thing being looked for, so selecting top-k against the intent string
+        would return what the intent already anticipated and miss the tensions
+        nobody thought to ask about — which is the framework's whole job. Every
+        window must therefore be read.
+
+        Candidates only, in one pass over the windows: `extract_candidates`
+        writes nothing, so the merge happens on strings and only the survivors
+        become Statements. Sweeping with the full `resolve()` instead would
+        commit a Statement plus a Rationale per candidate per window and rely on
+        deduplication to delete most of them again.
+        """
+        reports: list[ExecutionReport] = []
+
+        candidates = await self._sweep_windows(
+            windows=windows,
+            focus=parsed.focus,
+            target_count=target_count,
+            not_like_these=not_like_these,
+            reports=reports,
+        )
+
+        # A sweep with a focus has already looked everywhere, so under-delivery
+        # means the material does not hold what was asked for — re-sweeping
+        # under `_build_param_variations` would re-read the whole document up to
+        # three more times to reconsider material the first pass saw and
+        # declined. The ZERO case is different: it is the shape of a focus that
+        # excluded everything, or of the step-2 gate over-rejecting, so it earns
+        # exactly one broader sweep with no focus at all.
+        if not candidates and parsed.focus:
+            self._report.artifacts["sweep_retried_without_focus"] = True
+            candidates = await self._sweep_windows(
+                windows=windows,
+                focus="",
+                target_count=target_count,
+                not_like_these=not_like_these,
+                reports=reports,
+            )
+
+        self._report.artifacts["swept_candidate_count"] = len(candidates)
+        if not candidates:
+            return [], reports
+
+        # Classify only the survivors, each against the window it came from.
+        selected = candidates[:target_count]
+        classifier = ThesisExtraction()
+        components = await classifier.classify_candidates(
+            selected, domain_hint=parsed.domain_hint
+        )
+        reports.append(classifier.report)
+
+        return components, reports
+
+    async def _sweep_windows(
+        self,
+        windows: list[str],
+        focus: str,
+        target_count: int,
+        not_like_these: list[str],
+        reports: list[ExecutionReport],
+    ) -> list[tuple[str, str]]:
+        """One `extract_candidates` per window, merged into `(candidate, window)`.
+
+        Windows run concurrently and therefore cannot see each other's results,
+        so `not_like_these` cannot grow across them the way it does across the
+        sequential attempts in `_extraction_loop`. Two windows restating the same
+        claim is expected rather than avoided, and is what the merge below plus
+        `StatementDeduplication` are for — the alternative, sweeping windows
+        serially to thread the exclusion list, would make a 30-window source 30
+        round-trips deep.
+        """
+        # Bounded for the same reason `SourceDigest`'s fan-out is: the width here
+        # is the size of a file somebody pasted. Lower than the digest's cap
+        # because each window is itself a fan-out — step 2 issues one call per
+        # content item — so the real in-flight count is a multiple of this.
+        slots = asyncio.Semaphore(MAX_CONCURRENT_WINDOW_SWEEPS)
+
+        async def _sweep_one(window: str) -> tuple[list[str], ExecutionReport]:
+            async with slots:
+                service = ThesisExtraction()
+                found = await service.extract_candidates(
+                    text=window,
+                    count=target_count,
+                    focus=focus,
+                    not_like_these=not_like_these,
+                )
+                return found, service.report
+
+        results = await asyncio.gather(*[_sweep_one(w) for w in windows])
+
+        # Merged in document order — `gather` preserves argument order — and
+        # deduplicated on normalised text, so the same claim surfacing in two
+        # overlapping windows costs one classification rather than two. Exact
+        # matching only; semantic near-duplicates are `StatementDeduplication`'s
+        # job and it runs later with the vocabulary to compare against.
+        merged: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for window, (found, report) in zip(windows, results):
+            reports.append(report)
+            for candidate in found:
+                key = " ".join(candidate.lower().split())
+                if key and key not in seen:
+                    seen.add(key)
+                    merged.append((candidate, window))
+
+        return merged
 
     def _build_param_variations(self, parsed: ParsedIntentDto) -> list[dict]:
         """Build list of parameter variations to try."""

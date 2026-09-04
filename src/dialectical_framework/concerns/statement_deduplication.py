@@ -34,6 +34,26 @@ from dialectical_framework.concerns.statement_classification import (
 
 SIMPLE_MEANING = "dx://taxonomy/Simple"
 
+#: Cap on the `**Source Context:**` section, matching `StatementClassification`'s
+#: cap on the section of the same name (the sibling this concern is most often
+#: called beside). Both prompts want the context for the same narrow purpose —
+#: enough of the material to tell what a short statement MEANS — so neither needs
+#: the document.
+#:
+#: It was unbounded, and every one of the four callers hands it a source string:
+#: `surface_theses` and `find_polarities` pass the full concatenation of every
+#: Input in scope, `expand_polarities` and `statement_placement` pass theirs. So a
+#: pasted 400 KB file arrived here whole, in a call whose actual question is
+#: "which of these dozen short statements restate each other".
+DEDUP_CONTEXT_LIMIT = 2000
+
+
+def _bounded_context(text: str) -> str:
+    """The source context as it may appear in a prompt, announcing any cut."""
+    if len(text) <= DEDUP_CONTEXT_LIMIT:
+        return text
+    return f"{text[:DEDUP_CONTEXT_LIMIT]}..."
+
 
 def _extract_meaning_prefix(meaning: Optional[str]) -> Optional[str]:
     """
@@ -309,7 +329,7 @@ class StatementDeduplication(ReasonableConcern[DedupResult]):
         if self._text:
             context_section = f"""
 **Source Context:**
-{self._text}
+{_bounded_context(self._text)}
 
 """
 
@@ -445,7 +465,7 @@ If no match, set db_hash to null."""
         if text:
             context_section = f"""
 **Source Context:**
-{text}
+{_bounded_context(text)}
 
 """
 

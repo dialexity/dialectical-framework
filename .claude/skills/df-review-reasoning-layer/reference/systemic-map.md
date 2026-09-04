@@ -2069,7 +2069,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   so a 50k-char input arrived as a fragment presented as the whole source — worst possible place for it, since S+/S-
   are precisely the judgements that go wrong when incomplete material looks complete. Now appends `"..."` past the
   cap, the same idiom the other two sites already used; locked by `TestTruncationIsMarked`, which also asserts the
-  siblings keep theirs.
+  siblings keep theirs. `StatementDeduplication`'s two `**Source Context:**` sites joined the same idiom later
+  (`DEDUP_CONTEXT_LIMIT = 2000`, matching `StatementClassification`'s section of that name — see the sweep block
+  below); the roster of front-truncating prompts is therefore `StatementHeadline` 1500, `synthesis_generation`
+  1500, both `StatementClassification` prompts 2000, both `StatementDeduplication` prompts 2000, with
+  `AntithesisClassification` the one that does not truncate.
   **`input_context` is BOUNDED now, and both halves of how matter** (`utils/input_context.py`,
   `INPUT_CONTEXT_BUDGET = 24_000` chars ≈ 6k tokens — a module constant, not a setting, per "Policy is not
   config"). Measured before changing anything: three undigested ~400 KB files rendered **1.22 MB, ~300k tokens**
@@ -2094,17 +2098,24 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   identifiers-only `# Sources` line in the context dump reads `all_hashes()` instead, a projection that does not
   ship `content` — 34 ms for three 400 KB sources through `get_all()`, 113 ms for ten, against a flat ~2-3 ms
   (`tests/probe_source_listing_cost.py`), on a dump that fires on most turns. `present_analysis` still takes full
-  nodes because it renders previews. Locked by `tests/test_source_listing.py`. **Still exposed:**
-  `surface_theses._get_input_text` does NOT go through `input_context` (extraction genuinely needs the raw
-  material) and concatenates every Input's full content unbounded — so huge-file *extraction* remains an open
-  design question, not a solved one. Locked by `tests/test_input_context_bounding.py`.
+  nodes because it renders previews. Locked by `tests/test_source_listing.py`.
+  `surface_theses._get_input_text` deliberately does NOT go through `input_context` (extraction genuinely needs
+  the raw material) and still concatenates every Input's full content — that concatenation is now SWEPT rather
+  than sent, see the sweep block below. Locked by `tests/test_input_context_bounding.py`.
   **There were THREE unbounded raw-content paths, not one, and they want different things from a long source**
   (`utils/chunking.py`, `CHUNK_SIZE = 40_000` chars ≈ 10k tokens, `CHUNK_OVERLAP = 2_000`). Besides
   `input_context`: `SourceDigest._build_prompt` f-strings the whole resolved source inline, and
-  `SurfaceTheses._get_input_text` concatenates every Input and hands the result to `ThesisExtraction`, a **3-hop
-  conversation** (the text sits in history for steps 2 and 3) run under **up to 3 param variations** each building
-  a fresh `ThesisExtraction` — so 1.2 MB is up to ~9 sends of ~300k tokens, and that one is still open. The
-  distinction that decides the instrument: **digestion and extraction want COVERAGE, grounding wants RELEVANCE.**
+  `SurfaceTheses._get_input_text` concatenates every Input and hands the result to `ThesisExtraction`. **The
+  accounting on that second one is ~29 full-source sends, not the ~9 first written here** — corrected against the
+  code, and the difference is instructive. Step 1 is one call carrying the text; **step 2 is up to `count + 2`
+  (≤6) calls EACH carrying it, because `ConversationFacilitator.isolate()` does `isolated._messages =
+  [*self._messages]` — it COPIES history, and that history is step 1's prompt**; step 3 is the one hop that was
+  already bounded (`StatementClassification` truncates its source context to 2000 chars with a `"..."` marker). So
+  one `ThesisExtraction` is ~7 full-source sends, `max_attempts` is **4** and not 3, and `StatementDeduplication`
+  adds one more: ~29 sends of ~300k tokens, or a context-limit failure before any of them. Two lessons worth more
+  than the number: an `isolate()` fan-out multiplies whatever is in history, and a summary's own arithmetic is not
+  evidence — both figures here came from re-reading the source, and both of my earlier ones were wrong.
+  The distinction that decides the instrument: **digestion and extraction want COVERAGE, grounding wants RELEVANCE.**
   Grounding HAS a query (the pole being validated, the statement being classified), so top-k retrieval fits it —
   but **retrieval is the APPLICATION's job, decided 2026-09-03, and the framework will not grow embeddings.**
   `InputResolver` is the seam and it was designed for exactly this: its docstring says the resolver "can traverse
@@ -2156,6 +2167,45 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   Locked by `tests/test_source_digest_chunked.py`, which asserts prompt-level coverage (a rewiring that dropped
   the last window would still pass the chunker's own tests), that the whole document never goes out in one
   prompt, and that the readings reach the reduce in DOCUMENT order rather than completion order.
+  **`SurfaceTheses` now SWEEPS a long source — the third path closed, and the one that needed a concern split.**
+  `resolve()` chunks the concatenated input and branches on `len(windows) > 1`: `_extraction_sweep` instead of
+  `_extraction_loop`, `report.artifacts["source_windows"]` either way so the shape is visible. Six things are
+  load-bearing. (1) **`ThesisExtraction` is SPLIT in two publicly callable halves** — `extract_candidates()` is
+  steps 1-2 and writes NOTHING, `classify_candidates()` is steps 3-4 and writes the graph. Sweeping with
+  `resolve()` would commit a Statement PLUS a Rationale per candidate per window; 30 windows asking for 3 theses is
+  ~180 nodes written so that deduplication can delete most of them again. `resolve()` is now literally the two in
+  sequence, so the single-pass path is unchanged — including the step-2 gate-rejection safety net, which MOVED into
+  `extract_candidates` and therefore now protects the sweep too (the regression test asserting it via
+  `inspect.getsource` had to be repointed; a source-text assertion pinned to a method name is exactly as brittle as
+  it looks). (2) **Candidates merge in DOCUMENT order** — `gather` preserves argument order — with exact dedup on
+  whitespace-normalised lowercase, so a claim caught in two overlapping windows costs one classification. Semantic
+  near-duplicates stay `StatementDeduplication`'s job, which runs later with the vocabulary to compare against.
+  (3) **Each candidate is classified against ITS OWN window**, which is a deliberate behaviour change:
+  `classify_candidates` takes `(candidate, context)` PAIRS because `StatementClassification` uses that context to
+  pick the taxonomy domain and truncates it to 2000 chars, so one shared string asks it to place a page-300 claim
+  using page 1. Defensible as fixing a latent defect the parameter always meant to avoid, but it IS a change.
+  (4) **Under-delivery does NOT re-sweep** — the second deliberate change. A focused sweep has already looked
+  everywhere, so fewer candidates than asked for means the material does not hold them; re-running
+  `_build_param_variations` would re-read the whole document up to three more times to reconsider material the
+  first pass saw and declined. The ZERO case is different in kind (a focus that excluded everything, or the step-2
+  gate over-rejecting) and earns exactly one broader sweep with no focus, flagged as
+  `artifacts["sweep_retried_without_focus"]`. (5) **`not_like_these` cannot grow across windows** — they run
+  concurrently, so it is the same list for all of them, unlike the sequential attempts in `_extraction_loop`.
+  Threading the exclusion list would make a 30-window source 30 round-trips deep; overlap in the results is what
+  the merge and dedup are for. (6) **Bounded at `MAX_CONCURRENT_WINDOW_SWEEPS = 3`**, deliberately lower than the
+  digest's 8 because each window is ITSELF a fan-out of `count + 2`, so in-flight calls are roughly this times six;
+  same justification for having a private cap at all. **`StatementDeduplication` was a FOURTH unbounded consumer
+  with TWO prompt sites** (`_find_semantic_matches` off `self._text`, `check_idea` off a local `text`), fed by four
+  callers (`surface_theses`, `find_polarities`, `expand_polarities`, `statement_placement`); both now go through
+  `_bounded_context` at `DEDUP_CONTEXT_LIMIT = 2000`, matching `StatementClassification`'s section of the same
+  name. **Bounding inside the concern rather than at the four call sites is the point** — one change covers all
+  four and a fifth caller inherits it. **Measured saving NOT taken, on purpose:** switching
+  `_step2_identify_candidates` off `isolate()` to a fresh facilitator would cut ~7 full-text sends per extraction
+  to 1 — the single biggest token win left on this path — but removing the source from step 2's history is a
+  REASONING change, and it needs an A/B before anyone takes it. Locked by `tests/test_surface_theses_sweep.py`
+  (prompt-level coverage, document order under a deliberately slow first window, per-window classification
+  provenance, the cap, the zero-candidate retry, and that `ThesisExtraction.resolve` is never reached from the
+  sweep), `tests/test_thesis_extraction_split.py`, and `tests/test_statement_deduplication_bound.py`.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which

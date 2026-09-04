@@ -1,17 +1,22 @@
 """Split a long source into windows that fit in one prompt.
 
 The shared substrate under every "the document is too big for this call" problem
-in the tree, and there were three of them: `SourceDigest` interpolates the whole
-resolved source inline, `SurfaceTheses` concatenates every Input's full content
-and hands it to a 3-hop extraction that retries up to three times, and
-`input_context` used to render everything (bounded since `INPUT_CONTEXT_BUDGET`).
+in the tree, and there were three of them: `SourceDigest` interpolated the whole
+resolved source inline (now reads it in parts), `SurfaceTheses` concatenated every
+Input's full content and handed it to a 3-hop extraction retried up to four times
+— ~29 sends of the whole document, since step 2 fans out through `isolate()`,
+which copies the history holding step 1's prompt (now swept window by window) —
+and `input_context` rendered everything (bounded since `INPUT_CONTEXT_BUDGET`).
 
 The three want the chunks for different reasons, which is why this module knows
 about none of them:
 
 - **Digestion and extraction want COVERAGE.** Every part must be looked at, or
   the understanding is of the first N pages and says otherwise. That is a sweep
-  over all chunks plus a merge, not a selection.
+  over all chunks plus a merge, not a selection. Both now do exactly that —
+  `SourceDigest._generate_digest_from_parts` and
+  `SurfaceTheses._extraction_sweep` — each with its own concurrency cap, since
+  the width comes from the size of a file somebody pasted.
 - **Grounding wants RELEVANCE** — the passages bearing on one pole. That is a
   selection, and a retrieval index is the right instrument for it — but that index belongs to the APPLICATION,
   served through `InputResolver` (whose docstring already names `Ideas.intent` as the relevance hint). The

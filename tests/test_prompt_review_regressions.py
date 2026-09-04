@@ -862,7 +862,10 @@ class TestAdvisorFloorGuarantee:
         items rather than returning zero candidates."""
         from dialectical_framework.concerns import thesis_extraction as m
 
-        src = inspect.getsource(m.ThesisExtraction.resolve)
+        # Steps 1-2 live in extract_candidates() so a sweeping caller can reach
+        # them without the graph writes; the safety net moved with them and
+        # protects the sweep path too.
+        src = inspect.getsource(m.ThesisExtraction.extract_candidates)
         # fallback keys off content_items surviving when candidates are empty
         assert "not all_candidates and content_items" in src
 
