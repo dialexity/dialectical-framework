@@ -2242,6 +2242,16 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   own first draft printed a cache note that its own numbers three lines above contradicted; the general lesson
   is that an instrument's EXPLANATIONS need reviewing as hard as its measurements, because a wrong explanation
   next to a right number is what gets quoted.
+  **Two ingestion optimisations CONSIDERED AND DROPPED (2026-09-04, agreed). Do not re-propose without new
+  evidence.** (a) **Extending the cache split to the user-message prefix — measured dead**, not
+  un-implemented: the probe above found 0 cache reads against 184,438 writes, and the only prefixes that clear
+  the 4,096-token minimum are shared by CONCURRENT siblings, which prompt caching structurally cannot serve.
+  More breakpoints would add writes, not reads. The one variant that would work — serialize one branch to warm
+  the cache, then fan out — buys a 0.1x read for an extra round trip per window, and the same probe measured
+  latency as the thing that is already fine on this path. (b) **Racing `SourceDigest` against `SurfaceTheses`
+  to overlap them** — rejected on CORRECTNESS, not cost: `_parse_intent`'s prompt reads the digest, so racing
+  them makes the prompt depend on which finishes first, reinstating exactly the nondeterminism that was removed
+  by making the digest a precondition. A latency win that makes a prompt depend on a scheduler is not a win.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which
