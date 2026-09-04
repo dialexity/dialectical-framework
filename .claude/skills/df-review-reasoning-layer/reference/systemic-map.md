@@ -78,6 +78,23 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     Unrelated but load-bearing when reading cache numbers: the minimum cacheable prefix is **4,096 tokens
     on haiku-4.5**, so no concern prompt in the tree (~0.8k–3.5k) has ever been cacheable and `cache_read=0`
     there is correct.
+  - **CORRECTION (2026-09-04): "no concern prompt is cacheable" was true of the PROMPT and false of the
+    REQUEST, and on the ingestion path the difference costs money.** Mirascope stamps `cache_control` on
+    the last content block of the last message whenever the history contains an assistant turn
+    (`anthropic/_utils/encode.py:356-377`), so a multi-turn concern conversation carrying a ~10k-token
+    source window clears the minimum easily. `ThesisExtraction._step2_identify_candidates` is exactly
+    that: `count + 2` isolated branches whose copied history holds step 1's window.
+    `tests/e2e/probe_ingest_cost.py` measured **184,438 tokens WRITTEN and 0 read** across a 120 KB
+    ingest — a **1.25x write surcharge, ~46,110 token-equivalents, paid for entries nothing came back
+    for**, all of it step 2. **Not fixable by adding breakpoints, and this is the transferable part:
+    prompt caching cannot serve CONCURRENT siblings.** The branches run under one `asyncio.gather` and a
+    provider cache entry is readable only after the call that wrote it returns, so every sibling misses.
+    Serializing one call to warm the cache would buy the 0.1x read at the price of a round trip on the
+    critical path — the wrong direction for a latency complaint. So when reading `cache_read=0`, ask
+    whether the prefix was too SHORT (correct, nothing to do) or whether it was written and orphaned
+    (a real charge); the two are indistinguishable without the `cache_write` column, which is why the
+    probe now prints it per stage. The free fix is the step-2 `isolate()` A/B, which removes the window
+    from those requests and the surcharge with it.
   - **Priced on the bench, r26, 64 live A2 turns: median 0.300s = 1.49% of the median reply path, and
     0.7% of all reply-path seconds in the round.** Never above 1.6s on any of the 11 slow turns. The
     refresh is not a latency concern and this is no longer an argument, it is a measurement.
@@ -2206,6 +2223,25 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   (prompt-level coverage, document order under a deliberately slow first window, per-window classification
   provenance, the cap, the zero-candidate retry, and that `ThesisExtraction.resolve` is never reached from the
   sweep), `tests/test_thesis_extraction_split.py`, and `tests/test_statement_deduplication_bound.py`.
+  **Now MEASURED rather than derived (2026-09-04, `tests/e2e/probe_ingest_cost.py`, 120 KB / 4 windows).** The
+  "~2.5M-6M tokens per ingest" projection **survives at the bottom of its own band: ~2.5M prefill tokens
+  extrapolated to 1.2 MB** (33 windows by the real chunker). Three things the measurement added that the
+  arithmetic could not. (1) **The size-driven rate is a real number and the grand total is not.** Two
+  back-to-back runs on the IDENTICAL document reproduced size-driven prefill to **0.1%** (276,044 vs 276,396;
+  69,011 vs 69,099 per window) while everything else swung **2.8x** (537,482 vs 191,949) — because
+  `find_polarities` proposed 50 pairs in one run and 5 in the other and each pair costs a downstream evaluation
+  (`ModePointResultDto` x110 was 661.7s of run 1's 1,024.6s of provider time). So the non-size-driven part is
+  driven by extraction YIELD, which is stochastic; quote the per-window figure, never a single total. This is
+  also why the first extrapolation was wrong by ~3x: it scaled the grand total instead of the size-driven
+  stages. (2) **The `isolate()` A/B above is now priced: step 2 is 207,047 tokens, 75% of everything the
+  document's SIZE costs**, so dropping it cuts size-driven ingestion cost roughly 4x. Still not taken — still a
+  reasoning change. (3) **It also pays a cache write surcharge nobody reads** (~46,110 token-equivalents; see
+  the caching CORRECTION near the top of this file), which the same change removes for free. **And a null worth
+  keeping: latency is not the problem on this path** — 85-98s for 120 KB at 5-11x parallelism with only 1.3-3.9s
+  of wall clock outside any provider call, so there is no orchestration gap to close in ingestion. The probe's
+  own first draft printed a cache note that its own numbers three lines above contradicted; the general lesson
+  is that an instrument's EXPLANATIONS need reviewing as hard as its measurements, because a wrong explanation
+  next to a right number is what gets quoted.
   **`anchor` has TWO branches and only one was wired** (fixed 2026-08-11, before any bench run could be misread as
   measuring the lane): with `antithesis` it calls `ExpandPolarity` directly and grounded correctly; thesis-only
   composes `AnalysisPipeline`, which forwarded nothing — and `context` went in as `intent`, which

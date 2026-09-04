@@ -116,6 +116,12 @@ co-occurrence hotspots. Then:
       in the render. Append a section after the dump, or repeat the heading in prose, and prefill cost on every
       post-write turn goes up ~6.8x — silently, because the split fails soft by returning the prompt unchanged.
       `tests/test_prompt_cache_split.py` is the tripwire; run it with any section-order edit.
+- [ ] **A `gather` over `isolate()` branches pays for prompt caching and gets nothing back.** Mirascope stamps a
+      cache breakpoint on the last message of any multi-turn request, so each branch WRITES its copied history at
+      1.25x — and concurrent siblings cannot read what a sibling has not finished writing. Measured at 184,438
+      tokens written / 0 read per 120 KB ingest (`tests/e2e/probe_ingest_cost.py`). If your fan-out copies a long
+      history, the cost question is how much history it copies, not whether caching will absorb it; see the
+      caching CORRECTION in [reference/systemic-map.md](reference/systemic-map.md).
 
 ---
 
