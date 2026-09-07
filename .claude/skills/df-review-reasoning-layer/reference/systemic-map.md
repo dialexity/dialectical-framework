@@ -236,11 +236,19 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     was WRONG — the run made zero `SimpleNegationDto` calls.** Kept here as the warning it is: an absent DTO
     is evidence, a plausible mechanism is not. So the 6.6s/12.4s difference is the CONSOLIDATION yield
     moving, and the variable is `AntitheticalThesisDetection`, not `StatementClassification`.
-    **TWO OPEN instrumentation gaps on the ingest path, both worth a reviewer's attention because both are
-    prompt-adjacent:** (1) Phase 0 owes a step of its own — it is a distinct phase (one provider call plus
-    graph writes) currently narrated by the label of the phase AFTER it, so a person reads "Looking for what
-    genuinely pushes back" for 12.4s while pairwise consolidation runs and potentially deletes 80% of the
-    extraction that label promises; (2) `AntithesisExtraction._extract_candidates` (link 2) is an
+    **TWO instrumentation gaps on the ingest path, both prompt-adjacent so both are a reviewer's business.
+    The first is CLOSED, the second is OPEN:** (1) Phase 0 owed a step of its own — it is a distinct phase
+    (one provider call plus graph writes) that was narrated by the label of the phase AFTER it, so a person
+    read "Looking for what genuinely pushes back" for 12.4s while pairwise consolidation ran and potentially
+    deleted 80% of the extraction that label promised. It now declares `expect_progress(1)` +
+    `report_progress("Checking whether any of the N tension(s) already oppose each other")` at its own site,
+    BELOW the `len(unique_hashes) < 2` guard — above the guard it would be a phantom step on every
+    single-thesis `anchor` run. One step, not two: the merges after the detector call write
+    Polarity/Mode/Arousal, which the `sid` channel already carries. A reviewer's checks on this label are the
+    usual two — no framework vocabulary (`consolidat` and `heuristic` are banned alongside the standard list)
+    and no source content, the count only. Pinned by
+    `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`; not yet measured live.
+    (2) STILL OPEN: `AntithesisExtraction._extract_candidates` (link 2) is an
     `asyncio.gather` over one `ModePointResultDto` call per mode point (up to 11) that **writes nothing** by
     its own docstring, announced by one label — every clause of the `note_progress` condition met, and the
     largest provider-time block of the run at 94.2s across 22 calls. Five earlier runs did not promote it

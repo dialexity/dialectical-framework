@@ -886,3 +886,123 @@ class TestTheDigestSaysWhenAPartComesBack:
         for term in BANNED:
             assert term not in label.lower(), f"{label!r} names {term!r}"
         assert len(label) < 200
+
+
+class TestTheConsolidationPhaseSaysItIsRunning:
+    """The fourth hole, and the only one where the label on screen was WRONG.
+
+    `FindPolarities` runs a Phase 0 before extraction: `AntitheticalThesisDetection`
+    compares the surfaced tensions pairwise, and every pair it merges is written as
+    an opposition directly and taken OUT of the extraction that follows. On the
+    120 KB run that phase took **12.4s and removed 8 of the 10 surfaced tensions**,
+    and the only line on screen for those twelve seconds was the caller's "Looking
+    for what genuinely pushes back" — a label about extraction, over a phase that
+    was busy cancelling most of it (`tests/e2e/probe_ingest_progress.py`).
+
+    So this is not the fan-out defect the class above pins. Nothing here is gathered
+    and nothing is silent: the channel had an event, it just described different
+    work than the work being done. The fix is one step at Phase 0's own site.
+
+    Asserted on the skill rather than through `ingest`, for the reason
+    `TestOneLabelNeverCoversAGatheredFanOut` gives — and additionally because the
+    `two_theses` fixture patches `ThesisExtraction.resolve`, which is upstream of
+    this phase but says nothing about how many hashes reach it.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup_graph_db(self):
+        yield
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_graph_data(self):
+        yield
+
+    async def _consolidate(
+        self, monkeypatch, hashes: list[str]
+    ) -> tuple[list[str], object, list[list[str]]]:
+        """Run Phase 0 under a scope with detection stubbed to merge nothing.
+
+        Merging nothing is the conservative case for this test: the step is declared
+        before the detector is called, so a fixture that merged pairs would exercise
+        the graph writes without changing anything about the accounting, while
+        needing real `Statement`s to do it.
+        """
+        from types import SimpleNamespace
+
+        from dialectical_framework.agents.analyst.skills import find_polarities
+        from dialectical_framework.agents.analyst.skills.find_polarities import \
+            FindPolarities
+        from dialectical_framework.concerns.antithetical_thesis_detection import \
+            AntitheticalThesisDetection
+        from dialectical_framework.utils.progress import progress_scope
+
+        called: list[list[str]] = []
+
+        async def fake_detect(self, *, thesis_hashes, text):
+            called.append(list(thesis_hashes))
+            return SimpleNamespace(merge_pairs=[], suggest_pairs=[])
+
+        monkeypatch.setattr(AntitheticalThesisDetection, "resolve", fake_detect)
+
+        reported: list[str] = []
+        monkeypatch.setattr(
+            find_polarities, "report_progress", lambda detail: reported.append(detail)
+        )
+
+        with progress_scope("ingest") as progress:
+            await FindPolarities(thesis_hashes=hashes)._consolidate_antithetical(
+                hashes, "irrelevant under a stubbed detector"
+            )
+
+        return reported, progress, called
+
+    @pytest.mark.asyncio
+    async def test_the_phase_declares_one_step_before_it_runs(self, monkeypatch):
+        """One step, carrying this run's count, published before the detector call."""
+        reported, progress, called = await self._consolidate(
+            monkeypatch, ["h1", "h2", "h3"]
+        )
+
+        assert reported == [
+            "Checking whether any of the 3 tension(s) already oppose each other"
+        ], (
+            "the label must name the pairwise check and carry the real count, so a"
+            f" person can tell this phase from the extraction after it. Got: {reported}"
+        )
+        assert progress.total == 1, (
+            "exactly one step: the merges after the detector call write graph nodes,"
+            " which the `sid` channel already carries"
+        )
+        assert called, "the step must be declared BEFORE the work, not after"
+
+    @pytest.mark.asyncio
+    async def test_below_two_tensions_it_declares_nothing(self, monkeypatch):
+        """The phantom-step guard, and the reason the step is not at the caller.
+
+        With one hash there is no pair to compare, so Phase 0 returns before the
+        detector. A step declared at `AnalysisPipeline` — where the count is not yet
+        known — would be expected on every single-thesis `anchor` run and reported on
+        none of them, leaving the denominator one short forever and a bar that never
+        fills.
+        """
+        reported, progress, called = await self._consolidate(monkeypatch, ["h1"])
+
+        assert reported == [], f"a phase that did not run announced itself: {reported}"
+        assert progress.total == 0, (
+            "the denominator grew for work no site will report — this is exactly the"
+            " half of the accounting failure that looks fine in the source"
+        )
+        assert not called, "detection ran on a single hash"
+
+    def test_the_label_names_no_machinery(self):
+        """`consolidate`, `antithetical` and `heuristic similarity` are all out.
+
+        The honest wording has to describe a pairwise comparison without naming the
+        concern that performs it or the score it thresholds on.
+        """
+        label = "Checking whether any of the 3 tension(s) already oppose each other"
+        for term in BANNED:
+            assert term not in label.lower(), f"{label!r} names {term!r}"
+        assert "consolidat" not in label.lower()
+        assert "heuristic" not in label.lower()
+        assert len(label) < 200

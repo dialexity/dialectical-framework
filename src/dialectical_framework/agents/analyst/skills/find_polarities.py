@@ -61,6 +61,8 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -502,6 +504,23 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         """
         if len(unique_hashes) < 2:
             return unique_hashes, []
+
+        # Declared HERE rather than at the caller, because below two theses this
+        # phase does not run at all and a step declared for it would leave the
+        # denominator one short of the reports forever — the phantom-step failure
+        # `tests/test_progress.py` pins.
+        #
+        # It needs a line of its own because the caller has already said "Looking
+        # for what genuinely pushes back", which describes extraction, and this
+        # phase is not that: it is pairwise, and on a 120 KB source it ran for
+        # 12.4s and then removed 8 of the 10 surfaced theses from the extraction
+        # that label was promising (`probe_ingest_progress.py`). A person reading
+        # the wrong label for twelve seconds was the whole finding.
+        expect_progress(1)
+        report_progress(
+            f"Checking whether any of the {len(unique_hashes)} tension(s)"
+            " already oppose each other"
+        )
 
         detector = AntitheticalThesisDetection()
         detection = await detector.resolve(

@@ -244,14 +244,22 @@ pair — which took 8 of the 10 theses out and left 2 to extract. So hole 1's 6.
 this run's 12.4s are the same code at different CONSOLIDATION yields, and the variable
 is `AntitheticalThesisDetection`, not `StatementClassification`.
 
-**TWO OPEN INSTRUMENTATION GAPS ON THE INGEST PATH, both named by this run:**
+**TWO INSTRUMENTATION GAPS ON THE INGEST PATH, both named by this run. The first is
+now CLOSED; the second is still open:**
 
-1. **Phase 0 owes a step of its own.** It is a distinct phase — one provider call plus
-   graph writes — and it is currently narrated by the label of the phase AFTER it, so
-   for 12.4s a person reads "Looking for what genuinely pushes back" while what runs is
-   pairwise consolidation that may delete most of the extraction it is promising. It is
-   also the phase with the most surprising effect on the graph, since it can remove 80%
-   of the surfaced theses from extraction without any line saying so.
+1. **Phase 0 owed a step of its own — now declared at its own site** (`expect_progress`
+   /`report_progress` inside `FindPolarities._consolidate_antithetical`, pinned by
+   `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`). It is a
+   distinct phase — one provider call plus graph writes — and it was narrated by the
+   label of the phase AFTER it, so for 12.4s a person read "Looking for what genuinely
+   pushes back" while what ran was pairwise consolidation that may delete most of the
+   extraction it is promising. It is also the phase with the most surprising effect on
+   the graph, since it can remove 80% of the surfaced theses from extraction without
+   any line saying so. The step reads "Checking whether any of the N tension(s) already
+   oppose each other", and is declared BELOW the `len < 2` guard: above the guard it
+   would be a phantom step on every single-thesis `anchor` run. Unmeasured live so far
+   — the next 120 KB run should show the 12.4s gap split into a labelled ~12s wait
+   plus whatever extraction actually costs.
 2. **Link 2 is a gathered fan-out that writes nothing — the textbook `note_progress`
    site, and the largest provider-time block of the run.**
    `AntithesisExtraction._extract_candidates` is an `asyncio.gather` over one
