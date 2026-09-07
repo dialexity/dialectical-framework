@@ -97,22 +97,34 @@ the channel shortens the worst gap but the stream is only ~1 event per 3-14s, so
 almost every gap is still over the 3s threshold. Progressive disclosure here means
 "never wonder if it froze", NOT "continuous motion".
 
-**Three holes remain, all the same shape — one label before a gathered fan-out:**
+**EVERY FIGURE ABOVE IS THE BEFORE STATE.** Two of the three holes it found have
+since been closed (below), which adds ~2 steps per thesis to the run. Re-run before
+comparing against anything; in particular the denominator's 21% backwards jump is
+now a FLOOR, since those steps are declared mid-run.
 
-1. **14.4s at 52.5-66.9s**, the widest that survives: `find_polarities` announces
-   "Looking for what genuinely pushes back" and then runs 12 gathered
+**Three holes found, all the same shape — one label before a gathered fan-out.
+Two are CLOSED** (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`):
+
+1. **CLOSED — 14.4s at 52.5-66.9s**, the widest that survived: `find_polarities`
+   announced "Looking for what genuinely pushes back" and then ran 12 gathered
    `AntithesisEvaluationDto` calls (68.6s summed) with nothing to say.
-2. **10.7s at 78.8-89.5s**: five `expand_polarities` steps all report at 78.8s
-   because they are announced at the gather, then five ~11s `TetradDto` calls run
-   silent. Reporting inside each task would not help — they all start together —
-   so this one needs per-call subdivision like `TransformationGeneration` has.
-3. **The single-window path bundles three phases under one label** (1 KB run:
-   12.2s, and the widest progress gap of that run). `_extraction_loop` reports
-   "Reading the material for tensions" once and then runs step 1, the step-2 gate
-   and classification under it. The SWEEP path already splits the last of those out
-   as "Placing N candidate tension(s)"; the loop path has no equivalent. This is the
-   common chat case — a person pasting a paragraph — so it matters more than its
-   size suggests.
+   `AntithesisExtraction.resolve`'s COMPLEX branch now declares its last two links.
+   **This is the case that shows "report per item" is not the general fix**: ten of
+   these chains are gathered, so ten events at the gather would all carry one
+   timestamp and change nothing. Links 2 and 3 stagger only because link N of a
+   thesis starts when link N-1 of THAT thesis returns.
+2. **OPEN — 10.7s at 78.8-89.5s**: five `expand_polarities` steps all report at
+   78.8s because they are announced at the gather, then five ~11s `TetradDto` calls
+   run silent. Reporting inside each task would not help — they all start together —
+   so this one needs per-call subdivision like `TransformationGeneration` has, which
+   is why it was left after the other two.
+3. **CLOSED — the single-window path bundled three phases under one label** (1 KB
+   run: 12.2s, and the widest progress gap of that run). `_extraction_loop` reported
+   "Reading the material for tensions" once and then ran step 1, the step-2 gate and
+   classification under it, and it is the common chat case — a person pasting a
+   paragraph. `ThesisExtraction.resolve` now declares the classify phase, using
+   `_extraction_sweep`'s wording verbatim so the person cannot tell how large their
+   source was from the vocabulary.
 
 **A 1 KB source ran 651s once and 45.5s the next time**, identical call structure and
 identical 16-event progress stream both times (50 calls at 1.24x against 70 at

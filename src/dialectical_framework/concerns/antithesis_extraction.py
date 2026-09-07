@@ -43,6 +43,8 @@ from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
                                                           ModeEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     pass
@@ -166,12 +168,36 @@ class AntithesisExtraction(
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         if thesis.is_simple:
+            # No step declared: this is ONE call producing a mechanical negation,
+            # and it runs under a phase the caller has already announced. A step
+            # is worth declaring only where the alternative is silence — the same
+            # judgement `record_decision` makes about its own graph writes.
             results = await self._process_simple_thesis(thesis)
             taxonomy = None
         else:
+            # The COMPLEX branch is a THREE-LINK SEQUENTIAL CHAIN inside a task
+            # its caller gathered, which is the shape that produces a hole no
+            # amount of reporting at the gather can fill: `find_polarities`
+            # announces once and then ten theses run this chain at the same time,
+            # measured as 14.4s of total silence — the widest surviving gap of
+            # the 120 KB ingest (`tests/e2e/probe_ingest_progress.py`). Steps
+            # declared here stagger by themselves, because link N of one thesis
+            # starts when link N-1 of THAT thesis returns.
+            #
+            # Link 1 gets no step of its own: it is the first thing that happens
+            # after the caller's own announcement, so a step here would restate
+            # it ten times over. Links 2 and 3 carry ~5.7s and ~4.7s of provider
+            # time each, and neither writes anything until it finishes.
             taxonomy = await self._contextualize_taxonomy(thesis)
+
+            expect_progress(1)
+            report_progress("Weighing what could stand against this")
             candidates = await self._extract_candidates(thesis, taxonomy)
+
             selected = self._truncate_candidates(candidates)
+
+            expect_progress(1)
+            report_progress("Judging how strongly each opposition holds")
             results = await self._persist_candidates(thesis, selected)
 
         # Build artifacts

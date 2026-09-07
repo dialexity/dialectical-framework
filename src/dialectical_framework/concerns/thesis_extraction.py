@@ -37,6 +37,8 @@ from dialectical_framework.graph.nodes.statement import \
     Statement
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     pass
@@ -150,6 +152,20 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
 
         # Limit to requested count
         candidates_to_process = all_candidates[: self._count]
+
+        # Declared HERE and not in `classify_candidates`, which the sweep calls
+        # itself and already announces (`_extraction_sweep`) — the step belongs
+        # to whoever knows it is a distinct phase of the person's wait, and on
+        # the swept path that is the caller. Measured worth: on a single-window
+        # source this is the second half of what used to be one 12.2s label
+        # covering extraction, the step-2 gate and classification together —
+        # 27% of a 45.5s wall spent under a line that said "Reading the material
+        # for tensions" long after reading had finished
+        # (`tests/e2e/probe_ingest_progress.py`). Same wording as the sweep on
+        # purpose: the person should not be able to tell how large their source
+        # was from the vocabulary.
+        expect_progress(1)
+        report_progress(f"Placing {len(candidates_to_process)} candidate tension(s)")
 
         # STEP 3-4: Classify and anchor each candidate using StatementClassification
         components = await self.classify_candidates(

@@ -541,3 +541,202 @@ class TestTheProgressKeySeparatesConcurrentIngests:
         key = _progress_key(SHORT_SOURCE, None)
         assert "review" not in key.lower()
         assert len(key) == 10, "a rendered key should stay short as well as opaque"
+
+
+class TestOneLabelNeverCoversAGatheredFanOut:
+    """The two holes the LIVE run found, pinned at the sites that closed them.
+
+    `tests/e2e/probe_ingest_progress.py` measured both against a real provider,
+    and they are the same defect at two scales: a phase announces itself ONCE
+    and then runs a gather, so the label stays on screen for the whole fan-out.
+    A mock brain cannot show that — every call returns instantly, so the hole
+    has no duration — which is why the numbers below come from the probe and the
+    assertions here are about WHERE the steps are declared.
+
+    Both are checked on the concern rather than through `ingest`, for the reason
+    `TestTheSweepsDenominatorIsTheWindowCount` gives: through the tool these are
+    two addends in a sum over seven sites, and a step lost here would still
+    close. It also matters that the `two_theses` fixture PATCHES
+    `ThesisExtraction.resolve`, so no test that runs the whole tool reaches the
+    first of these two sites at all.
+
+    DB-free where it can be: the second class needs real `Statement`s, so it
+    keeps the graph fixtures.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup_graph_db(self):
+        yield
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_graph_data(self):
+        yield
+
+    @pytest.mark.asyncio
+    async def test_the_single_window_path_announces_its_classify_phase(
+        self, monkeypatch
+    ):
+        """The common chat case, and it was the widest progress gap of the 1 KB run.
+
+        `_extraction_loop` says "Reading the material for tensions" once and then
+        runs extraction, the step-2 gate AND classification under it — 12.2s of a
+        45.5s wall. `_extraction_sweep` has always split the last one out, so the
+        person who pasted a paragraph was told less than the person who uploaded a
+        file. Asserting the COUNT in the label matters as much as the label: it is
+        what makes the step a report of this run rather than a fixed string.
+        """
+        from dialectical_framework.concerns import thesis_extraction
+        from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
+        from dialectical_framework.utils.progress import progress_scope
+
+        async def fake_extract(self, *, text, count, focus, not_like_these):
+            self._text = text
+            self._count = count
+            return ["Speed against explainability", "Review against throughput"]
+
+        classified: list[list[tuple[str, str]]] = []
+
+        async def fake_classify(self, pairs, *, domain_hint=""):
+            classified.append(list(pairs))
+            return []
+
+        monkeypatch.setattr(ThesisExtraction, "extract_candidates", fake_extract)
+        monkeypatch.setattr(ThesisExtraction, "classify_candidates", fake_classify)
+
+        reported: list[str] = []
+        monkeypatch.setattr(
+            thesis_extraction, "report_progress", lambda detail: reported.append(detail)
+        )
+
+        with progress_scope("ingest") as progress:
+            await ThesisExtraction().resolve(text=SHORT_SOURCE, count=2)
+            assert progress.total == 1, (
+                "exactly one step for the classify phase — extraction is the"
+                " caller's step and the step-2 gate stays inside it"
+            )
+
+        assert reported == ["Placing 2 candidate tension(s)"], (
+            "the label must match the sweep's wording verbatim, so the person"
+            " cannot tell how large their source was from the vocabulary, and it"
+            f" must carry the real candidate count. Got: {reported}"
+        )
+        assert classified, "the step must be declared BEFORE the work, not after"
+
+    @pytest.mark.asyncio
+    async def test_the_opposition_chain_subdivides_inside_the_gather(
+        self, monkeypatch
+    ):
+        """`find_polarities` gathers ten of these chains; per-thesis links stagger.
+
+        This is the 14.4s hole — the widest that survived the 120 KB run — and it
+        is the case where reporting at the gather CANNOT help: all ten tasks start
+        at the same instant, so ten events would land on the same timestamp and
+        the silence would be unchanged. Links 2 and 3 fire only when link 1 of
+        that thesis has returned, which is what spreads them out.
+        """
+        from dialectical_framework.concerns import antithesis_extraction
+        from dialectical_framework.concerns.antithesis_extraction import \
+            AntithesisExtraction
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.utils.progress import progress_scope
+
+        order: list[str] = []
+
+        async def fake_taxonomy(self, thesis):
+            order.append("link1")
+            return None
+
+        async def fake_candidates(self, thesis, taxonomy):
+            order.append("link2")
+            return []
+
+        async def fake_persist(self, thesis, selected):
+            order.append("link3")
+            return []
+
+        monkeypatch.setattr(
+            AntithesisExtraction, "_contextualize_taxonomy", fake_taxonomy
+        )
+        monkeypatch.setattr(AntithesisExtraction, "_extract_candidates", fake_candidates)
+        monkeypatch.setattr(AntithesisExtraction, "_persist_candidates", fake_persist)
+        monkeypatch.setattr(
+            AntithesisExtraction, "_truncate_candidates", lambda self, c: c
+        )
+
+        reported: list[str] = []
+        monkeypatch.setattr(
+            antithesis_extraction,
+            "report_progress",
+            lambda detail: reported.append(detail),
+        )
+
+        thesis = Statement(
+            text="Ship without review",
+            meaning="dx://taxonomy/System(General.v1)/Viability/Integrity/Separation",
+        )
+        thesis.commit()
+
+        with progress_scope("ingest") as progress:
+            await AntithesisExtraction().resolve(thesis=thesis, text=SHORT_SOURCE)
+            assert progress.total == 2, (
+                "two steps, not three: link 1 runs immediately after the caller's"
+                " own announcement, so a step there would restate it once per thesis"
+            )
+
+        assert reported == [
+            "Weighing what could stand against this",
+            "Judging how strongly each opposition holds",
+        ], reported
+        assert order == ["link1", "link2", "link3"], (
+            "the chain must stay sequential — it is what makes these steps"
+            f" stagger instead of arriving together. Got: {order}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_mechanical_opposition_declares_nothing(self, monkeypatch):
+        """The counter-case, and the rule it protects.
+
+        A SIMPLE thesis is ONE call producing a mechanical negation, under a phase
+        the caller already announced. `record_decision` makes the same judgement
+        about its own graph writes: a step is worth declaring only where the
+        alternative is silence. Without this test the natural "be consistent"
+        edit is to declare steps on both branches, and the person would then be
+        told twice about work that already finished.
+        """
+        from dialectical_framework.concerns.antithesis_extraction import \
+            AntithesisExtraction
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.utils.progress import progress_scope
+
+        async def fake_simple(self, thesis):
+            return []
+
+        monkeypatch.setattr(
+            AntithesisExtraction, "_process_simple_thesis", fake_simple
+        )
+
+        thesis = Statement(
+            text="Ship without review", meaning="dx://taxonomy/Simple/Negation"
+        )
+        thesis.commit()
+        assert thesis.is_simple, "fixture must take the SIMPLE branch to mean anything"
+
+        with progress_scope("ingest") as progress:
+            await AntithesisExtraction().resolve(thesis=thesis)
+            assert progress.total == 0
+
+    @pytest.mark.asyncio
+    async def test_the_new_labels_name_no_machinery(self):
+        """The same ban the tool-level test applies, on strings it cannot reach.
+
+        `two_theses` patches `ThesisExtraction.resolve`, so
+        `test_no_detail_string_names_the_machinery` never sees the classify label.
+        """
+        labels = (
+            "Placing 2 candidate tension(s)",
+            "Weighing what could stand against this",
+            "Judging how strongly each opposition holds",
+        )
+        for label in labels:
+            for term in BANNED:
+                assert term not in label.lower(), f"{label!r} names {term!r}"

@@ -168,14 +168,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     the channel shortens the worst gap but the stream is ~1 event per 3-14s, so progressive disclosure here
     means "never wonder if it froze", never "continuous motion" — do not let a review read the gap
     reduction as motion. And the denominator's **worst backwards jump is 21%**, the live size of the
-    "a host caching its first denominator renders a bar that goes backwards" caveat. **Three holes remain
-    and they share one shape — a single label announced before a gathered fan-out** — but the fix does not
-    generalize: report per item where items are staggered, whereas where they start together
+    "a host caching its first denominator renders a bar that goes backwards" caveat. **Three holes the run
+    found shared one shape — a single label announced before a gathered fan-out — and TWO are now closed**
+    (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`). `ThesisExtraction.resolve`
+    declares the classify phase, so the single-window `_extraction_loop` no longer bundles extraction, the
+    step-2 gate and classification under one 12.2s label (27% of a 45.5s wall, and the common chat case);
+    the wording is `_extraction_sweep`'s verbatim, because the person should not be able to tell how large
+    their source was from the vocabulary. `AntithesisExtraction.resolve`'s COMPLEX branch declares its last
+    two links, closing the 14.4s hole — **and this is the case that shows the fix does NOT generalize to
+    "report per item"**: `find_polarities` gathers ten of these chains, so ten events at the gather would
+    all carry one timestamp and change nothing; links 2 and 3 stagger only because link N of a thesis
+    starts when link N-1 of THAT thesis returns. Where tasks genuinely start together
     (`expand_polarities`' five ~11s tetrads, all five reporting at 78.8s) only per-CALL subdivision helps,
-    as `TransformationGeneration` has. The one to take first is the smallest: the single-window
-    `_extraction_loop` bundles extraction, the step-2 gate and classification under one label (12.2s of a
-    45.5s wall) where `_extraction_sweep` already splits the last out as "Placing N candidate tension(s)",
-    and single-window is the common chat case. **Never quote a single wall clock from this probe:** 1 KB ran
+    as `TransformationGeneration` has — that one is still open. Two deliberate non-declarations, both
+    `record_decision`'s rule that a step is worth declaring only where the alternative is silence: link 1
+    of the chain (it runs immediately after the caller's announcement, so a step would restate it once per
+    thesis) and the whole SIMPLE branch (one call, mechanical negation). Both are pinned, because "be
+    consistent" is the natural edit that breaks them. Price of the two fixes: the denominator now grows by
+    2 per thesis mid-run, so **21% is a floor on the backwards jump, not a ceiling**.
+    **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
     line.** Progress labels defend against not knowing; they do not defend against slow.
