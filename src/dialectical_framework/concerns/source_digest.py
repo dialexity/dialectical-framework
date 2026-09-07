@@ -46,6 +46,8 @@ from dialectical_framework.graph.repositories.node_repository import \
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.utils.chunking import chunk_text
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 logger = logging.getLogger(__name__)
 
@@ -262,8 +264,18 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         # at import binds to whichever loop happens to be running.
         slots = asyncio.Semaphore(MAX_CONCURRENT_PART_READINGS)
 
+        # The parts plus the reduce. Declared before the gather so the denominator
+        # is right from the first event rather than climbing as parts report.
+        expect_progress(total + 1)
+
         async def _read_part(index: int, chunk: str) -> str:
             async with slots:
+                # Reported INSIDE the semaphore, so an event means "this part is
+                # being read now" rather than "this part is queued" — at a cap of
+                # 8 over 33 parts the difference is most of the wait. Indices
+                # only, never `chunk`: a progress label is shown to a person and
+                # must not carry the source it describes.
+                report_progress(f"Reading part {index} of {total}")
                 conversation = ConversationFacilitator()
                 conversation.set_system_prompt(PART_SYSTEM_PROMPT)
                 result = await conversation.submit(
@@ -281,6 +293,7 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
 
         # The reduce may reuse `self._conversation`: it sees the readings, which
         # are short, and never the parts.
+        report_progress(f"Combining {total} readings into one understanding")
         self._conversation.set_system_prompt(COMBINE_SYSTEM_PROMPT)
         result = await self._conversation.submit(
             response_model=DigestDto,

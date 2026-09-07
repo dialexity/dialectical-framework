@@ -44,6 +44,8 @@ from dialectical_framework.graph.repositories.node_repository import \
 from dialectical_framework.graph.repositories.statement_repository import \
     StatementRepository
 from dialectical_framework.utils.chunking import chunk_text
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.protocols.input_resolver import InputResolver
@@ -150,6 +152,16 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
             return None
 
         # 2. Parse extraction intent
+        #
+        # One step, declared where it is about to happen. Every later phase
+        # declares its own at the point it is known to be running — extraction
+        # because its count depends on whether the source fits a prompt, dedup
+        # because it is conditional on there being a vocabulary. Declaring them
+        # all here would put steps in the denominator that may never run, and the
+        # closing event reports what COMPLETED (`utils/progress.py`), so a phantom
+        # step is indistinguishable to a host from a failed one.
+        expect_progress(1)
+        report_progress("Working out what to look for")
         self._conversation = ConversationFacilitator()
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
         parsed = await self._parse_intent()
@@ -190,6 +202,8 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
         deleted_count = 0
 
         if vocab and extracted_components:
+            expect_progress(1)
+            report_progress("Checking these against what is already known")
             extracted_hashes = [c.hash for c in extracted_components]
             deduplicator = StatementDeduplication()
             dedup_result = await deduplicator.resolve(
@@ -281,6 +295,17 @@ Determine:
             if len(extracted_components) >= target_count:
                 break
 
+            # Declared per attempt, inside the loop, because the loop EXITS as
+            # soon as it has enough: declaring `max_attempts` up front would
+            # promise four readings and then close at one, which reads to a host
+            # exactly like three that failed.
+            expect_progress(1)
+            report_progress(
+                "Reading the material for tensions"
+                if attempt == 0
+                else f"Looking again, more broadly (pass {attempt + 1})"
+            )
+
             # How many more do we need?
             remaining = target_count - len(extracted_components)
 
@@ -359,6 +384,7 @@ Determine:
                 target_count=target_count,
                 not_like_these=not_like_these,
                 reports=reports,
+                broader=True,
             )
 
         self._report.artifacts["swept_candidate_count"] = len(candidates)
@@ -367,6 +393,8 @@ Determine:
 
         # Classify only the survivors, each against the window it came from.
         selected = candidates[:target_count]
+        expect_progress(1)
+        report_progress(f"Placing {len(selected)} candidate tension(s)")
         classifier = ThesisExtraction()
         components = await classifier.classify_candidates(
             selected, domain_hint=parsed.domain_hint
@@ -382,6 +410,7 @@ Determine:
         target_count: int,
         not_like_these: list[str],
         reports: list[ExecutionReport],
+        broader: bool = False,
     ) -> list[tuple[str, str]]:
         """One `extract_candidates` per window, merged into `(candidate, window)`.
 
@@ -399,8 +428,31 @@ Determine:
         # content item — so the real in-flight count is a multiple of this.
         slots = asyncio.Semaphore(MAX_CONCURRENT_WINDOW_SWEEPS)
 
-        async def _sweep_one(window: str) -> tuple[list[str], ExecutionReport]:
+        # The one place in ingestion with a real denominator known in advance:
+        # every window WILL be read, because coverage is the guarantee. So a host
+        # can show "7 of 33" here instead of an indeterminate wait, which is the
+        # whole reason this instrumentation was worth adding to the sweep first.
+        #
+        # Additive across a second call: the zero-candidate retry re-sweeps every
+        # window, and that is genuinely more work rather than the same work again.
+        total = len(windows)
+        expect_progress(total)
+
+        async def _sweep_one(index: int, window: str) -> tuple[list[str], ExecutionReport]:
             async with slots:
+                # Inside the semaphore, so an event means a section is being read
+                # rather than queued — at a cap of 3 over 33 windows, nearly all
+                # of the wait is queueing. Index only, never the window: this
+                # string is shown to a person and the window is their document.
+                #
+                # `broader` is not cosmetic: the retry re-reads every window, so
+                # without it a person watching sees "section 1 of 4" a second time
+                # and reads it as the work having restarted or looped.
+                report_progress(
+                    f"Reading section {index} of {total} again, more broadly"
+                    if broader
+                    else f"Reading section {index} of {total} for tensions"
+                )
                 service = ThesisExtraction()
                 found = await service.extract_candidates(
                     text=window,
@@ -410,7 +462,9 @@ Determine:
                 )
                 return found, service.report
 
-        results = await asyncio.gather(*[_sweep_one(w) for w in windows])
+        results = await asyncio.gather(
+            *[_sweep_one(i, w) for i, w in enumerate(windows, start=1)]
+        )
 
         # Merged in document order — `gather` preserves argument order — and
         # deduplicated on normalised text, so the same claim surfacing in two

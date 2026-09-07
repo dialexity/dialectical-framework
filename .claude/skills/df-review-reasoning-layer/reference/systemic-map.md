@@ -242,6 +242,37 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     without streaming. `TransformationGeneration.PROGRESS_STEPS` is a public constant callers size their
     denominator from — drift between it and the `report_progress` call count corrupts every bar silently,
     so `TestProgressStepsMatchesTheCalls` pins it.
+    **`ingest` was the last long silence, instrumented 2026-09-04, and its case is the inverse of
+    `explore`'s.** There is no idle to remove: `probe_ingest_cost.py` measured a 120 KB source at 85-98s
+    with only **1.3-3.9s spent outside a provider call** at 5-11x parallelism, so the whole wait is real
+    work and saying what is happening is the only thing left to do about it. A 1.2 MB source is 33
+    extraction windows against that document's 4, at a sweep cap of 3 — minutes. The scope goes on the TOOL
+    (`ingest._progress_key` + `progress_scope("ingest", key=…)` around a split-out `_ingest` body, the same
+    shape as `anchor`) because **both fan-outs here are gathers** — `SourceDigest`'s parts and
+    `SurfaceTheses._sweep_windows`' windows — and a scope opened inside either skill leaves the other mute.
+    Placing it there also lit up instrumentation that was ALREADY WRITTEN and already silent:
+    `AnalysisPipeline.resolve`'s pair was added for `anchor` and was a no-op on this path purely because no
+    scope was installed above it. Four things about the counting generalise:
+    (1) **the sweep is the one place in ingestion with a real denominator known in advance** — every window
+    WILL be read, coverage being the guarantee — so `expect_progress(len(windows))` lets a host render
+    "7 of 33" instead of an indeterminate wait, and it is the reason this was worth doing here first;
+    (2) **each phase declares its own step at its own site**, never up front, because the closing event
+    reports what COMPLETED and is deliberately not rounded up — dedup is conditional on a vocabulary and
+    `_extraction_loop` exits as soon as it has enough, so a declared-but-never-run step is
+    indistinguishable to a host from a failed one (this was a real bug in the first draft: one
+    `expect_progress(2)` covering intent + conditional dedup);
+    (3) **report INSIDE the semaphore, not outside** — at a cap of 3 over 33 windows nearly all the wait is
+    queueing, so an event fired before acquiring means "queued" while one fired after means "being read
+    now"; and
+    (4) **detail strings carry indices only, never the window.** On every other progress path the unit of
+    work is something the framework invented; here it is a slice of the person's own file, so the natural
+    label — naming what is being read — would paste 40,000 characters into an event a host may render
+    verbatim. The retry sweep says `"… again, more broadly"` rather than repeating the first pass's string,
+    because re-reading window 1 under the same label reads as the work having looped rather than widened.
+    `tests/test_ingest_progress.py` pins all of it behaviourally (the accounting closes; both fan-outs
+    speak; no detail names the machinery or quotes the source; the sweep's denominator IS the window
+    count) — verified by mutation, since expecting one step too many and removing the scope entirely fail
+    different subsets of it.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own
