@@ -224,22 +224,44 @@ running 12.3s is the thing progress labels cannot fix (see the 605s lesson below
 the fan-out is what got fixed.
 
 **The digest is no longer the widest hole of a 120 KB run. The widest is now 12.4s at
-50.3-62.7s** — the antithesis phase, and this run is the one that shows what the
-SIMPLE branch's deliberate non-declaration costs. Ten candidate tensions were placed
-at 42.7s, `find_polarities` announced at 50.3s, and then only TWO chains reported
-("Weighing what could stand against this" 2x, "Judging how strongly each opposition
-holds" 2x) where the previous after-run saw 10x each. The other eight took the SIMPLE
-branch, which declares nothing by design — one call, mechanical negation, under an
-announced phase. That the eight are silent rather than LOST is settled by the
-accounting: the run closed 28/28 with no phantoms, and `expect_progress(1)` sits
-adjacent to each `report_progress`, so a declared-but-unreported step would have left
-a shortfall. **So hole 1's 6.6s and this run's 12.4s are the same code measured at
-different SIMPLE/COMPLEX draws, not a regression** — the classification split is
-stochastic (`StatementClassification` is the most leverage-dense prompt in the
-pipeline) and it moves this gap directly. What this does NOT settle: 10
-`ContextualizedTaxonomyDto` calls were made on a run with 2 COMPLEX extraction chains,
-which the DTO counts alone cannot attribute (`AntithesisClassification` has its own
-call site) — do not build an argument on that number without tracing it.
+50.3-62.7s, and it belongs to a phase with NO step at all.** Ten candidate tensions
+were placed at 42.7s, `find_polarities` announced at 50.3s, and then only TWO chains
+reported ("Weighing what could stand against this" 2x, "Judging how strongly each
+opposition holds" 2x) where the previous after-run saw 10x each.
+
+**The first explanation written here was WRONG and is worth keeping as a warning: it
+said the other eight took the SIMPLE branch, which declares nothing by design.** The
+DTO table refutes it in one line — **zero `SimpleNegationDto` calls**, so no thesis
+took the SIMPLE path at all. The lesson is the one this file keeps relearning: an
+absent DTO is evidence and a plausible mechanism is not.
+
+**What actually happened is `FindPolarities` Phase 0.** `_consolidate_antithetical`
+runs `AntitheticalThesisDetection` BEFORE extraction and REASSIGNS `unique_hashes`:
+every pair it merges at HS ≥ 0.7 becomes one Polarity directly and is removed from
+extraction. This run merged four pairs — the 62.7s burst is exactly 4x Polarity +
+4x ModeEstimation + 4x ArousalEstimation, the shape `_persist_mode_arousal` writes per
+pair — which took 8 of the 10 theses out and left 2 to extract. So hole 1's 6.6s and
+this run's 12.4s are the same code at different CONSOLIDATION yields, and the variable
+is `AntitheticalThesisDetection`, not `StatementClassification`.
+
+**TWO OPEN INSTRUMENTATION GAPS ON THE INGEST PATH, both named by this run:**
+
+1. **Phase 0 owes a step of its own.** It is a distinct phase — one provider call plus
+   graph writes — and it is currently narrated by the label of the phase AFTER it, so
+   for 12.4s a person reads "Looking for what genuinely pushes back" while what runs is
+   pairwise consolidation that may delete most of the extraction it is promising. It is
+   also the phase with the most surprising effect on the graph, since it can remove 80%
+   of the surfaced theses from extraction without any line saying so.
+2. **Link 2 is a gathered fan-out that writes nothing — the textbook `note_progress`
+   site, and the largest provider-time block of the run.**
+   `AntithesisExtraction._extract_candidates` is an `asyncio.gather` over one
+   `ModePointResultDto` call per mode point (up to 11), announced by the single label
+   "Weighing what could stand against this", and its own docstring says "no DB writes".
+   That is every clause of the note condition met: N gathered single calls, one start
+   instant, staggered returns, no graph effect in the window. 22 calls, **94.2s of
+   provider seconds, mean 4.3s** — more than any other DTO in the run. At two theses
+   the resulting silence is only ~5s per wave, which is why five earlier runs did not
+   promote it; at ten theses it is 110 gathered calls under one label.
 
 **The 21% backwards jump read 21% for the THIRD time**, which is now well-established
 as a property of the digest's opening declaration (2 → 7) rather than of any run's

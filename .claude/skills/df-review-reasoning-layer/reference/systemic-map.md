@@ -226,14 +226,26 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     10.6s / 0.8s / 1.0s / 0.2s / 12.3s with the four notes at 10.9-12.9s all pinned at 6/7. The 12.3s
     residual is the REDUCE — one call under a label that names it — so it is a labelled wait, not a hole of
     this shape, and a reviewer should push back on anyone filing it as one. **That run also relocated the
-    widest hole to 12.4s in the antithesis phase, where it is the SIMPLE branch's deliberate
-    non-declaration showing its price**: ten tensions placed, only two chains reporting, the other eight
-    running SIMPLE (one call, mechanical negation, no step). Silent and not lost — 28/28 closed with no
-    phantoms, and `expect_progress(1)` sits adjacent to each `report_progress`, so a declared-but-unreported
-    step would leave a shortfall. **The same gap reading 6.6s in one run and 12.4s in another is therefore
-    the SIMPLE/COMPLEX draw moving, not a regression** — `StatementClassification` is the most
-    leverage-dense prompt in the pipeline and it drives this gap directly, so a prompt edit there changes a
-    progress figure, which is worth knowing before either is reviewed in isolation.
+    widest hole to 12.4s at 50.3-62.7s, into a phase that has no step at all: `FindPolarities`' Phase 0
+    consolidation.** Ten tensions placed, only two antithesis chains reporting, because
+    `_consolidate_antithetical` runs `AntitheticalThesisDetection` BEFORE extraction and REASSIGNS
+    `unique_hashes` — every pair merged at HS ≥ 0.7 becomes a Polarity directly and never reaches
+    extraction. Four pairs merged here (the 62.7s burst is exactly 4x Polarity + 4x ModeEstimation +
+    4x ArousalEstimation, `_persist_mode_arousal`'s shape per pair), removing 8 of 10 theses.
+    **A first explanation published in three docs blamed the SIMPLE branch's deliberate non-declaration and
+    was WRONG — the run made zero `SimpleNegationDto` calls.** Kept here as the warning it is: an absent DTO
+    is evidence, a plausible mechanism is not. So the 6.6s/12.4s difference is the CONSOLIDATION yield
+    moving, and the variable is `AntitheticalThesisDetection`, not `StatementClassification`.
+    **TWO OPEN instrumentation gaps on the ingest path, both worth a reviewer's attention because both are
+    prompt-adjacent:** (1) Phase 0 owes a step of its own — it is a distinct phase (one provider call plus
+    graph writes) currently narrated by the label of the phase AFTER it, so a person reads "Looking for what
+    genuinely pushes back" for 12.4s while pairwise consolidation runs and potentially deletes 80% of the
+    extraction that label promises; (2) `AntithesisExtraction._extract_candidates` (link 2) is an
+    `asyncio.gather` over one `ModePointResultDto` call per mode point (up to 11) that **writes nothing** by
+    its own docstring, announced by one label — every clause of the `note_progress` condition met, and the
+    largest provider-time block of the run at 94.2s across 22 calls. Five earlier runs did not promote it
+    because at two theses the silence is only ~5s per wave; at ten theses it is 110 gathered calls under one
+    label.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
