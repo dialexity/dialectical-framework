@@ -154,7 +154,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     difference of medians at n=3 with two retrying calls, now the loose figure rather than the firm one.
     Settling it needs `busy_s`/`provider_s` per row on a re-run of both arms.
   - **`ingest`'s progress instrumentation, verified live 2026-09-07** (`tests/e2e/probe_ingest_progress.py`,
-    five real-provider runs — three before the two fixes below, two after; the mock-brain guarantees are in
+    six real-provider runs — three before the two fixes below, three after; the mock-brain guarantees are in
     `tests/test_ingest_progress.py`). Everything up to "Both fixes were then confirmed" is the BEFORE
     state. Three
     things a mock brain cannot exercise, and all three came back clean: **phantoms** — a step declared for
@@ -221,9 +221,19 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     effect either — and `expand_polarities` above is the recorded counter-case**, so a reviewer seeing a
     second `note_progress` site should ask what measurement justified it (`note_progress`'s docstring carries
     the bound; `tests/test_progress.py::TestANoteSaysSomethingWithoutClaimingAStep` and
-    `tests/test_ingest_progress.py::TestTheDigestSaysWhenAPartComesBack` pin it). Predicted from the measured
-    completions (11.2s, 12.6s, 13.0s, 25.8s) the hole splits into ~10.8s + ~12.8s — **not yet confirmed
-    live**, since a mocked run cannot show duration.
+    `tests/test_ingest_progress.py::TestTheDigestSaysWhenAPartComesBack` pin it). **CONFIRMED live in a sixth
+    run: predicted ~10.8s + ~12.8s, measured 10.6s + 12.3s**, the window now reading
+    10.6s / 0.8s / 1.0s / 0.2s / 12.3s with the four notes at 10.9-12.9s all pinned at 6/7. The 12.3s
+    residual is the REDUCE — one call under a label that names it — so it is a labelled wait, not a hole of
+    this shape, and a reviewer should push back on anyone filing it as one. **That run also relocated the
+    widest hole to 12.4s in the antithesis phase, where it is the SIMPLE branch's deliberate
+    non-declaration showing its price**: ten tensions placed, only two chains reporting, the other eight
+    running SIMPLE (one call, mechanical negation, no step). Silent and not lost — 28/28 closed with no
+    phantoms, and `expect_progress(1)` sits adjacent to each `report_progress`, so a declared-but-unreported
+    step would leave a shortfall. **The same gap reading 6.6s in one run and 12.4s in another is therefore
+    the SIMPLE/COMPLEX draw moving, not a regression** — `StatementClassification` is the most
+    leverage-dense prompt in the pipeline and it drives this gap directly, so a prompt edit there changes a
+    progress figure, which is worth knowing before either is reviewed in isolation.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging

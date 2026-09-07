@@ -75,9 +75,10 @@ which this probe PASSES through.
 
 RESULT, 2026-09-07, haiku-4.5 — the denominator works; of FOUR holes, three closed and one irreducible
 =====================================================================================================
-Read the four holes in the order they were found: 1 and 3 closed by declaring a
-chain's own links, 2 IRREDUCIBLE (see its entry — the fix once recommended there was
-wrong), 4 closed by adding a third verb to the seam (`note_progress`).
+Six real-provider runs the same day. Read the four holes in the order they were found:
+1 and 3 closed by declaring a chain's own links, 2 IRREDUCIBLE (see its entry — the
+fix once recommended there was wrong), 4 closed by adding a third verb to the seam
+(`note_progress`) and CONFIRMED live in the sixth run, which is the last section here.
 BEFORE (the run that found the holes). **120 KB / 4 windows, 99.7s, 127 calls at
 5.66x, 24 progress events:**
 
@@ -194,12 +195,57 @@ they all start at the same instant, so per-item steps carry one timestamp. Hence
 `ProgressEvent.note=True`, so a host refreshes its label and leaves its bar where it
 is. `_generate_digest_from_parts` reports COMPLETIONS, not the part index
 ("3 of 4 parts read"), which is also the truthful line while one part retries: it
-sticks at 3 of 4. From the completion times this run measured — 11.2s, 12.6s, 13.0s,
-25.8s — the 25.4s hole should become ~10.8s + ~12.8s. **PREDICTED, NOT MEASURED: a
-mocked run cannot show duration, so re-run this probe at 120 KB to confirm the split
-and expect the retry to move the figures again.** The condition that earns a note is
-narrow and hole 2 above is the recorded counter-case; `note_progress`'s docstring
-carries the bound, and a second site needs its own measurement.
+sticks at 3 of 4. The condition that earns a note is narrow and hole 2 above is the
+recorded counter-case; `note_progress`'s docstring carries the bound, and a second
+site needs its own measurement.
+
+CONFIRMED LIVE, same day, third 120 KB run — the digest split, and the digest is no longer the widest hole
+=========================================================================================================
+**94.0s, 116 calls at 5.31x, 259 effects, 33 progress events = 29 step/final + 4
+note, closed 28/28, leak clean across 33 labels.** The prediction above was ~10.8s +
+~12.8s from the completion times; **measured 10.6s + 12.3s**. The digest window is
+structurally the same span it was (0.3s announce → 25.2s next step, 24.9s against
+25.4s) and is now broken into **10.6s + 0.8s + 1.0s + 0.2s + 12.3s**:
+
+    0.3s   2/7  Reading part 1 of 4      (all four announced in the same instant)
+    0.3s   3/7  Reading part 2 of 4
+    0.3s   4/7  Reading part 3 of 4
+    0.3s   5/7  Reading part 4 of 4
+   10.9s  note  6/7  1 of 4 parts read   <- the four notes, counters pinned at 6/7
+   11.7s  note  6/7  2 of 4 parts read
+   12.7s  note  6/7  3 of 4 parts read
+   12.9s  note  6/7  4 of 4 parts read
+   12.9s   6/7  Combining 4 readings into one understanding
+   25.2s   7/8  Working out what to look for
+
+**The 12.3s residual is NOT the same shape and must not be filed as a hole**: it is
+the reduce, ONE call under a label that already names it. A single announced call
+running 12.3s is the thing progress labels cannot fix (see the 605s lesson below) —
+the fan-out is what got fixed.
+
+**The digest is no longer the widest hole of a 120 KB run. The widest is now 12.4s at
+50.3-62.7s** — the antithesis phase, and this run is the one that shows what the
+SIMPLE branch's deliberate non-declaration costs. Ten candidate tensions were placed
+at 42.7s, `find_polarities` announced at 50.3s, and then only TWO chains reported
+("Weighing what could stand against this" 2x, "Judging how strongly each opposition
+holds" 2x) where the previous after-run saw 10x each. The other eight took the SIMPLE
+branch, which declares nothing by design — one call, mechanical negation, under an
+announced phase. That the eight are silent rather than LOST is settled by the
+accounting: the run closed 28/28 with no phantoms, and `expect_progress(1)` sits
+adjacent to each `report_progress`, so a declared-but-unreported step would have left
+a shortfall. **So hole 1's 6.6s and this run's 12.4s are the same code measured at
+different SIMPLE/COMPLEX draws, not a regression** — the classification split is
+stochastic (`StatementClassification` is the most leverage-dense prompt in the
+pipeline) and it moves this gap directly. What this does NOT settle: 10
+`ContextualizedTaxonomyDto` calls were made on a run with 2 COMPLEX extraction chains,
+which the DTO counts alone cannot attribute (`AntithesisClassification` has its own
+call site) — do not build an argument on that number without tracing it.
+
+**The 21% backwards jump read 21% for the THIRD time**, which is now well-established
+as a property of the digest's opening declaration (2 → 7) rather than of any run's
+step count. And **a parse retry landed again** (`retries 1 {'parse': 1}`, 2.0s slept),
+the second consecutive 120 KB run to retry — so treat a retry as normal at this size
+rather than as the outlier the after-run called it.
 
 **CORRECTION to what was predicted here: the 21% backwards jump did NOT get worse.**
 Adding ~2 steps per thesis was expected to raise it, and the after runs read 21% at
@@ -570,8 +616,13 @@ def _report_progress_channel(progress, seen, waited, graph_widest) -> None:
     dead = sum(g[1] - g[0] for g in merged_gaps if g[1] - g[0] >= _NOTICEABLE_GAP_S)
     graph_gap = graph_widest[1] - graph_widest[0]
 
+    # Steps and notes counted APART, because every event figure quoted from a run
+    # before `note_progress` existed is a step count — pooling them would make this
+    # run look like it emitted more steps than it did.
+    notes = [e for _, e in progress if e.note and not e.final]
     print(
-        f"\n  WITH THE PROGRESS CHANNEL ({len(progress)} events)"
+        f"\n  WITH THE PROGRESS CHANNEL ({len(progress)} events"
+        f" = {len(progress) - len(notes)} step/final + {len(notes)} note)"
         f"\n    time to first event {merged[0]:6.1f}s"
         f"\n    largest silent gap  {widest[1] - widest[0]:6.1f}s"
         f"  at {widest[0]:.1f}s-{widest[1]:.1f}s"
@@ -585,10 +636,17 @@ def _report_progress_channel(progress, seen, waited, graph_widest) -> None:
         f" progress event(s)"
     )
 
-    print("\n  the whole progress stream, as a person would read it:")
+    print(
+        "\n  the whole progress stream, as a person would read it"
+        " (`note` = counters deliberately unchanged, a completion not a step):"
+    )
     for t, event in progress:
         final = "  FINAL" if event.final else ""
-        print(f"    {t:6.1f}s  {event.done:3d}/{event.total:<3d} {event.detail}{final}")
+        kind = "note" if event.note and not event.final else "    "
+        print(
+            f"    {t:6.1f}s  {kind} {event.done:3d}/{event.total:<3d}"
+            f" {event.detail}{final}"
+        )
 
 
 def _report_phantoms(progress) -> None:
