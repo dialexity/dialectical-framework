@@ -44,6 +44,7 @@ from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.progress import (expect_progress,
+                                                  note_progress,
                                                   report_progress)
 
 if TYPE_CHECKING:
@@ -188,6 +189,11 @@ class AntithesisExtraction(
             # after the caller's own announcement, so a step here would restate
             # it ten times over. Links 2 and 3 carry ~5.7s and ~4.7s of provider
             # time each, and neither writes anything until it finishes.
+            #
+            # Link 2's step is not the whole story about link 2: it fans out over
+            # the taxonomy's mode points, so the step below announces up to 11
+            # gathered calls at once. That inner window is filled with NOTES rather
+            # than steps — see `_note_when_it_returns`.
             taxonomy = await self._contextualize_taxonomy(thesis)
 
             expect_progress(1)
@@ -331,6 +337,40 @@ Generate:
         # Decide how many candidates per branch
         per_branch = self._candidates_per_branch(len(mode_points))
 
+        #: Completions, not indices — the same counter `SourceDigest` keeps, and safe
+        #: without a lock for the same reason: the increment and the read it feeds
+        #: have no `await` between them, so the loop cannot interleave another call
+        #: there.
+        weighed = 0
+        angles = len(mode_points)
+
+        async def _note_when_it_returns(call):
+            """Publish a NOTE per returning call — the one fact this window has.
+
+            Every clause of `note_progress`'s condition is met here and nowhere else
+            on this path: the calls below are gathered, each is ONE provider call so
+            there is nothing to subdivide, they all start in the same instant so
+            per-item steps would share one timestamp, and this method writes NO graph
+            node (see the docstring), so the `sid` channel is silent too. Measured as
+            the largest provider-time block of a 120 KB ingest — 22 calls, 94.2s,
+            mean 4.3s — under the single label "Weighing what could stand against
+            this" (`tests/e2e/probe_ingest_progress.py`).
+
+            KNOWN LIMIT, and the reason the wording says "angles" rather than
+            anything totalling: `find_polarities` gathers one of these chains PER
+            thesis, and each chain counts its own calls, so with ten theses in flight
+            consecutive notes can read 5 of 11 and then 1 of 11. Each line is true of
+            its own tension and the bar never moves, but the sequence is not
+            monotone. A shared numerator would mean threading state across the
+            caller's gather — a new seam for one label — and the path where the
+            fraction pays most is `anchor`, which runs exactly one chain.
+            """
+            nonlocal weighed
+            result = await call
+            weighed += 1
+            note_progress(f"{weighed} of {angles} angles considered")
+            return result
+
         # Generate all candidates in parallel using isolated calls
         if per_branch == 1:
             tasks = [
@@ -346,7 +386,9 @@ Generate:
                 )
                 for field_name, mode_value, branch_context in mode_points
             ]
-            raw_results = await asyncio.gather(*tasks)
+            raw_results = await asyncio.gather(
+                *[_note_when_it_returns(t) for t in tasks]
+            )
             # Wrap single results into lists for uniform handling
             batch_results: list[list[ModePointResultDto]] = [
                 [r] for r in raw_results
@@ -366,7 +408,9 @@ Generate:
                 )
                 for field_name, mode_value, branch_context in mode_points
             ]
-            raw_batch_results = await asyncio.gather(*tasks)
+            raw_batch_results = await asyncio.gather(
+                *[_note_when_it_returns(t) for t in tasks]
+            )
             batch_results = [r.candidates for r in raw_batch_results]
 
         # Convert to candidates, filtering not_like_these

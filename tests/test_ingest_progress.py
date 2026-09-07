@@ -1006,3 +1006,189 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         assert "consolidat" not in label.lower()
         assert "heuristic" not in label.lower()
         assert len(label) < 200
+
+
+class TestTheOppositionAnglesSayWhenTheyComeBack:
+    """The fifth hole, and the second site — with the digest — to earn a note.
+
+    `AntithesisExtraction._extract_candidates` is link 2 of the opposition chain, and
+    the step above it ("Weighing what could stand against this") announces a
+    `gather` over one `ModePointResultDto` call per mode point — up to 11 of them.
+    On the 120 KB run those calls were the **largest provider-time block of the whole
+    ingest: 22 calls, 94.2s, mean 4.3s**, under that one label, and the method writes
+    NO graph node by its own docstring — so the `sid` channel had nothing to say in
+    that window either (`tests/e2e/probe_ingest_progress.py`).
+
+    Five earlier runs did not promote it because at two theses the silence is only
+    ~5s per wave. At ten it is up to 110 gathered calls under one label.
+
+    What is asserted here is that both gather branches note their completions, that
+    the notes are NOT steps, and that a note's count is completions rather than the
+    mode-point index. The bouncing-numerator limit is documented at the site and in
+    `note_progress`; it is not asserted, because it is a property of the caller's
+    gather rather than of this method.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup_graph_db(self):
+        yield
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_graph_data(self):
+        yield
+
+    async def _weigh_angles(
+        self, monkeypatch, *, count: int, angles: int = 3
+    ) -> tuple[list, object]:
+        """Run link 2 with a stubbed conversation, returning (events, scope).
+
+        `count` picks the branch: at or below `angles` the per-point call returns one
+        candidate, above it the batch call returns several. Both are gathers of single
+        provider calls, so both owe notes — and the batch branch is the one a reader
+        is most likely to forget, since its wrapper looks different.
+
+        The calls return in STAGGERED order on purpose: it is the only fact a note
+        publishes, so a fixture where they all returned together would pass while
+        saying nothing.
+        """
+        from types import SimpleNamespace
+
+        from dialectical_framework.concerns import antithesis_extraction
+        from dialectical_framework.concerns.antithesis_extraction import (
+            AntithesisExtraction, ModePointBatchResultDto, ModePointResultDto)
+        from dialectical_framework.concerns.antithesis_classification import \
+            ContextualizedTaxonomyDto
+        from dialectical_framework.graph.nodes.statement import Statement
+        from dialectical_framework.utils.progress import progress_scope
+
+        fields = list(ContextualizedTaxonomyDto.MODE_FIELDS)[:angles]
+        taxonomy = SimpleNamespace(
+            apex="Shipping nothing at all",
+            **{name: f"context for {name}" for name in fields},
+        )
+
+        delays = iter([0.03, 0.01, 0.02] * angles)
+
+        class _Isolated:
+            async def submit(self, *, response_model, user_content):
+                await asyncio.sleep(next(delays))
+                one = ModePointResultDto(
+                    statement="Review before shipping",
+                    heuristic_similarity=0.6,
+                    arousal_label="moderate",
+                    explanation="stub",
+                )
+                if response_model is ModePointBatchResultDto:
+                    return ModePointBatchResultDto(candidates=[one])
+                return one
+
+        class _Conversation:
+            def isolate(self):
+                return _Isolated()
+
+        events: list[tuple[str, str]] = []
+        monkeypatch.setattr(
+            antithesis_extraction,
+            "note_progress",
+            lambda detail: events.append(("note", detail)),
+        )
+        monkeypatch.setattr(
+            antithesis_extraction,
+            "report_progress",
+            lambda detail: events.append(("step", detail)),
+        )
+
+        service = AntithesisExtraction()
+        service._conversation = _Conversation()
+        service._text = SHORT_SOURCE
+        service._not_like_these = []
+        service._count = count
+
+        thesis = Statement(text="Ship without review")
+
+        with progress_scope("ingest") as progress:
+            candidates = await service._extract_candidates(thesis, taxonomy)
+
+        assert candidates, "the fixture must produce candidates to mean anything"
+        return events, progress
+
+    @pytest.mark.asyncio
+    async def test_every_angle_reports_when_it_returns(self, monkeypatch):
+        """One note per gathered call, counting up, on the single-candidate branch."""
+        events, _ = await self._weigh_angles(monkeypatch, count=3)
+
+        notes = [detail for kind, detail in events if kind == "note"]
+        assert notes == [
+            "1 of 3 angles considered",
+            "2 of 3 angles considered",
+            "3 of 3 angles considered",
+        ], f"three gathered calls owe three notes, counting up. Got: {notes}"
+
+    @pytest.mark.asyncio
+    async def test_the_batch_branch_notes_too(self, monkeypatch):
+        """Asking for several candidates per point must not lose the notes.
+
+        `_candidates_per_branch` switches to `ModePointBatchResultDto` whenever the
+        requested count exceeds the number of mode points, which on a narrow taxonomy
+        is the ORDINARY case rather than an exotic one. It is a separate `gather`
+        expression, so it is a separate place to forget the wrapper.
+        """
+        events, _ = await self._weigh_angles(monkeypatch, count=9)
+
+        notes = [detail for kind, detail in events if kind == "note"]
+        assert notes == [
+            "1 of 3 angles considered",
+            "2 of 3 angles considered",
+            "3 of 3 angles considered",
+        ], f"the batch branch dropped its notes. Got: {notes}"
+
+    @pytest.mark.asyncio
+    async def test_the_count_is_completions_and_not_the_mode_point_index(
+        self, monkeypatch
+    ):
+        """Notes must arrive in COMPLETION order, not in argument order.
+
+        The stub returns the second point first (0.03/0.01/0.02s). Numbering by index
+        would emit "2 of 3" first, which reads as a step being skipped; numbering by
+        completion says the true thing, and it is also what stays truthful while one
+        call retries — the line correctly sticks.
+        """
+        events, _ = await self._weigh_angles(monkeypatch, count=3)
+
+        notes = [detail for kind, detail in events if kind == "note"]
+        numbers = [int(detail.split(" of ")[0]) for detail in notes]
+        assert numbers == [1, 2, 3], (
+            f"the numerator followed the mode point, not the completion: {notes}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_angles_are_not_steps(self, monkeypatch):
+        """The invariant that makes this safe: link 2's step count is unchanged.
+
+        The step for link 2 is declared by `resolve`, one for the whole fan-out.
+        Counting completions as steps here would report up to 11 against a declared 2
+        and render a host past 100% — and it would do it once per thesis.
+        """
+        events, progress = await self._weigh_angles(monkeypatch, count=3)
+
+        steps = [detail for kind, detail in events if kind == "step"]
+        assert steps == [], f"link 2's fan-out declared a step of its own: {steps}"
+        assert progress.total == 0, (
+            "the denominator grew inside the fan-out — `resolve` already declared"
+            " this phase, and a note is not an addend"
+        )
+        assert progress.done == 0
+
+    def test_a_returning_angle_names_no_machinery_and_no_content(self):
+        """`mode point`, `taxonomy` and `branch` are all machinery; so is the source.
+
+        The unit here is one way of opposing the person's own statement, so the
+        honest wording has to describe the count without naming the taxonomy that
+        produced it or quoting what it opposed.
+        """
+        label = "3 of 11 angles considered"
+        for term in BANNED:
+            assert term not in label.lower(), f"{label!r} names {term!r}"
+        for term in ("mode point", "taxonomy", "branch", "apex", "arousal"):
+            assert term not in label.lower(), f"{label!r} names {term!r}"
+        assert len(label) < 200

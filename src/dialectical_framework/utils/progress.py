@@ -162,10 +162,20 @@ def note_progress(detail: str) -> None:
     calls that are gathered, whose window produces no graph effect either.** They all
     start at one instant, so per-item step reporting says nothing; each is one call,
     so there is nothing to subdivide; and they return at DIFFERENT times, which is
-    the only remaining fact worth publishing. `SourceDigest`'s parts are the one site
-    that qualifies — measured at **25.4s of silence** covering four gathered
-    `DigestDto` calls, the widest hole of a 120 KB ingest and one a person meets
-    seconds after pasting their document (`probe_ingest_progress.py`).
+    the only remaining fact worth publishing. TWO sites qualify, both on the ingest
+    path and both measured: `SourceDigest`'s parts — **25.4s of silence** covering
+    four gathered `DigestDto` calls, the widest hole of a 120 KB ingest and one a
+    person meets seconds after pasting their document — and
+    `AntithesisExtraction._extract_candidates`, an `asyncio.gather` of up to 11
+    `ModePointResultDto` calls that writes nothing and is the largest provider-time
+    block of that same run (22 calls, 94.2s, mean 4.3s). Both in
+    `probe_ingest_progress.py`.
+
+    The second one carries a limit the first does not, worth reading before copying
+    it: its own caller gathers one such chain per thesis, so several counters run at
+    once and consecutive notes can step BACKWARDS. Each line stays true of its own
+    item and the bar never moves, but a numerator is only monotone where the fan-out
+    is single-instance.
 
     Where the gathered calls also FINISH together this buys nothing, and the
     measurement says so: `expand_polarities`' five tetrads start within 0.2s of each

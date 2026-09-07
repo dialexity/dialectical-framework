@@ -219,9 +219,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     the part index, which is also the honest line during a retry: it sticks at 3 of 4, which is true.
     **The qualifying condition is deliberately narrow — N gathered SINGLE calls whose window writes no graph
     effect either — and `expand_polarities` above is the recorded counter-case**, so a reviewer seeing a
-    second `note_progress` site should ask what measurement justified it (`note_progress`'s docstring carries
-    the bound; `tests/test_progress.py::TestANoteSaysSomethingWithoutClaimingAStep` and
-    `tests/test_ingest_progress.py::TestTheDigestSaysWhenAPartComesBack` pin it). **CONFIRMED live in a sixth
+    NEW `note_progress` site should ask what measurement justified it (`note_progress`'s docstring carries
+    the bound and names both sites that pass it;
+    `tests/test_progress.py::TestANoteSaysSomethingWithoutClaimingAStep` and
+    `tests/test_ingest_progress.py::TestTheDigestSaysWhenAPartComesBack` pin it). The second site that
+    passed is link 2 of the opposition chain, two bullets down. **CONFIRMED live in a sixth
     run: predicted ~10.8s + ~12.8s, measured 10.6s + 12.3s**, the window now reading
     10.6s / 0.8s / 1.0s / 0.2s / 12.3s with the four notes at 10.9-12.9s all pinned at 6/7. The 12.3s
     residual is the REDUCE — one call under a label that names it — so it is a labelled wait, not a hole of
@@ -248,12 +250,23 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     usual two — no framework vocabulary (`consolidat` and `heuristic` are banned alongside the standard list)
     and no source content, the count only. Pinned by
     `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`; not yet measured live.
-    (2) STILL OPEN: `AntithesisExtraction._extract_candidates` (link 2) is an
+    (2) `AntithesisExtraction._extract_candidates` (link 2) is an
     `asyncio.gather` over one `ModePointResultDto` call per mode point (up to 11) that **writes nothing** by
     its own docstring, announced by one label — every clause of the `note_progress` condition met, and the
     largest provider-time block of the run at 94.2s across 22 calls. Five earlier runs did not promote it
     because at two theses the silence is only ~5s per wave; at ten theses it is 110 gathered calls under one
-    label.
+    label. **This is the SECOND `note_progress` site, and the measurement above is the justification a
+    reviewer should demand for it.** Each returning call publishes `"N of M angles considered"` —
+    completions, not indices — and BOTH gather branches are wrapped (the per-point one and the
+    `ModePointBatchResultDto` one, which is ordinary rather than exotic: it is taken whenever the requested
+    count exceeds the mode points). Pinned by
+    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`; not yet measured live.
+    **The limit a reviewer must know before reading a ten-thesis stream: these numerators are NOT
+    monotone** — `find_polarities` gathers one chain per thesis and each counts its own calls, so
+    consecutive notes can read "5 of 11" then "1 of 11". Each line is true of its own tension and the
+    counters never move, but the sequence is per-item, so a dip is not a regression and no rate can be
+    computed from it. A shared numerator would need state threaded across the caller's gather — a new seam
+    for one label — and `anchor`, the one-chain path, is where the fraction is unambiguous.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging

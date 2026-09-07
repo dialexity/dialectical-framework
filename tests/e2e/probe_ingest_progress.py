@@ -244,8 +244,8 @@ pair — which took 8 of the 10 theses out and left 2 to extract. So hole 1's 6.
 this run's 12.4s are the same code at different CONSOLIDATION yields, and the variable
 is `AntitheticalThesisDetection`, not `StatementClassification`.
 
-**TWO INSTRUMENTATION GAPS ON THE INGEST PATH, both named by this run. The first is
-now CLOSED; the second is still open:**
+**TWO INSTRUMENTATION GAPS ON THE INGEST PATH, both named by this run and both now
+CLOSED — neither measured live yet, so the next run at 120 KB is what confirms them:**
 
 1. **Phase 0 owed a step of its own — now declared at its own site** (`expect_progress`
    /`report_progress` inside `FindPolarities._consolidate_antithetical`, pinned by
@@ -260,8 +260,8 @@ now CLOSED; the second is still open:**
    would be a phantom step on every single-thesis `anchor` run. Unmeasured live so far
    — the next 120 KB run should show the 12.4s gap split into a labelled ~12s wait
    plus whatever extraction actually costs.
-2. **Link 2 is a gathered fan-out that writes nothing — the textbook `note_progress`
-   site, and the largest provider-time block of the run.**
+2. **Link 2 was a gathered fan-out that writes nothing — the textbook `note_progress`
+   site, and the largest provider-time block of the run. Now noted per completion.**
    `AntithesisExtraction._extract_candidates` is an `asyncio.gather` over one
    `ModePointResultDto` call per mode point (up to 11), announced by the single label
    "Weighing what could stand against this", and its own docstring says "no DB writes".
@@ -270,6 +270,22 @@ now CLOSED; the second is still open:**
    provider seconds, mean 4.3s** — more than any other DTO in the run. At two theses
    the resulting silence is only ~5s per wave, which is why five earlier runs did not
    promote it; at ten theses it is 110 gathered calls under one label.
+
+   Each returning call now publishes `"N of M angles considered"` — completions, not
+   indices, the same counter shape as the digest's parts and truthful in the same way
+   while one call retries. Both gather branches are wrapped: the per-point one and the
+   `ModePointBatchResultDto` one, which is the ORDINARY branch whenever the requested
+   count exceeds the mode points. Pinned by
+   `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`.
+
+   **READ THIS BEFORE READING A STREAM WITH TEN THESES IN IT: these numerators are
+   NOT monotone.** `find_polarities` gathers one chain per thesis and each chain
+   counts its own calls, so consecutive notes can read "5 of 11" and then "1 of 11".
+   Every line is true of its own tension and the counters/bar never move, but the
+   sequence is per-item, not global — do not read a dip as a regression, and do not
+   compute a rate from it. A shared numerator would mean threading state across the
+   caller's gather, i.e. a new seam for one label; the path where the fraction is
+   unambiguous is `anchor`, which runs exactly one chain.
 
 **The 21% backwards jump read 21% for the THIRD time**, which is now well-established
 as a property of the digest's opening declaration (2 → 7) rather than of any run's
