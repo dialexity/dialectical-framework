@@ -47,6 +47,7 @@ from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.protocols.input_resolver import InputResolver
 from dialectical_framework.utils.chunking import chunk_text
 from dialectical_framework.utils.progress import (expect_progress,
+                                                  note_progress,
                                                   report_progress)
 
 logger = logging.getLogger(__name__)
@@ -268,7 +269,14 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
         # is right from the first event rather than climbing as parts report.
         expect_progress(total + 1)
 
+        #: Completions, not indices — see the `note_progress` call below. Mutated
+        #: from gathered tasks, which is safe without a lock because the increment
+        #: and the read it feeds have no `await` between them, so the event loop
+        #: cannot interleave another part there.
+        parts_read = 0
+
         async def _read_part(index: int, chunk: str) -> str:
+            nonlocal parts_read
             async with slots:
                 # Reported INSIDE the semaphore, so an event means "this part is
                 # being read now" rather than "this part is queued" — at a cap of
@@ -282,6 +290,21 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
                     response_model=DigestDto,
                     user_content=self._build_part_prompt(chunk, index, total, context),
                 )
+                # The ONLY thing left to say in this window, and the reason
+                # `note_progress` exists. Below the cap every part starts in the
+                # same instant, so the four step events above share one timestamp
+                # and then nothing follows: no part writes a graph node, so the
+                # `sid` channel is silent too — measured as 25.4s of it on a 120 KB
+                # source, the widest hole of that run and the first thing a person
+                # meets after pasting a document (`probe_ingest_progress.py`).
+                # Parts do NOT return together, so these do trickle.
+                #
+                # A count of completions, not `index`: "3 of 4 parts read" is what
+                # a person can act on, while "part 2 read" invites the question of
+                # where parts 1 and 3 went. It also states the useful fact when one
+                # part is retrying — the line sticks at 3 of 4, which is true.
+                parts_read += 1
+                note_progress(f"{parts_read} of {total} parts read")
                 return result.digest
 
         # `gather` preserves ARGUMENT order, not completion order, and the reduce

@@ -189,7 +189,12 @@ def _assert_accounting_closes(events: list, *, branch: str) -> None:
     assert events, f"{branch}: not one progress event — the person saw silence"
 
     finals = [e for e in events if e.final]
-    steps = [e for e in events if not e.final]
+    # Notes are not steps and must be excluded from every count below — that is the
+    # whole reason `ProgressEvent.note` exists rather than the digest's completions
+    # riding on `report_progress`. If a note ever reached `steps`, `done` would
+    # overshoot `total` and both assertions at the end of this helper would fire.
+    notes = [e for e in events if e.note and not e.final]
+    steps = [e for e in events if not e.final and not e.note]
 
     assert len(finals) == 1, (
         f"{branch}: expected exactly one closing event, got {len(finals)} —"
@@ -226,6 +231,16 @@ def _assert_accounting_closes(events: list, *, branch: str) -> None:
             f"{branch}: {event.done}/{event.total} mid-run — `done` overtook"
             " `total`, which reads as more than everything"
         )
+
+    # A note must be free: it says something happened and moves no counter. The
+    # ordering claim above is what breaks if one ever does, but it breaks with a
+    # confusing message, so check the property directly where it is stated.
+    for event in notes:
+        assert event.done <= event.total, (
+            f"{branch}: a note reported {event.done}/{event.total} — notes are"
+            " supposed to carry the counters untouched"
+        )
+        assert event.stage == "ingest" and event.key is not None
 
 
 @pytest.mark.llm
@@ -298,6 +313,17 @@ async def test_a_source_too_big_for_one_prompt_reports_both_fan_outs(
     assert any(d.startswith("Reading section 1 of ") for d in details), (
         "the extraction sweep never announced a window — it is the longest"
         " single phase on this path"
+    )
+    # The notes reach the bus too, and only an end-to-end run shows it: the scope
+    # they publish under is installed at the TOOL, and `note_progress` reads the
+    # same ContextVar with the same "a task created before the scope sees nothing"
+    # trap. Their own accounting is checked at the concern
+    # (`TestTheDigestSaysWhenAPartComesBack`); what is asserted here is that they
+    # arrive at all, on the channel, alongside the steps.
+    assert f"{parts} of {parts} parts read" in [e.detail for e in events if e.note], (
+        "no part completion reached the progress channel — the digest's gathered"
+        " parts are the widest hole on this path and the notes are the only thing"
+        " that speaks during them"
     )
 
 
@@ -740,3 +766,123 @@ class TestOneLabelNeverCoversAGatheredFanOut:
         for label in labels:
             for term in BANNED:
                 assert term not in label.lower(), f"{label!r} names {term!r}"
+
+
+class TestTheDigestSaysWhenAPartComesBack:
+    """The third hole, and the only one a note can fill.
+
+    `SourceDigest` reads a big source in gathered parts. Below
+    `MAX_CONCURRENT_PART_READINGS` nothing queues, so every part announces itself in
+    the same instant and then the channel goes quiet until the reduce — measured at
+    **25.4s on a 120 KB source**, the widest hole of that run and the first thing a
+    person meets after pasting a document. Two other facts make it the one site that
+    earns a note: a part reading writes NO graph node, so the `sid` channel has
+    nothing to say either, and the parts return at different times (11.2s, 12.6s,
+    13.0s), so completions trickle where starts did not.
+
+    Asserted at the concern, not through `ingest`: the tool's stream is a sum over
+    seven sites, and these events deliberately do not enter that sum at all.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cleanup_graph_db(self):
+        yield
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_graph_data(self):
+        yield
+
+    async def _digest_parts(self, monkeypatch, parts: int) -> tuple[list, object]:
+        """Run the part fan-out under a scope, returning (events, scope).
+
+        `note_progress` and `report_progress` are captured at the module level so the
+        two kinds stay distinguishable without a bus — what matters here is which
+        function each site calls, and the bus plumbing is `test_progress.py`'s job.
+        """
+        from dialectical_framework.concerns import source_digest as digest_module
+        from dialectical_framework.concerns.source_digest import SourceDigest
+        from dialectical_framework.utils.progress import progress_scope
+
+        events: list = []
+        monkeypatch.setattr(
+            digest_module,
+            "report_progress",
+            lambda detail: events.append(("step", detail)),
+        )
+        monkeypatch.setattr(
+            digest_module,
+            "note_progress",
+            lambda detail: events.append(("note", detail)),
+        )
+
+        with progress_scope("ingest") as progress:
+            await SourceDigest()._generate_digest_from_parts(
+                [f"part {i} text" for i in range(1, parts + 1)],
+                None,
+                "context",
+            )
+        return events, progress
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_every_part_reports_a_completion(self, monkeypatch):
+        events, _ = await self._digest_parts(monkeypatch, parts=4)
+
+        notes = [detail for kind, detail in events if kind == "note"]
+        assert notes == [
+            "1 of 4 parts read",
+            "2 of 4 parts read",
+            "3 of 4 parts read",
+            "4 of 4 parts read",
+        ], (
+            "the parts announced themselves and then said nothing about coming"
+            f" back — this is the 25.4s hole. Got: {events}"
+        )
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_count_is_completions_and_not_the_part_index(self, monkeypatch):
+        """Why it counts rather than names.
+
+        `gather` preserves argument order in its RESULT, not in completion order, so
+        the parts finish in whatever order the provider returns them. Counting says
+        something true either way; "part 2 read" out of order invites the question of
+        where parts 1 and 3 went. It is also the line that stays honest during a
+        retry: it sticks at "3 of 4", which is exactly what is happening.
+        """
+        events, _ = await self._digest_parts(monkeypatch, parts=3)
+
+        notes = [detail for kind, detail in events if kind == "note"]
+        # A count reaches its own total exactly once, whatever order parts land in.
+        assert notes[-1] == "3 of 3 parts read"
+        assert len({n for n in notes}) == 3, f"a completion repeated itself: {notes}"
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_completions_are_not_steps(self, monkeypatch):
+        """The invariant that makes this safe, at the site rather than in the seam.
+
+        Parts plus the reduce is what `expect_progress` declared, and a note is not
+        an addend. Counting these as steps would report 9 for a 4-part source
+        against a declared 5 and render a host past 100%.
+        """
+        events, progress = await self._digest_parts(monkeypatch, parts=4)
+
+        steps = [detail for kind, detail in events if kind == "step"]
+        assert len(steps) == 5, f"parts + reduce is 5 steps, got {steps}"
+        assert progress.total == 5, (
+            "the denominator counted completions — `expect_progress(total + 1)` is"
+            " parts plus the reduce, and notes must not be in it"
+        )
+
+    def test_a_completion_names_no_machinery_and_no_content(self):
+        """Same two bans as every other label on this path.
+
+        The unit of work here is a slice of the person's own file, and "digest" is
+        itself a banned word — so the honest wording has to describe the READING
+        without naming either.
+        """
+        label = "3 of 4 parts read"
+        for term in BANNED:
+            assert term not in label.lower(), f"{label!r} names {term!r}"
+        assert len(label) < 200

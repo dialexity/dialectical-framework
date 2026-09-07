@@ -41,6 +41,24 @@ seeing, and rounding it up to 24 would hide a partial build.
 `key` distinguishes concurrent scopes for the same `stage` — two wheels deepened at
 once each report `stage="transformation"`, and without `key` their counts would
 interleave into one nonsensical bar.
+
+WHY THERE IS A THIRD KIND OF EVENT (`note`)
+===========================================
+A step event says "this is starting" and moves `done`. That is the whole vocabulary,
+and it has one blind spot, measured on the real path: **N single provider calls that
+are gathered, so they all start at the same instant.** `SourceDigest` reading a 120 KB
+source in four parts announced all four inside the same 0.4s and then said nothing for
+**25.4s** — the widest hole in that run, and the one place where no graph effect flows
+either, because a part reading writes nothing (`probe_ingest_progress.py`). There is no
+chain to subdivide: each part IS one call.
+
+What is left to say is that a part came BACK, and the parts return at different times
+(11.2s, 12.6s, 13.0s on that run). So `note=True` marks an event that carries no claim
+about steps: same `done`, same `total`, a `detail` describing what has landed. A host
+refreshes its label and leaves its bar alone.
+
+Notes are deliberately not a general facility — see `note_progress` in
+`utils/progress.py` for the one condition that earns one.
 """
 
 from __future__ import annotations
@@ -71,10 +89,15 @@ class ProgressEvent:
             short hash). None when the stage cannot run twice at once.
         done: Steps finished so far.
         total: Steps expected so far — a moving target, see the module docstring.
-        detail: Human-readable description of the step that just started.
+        detail: Human-readable description of the step that just started — or, when
+            `note` is set, of something that just finished.
         final: True on the single event published when the stage ends. A host can
             clear its spinner on this without waiting for `done == total`, which
             may never happen.
+        note: True on an event that is NOT a step: `done` and `total` are the same
+            values the previous event carried, so a host refreshes its label and
+            leaves its bar where it is. Counting notes as steps would make `done`
+            overshoot `total` — see the module docstring for what they are for.
     """
 
     sid: str
@@ -85,3 +108,4 @@ class ProgressEvent:
     timestamp: float
     key: Optional[str] = None
     final: bool = False
+    note: bool = False

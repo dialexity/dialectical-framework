@@ -28,6 +28,7 @@ from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.utils import progress as progress_module
 from dialectical_framework.utils.progress import (current_progress_scope,
                                                   expect_progress,
+                                                  note_progress,
                                                   progress_scope,
                                                   report_progress)
 
@@ -304,6 +305,132 @@ class TestTheCountersTellTheTruth:
             prog.expect(0)
             prog.expect(-5)
             assert prog.total == 3
+
+
+class TestANoteSaysSomethingWithoutClaimingAStep:
+    """The third kind of event, and the counters must not notice it.
+
+    `note_progress` exists for N gathered single calls — all starting at one
+    instant, each unsubdividable, returning at different times. The only thing that
+    makes it safe is that it touches nothing: if a note ever incremented `done`,
+    every one of them would be a step nobody expected, `done` would overshoot
+    `total`, and a host would render past 100% on the one path where the person is
+    watching hardest (`SourceDigest`'s parts, seconds after they paste a document).
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_note_moves_the_label_and_leaves_the_bar_alone(self, bus):
+        received = []
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-note") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        ready = asyncio.Event()
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+
+        with scope("sid-note"), progress_scope("s", total=2) as prog:
+            report_progress("reading part 1 of 2")
+            report_progress("reading part 2 of 2")
+            note_progress("1 of 2 parts read")
+            note_progress("2 of 2 parts read")
+            assert prog.done == 2, "a note was counted as a step"
+            assert prog.total == 2, "a note grew the denominator"
+
+        got = await _drain_list(received)
+        listener.cancel()
+
+        notes = [e for e in got if e.note]
+        assert [e.detail for e in notes] == ["1 of 2 parts read", "2 of 2 parts read"]
+        # Both notes carry the counters the last STEP left behind — same numbers,
+        # twice, which is exactly the signal "still working, nothing new completed
+        # in the accounting sense".
+        assert all((e.done, e.total) == (2, 2) for e in notes)
+        assert all(not e.note for e in got if e.final), (
+            "the closing event was flagged a note — a host clears on `final`"
+        )
+        steps = [e for e in got if not e.final and not e.note]
+        assert len(steps) == 2 and all(e.note is False for e in steps)
+
+    @pytest.mark.asyncio
+    async def test_notes_do_not_disturb_the_closing_accounting(self, bus):
+        """`final.done == final.total` is the invariant every progress test rests on."""
+        received = []
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-note2") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        ready = asyncio.Event()
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+
+        with scope("sid-note2"), progress_scope("s") as prog:
+            expect_progress(3)
+            for i in range(3):
+                report_progress(f"step {i}")
+                note_progress(f"{i + 1} of 3 done")
+            assert prog.done == 3 and prog.total == 3
+
+        got = await _drain_list(received)
+        listener.cancel()
+
+        final = next(e for e in got if e.final)
+        assert (final.done, final.total) == (3, 3)
+
+    def test_a_note_without_a_scope_is_a_noop(self):
+        assert current_progress_scope() is None
+        note_progress("nobody is listening")
+
+    @pytest.mark.asyncio
+    async def test_a_note_arriving_after_final_is_dropped(self, bus):
+        """Same straggler guard as `report_progress`, for the same reason.
+
+        A gathered part that outlives its scope still holds a context copy pointing
+        at it. A note published after the `final` event would tell a host that had
+        already cleared its indicator that something is still landing — and unlike a
+        late step this one moves no counter, so nothing else in the accounting would
+        reveal it. The channel is the only witness, so assert on the channel.
+        """
+        received = []
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-note3") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        ready = asyncio.Event()
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+
+        release = asyncio.Event()
+        late_detail = "a part came back after everything closed"
+
+        async def _straggler() -> None:
+            await release.wait()
+            note_progress(late_detail)
+
+        with scope("sid-note3"):
+            with progress_scope("s", total=1) as prog:
+                late = asyncio.create_task(_straggler())
+                report_progress("on time")
+            release.set()
+            await late
+
+        got = await _drain_list(received)
+        listener.cancel()
+
+        assert prog._closed, "the scope should have closed before the straggler ran"
+        assert late_detail not in [e.detail for e in got], (
+            "a note published after the `final` event reached the channel"
+        )
+        assert got[-1].final, "the closing event was no longer last"
 
 
 class TestNoScopeCostsNothing:

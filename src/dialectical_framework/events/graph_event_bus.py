@@ -69,6 +69,7 @@ class GraphEventBus:
         detail: str,
         key: Optional[str] = None,
         final: bool = False,
+        note: bool = False,
     ) -> None:
         """Publish a work-in-flight signal on the `sid:progress` channel.
 
@@ -87,6 +88,7 @@ class GraphEventBus:
             timestamp=time.time(),
             key=key,
             final=final,
+            note=note,
         )
         await self._broadcast.publish(channel=progress_channel(sid), message=event)
 

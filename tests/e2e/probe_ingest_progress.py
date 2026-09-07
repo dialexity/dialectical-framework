@@ -73,8 +73,11 @@ READING IT HONESTLY
 the cost probe). `-o log_cli=true --log-cli-level=WARNING` to see retry warnings,
 which this probe PASSES through.
 
-RESULT, 2026-09-07, haiku-4.5 — the sweep's denominator works; of three holes, two are closed
-=============================================================================================
+RESULT, 2026-09-07, haiku-4.5 — the denominator works; of FOUR holes, three closed and one irreducible
+=====================================================================================================
+Read the four holes in the order they were found: 1 and 3 closed by declaring a
+chain's own links, 2 IRREDUCIBLE (see its entry — the fix once recommended there was
+wrong), 4 closed by adding a third verb to the seam (`note_progress`).
 BEFORE (the run that found the holes). **120 KB / 4 windows, 99.7s, 127 calls at
 5.66x, 24 progress events:**
 
@@ -98,7 +101,8 @@ the channel shortens the worst gap but the stream is only ~1 event per 3-14s, so
 almost every gap is still over the 3s threshold. Progressive disclosure here means
 "never wonder if it froze", NOT "continuous motion".
 
-**Three holes found, all the same shape — one label before a gathered fan-out.
+**Three holes found in the before runs, all the same shape — one label before a
+gathered fan-out (a fourth turned up in the after runs, below).
 Two are CLOSED and re-measured** (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`):
 
 1. **CLOSED — 14.4s at 52.5-66.9s**, the widest that survived: `find_polarities`
@@ -114,12 +118,21 @@ Two are CLOSED and re-measured** (`tests/test_ingest_progress.py::TestOneLabelNe
    spread over 5.0s, link 2's over 2.2s, because link 1 takes about the same time
    for every thesis. Link 2's value is that it MARKS THE BOUNDARY, not that it
    trickles — do not read "staggered" as "evenly spaced".
-2. **OPEN — 10.7s at 78.8-89.5s**: five `expand_polarities` steps all report at
-   78.8s because they are announced at the gather, then five ~11s `TetradDto` calls
-   run silent. Reporting inside each task would not help — they all start together —
-   so this one needs per-call subdivision like `TransformationGeneration` has, which
-   is why it was left after the other two. **It is now the widest hole of the 1 KB
-   run** (8.2s at 27.4-35.6s), i.e. the probe points straight at it.
+2. **IRREDUCIBLE — 10.7s at 78.8-89.5s**, and it is now the widest hole of the 1 KB
+   run (8.2s at 27.4-35.6s), so the probe points straight at the floor. Five
+   `expand_polarities` steps all report at 78.8s because they are announced at the
+   gather, then five ~11s `TetradDto` calls run silent. **What was written here
+   before — "this one needs per-call subdivision like `TransformationGeneration`
+   has" — is WRONG, and reading the code is what settled it.** On this path
+   `AspectGeneration.resolve` takes the `len(positions_to_generate) == 4` branch into
+   `_generate_tetrad`, which is ONE `TetradDto` call covering T+/T-/A+/A-. There is
+   no chain to subdivide; getting one means splitting a provider call in four, which
+   is a reasoning change, not instrumentation. Completion reporting (hole 4's fix)
+   does not help either, and the timings say why: the five start within 0.2s of each
+   other (27.2-27.4s) and return within 1.5s of each other (35.6-37.1s), and the
+   graph burst they write lands at the FIRST completion — so a note would arrive on
+   top of an event the host already has. Record it as the floor and stop proposing
+   fixes for it.
 3. **CLOSED — the single-window path bundled three phases under one label** (1 KB
    run: 12.2s, and the widest progress gap of that run). `_extraction_loop` reported
    "Reading the material for tensions" once and then ran step 1, the step-2 gate and
@@ -171,13 +184,22 @@ CORRECT by design — `_progress_key` is content-derived precisely so a retry do
 look like new work — but the cost is that a retry silently doubles a step's
 duration with no signal, and that is worth knowing before reading any single gap.
 
-**(b) The worst hole of the 120 KB run is now the DIGEST, at 25.4s** (0.4s, four
-parts announced together → 25.8s, "Combining 4 readings"), up from 12.1s in the
-before run because of (a). It is a FOURTH instance of the same shape and the least
-fixable: each part is ONE call, so there is nothing to subdivide. Only reporting on
-COMPLETION would fill it — "read 3 of 4 parts" — which the current contract does not
-express (`report_progress` means "a step is STARTING"). Left open deliberately, and
-noted here rather than in code because it is a change to the seam, not to a site.
+**(b) The worst hole of the 120 KB run was the DIGEST, at 25.4s — now CLOSED, and it
+took a change to the seam rather than to a site.** (0.4s, four parts announced
+together → 25.8s, "Combining 4 readings"), up from 12.1s in the before run because of
+(a). A FOURTH instance of the same shape, and the only fact left to publish in that
+window is when a part comes BACK: each part is ONE call, so nothing subdivides, and
+they all start at the same instant, so per-item steps carry one timestamp. Hence
+`note_progress(detail)` in `utils/progress.py` — publishes the counters UNCHANGED with
+`ProgressEvent.note=True`, so a host refreshes its label and leaves its bar where it
+is. `_generate_digest_from_parts` reports COMPLETIONS, not the part index
+("3 of 4 parts read"), which is also the truthful line while one part retries: it
+sticks at 3 of 4. From the completion times this run measured — 11.2s, 12.6s, 13.0s,
+25.8s — the 25.4s hole should become ~10.8s + ~12.8s. **PREDICTED, NOT MEASURED: a
+mocked run cannot show duration, so re-run this probe at 120 KB to confirm the split
+and expect the retry to move the figures again.** The condition that earns a note is
+narrow and hole 2 above is the recorded counter-case; `note_progress`'s docstring
+carries the bound, and a second site needs its own measurement.
 
 **CORRECTION to what was predicted here: the 21% backwards jump did NOT get worse.**
 Adding ~2 steps per thesis was expected to raise it, and the after runs read 21% at

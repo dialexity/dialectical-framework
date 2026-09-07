@@ -170,8 +170,10 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     the channel shortens the worst gap but the stream is ~1 event per 3-14s, so progressive disclosure here
     means "never wonder if it froze", never "continuous motion" — do not let a review read the gap
     reduction as motion. And the denominator's **worst backwards jump is 21%**, the live size of the
-    "a host caching its first denominator renders a bar that goes backwards" caveat. **Three holes the run
-    found shared one shape — a single label announced before a gathered fan-out — and TWO are now closed**
+    "a host caching its first denominator renders a bar that goes backwards" caveat. **FOUR holes were found
+    across the five runs and all four are the same shape — a single label announced before a gathered fan-out.
+    Three are closed (two by declaring the chain's own links, one by a new `note_progress` verb) and the
+    fourth is irreducible; each is treated below in the order it was found**
     (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`). `ThesisExtraction.resolve`
     declares the classify phase, so the single-window `_extraction_loop` no longer bundles extraction, the
     step-2 gate and classification under one 12.2s label (27% of a 45.5s wall, and the common chat case);
@@ -180,9 +182,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     two links, closing the 14.4s hole — **and this is the case that shows the fix does NOT generalize to
     "report per item"**: `find_polarities` gathers ten of these chains, so ten events at the gather would
     all carry one timestamp and change nothing; links 2 and 3 stagger only because link N of a thesis
-    starts when link N-1 of THAT thesis returns. Where tasks genuinely start together
-    (`expand_polarities`' five ~11s tetrads, all five reporting at 78.8s) only per-CALL subdivision helps,
-    as `TransformationGeneration` has — that one is still open. Two deliberate non-declarations, both
+    starts when link N-1 of THAT thesis returns. **The third instance is IRREDUCIBLE, and the claim once
+    written here — that `expand_polarities`' five ~11s tetrads (all five reporting at 78.8s) need "per-CALL
+    subdivision as `TransformationGeneration` has" — was wrong.** `AspectGeneration.resolve` on this path
+    takes the four-position branch into `_generate_tetrad`: ONE `TetradDto` call covering T+/T-/A+/A-, so
+    there is no chain to subdivide, and getting one would mean splitting a provider call into four, i.e. a
+    reasoning change rather than instrumentation. Completion reporting is no help either — the five start
+    within 0.2s and return within 1.5s of each other, and the graph effects they write land at the first
+    completion, so a note would arrive on top of an event the host already has. Record it as the floor.
+    Two deliberate non-declarations, both
     `record_decision`'s rule that a step is worth declaring only where the alternative is silence: link 1
     of the chain (it runs immediately after the caller's announcement, so a step would restate it once per
     thesis) and the whole SIMPLE branch (one call, mechanical negation). Both are pinned, because "be
@@ -202,9 +210,20 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     design since `_progress_key` is content-derived precisely so a retry is not new work, but it means any
     single gap may be a retry rather than a slow call. That retry also promoted a FOURTH instance of the same
     shape to widest hole of the 120 KB run: **`SourceDigest`'s four parts, 25.4s**, announced together then
-    silent until the reduce. It is the least fixable of the four — one call per part, nothing to subdivide —
-    and only reporting on COMPLETION would fill it, which the seam's "a step is STARTING" contract does not
-    express, so it is a decision about `utils/progress.py` rather than about a site.
+    silent until the reduce. That one WAS a decision about `utils/progress.py` rather than about a site, and
+    it was taken: **`note_progress(detail)` is a third verb on the seam, publishing the counters UNCHANGED
+    with `ProgressEvent.note=True`**, so a host refreshes its label and leaves its bar alone. A field and not
+    a wording convention, because `_assert_accounting_closes` pins `len(steps) == final.total` and
+    `event.done == i` — a completion riding on `report_progress` would push `done` past `total` and render a
+    host past 100%. `_generate_digest_from_parts` reports a count of COMPLETIONS (`"3 of 4 parts read"`), not
+    the part index, which is also the honest line during a retry: it sticks at 3 of 4, which is true.
+    **The qualifying condition is deliberately narrow — N gathered SINGLE calls whose window writes no graph
+    effect either — and `expand_polarities` above is the recorded counter-case**, so a reviewer seeing a
+    second `note_progress` site should ask what measurement justified it (`note_progress`'s docstring carries
+    the bound; `tests/test_progress.py::TestANoteSaysSomethingWithoutClaimingAStep` and
+    `tests/test_ingest_progress.py::TestTheDigestSaysWhenAPartComesBack` pin it). Predicted from the measured
+    completions (11.2s, 12.6s, 13.0s, 25.8s) the hole splits into ~10.8s + ~12.8s — **not yet confirmed
+    live**, since a mocked run cannot show duration.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
@@ -307,7 +326,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     silent 34s. `tests/test_progress.py::TestTheGraphChannelIsUntouched` asserts the compatibility promise
     directly rather than inferring it from the channel name.
     Emission is `utils/progress.py`: `progress_scope(stage, key=…)` plus `report_progress(detail)` /
-    `expect_progress(n)`, a no-op when no scope is installed. Three things there are load-bearing and were
+    `expect_progress(n)` / `note_progress(detail)` (the last one narrow — see the `ingest` bullet above and
+    its docstring), a no-op when no scope is installed. Three things there are load-bearing and were
     each a bug first or nearly one. (1) The ContextVar holds a **mutable** scope so gathered children
     mutate what the parent can see — same reason as `call_census`, and here it also means **a task created
     BEFORE the scope is installed never reports**, which is why `ExploreTransformations` opens the scope

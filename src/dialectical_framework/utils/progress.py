@@ -20,6 +20,15 @@ So: two calls at the emission site.
 `report_progress` is a NO-OP when no scope is installed, which is why it can sit on
 a hot path and why installing it required no changes to any existing test.
 
+A THIRD CALL, FOR ONE SHAPE THE OTHER TWO CANNOT DESCRIBE
+=========================================================
+`note_progress` publishes without claiming a step. It exists because a step event says
+"this is starting", and that has nothing to say about **N gathered single calls**: they
+all start at one instant, so N step events carry one timestamp, and each is one call,
+so there is nothing to subdivide. What differs is when they come BACK. Read
+`note_progress`'s docstring before adding a second site — the condition is narrow and
+the measurement that bounds it is there.
+
 WHY A MUTABLE OBJECT IN THE ContextVar
 ======================================
 Same reason as `retry_accounting` and `call_census`, and it is the whole reason this
@@ -141,6 +150,35 @@ def report_progress(detail: str) -> None:
     scope.done += 1
 
 
+def note_progress(detail: str) -> None:
+    """Report that something FINISHED, without claiming a step.
+
+    Publishes the counters unchanged — same `done`, same `total`, `note=True` on the
+    event — so a host refreshes its label and leaves its bar alone. No-op with no
+    scope installed, and dropped after the scope closes, exactly like
+    `report_progress`.
+
+    ONE CONDITION EARNS A NOTE, and it is narrow on purpose: **N single provider
+    calls that are gathered, whose window produces no graph effect either.** They all
+    start at one instant, so per-item step reporting says nothing; each is one call,
+    so there is nothing to subdivide; and they return at DIFFERENT times, which is
+    the only remaining fact worth publishing. `SourceDigest`'s parts are the one site
+    that qualifies — measured at **25.4s of silence** covering four gathered
+    `DigestDto` calls, the widest hole of a 120 KB ingest and one a person meets
+    seconds after pasting their document (`probe_ingest_progress.py`).
+
+    Where the gathered calls also FINISH together this buys nothing, and the
+    measurement says so: `expand_polarities`' five tetrads start within 0.2s of each
+    other and return within 1.5s of each other, and the graph effects they write
+    arrive at the same moment as the first completion — so a note there would land on
+    top of an event a host already has. Do not add one out of consistency.
+    """
+    scope = _current.get()
+    if scope is None or scope._closed:
+        return
+    _publish(scope, detail=detail, final=False, note=True)
+
+
 def expect_progress(steps: int) -> None:
     """Add `steps` to the installed scope's denominator. No-op with no scope.
 
@@ -159,7 +197,9 @@ def current_progress_scope() -> Optional[ProgressScope]:
     return _current.get()
 
 
-def _publish(scope: ProgressScope, *, detail: str, final: bool) -> None:
+def _publish(
+    scope: ProgressScope, *, detail: str, final: bool, note: bool = False
+) -> None:
     """Fire-and-forget publish, mirroring `ExecutionReport._emit`.
 
     No-op when: no bus is wired, no loop is running (sync callers), or no sid is in
@@ -197,6 +237,7 @@ def _publish(scope: ProgressScope, *, detail: str, final: bool) -> None:
                 detail=detail,
                 key=scope.key,
                 final=final,
+                note=note,
             )
         except Exception:
             # A progress signal must never be able to fail the work it describes.
