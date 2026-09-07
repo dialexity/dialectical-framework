@@ -375,8 +375,14 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     mutate what the parent can see — same reason as `call_census`, and here it also means **a task created
     BEFORE the scope is installed never reports**, which is why `ExploreTransformations` opens the scope
     above its `gather` rather than inside `_process_edge_pair`. (2) Unlike the two measurement instruments
-    it is NOT a stack — innermost wins — because two denominators describing one instant is worse for a
-    person than one. (3) `_publish` **snapshots** `done`/`total` before scheduling the send; reading them
+    it is NOT a stack, and it is not innermost-wins either: **a nested scope DEFERS** — it folds its
+    `total` into the installed scope, yields that scope and publishes no `final`, discarding its own
+    `stage`/`key`, because one tool call is one stream and two denominators describing one instant is
+    worse for a person than one. This is what lets a skill be an entry point AND a sub-step; the rule
+    that used to be here (innermost wins, outer resumes) described no real nesting in this tree, only the
+    `deepen` defect that forced the change — see the `deepen` bullet in the tool inventory. An
+    already-closed outer scope is deferred to as well, so a straggler is dropped rather than opening a
+    fresh stream after the tool returned. (3) `_publish` **snapshots** `done`/`total` before scheduling the send; reading them
     inside the deferred task made every event in a fan-out carry the same final count.
     `detail` strings carry NO framework vocabulary (no T+/A-, no Ac/Re, no insight band): a host may render
     them verbatim and the silent Advisor's contract is that the machinery stays hidden. `total` GROWS as
@@ -1660,6 +1666,19 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   doc states deepening never changes exploration CONTENTS, so no consent ceremony (unlike
   anchor/explore/discard). Explorer needs no equivalent — `explore_transformations` +
   `generate_synthesis` are already per-wheel user-driven tools there.
+  **`run_deepen` owns the progress stream for the whole call** (`progress_scope("deepen",
+  key=wheel_hash[:7])`, installed in `run_deepen` and not in the `@llm.tool` wrapper, because
+  `scoped.py`, `build_status`'s resume hint and the resume tests all enter through it). Before that it
+  published TWO `final` events for one action — one per composed skill, each of which installs a scope
+  of its own — so a host cleared its indicator halfway through and started again. The fix needed the
+  seam's nesting rule to change to deferral (see §progress-channel item 2); wrapping it the old way
+  would have given THREE finals, and the skills could not drop their scopes because both are entry
+  points in five places. A reviewer's tell that someone reverted the seam: an inner stage name
+  (`transformation`, `synthesis`) appearing on the channel during a `deepen`. Pinned at both levels —
+  `tests/test_progress.py::TestNestingDefersToTheInstalledScope` and
+  `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`. **`explore` still owns no stream**,
+  so its two skills each publish a final there; the seam change makes that a one-line fix when
+  `explore`'s instrumentation is taken up.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +

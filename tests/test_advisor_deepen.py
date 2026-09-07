@@ -186,6 +186,121 @@ class TestDeepenNamesThePathways:
         assert "pathways" not in report
 
 
+class TestOneDeepenIsOneProgressStream:
+    """`deepen` is one action to a person and used to publish two closing events.
+
+    Both skills it composes open a progress scope of their own, because both are
+    reachable directly (`explore`, `explorer.py`, the `generate_synthesis` tool). Run
+    in sequence that meant `final` for "transformation", then more events under
+    "synthesis", then `final` again — so a host that clears its indicator on `final`
+    cleared it halfway through and started over, which is exactly the "did it freeze
+    or is it finished?" question the channel exists to answer.
+
+    The fix is in the seam (`utils/progress.py`: a nested scope defers to the
+    installed one) plus one scope here, so this asserts through `run_deepen` — a
+    scope-object test cannot see the second `final`, and `test_progress.py` cannot
+    see whether this tool installed anything.
+
+    The stubs open scopes exactly where the real skills do. Their stage names and
+    keys differ from the tool's on purpose: an inner name reaching the channel is
+    the visible symptom of a scope that installed instead of deferring.
+    """
+
+    @pytest.fixture
+    def scoped_stubs(self, monkeypatch):
+        from dialectical_framework.agents.explorer.skills import \
+            explore_transformations as et_mod
+        from dialectical_framework.agents.explorer.skills import \
+            generate_synthesis as gs_mod
+        from dialectical_framework.utils.progress import (expect_progress,
+                                                          progress_scope,
+                                                          report_progress)
+
+        async def stub_transformations(self):
+            # Declared inside the scope and not passed as `total`, because that is
+            # what the real skill does — it opens at 0 and grows as each edge pair
+            # discovers what it owes. So this covers BOTH ways a deferring skill can
+            # size the bar: `expect_progress` here, `total=` in the synthesis stub.
+            with progress_scope("transformation", key="whee"):
+                expect_progress(2)
+                report_progress("Working out what good looks like here")
+                report_progress("Looking for concrete moves to take")
+            return et_mod.ExploreTransformationsResult()
+
+        async def stub_synthesis(self):
+            with progress_scope("synthesis", key="whee", total=1):
+                report_progress("Drawing out what emerges from the whole picture")
+            return None
+
+        monkeypatch.setattr(
+            et_mod.ExploreTransformations, "resolve", stub_transformations
+        )
+        monkeypatch.setattr(gs_mod.GenerateSynthesis, "resolve", stub_synthesis)
+
+    async def test_the_whole_call_closes_exactly_once(self, scoped_stubs):
+        import asyncio
+
+        from dialectical_framework.agents.advisor.tools.deepen import run_deepen
+        from dialectical_framework.events.graph_event_bus import GraphEventBus
+        from dialectical_framework.graph.scope_context import scope
+        from dialectical_framework.utils import progress as progress_module
+
+        bus = GraphEventBus()
+        await bus.connect()
+        previous = progress_module._event_bus
+        progress_module.set_event_bus(bus)
+
+        received: list = []
+        ready = asyncio.Event()
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-deepen") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+        try:
+            with scope("sid-deepen"):
+                await run_deepen("wheel444")
+            # Publishes are fire-and-forget tasks; wait until the stream settles
+            # rather than for a fixed interval, which drops the closing event under
+            # load and reads as the very defect under test.
+            previous_len = -1
+            waited = 0.0
+            while previous_len != len(received) and waited < 5.0:
+                previous_len = len(received)
+                await asyncio.sleep(0.05)
+                waited += 0.05
+        finally:
+            listener.cancel()
+            progress_module.set_event_bus(previous)
+            await bus.disconnect()
+
+        assert received, "the person saw silence for a whole deepen"
+        finals = [e for e in received if e.final]
+        assert len(finals) == 1, (
+            f"{len(finals)} closing events for one `deepen` — a host clears its"
+            f" indicator on each. Stages seen: {[e.stage for e in received]}"
+        )
+        assert {e.stage for e in received} == {"deepen"}, (
+            "a skill's own stage name reached the channel, so it installed a scope"
+            f" instead of deferring to the tool's. Got: {[e.stage for e in received]}"
+        )
+        assert {e.key for e in received} == {"wheel44"}, (
+            "the key must be the tool's for the whole stream — a host tells two"
+            " concurrent deepens apart by it"
+        )
+
+        steps = [e for e in received if not e.final and not e.note]
+        assert len(steps) == 3, f"both skills' steps must survive: {steps}"
+        assert finals[0].done == 3 and finals[0].total == 3, (
+            "the deferred `total=1` was lost, so the bar closes short of its own"
+            f" denominator: {finals[0]}"
+        )
+
+
 class _FakeTransition:
     def __init__(self, text: str) -> None:
         self.instruction = text

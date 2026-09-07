@@ -465,20 +465,84 @@ class TestNoScopeCostsNothing:
             report_progress("no running loop")
 
 
-class TestNestingKeepsOnlyTheInnermost:
-    """Deliberately unlike `call_census`/`retry_accounting`, which are stacks."""
+class TestNestingDefersToTheInstalledScope:
+    """A nested scope installs nothing: the outermost owns the stream.
 
-    def test_the_inner_scope_shadows_and_the_outer_resumes(self):
+    Deliberately unlike `call_census`/`retry_accounting`, which are stacks — and
+    deliberately unlike the rule that used to be here (innermost wins, outer resumes
+    on exit), which never described a real nesting in this tree. The only real one is
+    `deepen`, whose two skills each open a scope: under the old rule the tool
+    published TWO `final` events for one action and a host cleared its indicator
+    halfway through.
+    """
+
+    def test_a_nested_scope_hands_back_the_outer_one(self):
         with progress_scope("outer", total=1) as outer:
             with progress_scope("inner", total=1) as inner:
-                report_progress("belongs to inner only")
-                assert inner.done == 1
-                assert outer.done == 0, (
-                    "both scopes counted one step — a host would see two"
-                    " denominators for one instant"
+                assert inner is outer, (
+                    "the nested scope installed its own — a host would see two"
+                    " denominators, and two `final` events, for one action"
                 )
+                report_progress("belongs to the one stream")
             report_progress("outer again")
-            assert outer.done == 1
+            assert outer.done == 2
+            assert outer.total == 2, (
+                "the nested scope's declared step was lost — a deferring skill still"
+                " does its work, so its total belongs to the outer denominator"
+            )
+
+    @pytest.mark.asyncio
+    async def test_only_the_outermost_publishes_a_final(self, bus):
+        """THE claim `deepen` needed. A host clears its indicator on `final`."""
+        received = []
+        ready = asyncio.Event()
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-nest") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+
+        with scope("sid-nest"), progress_scope("tool", key="k1"):
+            with progress_scope("skill-a", key="a", total=1):
+                report_progress("first skill")
+            with progress_scope("skill-b", key="b", total=1):
+                report_progress("second skill")
+
+        got = await _drain_list(received)
+        listener.cancel()
+
+        finals = [e for e in got if e.final]
+        assert len(finals) == 1, (
+            f"{len(finals)} closing events for one tool call — the sequential-sibling"
+            " case, which is what `deepen` actually does"
+        )
+        assert finals[0].stage == "tool" and finals[0].done == 2
+        assert {e.stage for e in got} == {"tool"}, (
+            "an inner stage name reached the channel: one call is one stream, and a"
+            f" host keying on (stage, key) would treat these as three. Got: {got}"
+        )
+        assert {e.key for e in got} == {"k1"}
+
+    def test_a_closed_outer_scope_swallows_the_stragglers(self):
+        """The alternative would be a fresh stream, `final` and all, after the tool
+        returned — the same straggler `report_progress` already refuses."""
+        with progress_scope("outer") as outer:
+            pass
+        assert outer._closed
+
+        # The context copy a straggling task holds still points at the closed scope.
+        token = progress_module._current.set(outer)
+        try:
+            with progress_scope("late", total=3) as late:
+                assert late is outer
+                report_progress("nobody should hear this")
+            assert outer.done == 0
+        finally:
+            progress_module._current.reset(token)
 
 
 class TestProgressStepsMatchesTheCalls:

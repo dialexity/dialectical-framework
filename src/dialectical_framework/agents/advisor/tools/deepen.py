@@ -31,7 +31,31 @@ async def run_deepen(wheel_hash: str) -> str:
     Shared deepen body: generate transformations for the wheel, then
     synthesis. Idempotent — both skills reuse existing nodes.
     Returns str(report).
+
+    The scope goes HERE and not in the `@llm.tool` wrapper because every other
+    entry to a deepen comes through this function — `scoped.py`, `build_status`'s
+    resume hint, the resume tests — and each of them is one action to a person.
+
+    One stream for the whole call, which the two skills below could not give on
+    their own: `ExploreTransformations` and `GenerateSynthesis` each open a scope
+    (both are reachable directly), so this call used to publish TWO `final`
+    events and a host cleared its indicator halfway through. A nested
+    `progress_scope` now defers to this one instead of installing — see
+    `utils/progress.py`.
+
+    The key is the wheel's short hash rather than a digest of it: unlike
+    `ingest`, nothing here is the person's own text, so there is nothing to hide
+    from a host that renders the key. Truncated to 7 so it matches the
+    `key=wheel.short_hash` the skills used to publish under.
     """
+    from dialectical_framework.utils.progress import progress_scope
+
+    with progress_scope("deepen", key=(wheel_hash or "")[:7]):
+        return await _deepen(wheel_hash)
+
+
+async def _deepen(wheel_hash: str) -> str:
+    """The body, under `run_deepen`'s progress scope."""
     from dialectical_framework.agents.explorer.skills.explore_transformations import \
         ExploreTransformations
     from dialectical_framework.agents.explorer.skills.generate_synthesis import \

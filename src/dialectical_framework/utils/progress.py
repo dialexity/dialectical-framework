@@ -42,14 +42,31 @@ The corollary is an ordering requirement that is easy to get wrong: **a task cre
 BEFORE the scope is installed will never see it**, because it captured the context
 at creation. `asyncio.ensure_future` inside the scope, always.
 
-INNERMOST SCOPE WINS, AND IT IS NOT A STACK
-===========================================
+THE OUTERMOST SCOPE OWNS THE STREAM
+===================================
 Unlike the two measurement instruments — which are stacks, so an inner per-tool
-measurement never blinds an outer per-turn one — this deliberately keeps only the
-innermost scope. A measurement is a fact and two observers can both want it; a
-progress event is a *statement to a person*, and two statements about the same
-instant with different denominators is worse than one statement. Nesting shadows;
-the outer scope resumes untouched on exit.
+measurement never blinds an outer per-turn one — a nested `progress_scope` does not
+install anything. It DEFERS: it folds its `total` into the installed scope, hands
+that scope back, and publishes no `final` of its own. A measurement is a fact and two
+observers can both want it; a progress event is a *statement to a person*, and one
+statement per action beats two competing ones.
+
+This is what makes a skill that can be either an entry point or a sub-step safe to
+compose. `ExploreTransformations` and `GenerateSynthesis` each open a scope because
+each is reachable directly (`explore`, `explorer.py`, the `generate_synthesis` tool),
+and `deepen` calls BOTH — which published two `final` events for one tool call, so a
+host cleared its indicator halfway through and started again. Dropping the skills'
+scopes was not an option (five call sites, and every future one silent by default);
+neither was letting the tool add a third. Deferral makes the tool the owner without
+either skill knowing it is nested.
+
+The earlier rule here was the opposite — innermost wins, outer resumes on exit — and
+it never described a real nesting in this tree. The only real one was that defect.
+
+An already-CLOSED scope is deferred to as well, which drops the inner events: a task
+that outlives the tool's scope still holds a context copy pointing at it, and the
+alternative — opening a fresh stream, `final` and all, after the tool has returned —
+is the same straggler problem `report_progress` already refuses.
 
 Concurrent SIBLING scopes (two wheels deepened at once) are separate context
 branches and neither shadows the other, so both publish. That is what `key` is
@@ -121,7 +138,19 @@ def progress_scope(
     The exit event carries the count that actually COMPLETED, which is below
     `total` when steps failed. Deliberately not rounded up: "22 of 24" is a fact a
     host should be able to show, and claiming 24 would hide a partial build.
+
+    WHEN A SCOPE IS ALREADY INSTALLED this installs nothing and publishes nothing —
+    see "THE OUTERMOST SCOPE OWNS THE STREAM" in the module docstring. `total` is
+    folded into the outer denominator so a deferring skill's declared work still
+    counts, while `stage` and `key` are DISCARDED: one tool call is one stream, and
+    the outer names it.
     """
+    outer = _current.get()
+    if outer is not None:
+        outer.expect(total)
+        yield outer
+        return
+
     scope = ProgressScope(stage=stage, key=key, total=max(0, total))
     token = _current.set(scope)
     try:
