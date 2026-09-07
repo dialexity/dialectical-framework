@@ -136,9 +136,16 @@ class CallRecord:
     #: `AsyncMessageStreamManager` sends on `__aenter__`, which Mirascope's decoder
     #: defers to the first `__anext__`), so this interval also contains request
     #: construction — the `use_brain` wrapper, `encode_request`, and
-    #: `_fix_cache_breakpoints` scanning a ~60k-char prompt. Those are the
-    #: framework's own cost on the same critical path, so including them is
-    #: deliberate; reading the figure as a provider RTT is the mistake.
+    #: `_fix_cache_breakpoints`. Those are the framework's own cost on the same
+    #: critical path, so including them is deliberate; reading the figure as a
+    #: provider RTT is the mistake.
+    #:
+    #: Do NOT read that list as an explanation of a large `first_token_seconds`.
+    #: The breakpoint scan used to be described here as "scanning a ~60k-char
+    #: prompt", which is accurate and misleading: it is `str.find` plus two slices,
+    #: measured at **9.9-11.7 us** on a 62,528-char prompt
+    #: (`tests/probe_pole_gather_overhead.py`). `encode_request` is unmeasured and is
+    #: the only candidate in this list that could be material.
     first_token_seconds: Optional[float] = None
 
     @property

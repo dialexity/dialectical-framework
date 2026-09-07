@@ -125,9 +125,22 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         # within 0.1s on every row, at 0.000s start skew. Contention is small and
         # not zero: +9% of provider time, which works out to ~0.5s of wall on the
         # larger of a gathered pair (derived, not printed), against a reference
-        # pooled from a different Case regime. What is left is downstream overhead
-        # growth, or imprecision in the 3.3s itself — a difference of medians at
-        # n=3 with two retrying calls, against a directly measured 6.2s here.
+        # pooled from a different Case regime.
+        #
+        # Overhead growth is OUT (2026-09-07, `tests/probe_pole_gather_overhead.py`,
+        # free — mock brain, no provider), and on a BUDGET argument rather than a
+        # null: total non-provider wall for the whole both-poles path is 0.3-0.6s
+        # depending on machine load, which is a CEILING on overhead growth since
+        # gathering cannot add more than exists, and either end is an order of
+        # magnitude under the gap. The gathered-vs-serialized difference itself is
+        # only bounded at ~+-0.1s (tight on a quiet machine, noisy and sign-changing
+        # on a loaded one), so quote the ceiling, not that row. The saving does reach
+        # the tool in FULL, at 2x the injected per-call delay to within 2ms in every
+        # run — this stage is two dependency stages deep
+        # (`StatementClassification`'s own two submits), which is where the 2.8 + 3.0
+        # arithmetic came from. So what is left is provider-side: contention, and
+        # imprecision in the 3.3s itself — a difference of medians at n=3 with two
+        # retrying calls, against a directly measured 6.2s here.
         #
         # Only the LLM half is gathered. The commits and the report merges run
         # after, on this task, one pole at a time — GQLAlchemy is not

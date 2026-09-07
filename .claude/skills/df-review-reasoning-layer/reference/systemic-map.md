@@ -125,6 +125,34 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     costs ~41s**, and r26's 282.8s median was 41s of work plus sleeping. `MEDIAN_TOOL_ROUND_S` in
     `tests/test_context_refresh_cost.py` now carries 41.4 (the working figure) and its full 42.0 → 282.8
     → 41.4 history.
+  - **The one structural saving taken on `anchor`, and why its two numbers disagree.**
+    `IntroducePolarity` gathers its two poles' LLM work (`_classify_statement`; graph writes stay
+    sequential in `_commit_statement`). The **STAGE** frees a directly measured **~6.2s** (12.5s serial →
+    6.3s gathered, near-perfect overlap at 0.000s start skew, `probe_pole_overlap.py`); the **TOOL** moved
+    **~3.3s** of ~40s (median working 40.1 → 36.8s, parallelism 1.15 → 1.33,
+    `probe_anchor_retry_cost.py`). Quote whichever matches the question and say which base the residual is
+    against: ~2.5s vs the 5.8s prediction, ~2.9s vs the 6.2s measurement. **Three candidate explanations
+    have been killed and one remains.** Imperfect overlap: no. Pole spread (a gather saves `min(A,B)`, not
+    `E[pole]`): refuted against a pre-registered threshold, worth 0.33s. **Framework overhead growth: OUT
+    (2026-09-07, `tests/probe_pole_gather_overhead.py`)** — and note the method, because it is the
+    transferable part: "freed provider time reappears as non-provider wall" is a claim about PYTHON, so it
+    needs no provider and cost nothing to answer. Injecting a constant per-call delay at
+    `ConversationFacilitator._call_with_response_model` under mock brain and reading `wall − union(call
+    intervals)` gives total non-provider wall for the whole both-poles path at **0.3-0.6s** by machine
+    load — and total overhead is a CEILING on overhead GROWTH, since gathering cannot add more of it than
+    exists, so either end is an order of magnitude under the gap and the budget for the explanation does
+    not exist. **Quote that ceiling, not the A/B difference**, which is ≤6ms and non-scaling on a quiet
+    machine but only bounds the effect at ~±0.1s on a loaded one, where it changes sign with the delay
+    (−0.060s at D=0.2 against +0.100s at D=0.5 — a trend would not). The saving arrives at the tool
+    **in full at 2×delay, to within 2ms in every run**, which independently confirms the pole stage is two dependency stages
+    deep (`StatementClassification`'s own two submits — the 2.8 + 3.0 that made up 5.8s). The GIL loophole
+    a mocked provider cannot see is priced at ~10-12 µs (`_fix_cache_breakpoints` on a 62,528-char
+    prompt), which also corrects `CallRecord.first_token_seconds`' docstring — it cited that scan as part
+    of what the interval contains, true but reading as material. **What survives is provider-side**:
+    contention (+9% of provider time, ~0.5s of wall on the larger pole, against a reference pooled from a
+    different Case regime, so weak evidence rather than absence) and **the 3.3s itself being low** — a
+    difference of medians at n=3 with two retrying calls, now the loose figure rather than the firm one.
+    Settling it needs `busy_s`/`provider_s` per row on a re-run of both arms.
   - **`explore` decomposed 2026-08-27** (`tests/e2e/probe_explore_cost.py` + `utils/call_census.py`,
     weak tier, 1 PP, 6 Transformations). Unlike `anchor` this one is **work, and the question that
     replaced work-vs-sleep was volume-vs-depth: many calls, or few in a long chain?** Answer: **both, so

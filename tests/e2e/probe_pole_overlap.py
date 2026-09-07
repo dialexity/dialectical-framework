@@ -188,11 +188,21 @@ pole spread (no — 0.33s), contention (small: retry-free poles spent 64.3s agai
 LARGER pole, ~0.5s of wall per call, and is itself measured against a reference pooled
 from a sequential run in a different Case regime, so treat it as weak).
 
-What is left, and neither is testable from inside the pole stage:
+What is left, and neither was testable from inside the pole stage:
 
 1. **Overhead growth downstream** — freed provider time reappearing as graph writes
-   or framework time later in the tool.
-2. **The 3.3s itself.** It is a difference of medians at n=3, two of whose calls
+   or framework time later in the tool. **RULED OUT 2026-09-07 by
+   `tests/probe_pole_gather_overhead.py`**, which asked it from OUTSIDE, at the tool,
+   for free: overhead growth is a claim about python, so a mocked provider with an
+   injected constant delay answers it. Total non-provider wall for the whole
+   both-poles path is 0.3-0.6s by machine load — an order of magnitude under the gap,
+   and a CEILING on growth since gathering cannot add more than exists, so the budget
+   for this explanation does not exist. (The gathered-vs-serialized row is the weaker
+   reading, bounding it at ~+-0.1s once the machine is loaded.) The saving arrives at
+   the tool in full at 2x the delay to within 2ms, which also confirms this stage is
+   two dependency stages deep — where 2.8 + 3.0 came from.
+2. **The 3.3s itself** — now the only survivor on the framework side, with
+   provider-side contention (above) beside it. It is a difference of medians at n=3, two of whose calls
    retried, with no error bar, against a directly measured 6.2s of freed wall here.
    The instrument with the error bar is this one; the 3.3s is the loose figure in the
    comparison, and "the tool-level saving was underestimated" is as live an

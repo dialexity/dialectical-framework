@@ -340,6 +340,9 @@ rounding. So the gap is UNEXPLAINED here, and the two candidate explanations —
 overhead growth vs. the two gathered poles contending so the pair costs more than
 `max(pole)` — are not distinguishable from this run. n=3 with two retries is thin.
 If it matters later, print `busy_s`/`provider_s` per row and re-run both arms.
+(Overhead growth was later ruled out for FREE instead — see the 2026-09-07 note at
+the end of this block. The `busy_s`/`provider_s` re-run is still the only way to
+settle whether the 3.3s itself is low.)
 
 SETTLED, PARTLY, 2026-09-02 by `probe_pole_overlap.py` — which measured the pole
 stage directly with a per-pole census. **The stage's saving is LARGER than
@@ -357,9 +360,29 @@ mean spread 0.66s / 2 on the retry-free same-DTO-mix subgroup — a different st
 on a different subgroup, not half the median. Read that 0.33s against a gap of 2.5s
 (5.8 predicted - 3.3 measured, the base the probe pre-registered) or 2.9s (6.2
 measured - 3.3); say which.
-**What survives is overhead growth, plus the possibility that the 3.3s above is
-simply low** — it is a difference of medians at n=3 with two retrying calls, and it
-is now the loose figure in the comparison rather than the firm one.
+SETTLED FURTHER, 2026-09-07 by `tests/probe_pole_gather_overhead.py` — and that one
+is FREE, mock brain, no provider, because "the freed provider time reappears as
+non-provider wall" is a claim about PYTHON. **Overhead growth is OUT, on a budget
+argument rather than a null**: total non-provider wall for the whole both-poles
+`anchor` path (real Memgraph writes, mocked provider) is **0.3-0.6s** depending on
+machine load, and total overhead CEILINGS overhead growth — gathering cannot add
+more of it than exists — so either end is an order of magnitude below the 2.2-2.9s
+being explained. **Quote that ceiling, not the A/B row**, which is tight on a quiet
+machine (<=6ms, non-scaling: +0.000 / -0.001 / -0.006s at D = 0 / 0.2 / 0.5) but
+only bounds the effect at ~+-0.1s on a loaded one, where it changes sign with D. The
+saving does reach the tool **in full, at 2xD to within 2ms in all three runs**
+(~0.399s at D=0.2, ~1.000s at D=0.5), which independently confirms the pole stage is TWO
+dependency stages deep — `StatementClassification`'s own two submits, the same 2.8 +
+3.0 that made up the 5.8s — so nothing is absorbed on the way up. The one python
+mechanism a mocked provider cannot see is GIL contention on request construction,
+priced separately at **~10-12 us** for `_fix_cache_breakpoints` on a 62,528-char
+prompt (a ~25 us ceiling for the framework's share). Call count was 10 in every
+condition of every run, against the 10-13 measured here.
+
+**What survives is provider-side: contention (bounded ~0.5s, weak evidence), and
+the possibility that the 3.3s above is simply low** — it is a difference of medians
+at n=3 with two retrying calls, and it is now the loose figure in the comparison
+rather than the firm one.
 
 WHAT THE CALL COUNTS PROVE ABOUT THE REASONING (the part wall clock cannot show)
 -------------------------------------------------------------------------------
