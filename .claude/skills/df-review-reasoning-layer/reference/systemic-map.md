@@ -273,6 +273,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     speak; no detail names the machinery or quotes the source; the sweep's denominator IS the window
     count) — verified by mutation, since expecting one step too many and removing the scope entirely fail
     different subsets of it.
+
+    **`record_decision` (stage `decision`, instrumented 2026-09-07) is the counter-case, and it is what
+    keeps those four rules from being read as "instrument everything you can subdivide."** It declares
+    exactly ONE step. `RecordDecision.resolve` makes exactly one provider call — `DecisionCoherenceCheck`,
+    ~5.6s by `probe_first_delta.py`, nothing written until it returns — and everything around it is
+    validation that refuses in-band with the reason in its own report, plus graph writes that ALREADY reach
+    the host as `node_created`/`node_updated` effects on the `sid` channel. A "writing it down" step would
+    therefore announce, on a second channel, a commit the host has already been told about: the person
+    would be shown their decision being saved twice. So the rule the `ingest` work states positively —
+    declare each step at its own site — has a precondition worth naming: **a step is worth declaring only
+    where the alternative is silence.** The check cannot be subdivided (a single `submit`), which leaves it
+    in `SynthesisGeneration`'s position: labelled quiet is the best available without streaming. Two
+    consequences: the scope sits at the TOOL although no gather forces it there, because the concern is
+    public and a host may call it outside any conversation, where a progress stream has nobody to speak to;
+    and an in-band refusal closes at **0/0** — honest (nothing was done) but it means
+    `test_ingest_progress.py`'s `assert steps` vacuity guard does NOT transfer to that branch, which is why
+    `tests/test_decision_progress.py` asserts the refusal declares nothing rather than reusing the shared
+    helper. The key is hashed for the usual reason with an unusually sharp edge: on this path the material
+    is the wording the person just confirmed, i.e. the most sensitive text in the system.
   - **The schema is `TetradGrounding`'s `GroundingDto`.** haiku-4.5 answers that single-field model with
     a parameter ENVELOPE — `{"parameter_name": "particulars", …}` instead of `{"particulars": …}` — so
     pydantic reports `particulars Field required` although the content is present and in the person's own

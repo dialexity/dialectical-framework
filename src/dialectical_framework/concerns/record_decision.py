@@ -30,6 +30,8 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.assessable_entity import \
@@ -260,6 +262,19 @@ class RecordDecision(ReasonableConcern[str | None]):
         # describe the record as it exists in the graph, not as proposed —
         # plus the prices those grounds carried and the record did NOT cite,
         # which the attached list cannot express (see _unpriced_aspects).
+        #
+        # ONE step, and it is the only one this concern declares. Everything
+        # above is validation and graph writes, and those already announce
+        # themselves on the `sid` channel as effects — a second announcement of
+        # the same commit would be noise, not progress. What is genuinely silent
+        # is this call: measured at ~5.6s (`probe_first_delta.py`) with nothing
+        # written until it returns, on the one tool whose whole contract is that
+        # the person just said yes and is waiting to see their decision land.
+        # It cannot be subdivided (a single `submit`), so a label on the quiet is
+        # the best available without streaming — the same position
+        # `SynthesisGeneration` is in.
+        expect_progress(1)
+        report_progress("Checking it holds together")
         try:
             checker = DecisionCoherenceCheck()
             verdict = await checker.resolve(

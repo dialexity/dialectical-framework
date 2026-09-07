@@ -16,12 +16,26 @@ rationales as the person's own confirmed "why".
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.concerns.record_decision import GroundLink
+
+
+def _progress_key(question: str, stance: str) -> str:
+    """A stable, opaque id for ONE record_decision call's progress stream.
+
+    Same construction and the same two reasons as `anchor._progress_key`:
+    content-derived so it survives a retry of the same call, and HASHED so a host
+    that renders the key verbatim cannot turn it into a label quoting the person's
+    own confirmed wording — which on this path is the most sensitive text in the
+    system, since it is the decision they just committed to.
+    """
+    material = f"{question or ''}\n{stance or ''}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
 
 
 def build_record_decision(principal: str = "human"):
@@ -64,19 +78,31 @@ def build_record_decision(principal: str = "human"):
     ) -> str:
         """Record a decision the person has EXPLICITLY confirmed in conversation. Never call this silently or speculatively — propose the distilled record first, read it back, and record only on their clear yes. But their yes OBLIGES the call: when they have said to write it down, or have confirmed the record you read back, this call is what writing it down MEANS. Stating the decision in your reply — however well formatted, under any heading — is a message that ends with the conversation, and leaves them believing in a record they do not have. If you are about to present a settled decision in prose, call this in the SAME turn. Links the decision to the graph nodes that grounded it and attaches the confirmed rationale. To replace or retract a recorded decision, use `discard` on it (with a reason naming the newer decision if one replaces it)."""
         from dialectical_framework.concerns.record_decision import RecordDecision
+        from dialectical_framework.utils.progress import progress_scope
 
-        # Mirascope passes json.loads'd kwargs without coercing nested models, so
-        # `grounds` arrives as raw dicts — RecordDecision.resolve normalizes them
-        # (single owner of that normalization) and refuses in-band on bad input.
-        concern = RecordDecision()
-        await concern.resolve(
-            question=question,
-            stance=stance,
-            rationale=rationale,
-            grounds=grounds,
-            principal=attested_principal,
-        )
-        return str(concern.report)
+        # Installed at the TOOL like `anchor` and `ingest`, but for a different
+        # reason: there is no gather here, so nothing forces the placement. It sits
+        # here because this is the boundary where a PERSON is waiting — the concern
+        # is public and a host may call it outside any conversation, where a
+        # progress stream has nobody to speak to.
+        #
+        # An in-band refusal (empty stance, an unresolvable ground) returns before
+        # the concern declares its step, so the closing event is 0/0. That is the
+        # honest reading: nothing was done, and the report carries the reason.
+        with progress_scope("decision", key=_progress_key(question, stance)):
+            # Mirascope passes json.loads'd kwargs without coercing nested models,
+            # so `grounds` arrives as raw dicts — RecordDecision.resolve normalizes
+            # them (single owner of that normalization) and refuses in-band on bad
+            # input.
+            concern = RecordDecision()
+            await concern.resolve(
+                question=question,
+                stance=stance,
+                rationale=rationale,
+                grounds=grounds,
+                principal=attested_principal,
+            )
+            return str(concern.report)
 
     return record_decision
 
