@@ -493,6 +493,26 @@ was committed and in scope; **not reproduced** (`CaseRepository.find_by_sid`
 resolves both committed and save-only Cases when probed directly), so it is
 recorded here as open rather than explained.
 
+> **Still open, and now diagnosable rather than closed — annotated 2026-09-07.**
+> This entry stays open on purpose: nothing since has reproduced it, and closing an
+> unreproduced fault would be the archive claiming knowledge it does not have. What
+> changed is that a recurrence will no longer be a dead end. The message was flat
+> because `find_by_sid` returns `None` for two unrelated reasons — **no sid in
+> context at all**, or **a sid with no Case behind it** — and every caller collapsed
+> both into one string, so the archived line cannot say which half failed. That is
+> the whole reason this was unexplainable: the two halves have opposite causes (a
+> scope that did not propagate into the task doing the work, versus an application
+> that never created a Case for the sid it handed us) and the record cannot
+> distinguish them. `CaseRepository.require_for_current_scope` now raises
+> `MissingScopeError` for the first and `ValueError` for the second, both callers on
+> the `ingest` path use it (`concerns/add_input.py`, `concerns/create_dx_input.py`),
+> and `tests/test_selective_input.py` pins the split. So the next occurrence names
+> its half in the archive line itself — which is the most a not-reproduced fault can
+> be given, and is worth more here than a guess would be. **Read this as the pattern,
+> not the incident:** an error message that merges two causes does not just lose
+> information at the moment it is written, it retroactively makes every archived
+> occurrence unusable as evidence.
+
 ### `hedge_rate` cannot compare the framework arm to the prompt arms — a candidate win, refuted
 
 **The claim I nearly published.** `StanceScore.hedge_rate` — the share of ladder
