@@ -257,9 +257,9 @@ CLOSED — neither measured live yet, so the next run at 120 KB is what confirms
    the graph, since it can remove 80% of the surfaced theses from extraction without
    any line saying so. The step reads "Checking whether any of the N tension(s) already
    oppose each other", and is declared BELOW the `len < 2` guard: above the guard it
-   would be a phantom step on every single-thesis `anchor` run. Unmeasured live so far
-   — the next 120 KB run should show the 12.4s gap split into a labelled ~12s wait
-   plus whatever extraction actually costs.
+   would be a phantom step on every single-thesis `anchor` run. **Confirmed live in the
+   seventh run below — though it RELABELLED the gap rather than splitting it, which is
+   the correction that section carries.**
 2. **Link 2 was a gathered fan-out that writes nothing — the textbook `note_progress`
    site, and the largest provider-time block of the run. Now noted per completion.**
    `AntithesisExtraction._extract_candidates` is an `asyncio.gather` over one
@@ -271,21 +271,23 @@ CLOSED — neither measured live yet, so the next run at 120 KB is what confirms
    the resulting silence is only ~5s per wave, which is why five earlier runs did not
    promote it; at ten theses it is 110 gathered calls under one label.
 
-   Each returning call now publishes `"N of M angles considered"` — completions, not
-   indices, the same counter shape as the digest's parts and truthful in the same way
-   while one call retries. Both gather branches are wrapped: the per-point one and the
-   `ModePointBatchResultDto` one, which is the ORDINARY branch whenever the requested
-   count exceeds the mode points. Pinned by
+   Each returning call now publishes `"Another angle weighed"`. Both gather branches
+   are wrapped: the per-point one and the `ModePointBatchResultDto` one, which is the
+   ORDINARY branch whenever the requested count exceeds the mode points. Pinned by
    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`.
 
-   **READ THIS BEFORE READING A STREAM WITH TEN THESES IN IT: these numerators are
-   NOT monotone.** `find_polarities` gathers one chain per thesis and each chain
-   counts its own calls, so consecutive notes can read "5 of 11" and then "1 of 11".
-   Every line is true of its own tension and the counters/bar never move, but the
-   sequence is per-item, not global — do not read a dip as a regression, and do not
-   compute a rate from it. A shared numerator would mean threading state across the
-   caller's gather, i.e. a new seam for one label; the path where the fraction is
-   unambiguous is `anchor`, which runs exactly one chain.
+   **WHAT TO EXPECT IN THE STREAM, and why the note carries no number.** It first
+   copied the digest's counter shape — `"N of M angles considered"` — and that was
+   true per chain and false to the eye: `find_polarities` gathers one chain PER thesis
+   and each chain can only count its own calls, so with ten theses in flight the line
+   read "5 of 11" and then "1 of 11". Every line was true of its own tension, the
+   counters and the bar never moved, and it still looked like a bar falling backwards.
+   The rule that came out of it, which is the transferable part: **a fraction shown to
+   a person is a promise about the WHOLE, so a window that does not know the whole may
+   not make one.** The digest's `"3 of 4 parts read"` may, because exactly one digest
+   runs per ingest. So in this window expect N identical lines rather than a count —
+   when reading a report, GROUP the notes and check that their number matches the
+   `ModePointResultDto` call count, since the line itself no longer tells you.
 
 **The 21% backwards jump read 21% for the THIRD time**, which is now well-established
 as a property of the digest's opening declaration (2 → 7) rather than of any run's
@@ -313,6 +315,51 @@ not knowing; they do not defend against slow.
 `DigestDto` call), so "Building a working understanding of it" fires and completes
 instantly on short material. Correct behaviour — compact content is its own digest —
 but worth knowing before reading that label as evidence a digest was built.
+**SEVENTH RUN (120 KB), and it is the one that CONFIRMS both closures live — with one
+correction and two new findings.** 106.2s, 138 calls at 5.85x, 349 effects, 82 progress
+events (34 step/final + 48 note), 3 parse retries, closed **33/33 with no phantoms**,
+leaks clean, backwards jump **21% for the fourth time**. Largest silent gap **49.6s
+graph-only -> 11.4s with progress**, dead air 81% -> 73%.
+
+**(1) The consolidation step works, and the widest hole of the whole run is now a
+CORRECTLY LABELLED wait.** The 12.4s stretch that read "Looking for what genuinely
+pushes back" now reads "Checking whether any of the 10 tension(s) already oppose each
+other" for 11.4s (50.0s-61.4s), and the graph burst that closes it is exactly
+3x Polarity + 3x ModeEstimation + 3x ArousalEstimation — three pairs merged, so 6 of
+10 theses left extraction and exactly 4 chains ran, which the four "Weighing what
+could stand against this" steps at 63.9-64.3s confirm. Third independent confirmation
+of the reassignment mechanism, with a different yield each time (4 pairs, then 3).
+
+**CORRECTION to the prediction written here: the gap did not SPLIT, it was RELABELLED.**
+Both the caller's extraction step and the consolidation step publish at 50.0s, so the
+extraction label lives 0.0s and is superseded before a person can read it. The person
+sees the right label for the whole wait, which is the outcome that mattered, but
+"Looking for what genuinely pushes back" is now a FLASH rather than a phase. The
+one-line fix is to move the caller's `report_progress` in `find_polarities` to AFTER
+`_consolidate_antithetical` returns; it is deliberately NOT taken yet, since it is a
+new finding rather than part of the closure being verified.
+
+**(2) The angle notes fire, and the measurement corrects the case for them.** 44 notes,
+one per `ModePointResultDto` call, counters pinned at 19/19 -> 20/20 -> 21/21 -> 22/22
+with the interleaved "Judging how strongly each opposition holds" steps in between —
+which is exactly the shape that would have made a fraction bounce, so the uncounted
+wording is confirmed as the right call in the field and not just on paper. **But the
+94.2s that justified this site was PROVIDER-seconds, not wall**: this run drew 208.3s
+across 44 calls and spent about **7s of wall** on them (64.3s-71.5s at roughly 29x
+parallelism in that window), so the hole actually closed is ~3.1s, not 94s. Cite the
+site as correct-but-small from here on.
+
+**NEW, and the sharpest live instance of the additive-denominator caveat: the bar sits
+at 100% for two seconds, 33 events long, at 63% of the wall.** `done` reaches `total`
+at 19/19 (67.4s) because the last declared step finished before the next was declared,
+and 33 notes then stream against a full bar before it drops to 19/20. Notes cannot
+overshoot — that is what `note=True` guarantees — but they make the plateau VISIBLE
+where it used to pass in silence. **A host must not render `done/total` as a
+completion bar without expecting a full one mid-run**, and the note density is its own
+consideration: ~30 identical lines inside one second, with no rate limiting in the
+seam. Wording alone will not fix that; a host that renders every note verbatim needs
+to coalesce.
+
 """
 
 from __future__ import annotations

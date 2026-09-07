@@ -164,10 +164,21 @@ def progress_scope(
 def report_progress(detail: str) -> None:
     """Report that a step is STARTING, described by `detail`.
 
-    Publishes with the count of steps already finished, then counts this one. So
-    an event reads "3 of 24 done, now <detail>", and `done` does not reach `total`
-    during the run — the `final` event closes it out. No-op with no scope
-    installed.
+    Publishes with the count of steps already finished, then counts this one. So an
+    event reads "3 of 24 done, now <detail>". No-op with no scope installed.
+
+    **`done/total` IS NOT A COMPLETION BAR, and this was measured rather than
+    reasoned.** No event published HERE ever shows `done == total` (the publish
+    precedes the increment), which is why this once claimed the counter never reaches
+    its denominator mid-run — a claim the seventh live ingest falsified. The
+    denominator is additive, so whenever the last declared step finishes before the
+    next site declares one, the STATE sits at `done == total`; there it sat at 19/19
+    for two seconds at 63% of the wall, and the 33 notes streaming in that window put
+    a full bar in front of the person before it dropped back to 19/20
+    (`tests/e2e/probe_ingest_progress.py`). Notes cannot cause this — they publish the
+    counters unchanged — they only make it VISIBLE, which is an argument for them
+    rather than against. A host wanting a monotone fraction has to render this as
+    "step N, more coming" until `final`.
     """
     scope = _current.get()
     # `_closed` matters for a straggler: a task that outlives the scope still holds a
@@ -200,11 +211,16 @@ def note_progress(detail: str) -> None:
     block of that same run (22 calls, 94.2s, mean 4.3s). Both in
     `probe_ingest_progress.py`.
 
-    The second one carries a limit the first does not, worth reading before copying
-    it: its own caller gathers one such chain per thesis, so several counters run at
-    once and consecutive notes can step BACKWARDS. Each line stays true of its own
-    item and the bar never moves, but a numerator is only monotone where the fan-out
-    is single-instance.
+    **WHETHER A NOTE MAY COUNT depends on the caller, not on this site**, which the
+    two above settled in opposite directions. The digest's parts say `"3 of 4 parts
+    read"`, because exactly one digest runs per ingest, so 4 is the whole of what the
+    person is waiting for. The angles say `"Another angle weighed"` with no number,
+    because `find_polarities` gathers one such chain PER thesis and each chain can
+    only count its own calls: with ten in flight the line read "5 of 11" and then "1
+    of 11", each true of its own tension and together a bar falling backwards. **A
+    fraction shown to a person is a promise about the whole, so a window that does not
+    know the whole may not make one** — report the bare fact instead, that one more
+    just came back. Before adding a count, ask who gathers YOUR gather.
 
     Where the gathered calls also FINISH together this buys nothing, and the
     measurement says so: `expand_polarities`' five tetrads start within 0.2s of each

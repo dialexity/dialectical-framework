@@ -337,13 +337,6 @@ Generate:
         # Decide how many candidates per branch
         per_branch = self._candidates_per_branch(len(mode_points))
 
-        #: Completions, not indices — the same counter `SourceDigest` keeps, and safe
-        #: without a lock for the same reason: the increment and the read it feeds
-        #: have no `await` between them, so the loop cannot interleave another call
-        #: there.
-        weighed = 0
-        angles = len(mode_points)
-
         async def _note_when_it_returns(call):
             """Publish a NOTE per returning call — the one fact this window has.
 
@@ -356,19 +349,24 @@ Generate:
             mean 4.3s — under the single label "Weighing what could stand against
             this" (`tests/e2e/probe_ingest_progress.py`).
 
-            KNOWN LIMIT, and the reason the wording says "angles" rather than
-            anything totalling: `find_polarities` gathers one of these chains PER
-            thesis, and each chain counts its own calls, so with ten theses in flight
-            consecutive notes can read 5 of 11 and then 1 of 11. Each line is true of
-            its own tension and the bar never moves, but the sequence is not
-            monotone. A shared numerator would mean threading state across the
-            caller's gather — a new seam for one label — and the path where the
-            fraction pays most is `anchor`, which runs exactly one chain.
+            DELIBERATELY UNCOUNTED, and this is the interesting constraint. The note
+            first read "5 of 11 angles considered", which is a lie of a particular
+            kind: `find_polarities` gathers one of these chains PER thesis, each chain
+            counting only its own calls, so with ten theses in flight the person read
+            "5 of 11" and then "1 of 11" a moment later. Every line was true of its
+            own tension, and the sequence still looked like a bar falling backwards —
+            a fraction in front of a person is a promise about the WHOLE, so it may
+            not be scoped to a fan-out the person cannot see. A shared numerator would
+            mean threading state across the caller's gather, a new seam for one label,
+            and it would still be wrong in the other direction: eleven angles of one
+            thesis are not interchangeable with eleven of another. So this reports the
+            only thing that is true no matter how many chains are running — that one
+            more angle just came back. Motion without arithmetic. The counted version
+            belongs where exactly one chain runs (`anchor`), and it is not worth a
+            branch here to get it.
             """
-            nonlocal weighed
             result = await call
-            weighed += 1
-            note_progress(f"{weighed} of {angles} angles considered")
+            note_progress("Another angle weighed")
             return result
 
         # Generate all candidates in parallel using isolated calls

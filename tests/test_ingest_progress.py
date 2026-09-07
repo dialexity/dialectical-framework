@@ -1023,10 +1023,16 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
     ~5s per wave. At ten it is up to 110 gathered calls under one label.
 
     What is asserted here is that both gather branches note their completions, that
-    the notes are NOT steps, and that a note's count is completions rather than the
-    mode-point index. The bouncing-numerator limit is documented at the site and in
-    `note_progress`; it is not asserted, because it is a property of the caller's
-    gather rather than of this method.
+    each note is published as its own call returns rather than after the gather, and
+    that the notes are NOT steps.
+
+    **The note deliberately carries NO count, and that is asserted too.** It first read
+    "N of M angles considered", which was true per chain and false to the eye:
+    `find_polarities` gathers one chain PER thesis and each counted only its own calls,
+    so a person watching ten theses read "5 of 11" and then "1 of 11". A fraction in
+    front of a person is a promise about the whole, so it may not be scoped to a
+    fan-out the person cannot see. `test_a_returning_angle_promises_no_total` is what
+    keeps a future reader from "improving" the wording back.
     """
 
     @pytest.fixture(autouse=True)
@@ -1050,6 +1056,11 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         The calls return in STAGGERED order on purpose: it is the only fact a note
         publishes, so a fixture where they all returned together would pass while
         saying nothing.
+
+        The stub logs its OWN returns into the same list as the notes, which is what
+        lets a test tell "noted as each call came back" from "noted once the gather
+        finished" — with the count gone from the wording, that interleaving is the
+        whole content of the note.
         """
         from types import SimpleNamespace
 
@@ -1068,6 +1079,7 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         )
 
         delays = iter([0.03, 0.01, 0.02] * angles)
+        events: list[tuple[str, str]] = []
 
         class _Isolated:
             async def submit(self, *, response_model, user_content):
@@ -1078,6 +1090,7 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
                     arousal_label="moderate",
                     explanation="stub",
                 )
+                events.append(("returned", ""))
                 if response_model is ModePointBatchResultDto:
                     return ModePointBatchResultDto(candidates=[one])
                 return one
@@ -1086,7 +1099,6 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
             def isolate(self):
                 return _Isolated()
 
-        events: list[tuple[str, str]] = []
         monkeypatch.setattr(
             antithesis_extraction,
             "note_progress",
@@ -1114,15 +1126,13 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
 
     @pytest.mark.asyncio
     async def test_every_angle_reports_when_it_returns(self, monkeypatch):
-        """One note per gathered call, counting up, on the single-candidate branch."""
+        """One note per gathered call on the single-candidate branch."""
         events, _ = await self._weigh_angles(monkeypatch, count=3)
 
         notes = [detail for kind, detail in events if kind == "note"]
-        assert notes == [
-            "1 of 3 angles considered",
-            "2 of 3 angles considered",
-            "3 of 3 angles considered",
-        ], f"three gathered calls owe three notes, counting up. Got: {notes}"
+        assert notes == ["Another angle weighed"] * 3, (
+            f"three gathered calls owe three notes. Got: {notes}"
+        )
 
     @pytest.mark.asyncio
     async def test_the_batch_branch_notes_too(self, monkeypatch):
@@ -1136,29 +1146,29 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         events, _ = await self._weigh_angles(monkeypatch, count=9)
 
         notes = [detail for kind, detail in events if kind == "note"]
-        assert notes == [
-            "1 of 3 angles considered",
-            "2 of 3 angles considered",
-            "3 of 3 angles considered",
-        ], f"the batch branch dropped its notes. Got: {notes}"
+        assert notes == ["Another angle weighed"] * 3, (
+            f"the batch branch dropped its notes. Got: {notes}"
+        )
 
     @pytest.mark.asyncio
-    async def test_the_count_is_completions_and_not_the_mode_point_index(
-        self, monkeypatch
-    ):
-        """Notes must arrive in COMPLETION order, not in argument order.
+    async def test_each_note_lands_as_its_own_call_comes_back(self, monkeypatch):
+        """A note per RETURN, not a burst of notes after the gather.
 
-        The stub returns the second point first (0.03/0.01/0.02s). Numbering by index
-        would emit "2 of 3" first, which reads as a step being skipped; numbering by
-        completion says the true thing, and it is also what stays truthful while one
-        call retries — the line correctly sticks.
+        This is the whole content of an uncounted note: it says "something just
+        finished", so it is worth nothing unless it is published at the moment the
+        thing finished. Wrapping the gather instead of each call — the natural
+        simplification once the counter is gone — would emit all three notes at the
+        end, when the label above them is already changing anyway.
+
+        The stub staggers its returns (0.03/0.01/0.02s), so a per-call note has to
+        interleave strictly: return, note, return, note, return, note.
         """
         events, _ = await self._weigh_angles(monkeypatch, count=3)
 
-        notes = [detail for kind, detail in events if kind == "note"]
-        numbers = [int(detail.split(" of ")[0]) for detail in notes]
-        assert numbers == [1, 2, 3], (
-            f"the numerator followed the mode point, not the completion: {notes}"
+        streamed = [kind for kind, _ in events if kind in ("returned", "note")]
+        assert streamed == ["returned", "note"] * 3, (
+            "the notes did not follow their own calls back — they were published"
+            f" around the gather rather than inside it: {streamed}"
         )
 
     @pytest.mark.asyncio
@@ -1179,16 +1189,31 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         )
         assert progress.done == 0
 
-    def test_a_returning_angle_names_no_machinery_and_no_content(self):
-        """`mode point`, `taxonomy` and `branch` are all machinery; so is the source.
+    @pytest.mark.asyncio
+    async def test_a_returning_angle_promises_no_total(self, monkeypatch):
+        """No fraction in the wording, and this is a UX rule rather than a style one.
 
-        The unit here is one way of opposing the person's own statement, so the
-        honest wording has to describe the count without naming the taxonomy that
-        produced it or quoting what it opposed.
+        `find_polarities` gathers one of these chains per thesis and each chain can
+        only count its own calls, so a numerator here is scoped to a fan-out the
+        person cannot see: ten theses in flight made the line read "5 of 11" and then
+        "1 of 11". Each was true of its own tension; together they were a bar falling
+        backwards. A fraction shown to a person is a promise about the whole, so this
+        window — which does not know the whole — may not make one.
+
+        Asserted against the LIVE note rather than a literal, so that restoring a
+        count at the site fails here even if this docstring is never read.
         """
-        label = "3 of 11 angles considered"
-        for term in BANNED:
-            assert term not in label.lower(), f"{label!r} names {term!r}"
-        for term in ("mode point", "taxonomy", "branch", "apex", "arousal"):
-            assert term not in label.lower(), f"{label!r} names {term!r}"
-        assert len(label) < 200
+        events, _ = await self._weigh_angles(monkeypatch, count=3)
+
+        for _, label in [e for e in events if e[0] == "note"]:
+            assert " of " not in label, (
+                f"{label!r} counts against a total this window does not know"
+            )
+            assert not any(ch.isdigit() for ch in label), (
+                f"{label!r} carries a number; see this test's docstring"
+            )
+            for term in BANNED:
+                assert term not in label.lower(), f"{label!r} names {term!r}"
+            for term in ("mode point", "taxonomy", "branch", "apex", "arousal"):
+                assert term not in label.lower(), f"{label!r} names {term!r}"
+            assert len(label) < 200

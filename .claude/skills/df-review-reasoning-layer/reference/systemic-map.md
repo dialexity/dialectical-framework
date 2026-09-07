@@ -249,24 +249,38 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     Polarity/Mode/Arousal, which the `sid` channel already carries. A reviewer's checks on this label are the
     usual two — no framework vocabulary (`consolidat` and `heuristic` are banned alongside the standard list)
     and no source content, the count only. Pinned by
-    `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`; not yet measured live.
+    `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`. **Confirmed live (seventh 120 KB
+    run): the widest hole of the run is now this labelled 11.4s wait rather than 12.4s under the wrong
+    label.** The reviewer's correction to carry: the gap was RELABELLED, not split — the caller's extraction
+    step and this one both publish at the same instant, so "Looking for what genuinely pushes back" is a 0.0s
+    flash. Moving the caller's `report_progress` below `_consolidate_antithetical` is the open one-line fix.
     (2) `AntithesisExtraction._extract_candidates` (link 2) is an
     `asyncio.gather` over one `ModePointResultDto` call per mode point (up to 11) that **writes nothing** by
     its own docstring, announced by one label — every clause of the `note_progress` condition met, and the
     largest provider-time block of the run at 94.2s across 22 calls. Five earlier runs did not promote it
     because at two theses the silence is only ~5s per wave; at ten theses it is 110 gathered calls under one
     label. **This is the SECOND `note_progress` site, and the measurement above is the justification a
-    reviewer should demand for it.** Each returning call publishes `"N of M angles considered"` —
-    completions, not indices — and BOTH gather branches are wrapped (the per-point one and the
-    `ModePointBatchResultDto` one, which is ordinary rather than exotic: it is taken whenever the requested
-    count exceeds the mode points). Pinned by
-    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`; not yet measured live.
-    **The limit a reviewer must know before reading a ten-thesis stream: these numerators are NOT
-    monotone** — `find_polarities` gathers one chain per thesis and each counts its own calls, so
-    consecutive notes can read "5 of 11" then "1 of 11". Each line is true of its own tension and the
-    counters never move, but the sequence is per-item, so a dip is not a regression and no rate can be
-    computed from it. A shared numerator would need state threaded across the caller's gather — a new seam
-    for one label — and `anchor`, the one-chain path, is where the fraction is unambiguous.
+    reviewer should demand for it.** Each returning call publishes `"Another angle weighed"`,
+    and BOTH gather branches are wrapped (the per-point one and the `ModePointBatchResultDto` one, which is
+    ordinary rather than exotic: it is taken whenever the requested count exceeds the mode points). Pinned by
+    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`. **Confirmed live, with a
+    correction a reviewer should apply to the justification: the 94.2s was PROVIDER-seconds, not wall.** The
+    seventh run drew 208.3s across 44 gathered calls in about 7s of wall, so this site closes ~3.1s, not 94s —
+    correct but small. It also exposed a host-side rule worth demanding in any progress review: `done` reaches
+    `total` mid-run (19/19 at 63% of the wall) and 33 notes stream against a FULL bar, so `done/total` is not a
+    completion bar, and ~30 identical notes inside one second means a verbatim host has to coalesce.
+    **The note carries NO count, and this is the reviewable rule rather than a wording preference.** It
+    first copied the digest's shape, `"N of M angles considered"`, which was true per chain and false to the
+    eye: `find_polarities` gathers one chain PER thesis and each chain can only count its own calls, so ten
+    theses in flight made the line read "5 of 11" then "1 of 11" — every line true of its own tension, the
+    counters never moving, and still a bar apparently falling backwards. **A fraction shown to a person is a
+    promise about the WHOLE, so a window that does not know the whole may not make one.** The digest's
+    `"3 of 4 parts read"` may, since exactly one digest runs per ingest. So whether a note may count is a
+    property of the CALLER, not of the noting site — the reviewer's question for any new note is "who
+    gathers this gather?" A shared numerator here would need state threaded across the caller's gather (a new
+    seam for one label) and would still be wrong in the other direction, since eleven angles of one thesis
+    are not interchangeable with eleven of another. `test_a_returning_angle_promises_no_total` asserts
+    against the live note, so a restored count fails the suite rather than a review.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
