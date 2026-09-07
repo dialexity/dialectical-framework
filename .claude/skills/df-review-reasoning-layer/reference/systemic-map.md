@@ -153,6 +153,32 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     different Case regime, so weak evidence rather than absence) and **the 3.3s itself being low** — a
     difference of medians at n=3 with two retrying calls, now the loose figure rather than the firm one.
     Settling it needs `busy_s`/`provider_s` per row on a re-run of both arms.
+  - **`ingest`'s progress instrumentation, verified live 2026-09-07** (`tests/e2e/probe_ingest_progress.py`,
+    three real-provider runs; the mock-brain guarantees are in `tests/test_ingest_progress.py`). Three
+    things a mock brain cannot exercise, and all three came back clean: **phantoms** — a step declared for
+    a conditional phase that never runs is indistinguishable to a host from one that FAILED, so the
+    closing `done/total` is the assertion, and every run closed exactly (23/23, 15/15, 15/15); a
+    denominator that **grows for real** — at 120 KB the sweep reports per-window steps it cannot know up
+    front, "Reading part 3 of 4" and "Reading section 3 of 4 for tensions", which is the headline claim and
+    it holds; and **one key, exactly one `final` event, and it is last**. Leak check clean across all
+    labels, which matters here more than anywhere: the unit of work is a slice of the person's own file.
+    **The effect: the worst silent stretch goes 52.3s graph-only → 14.4s**, and that 52.3s — over half the
+    wall, in which a graph-only host sees NOTHING between the Input node and the first Statement — carries
+    11 events. **Two numbers to quote instead of the wall clock.** Total dead air is **unchanged at 91%**:
+    the channel shortens the worst gap but the stream is ~1 event per 3-14s, so progressive disclosure here
+    means "never wonder if it froze", never "continuous motion" — do not let a review read the gap
+    reduction as motion. And the denominator's **worst backwards jump is 21%**, the live size of the
+    "a host caching its first denominator renders a bar that goes backwards" caveat. **Three holes remain
+    and they share one shape — a single label announced before a gathered fan-out** — but the fix does not
+    generalize: report per item where items are staggered, whereas where they start together
+    (`expand_polarities`' five ~11s tetrads, all five reporting at 78.8s) only per-CALL subdivision helps,
+    as `TransformationGeneration` has. The one to take first is the smallest: the single-window
+    `_extraction_loop` bundles extraction, the step-2 gate and classification under one label (12.2s of a
+    45.5s wall) where `_extraction_sweep` already splits the last out as "Placing N candidate tension(s)",
+    and single-window is the common chat case. **Never quote a single wall clock from this probe:** 1 KB ran
+    651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
+    the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
+    line.** Progress labels defend against not knowing; they do not defend against slow.
   - **`explore` decomposed 2026-08-27** (`tests/e2e/probe_explore_cost.py` + `utils/call_census.py`,
     weak tier, 1 PP, 6 Transformations). Unlike `anchor` this one is **work, and the question that
     replaced work-vs-sleep was volume-vs-depth: many calls, or few in a long chain?** Answer: **both, so
