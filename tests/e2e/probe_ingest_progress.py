@@ -73,9 +73,10 @@ READING IT HONESTLY
 the cost probe). `-o log_cli=true --log-cli-level=WARNING` to see retry warnings,
 which this probe PASSES through.
 
-RESULT, 2026-09-07, haiku-4.5 — the sweep's denominator works, and three holes remain
-=====================================================================================
-**120 KB / 4 windows, 99.7s, 127 calls at 5.66x, 24 progress events:**
+RESULT, 2026-09-07, haiku-4.5 — the sweep's denominator works; of three holes, two are closed
+=============================================================================================
+BEFORE (the run that found the holes). **120 KB / 4 windows, 99.7s, 127 calls at
+5.66x, 24 progress events:**
 
     time to first event        0.3s
     largest silent gap        52.3s graph-only  ->  14.4s with progress
@@ -97,34 +98,94 @@ the channel shortens the worst gap but the stream is only ~1 event per 3-14s, so
 almost every gap is still over the 3s threshold. Progressive disclosure here means
 "never wonder if it froze", NOT "continuous motion".
 
-**EVERY FIGURE ABOVE IS THE BEFORE STATE.** Two of the three holes it found have
-since been closed (below), which adds ~2 steps per thesis to the run. Re-run before
-comparing against anything; in particular the denominator's 21% backwards jump is
-now a FLOOR, since those steps are declared mid-run.
-
 **Three holes found, all the same shape — one label before a gathered fan-out.
-Two are CLOSED** (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`):
+Two are CLOSED and re-measured** (`tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut`):
 
 1. **CLOSED — 14.4s at 52.5-66.9s**, the widest that survived: `find_polarities`
-   announced "Looking for what genuinely pushes back" and then ran 12 gathered
-   `AntithesisEvaluationDto` calls (68.6s summed) with nothing to say.
-   `AntithesisExtraction.resolve`'s COMPLEX branch now declares its last two links.
+   announced "Looking for what genuinely pushes back" and then ran the gathered
+   antithesis chains with nothing to say. `AntithesisExtraction.resolve`'s COMPLEX
+   branch now declares its last two links. **Re-measured at 6.6s** — the residual is
+   phase 0 plus link 1, which carries no step by design.
    **This is the case that shows "report per item" is not the general fix**: ten of
    these chains are gathered, so ten events at the gather would all carry one
    timestamp and change nothing. Links 2 and 3 stagger only because link N of a
-   thesis starts when link N-1 of THAT thesis returns.
+   thesis starts when link N-1 of THAT thesis returns. And the live run shows the
+   two links behave DIFFERENTLY, which the mock could not: link 3's ten events
+   spread over 5.0s, link 2's over 2.2s, because link 1 takes about the same time
+   for every thesis. Link 2's value is that it MARKS THE BOUNDARY, not that it
+   trickles — do not read "staggered" as "evenly spaced".
 2. **OPEN — 10.7s at 78.8-89.5s**: five `expand_polarities` steps all report at
    78.8s because they are announced at the gather, then five ~11s `TetradDto` calls
    run silent. Reporting inside each task would not help — they all start together —
    so this one needs per-call subdivision like `TransformationGeneration` has, which
-   is why it was left after the other two.
+   is why it was left after the other two. **It is now the widest hole of the 1 KB
+   run** (8.2s at 27.4-35.6s), i.e. the probe points straight at it.
 3. **CLOSED — the single-window path bundled three phases under one label** (1 KB
    run: 12.2s, and the widest progress gap of that run). `_extraction_loop` reported
    "Reading the material for tensions" once and then ran step 1, the step-2 gate and
    classification under it, and it is the common chat case — a person pasting a
    paragraph. `ThesisExtraction.resolve` now declares the classify phase, using
    `_extraction_sweep`'s wording verbatim so the person cannot tell how large their
-   source was from the vocabulary.
+   source was from the vocabulary. **Re-measured: the 12.2s label became 5.3s +
+   6.6s**, an almost even split.
+
+AFTER, same day, same model — and the 1 KB run is the fair comparison
+====================================================================
+**1 KB / single window: 45.9s against 45.5s before, 70 calls both, 245 effects both,
+parallelism 6.40x against 6.48x.** Two runs this closely matched is luck, and it is
+what makes this an A/B rather than two anecdotes:
+
+    progress events           16  ->  23
+    largest silent gap      12.2s ->  8.2s   (and the 8.2s is hole 2, left open)
+    closed at              15/15  -> 22/22,  no phantoms, no leaks either run
+
+The 12.2s hole is gone: "Reading the material for tensions" (4.5s) → "Placing 3
+candidate tension(s)" (9.8s) → "Looking for what genuinely pushes back" (16.4s).
+The 10.0s stretch that followed it is now 4.7s + 5.2s.
+
+**120 KB: the two labels fired 10x each, closed 44/44, no phantoms, no leaks — but
+this run is NOT comparable on wall clock and must not be quoted as an improvement.**
+196 calls against 127, `ModePointResultDto` 110 against 22, 49 Polarity against 4:
+this is the high-yield draw the cost probe documents, not an effect. What IS
+comparable is structure, and there the target hole went 14.4s → 6.6s.
+
+**Do NOT quote the dead-air share as an improvement either, even though it reads
+91% → 86%.** The absolute figure is 90.8s before and 90.5s after — the same number.
+The share fell only because the wall grew from 99.7s to 104.6s, i.e. the denominator
+moved, not the dead air. Twenty extra events bought 0.3s of it, which is exactly the
+limit the before run already stated: this channel shortens the WORST gap and does not
+produce continuous motion. At 1 KB the same figure goes the OTHER way — 73% → 82%,
+and that is not a regression either: the identical 245 effects arrived in 8 graph
+bursts before and 6 after, so the same work sat in fewer, wider clumps. Both
+directions are burst placement, and the lesson is that **dead air is the wrong figure
+to grade this channel on** — grade it on the worst gap, which is the one it can move.
+
+**TWO THINGS THIS RUN FOUND THAT NO EARLIER RUN COULD.**
+
+**(a) A retry is INVISIBLE on the progress channel, and it doubled a step.** First
+run of this probe ever to retry (`retries 1 {'parse': 1}`, 2.0s slept). It landed in
+a digest part: the step was announced at 0.4s with the other three, the call failed
+to parse, and the retried attempt ran 15.0-25.8s. `done` does not move and no event
+says "again", so a person cannot tell a retried step from a slow one. That is
+CORRECT by design — `_progress_key` is content-derived precisely so a retry does not
+look like new work — but the cost is that a retry silently doubles a step's
+duration with no signal, and that is worth knowing before reading any single gap.
+
+**(b) The worst hole of the 120 KB run is now the DIGEST, at 25.4s** (0.4s, four
+parts announced together → 25.8s, "Combining 4 readings"), up from 12.1s in the
+before run because of (a). It is a FOURTH instance of the same shape and the least
+fixable: each part is ONE call, so there is nothing to subdivide. Only reporting on
+COMPLETION would fill it — "read 3 of 4 parts" — which the current contract does not
+express (`report_progress` means "a step is STARTING"). Left open deliberately, and
+noted here rather than in code because it is a change to the seam, not to a site.
+
+**CORRECTION to what was predicted here: the 21% backwards jump did NOT get worse.**
+Adding ~2 steps per thesis was expected to raise it, and the after runs read 21% at
+120 KB (identical) and 0% at 1 KB. The reason is arithmetic that should have been
+obvious: the worst jump is set by the EARLIEST growth, when the denominator is
+smallest (2 → 7), and additive growth later at `total` in the twenties or forties
+cannot beat it. So 21% is a property of the digest's opening declaration, not of how
+many steps the run has, and declaring more steps mid-run is cheap in this respect.
 
 **A 1 KB source ran 651s once and 45.5s the next time**, identical call structure and
 identical 16-event progress stream both times (50 calls at 1.24x against 70 at

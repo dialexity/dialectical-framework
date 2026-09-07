@@ -154,7 +154,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     difference of medians at n=3 with two retrying calls, now the loose figure rather than the firm one.
     Settling it needs `busy_s`/`provider_s` per row on a re-run of both arms.
   - **`ingest`'s progress instrumentation, verified live 2026-09-07** (`tests/e2e/probe_ingest_progress.py`,
-    three real-provider runs; the mock-brain guarantees are in `tests/test_ingest_progress.py`). Three
+    five real-provider runs — three before the two fixes below, two after; the mock-brain guarantees are in
+    `tests/test_ingest_progress.py`). Everything up to "Both fixes were then confirmed" is the BEFORE
+    state. Three
     things a mock brain cannot exercise, and all three came back clean: **phantoms** — a step declared for
     a conditional phase that never runs is indistinguishable to a host from one that FAILED, so the
     closing `done/total` is the assertion, and every run closed exactly (23/23, 15/15, 15/15); a
@@ -184,8 +186,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     `record_decision`'s rule that a step is worth declaring only where the alternative is silence: link 1
     of the chain (it runs immediately after the caller's announcement, so a step would restate it once per
     thesis) and the whole SIMPLE branch (one call, mechanical negation). Both are pinned, because "be
-    consistent" is the natural edit that breaks them. Price of the two fixes: the denominator now grows by
-    2 per thesis mid-run, so **21% is a floor on the backwards jump, not a ceiling**.
+    consistent" is the natural edit that breaks them. **Both fixes were then confirmed on the real path in
+    two more runs the same day, and the 1 KB pair is a genuine A/B** (45.9s against 45.5s, 70 calls and 245
+    effects both, 6.40x against 6.48x): worst gap **12.2s → 8.2s**, the bundled label split into 5.3s + 6.6s,
+    closed 22/22. At 120 KB each label fired 10x, the target hole went **14.4s → 6.6s**, closed 44/44 — that
+    run drew 196 calls against 127, so nothing about it is wall-clock comparable. **The after runs correct
+    three things a review would otherwise carry forward wrong.** The **21% backwards jump did NOT grow** and
+    the "21% is now a floor" line here was wrong: the worst jump is set by the EARLIEST growth, when the
+    denominator is smallest (2 → 7), so additive growth later at a `total` in the forties cannot beat it —
+    declaring steps mid-run is cheap in this respect. **Dead air is the wrong figure to grade this channel
+    on**: 91% → 86% at 120 KB is 90.8s → 90.5s against a longer wall, and 1 KB goes the OTHER way, 73% →
+    82%, because the identical 245 effects arrived in 6 graph bursts instead of 8 — grade it on the worst
+    gap, the only figure the channel can move. And **a retry is invisible on this channel**: the first
+    retrying run (`retries 1 {'parse': 1}`) doubled one digest part with no event saying so, correct by
+    design since `_progress_key` is content-derived precisely so a retry is not new work, but it means any
+    single gap may be a retry rather than a slow call. That retry also promoted a FOURTH instance of the same
+    shape to widest hole of the 120 KB run: **`SourceDigest`'s four parts, 25.4s**, announced together then
+    silent until the reduce. It is the least fixable of the four — one call per part, nothing to subdivide —
+    and only reporting on COMPLETION would fill it, which the seam's "a step is STARTING" contract does not
+    express, so it is a decision about `utils/progress.py` rather than about a site.
     **Never quote a single wall clock from this probe:** 1 KB ran
     651s once and 45.5s the next, identical 16-event stream and zero retries either way. The UX lesson from
     the outlier is the one worth keeping — **a labelled step that takes 605s is still 605s of one unchanging
