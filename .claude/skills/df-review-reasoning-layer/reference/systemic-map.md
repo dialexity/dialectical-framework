@@ -267,7 +267,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     correction a reviewer should apply to the justification: the 94.2s was PROVIDER-seconds, not wall.** The
     seventh run drew 208.3s across 44 gathered calls in about 7s of wall, so this site closes ~3.1s, not 94s —
     correct but small. It also exposed a host-side rule worth demanding in any progress review: `done` reaches
-    `total` mid-run (19/19 at 63% of the wall) and 33 notes stream against a FULL bar, so `done/total` is not a
+    `total` mid-run (19/19 for 1.9s at 63% of the wall) and 34 notes stream against a FULL bar, so `done/total` is not a
     completion bar, and ~30 identical notes inside one second means a verbatim host has to coalesce.
     **The note carries NO count, and this is the reviewable rule rather than a wording preference.** It
     first copied the digest's shape, `"N of M angles considered"`, which was true per chain and false to the
@@ -401,9 +401,14 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     `detail` strings carry NO framework vocabulary (no T+/A-, no Ac/Re, no insight band): a host may render
     them verbatim and the silent Advisor's contract is that the machinery stays hidden. `total` GROWS as
     work is discovered (2 → 4 → 34 in one run), so a host caching the first denominator draws a bar that
-    goes backwards; `done` counts FINISHED steps while `detail` names the one that just started, so they
-    disagree by one and `done` never reaches `total` mid-run — the `final=True` event closes it out with
-    the count that actually completed, deliberately not rounded up, so a partial build reads as 22/24.
+    goes backwards; `done` counts ANNOUNCED steps while `detail` names the one just announced, so they
+    disagree by one. **Two claims a reviewer should reject on sight, because both were published here and
+    both are false:** that `done` never reaches `total` mid-run (additive growth means it does, measured at
+    19/19 for 1.9s at 63% of one wall), and that the closing count is what actually COMPLETED
+    (`report_progress` publishes then increments, so a step that raises after announcing stays counted and a
+    run whose last step dies still closes 24/24). A shortfall is informative — `22/24` means two declared
+    steps were never reached, and it is deliberately not rounded up — but a full count proves nothing about
+    success; failures surface as report errors. Demand that any host-facing wording say ANNOUNCED.
     **The floor is now one provider call.** The widest remaining gap is `SynthesisGeneration`, a single
     `submit`: its step announces the stage but cannot subdivide it, so labelled quiet is the best available
     without streaming. `TransformationGeneration.PROGRESS_STEPS` is a public constant callers size their
@@ -1681,18 +1686,31 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   anchor/explore/discard). Explorer needs no equivalent — `explore_transformations` +
   `generate_synthesis` are already per-wheel user-driven tools there.
   **`run_deepen` owns the progress stream for the whole call** (`progress_scope("deepen",
-  key=wheel_hash[:7])`, installed in `run_deepen` and not in the `@llm.tool` wrapper, because
-  `scoped.py`, `build_status`'s resume hint and the resume tests all enter through it). Before that it
+  key=wheel_hash[:7])`, installed in `run_deepen` and not in the `@llm.tool` wrapper, because the wrapper,
+  `scoped.py`, the resume tests and the resume-hint pattern `build_status`'s docstring recommends to hosts
+  all enter through it — `build_status` calls nothing itself, and an earlier version of this line and of
+  `deepen`'s own docstring named it as a caller). Before that it
   published TWO `final` events for one action — one per composed skill, each of which installs a scope
   of its own — so a host cleared its indicator halfway through and started again. The fix needed the
   seam's nesting rule to change to deferral (see §progress-channel item 2); wrapping it the old way
-  would have given THREE finals, and the skills could not drop their scopes because both are entry
-  points in five places. A reviewer's tell that someone reverted the seam: an inner stage name
+  would have given THREE finals, and the skills could not drop their scopes because each has THREE
+  production call sites, six across the two (`ExploreTransformations`: `deepen`, `explorer.py`, its
+  module-level helper; `GenerateSynthesis`: `deepen`, `explore`, the `generate_synthesis` tool) — "entry
+  points in five places", once written here, counted neither. A reviewer's tell that someone reverted the
+  seam: an inner stage name
   (`transformation`, `synthesis`) appearing on the channel during a `deepen`. Pinned at both levels —
   `tests/test_progress.py::TestNestingDefersToTheInstalledScope` and
-  `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`. **`explore` still owns no stream**,
-  so its two skills each publish a final there; the seam change makes that a one-line fix when
-  `explore`'s instrumentation is taken up.
+  `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`. **`explore` still owns no stream, and
+  it is NOT a one-line fix — that claim was written here and is wrong.** Its two skills are SIBLINGS, not
+  nested: `ExplorationPipeline` closes its scope before `explore`'s synthesis loop starts, so deferral
+  never merges them and they publish `2 × deep_wheels` finals (`EXPLORE_DEEP_WHEELS = 1`, so two today,
+  scaling with `budget.deep_wheels`). Closing it needs the `_anchor`/`_ingest`/`_deepen` body split applied
+  to `run_exploration_detailed`'s ~115 lines, and it must go in the shared body rather than in a
+  `@llm.tool` for the same reason as `deepen` — though the count matters less than one specific caller:
+  there are TWO tool wrappers (`explore.py`'s and `scoped.py`'s, both via `run_exploration`) and four
+  direct callers in tests and probes, one of which is `probe_explore_progress.py` entering at
+  `run_exploration_detailed` itself. A scope installed in a wrapper would leave the very probe that
+  measures this channel measuring nothing.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +

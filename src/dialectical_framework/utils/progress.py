@@ -12,10 +12,16 @@ sits through 70s and 104s far more alike than either resembles 104s of nothing.
 
 So: two calls at the emission site.
 
-    with progress_scope("transformation", key=wheel.short_hash) as progress:
-        progress.expect(len(tasks) * STEPS)      # denominator, once known
+    with progress_scope("transformation", key=wheel.short_hash):
+        expect_progress(len(tasks) * STEPS)      # denominator, once known
         ...                                      # deep inside the gathered work:
         report_progress("Deriving the reflective counter-move")
+
+Both of the calls inside are free functions reading the ContextVar, which is why the
+scope object itself is usually discarded: `ProgressScope.expect` exists because
+`expect_progress` needs something to call, and no site in the tree uses the bound form.
+Deep code should never be handed a scope — a parameter would just be a second way to
+get it wrong.
 
 `report_progress` is a NO-OP when no scope is installed, which is why it can sit on
 a hot path and why installing it required no changes to any existing test.
@@ -135,9 +141,11 @@ def progress_scope(
     `total` may be left at 0 and grown with `expect()` as work is discovered — the
     common case, since no caller of this knows its step count up front.
 
-    The exit event carries the count that actually COMPLETED, which is below
-    `total` when steps failed. Deliberately not rounded up: "22 of 24" is a fact a
-    host should be able to show, and claiming 24 would hide a partial build.
+    The exit event carries the count of steps that were ANNOUNCED — see
+    `report_progress` for why that is not the same as completed, and for what a
+    shortfall does and does not prove. Deliberately not rounded up to `total`:
+    "22 of 24" is a fact a host should be able to show, and claiming 24 would hide
+    work that was declared and never reached.
 
     WHEN A SCOPE IS ALREADY INSTALLED this installs nothing and publishes nothing —
     see "THE OUTERMOST SCOPE OWNS THE STREAM" in the module docstring. `total` is
@@ -164,17 +172,33 @@ def progress_scope(
 def report_progress(detail: str) -> None:
     """Report that a step is STARTING, described by `detail`.
 
-    Publishes with the count of steps already finished, then counts this one. So an
-    event reads "3 of 24 done, now <detail>". No-op with no scope installed.
+    Publishes with the count of steps ANNOUNCED before this one, then counts this
+    one. No-op with no scope installed.
 
-    **`done/total` IS NOT A COMPLETION BAR, and this was measured rather than
-    reasoned.** No event published HERE ever shows `done == total` (the publish
+    **`done` COUNTS STEPS ANNOUNCED, NOT STEPS COMPLETED**, and the distinction is
+    this function's own doing: it publishes and *then* increments, so a step that
+    raises after announcing has already been counted and nothing ever decrements it.
+    A run whose 24th step dies still closes at 24/24. The consequence a host has to
+    live with is asymmetric and worth stating in both directions: a shortfall
+    (`22/24`) proves that two declared steps were never REACHED, which is real
+    information; but `24/24` does NOT prove 24 steps succeeded. Failures on this path
+    surface as errors in the report, not as a short count.
+
+    The reading "3 of 24 done, now <detail>" was written here for a long time and is
+    wrong in exactly that way; it is now "3 announced, now <detail>". Fixing the
+    number rather than the sentence would need a completion signal — a second call at
+    every site, or a `finally` the seam cannot see into — which is a design change and
+    not a docstring's business. It stays deliberately unbuilt while `done` is only
+    ever read as motion.
+
+    **`done/total` IS NOT A COMPLETION BAR either, and this was measured rather than
+    reasoned.** No event published HERE ever shows `done == total` (again the publish
     precedes the increment), which is why this once claimed the counter never reaches
     its denominator mid-run — a claim the seventh live ingest falsified. The
     denominator is additive, so whenever the last declared step finishes before the
     next site declares one, the STATE sits at `done == total`; there it sat at 19/19
-    for two seconds at 63% of the wall, and the 33 notes streaming in that window put
-    a full bar in front of the person before it dropped back to 19/20
+    for 1.9s at 63% of the wall, and the 34 notes streaming in that window put a full
+    bar in front of the person before it dropped back to 19/20
     (`tests/e2e/probe_ingest_progress.py`). Notes cannot cause this — they publish the
     counters unchanged — they only make it VISIBLE, which is an argument for them
     rather than against. A host wanting a monotone fraction has to render this as

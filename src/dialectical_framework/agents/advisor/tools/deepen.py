@@ -33,8 +33,11 @@ async def run_deepen(wheel_hash: str) -> str:
     Returns str(report).
 
     The scope goes HERE and not in the `@llm.tool` wrapper because every other
-    entry to a deepen comes through this function — `scoped.py`, `build_status`'s
-    resume hint, the resume tests — and each of them is one action to a person.
+    entry to a deepen comes through this function — the wrapper below, `scoped.py`,
+    the resume tests, and the resume-hint pattern `concerns/build_status.py`'s
+    docstring hands to host apps — and each of them is one action to a person.
+    (`build_status` itself calls nothing; it only recommends this shape. Named here
+    because a host that follows its advice becomes a caller.)
 
     One stream for the whole call, which the two skills below could not give on
     their own: `ExploreTransformations` and `GenerateSynthesis` each open a scope

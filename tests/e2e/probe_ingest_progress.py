@@ -315,8 +315,9 @@ not knowing; they do not defend against slow.
 `DigestDto` call), so "Building a working understanding of it" fires and completes
 instantly on short material. Correct behaviour — compact content is its own digest —
 but worth knowing before reading that label as evidence a digest was built.
-**SEVENTH RUN (120 KB), and it is the one that CONFIRMS both closures live — with one
-correction and two new findings.** 106.2s, 138 calls at 5.85x, 349 effects, 82 progress
+**SEVENTH RUN (120 KB), and it is the one that CONFIRMS both closures live — with TWO
+corrections (the consolidation gap was relabelled, not split; the 94.2s justifying the
+angle notes was provider-seconds, not wall) and ONE new finding (the 100% plateau).** 106.2s, 138 calls at 5.85x, 349 effects, 82 progress
 events (34 step/final + 48 note), 3 parse retries, closed **33/33 with no phantoms**,
 leaks clean, backwards jump **21% for the fourth time**. Largest silent gap **49.6s
 graph-only -> 11.4s with progress**, dead air 81% -> 73%.
@@ -350,9 +351,11 @@ parallelism in that window), so the hole actually closed is ~3.1s, not 94s. Cite
 site as correct-but-small from here on.
 
 **NEW, and the sharpest live instance of the additive-denominator caveat: the bar sits
-at 100% for two seconds, 33 events long, at 63% of the wall.** `done` reaches `total`
+at 100% for 1.9s, 34 events long, at 63% of the wall.** `done` reaches `total`
 at 19/19 (67.4s) because the last declared step finished before the next was declared,
-and 33 notes then stream against a full bar before it drops to 19/20. Notes cannot
+and 34 notes then stream against a full bar (67.4s-69.3s) before it drops to 19/20.
+The count was first published here as 33; it is 34, recounted off this run's own
+event dump. Notes cannot
 overshoot — that is what `note=True` guarantees — but they make the plateau VISIBLE
 where it used to pass in silence. **A host must not render `done/total` as a
 completion bar without expecting a full one mid-run**, and the note density is its own

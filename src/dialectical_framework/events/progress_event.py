@@ -31,12 +31,24 @@ its candidates, and it processes pairs concurrently. So a host must treat `total
 the current best estimate and re-read it on every event, never cache the first one.
 A denominator that rises is the truthful rendering of lazily-discovered work.
 
-`done` counts steps that have FINISHED; `detail` describes the step that just
-STARTED. So the pair reads as "3 of 24 done, now working on <detail>" — which is
-why `done` never reaches `total` during the run. The `final=True` event published
-when the scope closes carries the count that actually completed, which is lower
-than `total` when steps failed. That is deliberate: 22 of 24 is a fact worth
-seeing, and rounding it up to 24 would hide a partial build.
+`done` counts steps that have been ANNOUNCED; `detail` describes the step that just
+started. So the pair reads as "3 announced, now working on <detail>" — **not** "3
+finished". The publisher increments after publishing, so a step that fails after
+announcing stays counted: a run whose last step dies still closes at 24/24. Read a
+shortfall as informative (`22/24` means two declared steps were never reached) and a
+full count as uninformative about success — failures arrive as errors in the report,
+never as a short count. Rounding the closing count up to `total` would hide the
+informative half, so it is deliberately not done.
+
+**Do not render `done/total` as a completion bar.** Two separate reasons, both
+measured on the real path rather than reasoned about. The denominator GROWS (above),
+and because growth is additive the counter DOES reach it mid-run — whenever the last
+declared step finishes before the next site declares one. A 120 KB ingest sat at 19/19
+for 1.9s at 63% of the wall with 34 `note` events streaming against a full bar before
+it dropped back to 19/20 (`probe_ingest_progress.py`). An earlier version of this
+paragraph claimed `done` never reaches `total` during a run; that claim was false and a
+host built on it would show a finished bar a third of the way through. Render this as
+"step N, more coming" and clear on `final`.
 
 `key` distinguishes concurrent scopes for the same `stage` — two wheels deepened at
 once each report `stage="transformation"`, and without `key` their counts would
@@ -87,7 +99,8 @@ class ProgressEvent:
             host to switch on.
         key: Distinguishes concurrent scopes within one stage (e.g. the wheel's
             short hash). None when the stage cannot run twice at once.
-        done: Steps finished so far.
+        done: Steps ANNOUNCED so far, which is not the same as finished — see the
+            module docstring before rendering this as a completion count.
         total: Steps expected so far — a moving target, see the module docstring.
         detail: Human-readable description of the step that just started — or, when
             `note` is set, of something that just finished.
