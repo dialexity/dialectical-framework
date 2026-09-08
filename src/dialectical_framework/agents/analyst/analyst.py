@@ -10,6 +10,7 @@ Also contains AnalysisPipeline — the headless pipeline exposed as @llm.tool an
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from contextlib import aclosing
 from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
@@ -590,6 +591,36 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         return pp_hashes, concern.report
 
 
+def _progress_key(
+    text: Optional[str],
+    thesis_hashes: Optional[list[str]],
+    input_hashes: Optional[list[str]],
+) -> str:
+    """A stable, opaque id for ONE `analyze` call's progress stream.
+
+    Same construction and the same two reasons as `ingest._progress_key` and
+    `anchor._progress_key`: content-derived so it survives a retry of the same
+    call, and HASHED so a host that renders the key verbatim cannot put the
+    person's own words into a progress label. `text` here is documented as "the
+    user's situation, dilemma, or content", so the second reason binds exactly as
+    hard as it does on those two paths.
+
+    This is the THIRD copy of a sha256 one-liner that differs only in which
+    arguments it folds in. Left duplicated rather than hoisted because the three
+    live in three tools with no shared module between them and hoisting would
+    touch two working, pinned paths for no behavioural gain — but a fourth caller
+    should move it to `utils/progress.py` instead of copying it again.
+    """
+    material = "\n".join(
+        [
+            text or "",
+            ",".join(thesis_hashes or []),
+            ",".join(input_hashes or []),
+        ]
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+
+
 @llm.tool
 async def analyze(
     text: Annotated[
@@ -615,8 +646,38 @@ async def analyze(
     ] = None,
 ) -> str:
     """Run full dialectical analysis: captures input, extracts theses, finds tensions, and builds complete perspectives with quality-gated expansion. Use when the user describes a new situation or provides material to analyze."""
-    pipeline = AnalysisPipeline(
-        text=text, intent=intent, thesis_hashes=thesis_hashes, input_hashes=input_hashes
-    )
-    await pipeline.resolve()
-    return str(pipeline.report)
+    from dialectical_framework.utils.progress import progress_scope
+
+    # This tool is the widest silence left on the reasoning path, and closing it
+    # needs no new instrumentation — only a scope to install. `analyze` runs the
+    # SAME `AnalysisPipeline` as `ingest` and `anchor`, and everything beneath it
+    # is already instrumented: 31 `expect_progress`/`report_progress`/
+    # `note_progress` calls across seven modules (this file's own pair,
+    # `SurfaceTheses`, `ExpandPolarity`, `FindPolarities`, `AntithesisExtraction`,
+    # `SourceDigest`, `ThesisExtraction`), every one of them a no-op here purely
+    # because no scope was installed above them. Both `note_progress` sites in the
+    # tree are among them. That is exactly the trap `utils/progress.py` documents
+    # and exactly what the `ingest` scope was for; this path was simply missed.
+    #
+    # No split-out body, unlike `_ingest`/`_anchor`/`_deepen`: those exist to keep
+    # a long reasoning body out of the diff, and there is nothing here to
+    # re-indent. The ordering requirement is still satisfied — every gather on
+    # this path (the digest's parts, the sweep's windows, the antithesis chains,
+    # the expansion tetrads) is created inside `resolve()`, which is called inside
+    # the `with`, so all of them inherit a context that already holds the scope.
+    #
+    # Stage `analysis` rather than `analyze`: it names the action the person is
+    # waiting through, matching `decision`/`feasibility`/`synthesis` rather than
+    # the imperative tool name. Keyed because a model can emit two `analyze` calls
+    # in one round and two unkeyed streams interleave into one nonsensical bar.
+    with progress_scope(
+        "analysis", key=_progress_key(text, thesis_hashes, input_hashes)
+    ):
+        pipeline = AnalysisPipeline(
+            text=text,
+            intent=intent,
+            thesis_hashes=thesis_hashes,
+            input_hashes=input_hashes,
+        )
+        await pipeline.resolve()
+        return str(pipeline.report)

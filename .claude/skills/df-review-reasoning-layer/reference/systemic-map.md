@@ -399,7 +399,20 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     fresh stream after the tool returned. (3) `_publish` **snapshots** `done`/`total` before scheduling the send; reading them
     inside the deferred task made every event in a fan-out carry the same final count.
     `detail` strings carry NO framework vocabulary (no T+/A-, no Ac/Re, no insight band): a host may render
-    them verbatim and the silent Advisor's contract is that the machinery stays hidden. `total` GROWS as
+    them verbatim and the silent Advisor's contract is that the machinery stays hidden.
+    **A REVIEWER'S FIRST QUESTION ON THIS SEAM IS NOT "is there a `report_progress`?" BUT "who
+    installed the scope?"** `report_progress` no-ops with no scope installed, so a tool that opens
+    none renders every site beneath it mute while looking correct at both ends: the call sites are
+    right, their unit tests pass, the tool returns the right answer, and the only symptom is a person
+    in silence. `analyze` was the live instance — it runs the same `AnalysisPipeline` as `ingest` and
+    `anchor`, so one `with progress_scope("analysis", key=_progress_key(...))` lit up 31 already-written
+    calls across seven modules, both `note_progress` sites among them. Pinned by
+    `tests/test_analyze_progress.py`, which was verified non-vacuous by deleting the `with` (all four
+    fail). Tools still installing nothing, worst first: `find_polarities`, `digest_input`/`add_input`,
+    `surface_theses`, `explorer.explore`, `edit_perspective` (no sites at all), `build_wheels`
+    (uninstrumented and the first thing `explore` does), `expand_polarities`,
+    `introduce_polarity`/`anchor_theses`. Correctly silent: `sync`, `discard`, `inspect_node`,
+    `query_graph`, `place_statement`, the pure graph writes — their effects ride the `sid` channel. `total` GROWS as
     work is discovered (2 → 4 → 34 in one run), so a host caching the first denominator draws a bar that
     goes backwards; `done` counts ANNOUNCED steps while `detail` names the one just announced, so they
     disagree by one. **Two claims a reviewer should reject on sight, because both were published here and
