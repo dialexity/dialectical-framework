@@ -338,10 +338,14 @@ of the reassignment mechanism, with a different yield each time (4 pairs, then 3
 Both the caller's extraction step and the consolidation step publish at 50.0s, so the
 extraction label lives 0.0s and is superseded before a person can read it. The person
 sees the right label for the whole wait, which is the outcome that mattered, but
-"Looking for what genuinely pushes back" is now a FLASH rather than a phase. The
-one-line fix is to move the caller's `report_progress` in `find_polarities` to AFTER
-`_consolidate_antithetical` returns; it is deliberately NOT taken yet, since it is a
-new finding rather than part of the closure being verified.
+"Looking for what genuinely pushes back" is now a FLASH rather than a phase.
+**FIXED after this run: the extraction step moved into `FindPolarities.resolve()`,
+below the consolidation call, and `AnalysisPipeline` declares nothing at all.** So on
+the next 120 KB run expect the label to appear AFTER the ~11s pairwise wait rather than
+inside it — and expect it to be ABSENT on any run where consolidation merges every
+thesis, which is correct rather than a dropped step: the work list it announces is
+empty. This run's transcripts still quote the caller's ordering, since they are the
+evidence for the flash.
 
 **(2) The angle notes fire, and the measurement corrects the case for them.** 44 notes,
 one per `ModePointResultDto` call, counters pinned at 19/19 -> 20/20 -> 21/21 -> 22/22

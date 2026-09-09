@@ -1385,3 +1385,155 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
             for term in ("mode point", "taxonomy", "branch", "apex", "arousal"):
                 assert term not in label.lower(), f"{label!r} names {term!r}"
             assert len(label) < 200
+
+
+@pytest.mark.llm
+class TestTheExtractionLabelWaitsForConsolidation:
+    """The 0.0s flash, and the phantom the same move prevents.
+
+    `AnalysisPipeline` used to declare "Looking for what genuinely pushes back"
+    immediately before `FindPolarities.resolve()`. Once Phase 0 got a step of its own
+    (the class above), the two published in the SAME instant — the seventh 120 KB
+    probe run recorded the extraction label alive for **0.0s**, superseded before
+    anyone could read it, which is a flash and not a phase
+    (`tests/e2e/probe_ingest_progress.py`). The label describes extraction, so it
+    belongs where extraction begins: below the consolidation call, inside `resolve()`.
+
+    Moving it in bought a second thing that matters more than the wording. Phase 0
+    REASSIGNS the hash list and drops every pair it merges, so extraction's work list
+    can legitimately come back EMPTY — an even set of theses that all pair off. A step
+    declared at the caller was declared before that was knowable, which is the phantom
+    shape: expected, never reported, and indistinguishable to a host from a step that
+    failed. Guarding on the reduced list is what makes the two cases below differ.
+
+    Driven through the real `resolve()` against the graph, not through a synthetic
+    hash list, because the whole claim is about what Phase 0 leaves behind. Detection
+    and extraction are stubbed; the accounting is what is under test, not the
+    reasoning.
+    """
+
+    def _timeline(self, monkeypatch) -> list[str]:
+        """Record every label this module publishes, in order."""
+        from dialectical_framework.agents.analyst.skills import find_polarities
+
+        seen: list[str] = []
+        monkeypatch.setattr(find_polarities, "report_progress", seen.append)
+        return seen
+
+    @pytest.mark.asyncio
+    async def test_extraction_is_announced_after_the_pairwise_check(self, monkeypatch):
+        """Two labels, in the order a person reads them, not in one instant."""
+        from test_thesis_consolidation import _detection_stub, _make_statement
+
+        from dialectical_framework.concerns.antithesis_extraction import \
+            AntithesisExtraction
+        from dialectical_framework.concerns.antithetical_thesis_detection import (
+            AntitheticalThesisDetection, ConsolidationResult)
+        from dialectical_framework.agents.analyst.skills.find_polarities import \
+            FindPolarities
+        from dialectical_framework.utils.progress import progress_scope
+
+        monkeypatch.setattr(
+            AntitheticalThesisDetection, "resolve", _detection_stub(ConsolidationResult())
+        )
+
+        async def _extract(self, thesis, text="", not_like_these=None, count=5):
+            return []
+
+        monkeypatch.setattr(AntithesisExtraction, "resolve", _extract)
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            t1 = _make_statement("Speed of delivery")
+            t2 = _make_statement("Ability to explain outages")
+            seen = self._timeline(monkeypatch)
+            with progress_scope("ingest") as progress:
+                await FindPolarities(thesis_hashes=[t1.hash, t2.hash]).resolve()
+
+        assert len(seen) == 2, (
+            "expected the pairwise check and then extraction, each on its own line."
+            f" Got: {seen}"
+        )
+        assert seen[0].startswith("Checking whether any of the 2 tensions"), (
+            f"the pairwise check must speak first, while it runs. Got: {seen[0]!r}"
+        )
+        assert seen[1] == "Looking for what genuinely pushes back", (
+            "extraction's label must be the SECOND one — declared at the caller it"
+            f" published in the same instant as the first. Got: {seen[1]!r}"
+        )
+        assert progress.total == 2, (
+            "both phases declared a step, so both must be in the denominator;"
+            f" got {progress.total}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_nothing_is_announced_when_consolidation_takes_every_thesis(
+        self, monkeypatch
+    ):
+        """The phantom guard, on the real path that produces it.
+
+        Both theses merge, so Phase 0 returns an empty list and there is no extraction
+        to do. The pairwise check still announces itself — it ran — but a step for
+        extraction here would be declared and never reported, leaving the denominator
+        one short of the reports forever. That is precisely the bar that can never fill,
+        and at the caller it was unavoidable because the count was not yet known.
+        """
+        from test_thesis_consolidation import _detection_stub, _make_statement
+
+        from dialectical_framework.concerns.antithesis_extraction import \
+            AntithesisExtraction
+        from dialectical_framework.concerns.antithetical_thesis_detection import (
+            AntitheticalThesisDetection, ConsolidationResult, ThesisPair)
+        from dialectical_framework.agents.analyst.skills.find_polarities import \
+            FindPolarities
+        from dialectical_framework.utils.progress import progress_scope
+
+        extracted_for: list[str] = []
+
+        async def _extract(self, thesis, text="", not_like_these=None, count=5):
+            extracted_for.append(thesis.text)
+            return []
+
+        monkeypatch.setattr(AntithesisExtraction, "resolve", _extract)
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            t1 = _make_statement("Centralized control")
+            t2 = _make_statement("Distributed autonomy")
+            monkeypatch.setattr(
+                AntitheticalThesisDetection,
+                "resolve",
+                _detection_stub(
+                    ConsolidationResult(
+                        merge_pairs=[
+                            ThesisPair(
+                                thesis_hash=t1.hash,
+                                antithesis_hash=t2.hash,
+                                thesis_text=t1.text,
+                                antithesis_text=t2.text,
+                                heuristic_similarity=0.85,
+                                mode_value=1.0,
+                                arousal_value=0.5,
+                            )
+                        ]
+                    )
+                ),
+            )
+            seen = self._timeline(monkeypatch)
+            with progress_scope("ingest") as progress:
+                await FindPolarities(thesis_hashes=[t1.hash, t2.hash]).resolve()
+
+        assert extracted_for == [], (
+            "the fixture is vacuous unless consolidation really emptied the extraction"
+            f" list — extraction ran for {extracted_for}"
+        )
+        assert len(seen) == 1, (
+            "only the pairwise check ran, so only it may announce itself; an extraction"
+            f" step here is a phantom. Got: {seen}"
+        )
+        assert progress.total == 1, (
+            "the denominator must count the one phase that reported, or the bar is"
+            f" permanently short; got {progress.total}"
+        )

@@ -171,6 +171,28 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             result.existing = existing_antitheses
             return result
 
+        # Announced HERE, not at the caller, and BELOW the consolidation call.
+        #
+        # `AnalysisPipeline` used to declare this step immediately before
+        # `find.resolve()`, which put it in the same instant as Phase 0's own step —
+        # so on the seventh 120 KB probe run it lived **0.0s**: published and
+        # superseded before a person could read it, a flash rather than a phase
+        # (`tests/e2e/probe_ingest_progress.py`). The label describes EXTRACTION, and
+        # extraction starts here, after consolidation has run for ~12s.
+        #
+        # Guarded on `unique_hashes`, which is the second half of the fix and the more
+        # dangerous half: Phase 0 REASSIGNS this list and removes every pair it merges,
+        # so it can legitimately come back empty (an even set of theses that all pair
+        # off). At the caller the step was declared before that was known, which is the
+        # phantom shape — declared and never reported, indistinguishable to a host from
+        # a step that failed.
+        #
+        # Moving it in also covers the module-level tool helper below, which reaches
+        # `resolve()` directly and had no extraction step at all.
+        if unique_hashes:
+            expect_progress(1)
+            report_progress("Looking for what genuinely pushes back")
+
         # return_exceptions: one thesis whose extraction raises must not take
         # the other theses' polarities with it. `ThesisResult.error` already
         # exists for the per-thesis failure this converts to — and the whole
@@ -510,12 +532,14 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         # denominator one short of the reports forever — the phantom-step failure
         # `tests/test_progress.py` pins.
         #
-        # It needs a line of its own because the caller has already said "Looking
-        # for what genuinely pushes back", which describes extraction, and this
-        # phase is not that: it is pairwise, and on a 120 KB source it ran for
-        # 12.4s and then removed 8 of the 10 surfaced theses from the extraction
-        # that label was promising (`probe_ingest_progress.py`). A person reading
-        # the wrong label for twelve seconds was the whole finding.
+        # It needs a line of its own because "Looking for what genuinely pushes
+        # back" describes extraction and this phase is not that: it is pairwise,
+        # and on a 120 KB source it ran for 12.4s and then removed 8 of the 10
+        # surfaced theses from the extraction that label was promising
+        # (`probe_ingest_progress.py`). A person reading the wrong label for twelve
+        # seconds was the whole finding. The extraction label now publishes BELOW
+        # this phase, in `resolve()`, for the other half of the same reason: at the
+        # caller the two landed in one instant and the extraction one lived 0.0s.
         expect_progress(1)
         # Plain "tensions", no "(s)": the guard four lines up returns before this on
         # anything under two, so the count is always at least 2 and the parenthetical

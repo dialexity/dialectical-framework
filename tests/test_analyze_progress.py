@@ -7,8 +7,10 @@ time exactly five tools did. `analyze` was not one of them — so the richest
 instrumentation in the tree was a no-op on the path a model reaches most directly.
 `analyze` runs the SAME `AnalysisPipeline` as `ingest` and `anchor`, so the entire
 silence was one missing `with`: 31 `expect_progress`/`report_progress`/
-`note_progress` calls across seven modules, every one of them already written,
-already tested through the other two tools, and mute here.
+`note_progress` calls across six modules, every one of them already written,
+already tested through the other two tools, and mute here. (Seven when this was
+written — `AnalysisPipeline` owned a pair of its own, which has since moved down into
+`FindPolarities.resolve()`; see the flash note on the first test below.)
 
 That is the shape of defect this file exists to catch, and it is a nasty one
 because **nothing about it looks wrong at either end**. Every call site is correct.
@@ -20,8 +22,9 @@ WHAT IS PINNED, AND WHY BEHAVIOURALLY
 =====================================
 The load-bearing assertion is that a label published DEEP under the pipeline
 arrives on the bus: `"Looking for what genuinely pushes back"` comes from
-`AnalysisPipeline.resolve`, and the tetrad step comes from inside a `gather` that
-`resolve` creates. Together they pin both halves of the ordering requirement in
+`FindPolarities.resolve()`, which the pipeline awaits directly, and the tetrad step
+comes from inside a `gather` that `resolve` creates. Together they pin both halves of
+the ordering requirement in
 `utils/progress.py` — that a scope is installed at all, and that it is installed
 before the tasks are created. A scope placed one level too low (inside a skill)
 leaves the other level silent, and a scope placed after the gather leaves
@@ -213,11 +216,25 @@ async def test_analyze_lights_up_the_instrumentation_that_was_already_there(
 ):
     """The whole point: no new reporting site, and the person stops sitting in silence.
 
-    Both asserted labels are published by code this test does not touch and that
-    was working before this scope existed — one directly in
-    `AnalysisPipeline.resolve`, one from inside a `gather` that `resolve` creates.
-    That pairing is deliberate: it is what distinguishes "a scope exists" from "the
-    scope is in the right place".
+    Every asserted label is published by code this test does not touch and that was
+    working before this scope existed — one from a skill `AnalysisPipeline.resolve`
+    awaits directly, one from inside a `gather` that `resolve` creates. That pairing is
+    deliberate: it is what distinguishes "a scope exists" from "the scope is in the
+    right place".
+
+    The extraction label being published ONCE is the flash regression, and it is only
+    visible from out here. It used to be declared by `AnalysisPipeline` itself,
+    immediately before `find.resolve()`, where it landed in the same instant as Phase
+    0's own step and lived 0.0s; it now publishes inside `FindPolarities.resolve()`,
+    below that phase. A unit test on the skill cannot see a caller's event, so
+    re-declaring it up there would leave
+    `test_ingest_progress.py::TestTheExtractionLabelWaitsForConsolidation` green and
+    show up here as the same label twice.
+
+    What this does NOT pin is the ORDER of the two labels on the assembled stream: mock
+    brain's dedup collapses this fixture's two theses into one, so Phase 0 returns
+    before its own guard and never speaks on this path. The ordering is pinned at the
+    skill instead, where the hash count can be arranged.
     """
     case = Case()
     case.commit()
@@ -232,6 +249,11 @@ async def test_analyze_lights_up_the_instrumentation_that_was_already_there(
         "the pipeline never spoke — this is the pre-existing instrumentation the"
         " tool-level scope exists to light up, and it is the assertion that fails"
         " if someone removes the `with`"
+    )
+    assert details.count("Looking for what genuinely pushes back") == 1, (
+        "the extraction label was published twice — one `FindPolarities.resolve()` ran,"
+        " so a second copy means it was re-declared at the caller, which is the 0.0s"
+        f" flash this label was moved to stop. Got: {details}"
     )
     assert any("overreaches" in d for d in details), (
         "the tetrad-generation step never announced itself — it runs inside a"

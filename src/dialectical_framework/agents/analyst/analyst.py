@@ -26,8 +26,6 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
-from dialectical_framework.utils.progress import (expect_progress,
-                                                 report_progress)
 
 if TYPE_CHECKING:
     pass
@@ -349,11 +347,16 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                 return AnalysisResult(errors=errors, reports=reports)
 
         try:
-            # The `anchor` thesis-only branch's own long stage: nothing has been
-            # said since the position was classified, and this is where the
-            # opposition is discovered and scored.
-            expect_progress(1)
-            report_progress("Looking for what genuinely pushes back")
+            # NOTHING is declared here on purpose, though this is the `anchor`
+            # thesis-only branch's longest silence — the step for it lives INSIDE
+            # `FindPolarities.resolve()` now, below the Phase 0 consolidation. Two
+            # reasons, and the second is the load-bearing one. Declared here it
+            # published in the SAME instant as Phase 0's own step and was superseded
+            # after 0.0s, a flash rather than a phase. And from out here the count
+            # Phase 0 will leave behind is not yet known: it reassigns its hash list
+            # and drops every pair it merges, so a step declared for extraction that
+            # consolidation then empties is a phantom — declared, never reported, and
+            # indistinguishable to a host from one that failed.
             find = FindPolarities(thesis_hashes=thesis_hashes)
             await find.resolve()
             reports.append(find.report)
@@ -652,12 +655,14 @@ async def analyze(
     # needs no new instrumentation — only a scope to install. `analyze` runs the
     # SAME `AnalysisPipeline` as `ingest` and `anchor`, and everything beneath it
     # is already instrumented: 31 `expect_progress`/`report_progress`/
-    # `note_progress` calls across seven modules (this file's own pair,
-    # `SurfaceTheses`, `ExpandPolarity`, `FindPolarities`, `AntithesisExtraction`,
-    # `SourceDigest`, `ThesisExtraction`), every one of them a no-op here purely
-    # because no scope was installed above them. Both `note_progress` sites in the
-    # tree are among them. That is exactly the trap `utils/progress.py` documents
-    # and exactly what the `ingest` scope was for; this path was simply missed.
+    # `note_progress` calls across six modules (`SurfaceTheses`, `ExpandPolarity`,
+    # `FindPolarities`, `AntithesisExtraction`, `SourceDigest`, `ThesisExtraction`
+    # — seven when this was written, the seventh being a pair this file owned that
+    # has since moved down into `FindPolarities.resolve()`), every one of them a
+    # no-op here purely because no scope was installed above them. Both
+    # `note_progress` sites in the tree are among them. That is exactly the trap
+    # `utils/progress.py` documents and exactly what the `ingest` scope was for;
+    # this path was simply missed.
     #
     # No split-out body, unlike `_ingest`/`_anchor`/`_deepen`: those exist to keep
     # a long reasoning body out of the diff, and there is nothing here to

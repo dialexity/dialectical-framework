@@ -239,7 +239,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     is evidence, a plausible mechanism is not. So the 6.6s/12.4s difference is the CONSOLIDATION yield
     moving, and the variable is `AntitheticalThesisDetection`, not `StatementClassification`.
     **TWO instrumentation gaps on the ingest path, both prompt-adjacent so both are a reviewer's business.
-    The first is CLOSED, the second is OPEN:** (1) Phase 0 owed a step of its own — it is a distinct phase
+    BOTH are now CLOSED:** (1) Phase 0 owed a step of its own — it is a distinct phase
     (one provider call plus graph writes) that was narrated by the label of the phase AFTER it, so a person
     read "Looking for what genuinely pushes back" for 12.4s while pairwise consolidation ran and potentially
     deleted 80% of the extraction that label promised. It now declares `expect_progress(1)` +
@@ -252,8 +252,19 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     `tests/test_ingest_progress.py::TestTheConsolidationPhaseSaysItIsRunning`. **Confirmed live (seventh 120 KB
     run): the widest hole of the run is now this labelled 11.4s wait rather than 12.4s under the wrong
     label.** The reviewer's correction to carry: the gap was RELABELLED, not split — the caller's extraction
-    step and this one both publish at the same instant, so "Looking for what genuinely pushes back" is a 0.0s
-    flash. Moving the caller's `report_progress` below `_consolidate_antithetical` is the open one-line fix.
+    step and this one both published at the same instant, so "Looking for what genuinely pushes back" lived a
+    0.0s flash. **That is fixed: the extraction step moved INTO `FindPolarities.resolve()`, below the
+    consolidation call, and `AnalysisPipeline` now declares nothing at all** — `analyst.py` has zero progress
+    calls. The wording half is the smaller half. The step is guarded on the REDUCED hash list, because Phase 0
+    reassigns it and drops every merged pair, so extraction's work list can legitimately come back empty (an
+    even set of theses that all pair off) — at the caller the step was declared before that was knowable,
+    which is the phantom shape. Moving it in also gave the module-level `find_polarities` tool helper an
+    extraction step it never had. Two levels of test, because neither sees the other's failure:
+    `TestTheExtractionLabelWaitsForConsolidation` drives the real `resolve()` against the graph in both
+    branches (nothing merges → two labels, pairwise first; the pair merges → one label, denominator 1), and
+    `tests/test_analyze_progress.py` asserts the label reaches the bus exactly ONCE, the only place a re-added
+    caller declaration is visible. The assembled stream cannot pin the ORDER — mock brain's dedup collapses
+    that fixture's two theses into one, so Phase 0 returns before its own guard and never speaks there.
     (2) `AntithesisExtraction._extract_candidates` (link 2) is an
     `asyncio.gather` over one `ModePointResultDto` call per mode point (up to 11) that **writes nothing** by
     its own docstring, announced by one label — every clause of the `note_progress` condition met, and the
@@ -415,7 +426,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     right, their unit tests pass, the tool returns the right answer, and the only symptom is a person
     in silence. `analyze` was the live instance — it runs the same `AnalysisPipeline` as `ingest` and
     `anchor`, so one `with progress_scope("analysis", key=_progress_key(...))` lit up 31 already-written
-    calls across seven modules, both `note_progress` sites among them. Pinned by
+    calls across six modules, both `note_progress` sites among them (seven when that was written — the
+    pipeline owned a pair of its own, which has since moved into `FindPolarities`). Pinned by
     `tests/test_analyze_progress.py`, which was verified non-vacuous by deleting the `with` (all four
     fail). Tools still installing nothing, worst first: `find_polarities`, `digest_input`/`add_input`,
     `surface_theses`, `explorer.explore`, `edit_perspective` (no sites at all), `build_wheels`
