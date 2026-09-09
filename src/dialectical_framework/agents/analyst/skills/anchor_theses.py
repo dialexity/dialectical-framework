@@ -31,6 +31,8 @@ from dialectical_framework.graph.repositories.input_repository import \
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.utils.progress import (expect_progress,
+                                                 progress_key,
+                                                 progress_scope,
                                                  report_progress)
 
 if TYPE_CHECKING:
@@ -241,6 +243,17 @@ async def anchor_theses(
     """Anchor explicit statements as theses. Use when the user names specific concepts
     to explore — single words, short phrases, or enumerated topics.
     Does NOT extract from inputs; takes statements literally and classifies them."""
-    skill = AnchorTheses(statements=statements, input_hashes=input_hashes)
-    await skill.resolve()
-    return str(skill.report)
+    # Stage `anchor`, the SAME name the Advisor's `anchor` tool installs — and that
+    # is safe rather than a collision, because a nested `progress_scope` DEFERS: when
+    # this skill runs under that tool the outer scope owns the stream and this one
+    # folds into it, discarding its own stage and key. Reusing the name is what makes
+    # the two entry points read alike to a host when each is the outermost.
+    #
+    # Keyed on the person's own named concepts and the inputs they are classified
+    # against, digested: `statements` is literally what the person typed, which is
+    # `progress_key`'s reason for hashing.
+    key = progress_key(statements, input_hashes)
+    with progress_scope("anchor", key=key):
+        skill = AnchorTheses(statements=statements, input_hashes=input_hashes)
+        await skill.resolve()
+        return str(skill.report)

@@ -8,11 +8,12 @@ Two modes:
 
 from __future__ import annotations
 
-import hashlib
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
+
+from dialectical_framework.utils.progress import progress_key
 
 
 def _progress_key(thesis: str, antithesis: str | None) -> str:
@@ -23,8 +24,7 @@ def _progress_key(thesis: str, antithesis: str | None) -> str:
     key verbatim cannot put the person's own words in a progress label — the
     convention `key=wheel.short_hash` already established elsewhere.
     """
-    material = f"{thesis}\n{antithesis or ''}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+    return progress_key(thesis, antithesis)
 
 
 @llm.tool

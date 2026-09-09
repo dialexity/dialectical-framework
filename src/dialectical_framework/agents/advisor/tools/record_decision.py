@@ -16,13 +16,13 @@ rationales as the person's own confirmed "why".
 
 from __future__ import annotations
 
-import hashlib
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
 
 from dialectical_framework.concerns.record_decision import GroundLink
+from dialectical_framework.utils.progress import progress_key
 
 
 def _progress_key(question: str, stance: str) -> str:
@@ -34,8 +34,7 @@ def _progress_key(question: str, stance: str) -> str:
     own confirmed wording — which on this path is the most sensitive text in the
     system, since it is the decision they just committed to.
     """
-    material = f"{question or ''}\n{stance or ''}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+    return progress_key(question, stance)
 
 
 def build_record_decision(principal: str = "human"):

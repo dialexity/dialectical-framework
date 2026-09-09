@@ -62,6 +62,7 @@ from dialectical_framework.graph.nodes.estimation import (
     ArousalEstimation, ModeEstimation)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.utils.progress import (expect_progress,
+                                                  progress_hash_key,
                                                   progress_scope,
                                                   report_progress)
 
@@ -833,14 +834,11 @@ async def edit_perspective(
     # edit's target is the new Perspective the first one created), and the
     # alternative was a fifth copy of the sha256 key one-liner.
     #
-    # Sanitised the same way `deepen` and `audit_feasibility` sanitise theirs, for
-    # the same measured reason: `perspective_hash` is RAW MODEL OUTPUT at this point,
-    # the framework renders hashes to the model as `[[abc1234]]`, and a model that
-    # echoes the brackets back would key the stream `"[[a1b2"` — prompt-template
-    # punctuation beside a host's spinner. Only the KEY is sanitised; what a
-    # malformed hash should do to the edit is `_resolve_perspective`'s decision.
-    key = (perspective_hash or "").strip().strip("[]")[:7]
-    with progress_scope("edit", key=key):
+    # `perspective_hash` is RAW MODEL OUTPUT at this point, so the key goes through
+    # `progress_hash_key` like every other hash-keyed tool's — the bracket trap and
+    # why only the KEY is sanitised are argued there. What a malformed hash should do
+    # to the edit itself stays `_resolve_perspective`'s decision.
+    with progress_scope("edit", key=progress_hash_key(perspective_hash)):
         concern = EditPerspective(perspective_hash=perspective_hash, changes=changes, text=text)
         await concern.resolve()
         return str(concern.report)

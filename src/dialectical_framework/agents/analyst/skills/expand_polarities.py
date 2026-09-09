@@ -49,6 +49,9 @@ from dialectical_framework.graph.repositories.statement_repository import (
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
 from dialectical_framework.utils.progress import (expect_progress,
+                                                 progress_hash_key,
+                                                 progress_key,
+                                                 progress_scope,
                                                  report_progress)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
 from dialectical_framework.graph.repositories.perspective_repository import (
@@ -584,5 +587,27 @@ async def expand_polarities(
         return str(concern.report)
 
     unique_hashes = list(dict.fromkeys(polarity_hashes))
-    results = await asyncio.gather(*[_expand_one(h) for h in unique_hashes])
+
+    # THE SCOPE MUST ENCLOSE THE `gather`, not just the awaits inside it. A task
+    # created before the scope is installed captured a copy of the context and can
+    # never see it (`utils/progress.py`, "WHY A MUTABLE OBJECT IN THE ContextVar"),
+    # so installing below this line would leave every `ExpandPolarity` step mute and
+    # publish one tidy `final` over silence — the one failure mode here that looks
+    # correct from both ends.
+    #
+    # Stage `expansion` (the noun; `polarity` is banned on this channel). Keyed on
+    # the Polarities, digested and sorted for the same reason as `opposition` above:
+    # five hashes name nothing a person would recognise. `unique_hashes`, not the
+    # argument, so the key describes the work actually done — the same reason
+    # `audit_feasibility` keys off `to_audit` rather than `targets`.
+    #
+    # A SET, not a sorted list, and that is not tidiness: `dict.fromkeys` dedups the
+    # raw strings, so `h` and `[[h]]` in one call both survive it while sanitising
+    # collapses them — a list would then carry the same short hash twice and key a
+    # different stream from the same call spelled once, which is the one thing a key
+    # exists to prevent. Sorted afterwards so the ORDER the model named them in
+    # cannot key two streams either.
+    key = progress_key(sorted({progress_hash_key(h) for h in unique_hashes}))
+    with progress_scope("expansion", key=key):
+        results = await asyncio.gather(*[_expand_one(h) for h in unique_hashes])
     return "\n---\n".join(results)

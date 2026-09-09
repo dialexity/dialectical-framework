@@ -62,6 +62,9 @@ from dialectical_framework.graph.repositories.node_repository import \
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
 from dialectical_framework.utils.progress import (expect_progress,
+                                                  progress_hash_key,
+                                                  progress_key,
+                                                  progress_scope,
                                                   report_progress)
 
 if TYPE_CHECKING:
@@ -803,6 +806,28 @@ async def find_polarities(
     count: Annotated[int, Field(description="Number of antitheses to find per thesis")] = 5,
 ) -> str:
     """Find antitheses for given theses and create Polarity nodes (T-A tensions). Each thesis gets antitheses with heuristic similarity scores, truncated to count with maximum taxonomy branch coverage. Returns polarity_hash for each pair."""
-    concern = FindPolarities(thesis_hashes=thesis_hashes, count=count)
-    await concern.resolve()
-    return str(concern.report)
+    # Everything this tool waits on is already instrumented and was MUTE here,
+    # because nothing installed a scope: `FindPolarities`' own consolidation and
+    # extraction steps, plus every `AntithesisExtraction` chain it gathers — one per
+    # thesis, including the `note_progress` site that reports each returning angle.
+    # Called directly this is the longest silence on the Analyst's path.
+    #
+    # Stage `opposition` — the noun of the work, like `analysis`/`decision`, and NOT
+    # the tool's own name: `polarity` is banned vocabulary on this channel, since a
+    # host may render a stage name beside its spinner.
+    #
+    # Keyed on the theses, DIGESTED rather than joined, which is the opposite of
+    # `audit_feasibility`'s choice and for the reason its comment gives: a key made
+    # of hashes is worth keeping raw when it names ONE thing the person would
+    # recognise, and ten thesis hashes name nothing. 80 characters of joined hashes
+    # buys a host nothing over 10. Sorted so the same SET keys the same stream
+    # whatever order the model listed them in; sanitised per hash because these are
+    # raw model output and `[[abc1234]]` is how the framework rendered them. A SET
+    # because sanitising collapses `h` and `[[h]]`, and one call naming both must not
+    # key a different stream from one naming the thesis once (see `expand_polarities`,
+    # where the same argument is spelled out).
+    key = progress_key(sorted({progress_hash_key(h) for h in thesis_hashes or []}))
+    with progress_scope("opposition", key=key):
+        concern = FindPolarities(thesis_hashes=thesis_hashes, count=count)
+        await concern.resolve()
+        return str(concern.report)

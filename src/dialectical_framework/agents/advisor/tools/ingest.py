@@ -7,11 +7,12 @@ perspectives. Does NOT create a nexus — that's explore's job.
 
 from __future__ import annotations
 
-import hashlib
 from typing import Annotated
 
 from mirascope import llm
 from pydantic import Field
+
+from dialectical_framework.utils.progress import progress_key
 
 
 def _progress_key(text: str | None, input_hashes: list[str] | None) -> str:
@@ -23,8 +24,7 @@ def _progress_key(text: str | None, input_hashes: list[str] | None) -> str:
     progress label. That second reason binds harder here than it does for `anchor`
     — the material on this path is whole documents.
     """
-    material = f"{text or ''}\n{','.join(input_hashes or [])}"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+    return progress_key(text, input_hashes)
 
 
 @llm.tool
@@ -86,10 +86,15 @@ async def _ingest(
     digest_status: str | None = None
 
     if text:
-        # Two steps declared, not one: capture is a graph write the person can
-        # already see land, but the digest behind it is a fan-out over every part
-        # of the source and is the first long silence on this path.
-        expect_progress(2)
+        # ONE step, for the capture. The digest behind it is the first long silence
+        # on this path and it still announces itself — but from inside
+        # `SourceDigest._generate_digest`, not from here. Declaring it here was
+        # wrong in both directions: `ensure_digest` can return without a provider
+        # call (compact content is its own digest), which made this a step that
+        # announced work that never ran; and on a source read in parts it published
+        # in the same instant as the parts' own steps, the 0.0s flash. See the
+        # comment at that site.
+        expect_progress(1)
         report_progress("Taking in the material")
         add_input = AddInput()
         input_node = await add_input.resolve(content=text)
@@ -105,7 +110,6 @@ async def _ingest(
         # the same material under a new focus is worth the call. The gap-filling
         # callers (`AnalysisPipeline`, the `add_input` tool) pass no refresh and
         # so never pay twice for what this line already did.
-        report_progress("Building a working understanding of it")
         digest_status = await ensure_digest(
             added_hash, context=intent or "", refresh=True
         )

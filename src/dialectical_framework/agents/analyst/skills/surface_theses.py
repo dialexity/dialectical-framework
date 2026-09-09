@@ -46,6 +46,8 @@ from dialectical_framework.graph.repositories.statement_repository import \
     StatementRepository
 from dialectical_framework.utils.chunking import chunk_text
 from dialectical_framework.utils.progress import (expect_progress,
+                                                  progress_key,
+                                                  progress_scope,
                                                   report_progress)
 
 if TYPE_CHECKING:
@@ -684,6 +686,18 @@ async def surface_theses(
     'find theses from inputs, prefer existing ones if suitable',
     'surface 3 new theses about security, avoid anything about performance'
     """
-    concern = SurfaceTheses(intent=intent, input_hashes=input_hashes)
-    await concern.resolve()
-    return str(concern.report)
+    # The one site in the tree with a denominator known in ADVANCE: `_sweep_windows`
+    # chunks the source first, so "Reading section 3 of 33" is truthful from the
+    # first event — and it was mute here, because only `ingest`/`analyze` ever
+    # installed a scope above it. The `with` must enclose `resolve()` and does,
+    # since the sweep's `gather` is created inside it.
+    #
+    # Stage `extraction` (the noun; `thesis` is banned vocabulary on this channel).
+    # Keyed on the person's own extraction wording plus the inputs it was aimed at,
+    # digested — `intent` is the person's sentence, which is the whole reason
+    # `progress_key` hashes.
+    key = progress_key(intent, input_hashes)
+    with progress_scope("extraction", key=key):
+        concern = SurfaceTheses(intent=intent, input_hashes=input_hashes)
+        await concern.resolve()
+        return str(concern.report)

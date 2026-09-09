@@ -315,9 +315,15 @@ takes 605s is still 605s of one unchanging line.** Progress labels defend agains
 not knowing; they do not defend against slow.
 
 **The digest is skipped entirely below `DIGEST_THRESHOLD`** (the 1 KB runs show no
-`DigestDto` call), so "Building a working understanding of it" fires and completes
-instantly on short material. Correct behaviour — compact content is its own digest —
-but worth knowing before reading that label as evidence a digest was built.
+`DigestDto` call), and on every run above it reproduced here the label
+"Building a working understanding of it" was published by `ingest` itself, one line
+above `ensure_digest` — so on short material it fired and completed instantly while
+no digest was built. **That is now FIXED and unmeasured: the label moved into
+`SourceDigest._generate_digest`, below the chunk dispatch**, so it appears only when a
+single-pass call actually runs, and `ingest`'s own declared count dropped from 2 to 1.
+Two consequences for reading any run archived before that move: the label's presence
+was NOT evidence a digest was built, and on a 120 KB source it landed in the same
+instant as the parts' own steps (the 0.0s flash). No run has been taken since.
 **SEVENTH RUN (120 KB), and it is the one that CONFIRMS both closures live — with TWO
 corrections (the consolidation gap was relabelled, not split; the 94.2s justifying the
 angle notes was provider-seconds, not wall) and ONE new finding (the 100% plateau).** 106.2s, 138 calls at 5.85x, 349 effects, 82 progress

@@ -44,6 +44,8 @@ from dialectical_framework.graph.repositories.input_repository import \
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
 from dialectical_framework.utils.progress import (expect_progress,
+                                                 progress_key,
+                                                 progress_scope,
                                                  report_progress)
 
 if TYPE_CHECKING:
@@ -365,6 +367,15 @@ async def introduce_polarity(
     ] = "",
 ) -> str:
     """Introduce a known thesis-antithesis tension directly as a Polarity. Classifies both statements, creates the Polarity node (T-A pair) with HS score. Use when the tension is already clear from conversation rather than needing extraction from source material."""
-    concern = IntroducePolarity(thesis=thesis, antithesis=antithesis, text=text)
-    await concern.resolve()
-    return str(concern.report)
+    # Stage `anchor`, matching `anchor_theses` and the Advisor's `anchor` tool — the
+    # same deferral argument as there, and this is the leg that tool actually calls
+    # first, so under it this scope never installs anything.
+    #
+    # Keyed on the two poles the person named, exactly as `advisor.anchor` keys its
+    # own stream: same arguments, same digest, so calling this tool directly and
+    # calling `anchor` with the same wording key the same stream.
+    key = progress_key(thesis, antithesis)
+    with progress_scope("anchor", key=key):
+        concern = IntroducePolarity(thesis=thesis, antithesis=antithesis, text=text)
+        await concern.resolve()
+        return str(concern.report)

@@ -10,7 +10,6 @@ Also contains AnalysisPipeline — the headless pipeline exposed as @llm.tool an
 from __future__ import annotations
 
 import asyncio
-import hashlib
 from contextlib import aclosing
 from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
@@ -26,6 +25,7 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
+from dialectical_framework.utils.progress import progress_key
 
 if TYPE_CHECKING:
     pass
@@ -608,20 +608,12 @@ def _progress_key(
     user's situation, dilemma, or content", so the second reason binds exactly as
     hard as it does on those two paths.
 
-    This is the THIRD copy of a sha256 one-liner that differs only in which
-    arguments it folds in. Left duplicated rather than hoisted because the three
-    live in three tools with no shared module between them and hoisting would
-    touch two working, pinned paths for no behavioural gain — but a fourth caller
-    should move it to `utils/progress.py` instead of copying it again.
+    The construction itself now lives in `utils.progress.progress_key`, hoisted
+    when `add_input` would have been the fifth copy — which is what the note here
+    asked the fourth caller to do. What stays is the argument list and why these
+    three fields are what identifies an `analyze` call.
     """
-    material = "\n".join(
-        [
-            text or "",
-            ",".join(thesis_hashes or []),
-            ",".join(input_hashes or []),
-        ]
-    )
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+    return progress_key(text, thesis_hashes, input_hashes)
 
 
 @llm.tool

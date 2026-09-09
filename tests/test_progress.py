@@ -635,6 +635,83 @@ class TestProgressStepsMatchesTheCalls:
         self._assert_matches(AnchorTheses)
 
 
+class TestOneKeyConstructionForEveryStream:
+    """`progress_key` is a hoist, so the pin is that it changed no digest.
+
+    Four tools had hand-written copies of the same sha256 one-liner before this
+    existed, each keyed on its own arguments, and `add_input` would have been the
+    fifth. Delegating them is only safe if the bytes are identical — a rekey is
+    invisible everywhere else in this suite, because every assertion about a key
+    elsewhere compares it to what the same function just returned. So these assert
+    against LITERAL digests of the documented material, computed here rather than
+    by calling the thing under test.
+    """
+
+    def _digest(self, material: str) -> str:
+        import hashlib
+
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+
+    def test_parts_join_with_newlines_and_lists_with_commas(self):
+        from dialectical_framework.utils.progress import progress_key
+
+        assert progress_key("a", ["b", "c"]) == self._digest("a\nb,c")
+        assert progress_key("only") == self._digest("only")
+
+    def test_a_missing_part_is_an_empty_string_not_the_word_none(self):
+        """`None` must contribute nothing, and a tuple counts as a list.
+
+        The tools pass `Optional[str]` and `Optional[list[str]]` straight through,
+        so `str(None)` leaking into the material would make an omitted argument
+        indistinguishable from one whose text is literally "None".
+        """
+        from dialectical_framework.utils.progress import progress_key
+
+        assert progress_key(None, None) == self._digest("\n")
+        assert progress_key("a", None) == self._digest("a\n")
+        assert progress_key("a", ("b", "c")) == progress_key("a", ["b", "c"])
+
+    def test_the_four_delegates_still_produce_their_original_digests(self):
+        """The hoist's whole risk, asserted one tool at a time."""
+        from dialectical_framework.agents.advisor.tools.anchor import \
+            _progress_key as anchor_key
+        from dialectical_framework.agents.advisor.tools.ingest import \
+            _progress_key as ingest_key
+        from dialectical_framework.agents.advisor.tools.record_decision import \
+            _progress_key as decision_key
+        from dialectical_framework.agents.analyst.analyst import \
+            _progress_key as analyze_key
+
+        assert ingest_key("some text", ["h1", "h2"]) == self._digest(
+            "some text\nh1,h2"
+        )
+        assert ingest_key(None, None) == self._digest("\n")
+        assert anchor_key("Stay put", "Move on") == self._digest("Stay put\nMove on")
+        assert anchor_key("Stay put", None) == self._digest("Stay put\n")
+        assert decision_key("Leave?", "Yes") == self._digest("Leave?\nYes")
+        assert analyze_key("situation", ["t1"], ["i1"]) == self._digest(
+            "situation\nt1\ni1"
+        )
+        assert analyze_key(None, None, None) == self._digest("\n\n")
+
+    def test_the_same_call_keys_the_same_stream_twice(self):
+        """Content-derived is the point: a retry must not open a second bar."""
+        from dialectical_framework.utils.progress import progress_key
+
+        assert progress_key("x", ["y"]) == progress_key("x", ["y"])
+        assert progress_key("x", ["y"]) != progress_key("x", ["z"])
+
+    def test_the_key_carries_none_of_the_words_it_was_built_from(self):
+        """A key is a host-rendered surface; most of these parts are the person's
+        own text, and one of them is whole pasted documents."""
+        from dialectical_framework.utils.progress import progress_key
+
+        key = progress_key("Should I leave Ravensbourne?", ["abc1234"])
+        assert "Ravensbourne" not in key
+        assert "abc1234" not in key
+        assert len(key) == 10
+
+
 async def _drain_list(received: list, *, timeout: float = 1.0) -> list:
     """Wait until `received` stops growing. Publishes are fire-and-forget."""
     previous = -1

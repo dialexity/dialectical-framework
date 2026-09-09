@@ -221,6 +221,20 @@ class SourceDigest(ReasonableConcern[Input], SettingsAware):
                     chunks, existing_digest, context
                 )
 
+        # The single-pass step, declared HERE rather than at a caller, and the
+        # placement is the whole point — the same correction the extraction label
+        # went through. `ingest` used to declare this label immediately before
+        # `ensure_digest`, which was wrong in both directions: `resolve` returns
+        # without a call at all when the content is compact enough to be its own
+        # digest, so the step announced work that never happened; and on a source
+        # large enough to be read in parts the label landed in the same instant as
+        # `_generate_digest_from_parts`' own first steps, which is the 0.0s flash.
+        # Below the chunk dispatch it means exactly what it says: one call, running
+        # now. It also reaches the two callers that never announced it — the
+        # `digest_input` and `add_input` tools, whose whole stream this is.
+        expect_progress(1)
+        report_progress("Building a working understanding of it")
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
         prompt = self._build_prompt(content, existing_digest, context)

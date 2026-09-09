@@ -429,10 +429,26 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     calls across six modules, both `note_progress` sites among them (seven when that was written — the
     pipeline owned a pair of its own, which has since moved into `FindPolarities`). Pinned by
     `tests/test_analyze_progress.py`, which was verified non-vacuous by deleting the `with` (all four
-    fail). Tools still installing nothing, worst first: `find_polarities`, `digest_input`/`add_input`,
-    `surface_theses`, `explorer.explore`, `build_wheels`
-    (uninstrumented and the first thing `explore` does), `expand_polarities`,
-    `introduce_polarity`/`anchor_theses`. `edit_perspective` is DONE and was the only one with no
+    fail). **Seven more went the same way, in one pass, one `with` each** — `find_polarities`
+    (`opposition`), `surface_theses` (`extraction`), `expand_polarities` (`expansion`), `anchor_theses`
+    and `introduce_polarity` (`anchor`), `digest_input` and `add_input` (`ingest`) — so the tools still
+    installing nothing are just `explorer.explore` and `build_wheels` (uninstrumented and the first
+    thing `explore` does). Review points from that pass: the stage is the NOUN OF THE WORK and never the
+    tool's name, because all seven tool names are banned vocabulary and `stage` is as host-visible as
+    `detail`; two stage names are deliberately REUSED (`anchor`, `ingest`), which only holds because
+    nesting DEFERS, and `introduce_polarity` calls `advisor.anchor._progress_key` itself so both doors
+    key one stream; a list-valued key sanitises into a SET, not a sorted list, since `dict.fromkeys`
+    dedups raw strings while `progress_hash_key` collapses `h` with `[[h]]`; and installing the scope
+    was NOT sufficient for `digest_input`/`add_input`, which closed 0/0 until the single-pass digest
+    label moved out of `ingest.py` into `SourceDigest._generate_digest` below the chunk dispatch
+    (`ingest` now declares one step, not two) — a phantom step on compact content and a 0.0s flash on a
+    chunked source, the same defect the extraction label had. The four hand-copied sha256 key
+    one-liners are now `progress_key(*parts)` with `progress_hash_key(raw)` as its sanitising
+    counterpart; `TestOneKeyConstructionForEveryStream` pins the construction against literal digests,
+    since rekeying every stream in the tree is otherwise invisible to the suite. Pinned by
+    `tests/test_tool_progress_scopes.py`, non-vacuous by nine mutations (each `with` → `nullcontext`
+    fails only its own test; the sanitisation and the re-homed label each fail theirs). Unmeasured: no
+    probe has run since. `edit_perspective` was DONE before them and was the only one with no
     sites at all to light up — 6-8 sequential awaits, nothing written to the graph until the end, so
     not even the node stream covered the wait. Its shape is worth copying for the rest: NO fixed step
     count and no `PROGRESS_STEPS` constant, because which branch runs is decided by similarity scores
@@ -442,7 +458,8 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     which is the worst silence to leave: a wait that ends in "no" is indistinguishable, while you sit in
     it, from one that is going to succeed. It also declares NOTHING over the `AntithesisExtraction`
     branch, which reports for itself — the 0.0s-flash lesson applied prospectively. Keyed by the NODE
-    (`deepen`'s pattern) rather than by hashed content, so no fifth copy of the sha256 key one-liner;
+    (`deepen`'s pattern) rather than by hashed content, which at the time avoided a fifth copy of the
+    sha256 key one-liner (it now shares the hoisted `progress_hash_key`);
     the `perspective_hash` is raw model output and is bracket-sanitised exactly as `deepen` and
     `audit_feasibility` sanitise theirs. Pinned at two levels by `tests/test_edit_progress.py` — stubbed
     concerns for per-branch order and count, the tool against mock brain for scope-exists/closes-once —

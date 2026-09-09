@@ -82,11 +82,12 @@ for — see `events/progress_event.py`.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Iterator, Optional, TYPE_CHECKING
+from typing import Iterable, Iterator, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from dialectical_framework.events.graph_event_bus import GraphEventBus
@@ -294,6 +295,75 @@ def expect_progress(steps: int) -> None:
 def current_progress_scope() -> Optional[ProgressScope]:
     """The installed scope, or None. For tests and for probes."""
     return _current.get()
+
+
+def progress_key(*parts: Union[str, None, Iterable[str]]) -> str:
+    """A stable, opaque id for ONE tool call's progress stream.
+
+    Two reasons, and a tool needs only one of them to want this: **content-derived**,
+    so a retried call keys the same stream rather than opening a second one (a retry
+    is not new work — `probe_ingest_progress.py`'s first retrying run doubled a digest
+    part with no event saying so, which is correct by design); and **hashed**, because
+    a key is a host-rendered surface and most of these tools are handed the person's
+    own words. `ingest`'s text is whole pasted documents; `anchor`'s and
+    `add_input`'s are the person's situation in their own sentences.
+
+    Lists are joined with `,` and the parts with `\\n`, which is byte-for-byte what
+    the four private copies built by hand before this existed — pinned by
+    `tests/test_progress.py::TestOneKeyConstructionForEveryStream` against the
+    literal digests, because a change of construction silently rekeys every stream
+    in the tree and nothing else in the suite would notice. Neither delimiter is
+    escaped; that is fine because each caller's parts are fixed in position and
+    meaning, and a key only ever has to be stable against ITSELF.
+
+    NOT for keys made of hashes. `audit_feasibility` keys on the pathway short hashes
+    themselves, joined and sorted and NOT digested, and its comment says why: a short
+    hash is already opaque, the model read it off its own prompt, so hashing it again
+    hides nothing and costs a host the one thing a key is good for — matching a bar to
+    the thing the person just asked about. The dividing line that emerged from the
+    tools that followed: name the node when there is ONE the person would recognise
+    (`digest_input`, `deepen`, `edit_perspective`), digest when the input is a LIST of
+    them (`find_polarities`' ten theses name nothing a person would recognise, and 80
+    characters of joined hashes buys a host nothing over 10).
+
+    This is the hoist `analyst._progress_key`'s comment asked the fourth caller to do
+    instead of copying the one-liner again. The four private copies remain as thin
+    delegates: each is imported by name in tests, each documents what its OWN
+    arguments mean, and collapsing them into direct calls would only move that prose
+    somewhere less useful.
+    """
+    # Lists and tuples only, deliberately not sets: iteration order is what makes a
+    # key stable, and a set would hand out a different key for the same work.
+    material = "\n".join(
+        ",".join(part) if isinstance(part, (list, tuple)) else (part or "")
+        for part in parts
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:10]
+
+
+def progress_hash_key(raw: Optional[str]) -> str:
+    """Sanitise ONE raw model-supplied hash into a key.
+
+    The counterpart of `progress_key`, for the other half of the tools: where the
+    argument identifying the work is a hash rather than the person's text, the key
+    is the short hash itself — a hash is already opaque, so digesting it hides
+    nothing and costs a host the one thing a key is good for, lining a bar up with
+    the node the person just asked about (`audit_feasibility`'s comment argues this
+    at length for the list case).
+
+    **A key built from a tool ARGUMENT is built from raw model output.** The scope
+    opens above any attempt to resolve the hash, and this framework renders hashes
+    into prompts as `[[abc1234]]`, so a model echoing the brackets back — the most
+    common malformed-hash shape here, which is why `audit_feasibility` already
+    strips them — keyed one stream `"[[a1b2"`: prompt-template punctuation in front
+    of a person, and two spellings of ONE node getting two keys, which is the single
+    thing a key exists to prevent.
+
+    Only the KEY is sanitised. What a malformed hash should do to the reasoning is
+    the resolving skill's decision, never this function's — callers pass the
+    argument on untouched.
+    """
+    return (raw or "").strip().strip("[]")[:7]
 
 
 def _publish(
