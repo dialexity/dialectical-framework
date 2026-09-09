@@ -12,6 +12,7 @@ from dependency_injector.wiring import inject, Provide
 from gqlalchemy import Memgraph, Neo4j
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.repositories.node_repository import hash_match
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
@@ -46,9 +47,9 @@ class NexusRepository:
         if not sid:
             return None
 
-        query = """
+        query = f"""
         MATCH (n:Nexus)
-        WHERE n.hash STARTS WITH $hash AND n.sid = $sid
+        WHERE {hash_match(hash_prefix)} AND n.sid = $sid
         RETURN n
         """
         results = list(graph_db.execute_and_fetch(query, {"hash": hash_prefix, "sid": sid}))

@@ -1647,7 +1647,21 @@ DECLARATION memoises a non-empty `all()` on the source node INSTANCE; it is on e
 And `RelationshipManager.prefetch(nodes)`, called from `Wheel.edges`, batch-reads both endpoint sets for all of a
 wheel's transitions — the lever the memo could not reach, since `edges` hands back FRESH Transitions every call so
 the memo started cold and only made `statements`' second pass free. One traversal is now 3 round-trips, not 2N+1.
-Structure and writes still byte-identical at every step. Three things to carry into any review here. **Neither
+Structure and writes still byte-identical at every step. **A fourth lever, `hash_match` in `node_repository`, is a
+SCALING fix and must not be judged by its wall.** `find_by_hash` — the framework's most-used read, 4,099 calls in
+one k=4 build, nearly all of them `BaseNode.commit` deduping a node by its OWN full hash — asked
+`n.hash STARTS WITH $hash`, which Memgraph cannot turn into a point lookup, so it planned
+`ScanAllByLabelProperties (n :Node {sid})`: every node in the case, then filtered, i.e. O(case size) on the hottest
+read. A full-length needle now uses `=`, an indexed point lookup. Not a behaviour change — all hashes are sha256
+hexdigests, so equal-length, so prefix and equality select the same nodes — and short needles still use
+`STARTS WITH`, because `short_hash` is what gets rendered into prompts (equality-only matching is the bug that once
+broke `ingest` silently). Worth ~1s of a 24s run on the probe's ~2,100-node database; the point is
+`tests/probe_hash_lookup_scaling.py`, where equality is FLAT (823/875/805us at 200/1000/4000 nodes) and the prefix
+scan grows linearly (~0.55us per node in the case). **After all four the phase that dominated no longer does:**
+COMBINATION 11.05s vs ESTIMATION 10.94s of a 23.67s wall, against a 116s/28s baseline — and estimation is mocked
+here, carrying 1,102.8s of real provider time, so off-provider wall has gone from 84% of the paid k=4 run to
+roughly a quarter. **Reviewers should stop treating this path as the wall-clock problem.** Four things to carry
+into any review here. **Neither
 progress nor graph effects can be delivered from this phase at all** — both channels end in
 `loop.create_task`, and a task does not run until the loop is next given control, so 0 of 1,750 effects arrived
 before `resolve()` returned and all 1,750 flooded after; adding labels inside it would publish nothing and then
@@ -1659,7 +1673,13 @@ memoising it on the Wheel is UNSAFE, because transitions attach via `transition.
 through a different manager on a different node, which is exactly what `immutable=True` does not guard, and
 `_build_wheels_for_cycle` reads wheels mid-build. **And the two safety guards on the endpoint memo are REDUNDANT**
 — removing either the empty-read refusal or the invalidate-on-connect leaves the suite green; only removing both
-regresses, so a green run is not evidence that a given guard is exercised. Measured by
+regresses, so a green run is not evidence that a given guard is exercised. **And the biggest remaining read on the
+combination side is now `Wheel.polarity_count`** — 12,432 charges across its two lines, whose `find_by_statement`
+is the most expensive query shape in the whole run (9,540 charges, 2.96s): `Wheel._perspectives` walks every edge,
+reads both endpoints, and runs ONE repository query per component, then discards every result not in
+`cycle.perspective_hashes`, which it already holds before the loop starts. Batching those 2N lookups into a single
+query preserves the filter and the first-seen ordering exactly, and is the obvious next lever if one is wanted.
+Measured by
 `tests/probe_build_wheels_offprovider.py` (free, mocked, `DIALEXITY_PROBE_BW_K=4`; `DIALEXITY_PROBE_BW_SITES=1`
 attributes every query to its call site) and `tests/e2e/probe_build_wheels_progress.py` (paid). The paid probe
 also settled that **`CausalityEstimation` had never run in any archived explore measurement** — it is gated at

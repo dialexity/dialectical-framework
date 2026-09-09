@@ -50,11 +50,16 @@ in isolation, so the claim does not rest on reading the k=4 timings correctly.
 
 SIZE, AND WHY A SMALL DEFAULT IS HONEST HERE
 ===========================================
-`K` defaults to 2 so this stays in the mocked suite. That is NOT the mistake the
-digest threshold made: there, the archived size never reached the branch that costs,
-and here the branch is reached at k=2 — `CausalityEstimation` is gated at layer 2 and
-k=2 clears it. Only the SCALE differs, and scale is what `DIALEXITY_PROBE_BW_K=4` is
-for. Run it at 4 to reproduce the numbers below; expect a couple of minutes.
+`K` defaults to 2 so a by-hand run is quick. That is NOT the mistake the digest
+threshold made: there, the archived size never reached the branch that costs, and here
+the branch is reached at k=2 — `CausalityEstimation` is gated at layer 2 and k=2 clears
+it. Only the SCALE differs, and scale is what `DIALEXITY_PROBE_BW_K=4` is for. Run it
+at 4 to reproduce the numbers below; expect a couple of minutes.
+
+**This file is not part of the default suite, and neither is any other `probe_*.py`.**
+pytest's default `python_files` is `test_*.py`/`*_test.py` and this repo does not
+override it, so probes only run when named on the command line. Do not read a green
+suite as evidence that any measurement below still holds.
 
 WHAT IT CANNOT SAY
 ==================
@@ -167,19 +172,41 @@ Three landed, in this order, each measured at k=4 on the same machine:
   call, so the per-instance memo starts cold each time and (2) only made the
   SECOND pass free. Ordering a wheel now costs 3 round-trips, not 2N+1.
 
-                            baseline        (1)         (2)         (3)
-      wall                   145.11s     44.83s      48.84s      30.27s
-      COMBINATION (sync)     115.27s     22.57s      18.44s      11.46s
-      build_wheels_for_cycle 110.70s     18.63s      18.99s      10.63s
-      execute_and_fetch      300,517    120,309      94,650      74,920
-      IS_SOURCE_OF           134,496     34,332      18,282       7,904
-      IS_TARGET_OF            92,037     26,865      17,256       7,904
-      BELONGS_TO_CYCLE        22,776      7,904       7,904       7,904
+  **(4) `hash_match` in `node_repository`** compares a full-length hash with `=`
+  instead of `STARTS WITH`. Same nodes — all hashes are sha256 hexdigests, so
+  equal length, so no string is a strict prefix of another — but only equality is
+  a point lookup on the `Node(hash)` index. `STARTS WITH` against a parameter made
+  the planner fall back to `ScanAllByLabelProperties (n :Node {sid})`: every node
+  in the case, then filtered.
+
+                            baseline        (1)         (2)         (3)         (4)
+      wall                   145.11s     44.83s      48.84s      30.27s      23.67s
+      COMBINATION (sync)     115.27s     22.57s      18.44s      11.46s      11.05s
+      build_wheels_for_cycle 110.70s     18.63s      18.99s      10.63s      10.34s
+      execute_and_fetch      300,517    120,309      94,650      74,920      74,920
+      IS_SOURCE_OF           134,496     34,332      18,282       7,904       7,904
+      IS_TARGET_OF            92,037     26,865      17,256       7,904       7,904
+      BELONGS_TO_CYCLE        22,776      7,904       7,904       7,904       7,904
 
 **Read the counts, not the wall, between (1) and (2)** — charges fell 21% while the
 wall rose, because per-query latency moved 0.32 -> 0.43ms on the same box and the
 mocked estimation phase swings 16-25s run to run. Cumulatively the wall is a real
 4.8x and the traffic a real -75%, but no single column pair is a clean A/B.
+
+**The (3) -> (4) wall difference is NOT what (4) bought.** Re-running (3) immediately
+before making the change, on the box as it was that day, gave 24.28s — not the 30.27s
+in the column. So the honest same-session A/B is 24.28s -> 23.67s, and the only
+figure that moved for a reason attributable to (4) is the shape's own cost:
+
+      MATCH (n:Node) WHERE ... RETURN n     4,099x    before        after
+        per query                                    0.617ms      0.374ms
+        total                                          2.53s        1.53s
+
+Charge count is unchanged, as it must be — (4) makes each lookup cheaper, it does not
+remove any. And a 1s saving on a 24s run is the SMALL part of this fix: the old
+predicate was O(nodes in the case) and the new one is flat, which a 2,100-node probe
+database can barely show. `tests/probe_hash_lookup_scaling.py` measures the two curves
+side by side at several case sizes and is the place that claim is actually supported.
 
 **The reasoning is untouched, and these counts are the evidence.** 24 cycles and 96
 wheels every run, 2,144 `save_node` and 2,821 `save_relationship` every run, 1,750
@@ -190,18 +217,45 @@ What did NOT change: the phase is still `def`, so it still delivered 0 of 1,750
 effects before returning. 11.5s of silence is a smaller lie than 116s but it is the
 same lie, so the 5b question survives — just with much less riding on it.
 
-**No dominant site remains.** After (3) the endpoint reads are down to 3 queries per
-`edges` traversal and the profile is flat: 4,099 hash-prefix lookups (3.67s, the
-slowest per-query shape at 0.90ms), 9,540 aspect-position reads (3.19s), 7,904 each
-of BELONGS_TO_CYCLE and the two prefetches, 2,144 harness-only test-label writes
-(1.94s, no production counterpart). The next lever would be `Wheel.edges` being
-re-traversed several times per wheel by different callers — `statements`,
-`_perspectives`, `polarity_count`, `_collect_structure_hash_parts`,
-`_get_commit_dependents`, rendering — which is a caching question on `Wheel`
-itself, and unsafe as a plain memo: transitions attach via
-`transition.cycle.connect(wheel)`, a write through a different manager on a
-different node, which is exactly the case `all()`'s docstring says the memo does
-not guard, and `_build_wheels_for_cycle` reads wheels mid-build.
+**The phase that dominated no longer does.** COMBINATION and ESTIMATION are now
+11.05s and 10.94s of a 23.67s wall — an even split, where the baseline was 116s
+against 28s. Anything further on the combination side is worth at most the smaller
+half, and the estimation half is mocked here: on a real provider that phase carries
+1,102.8s of API time, so its ~11s of graph work is noise. **Off-provider wall is no
+longer the thing to optimise on this path.** It was 84% of the paid k=4 run; the same
+arithmetic now puts it at roughly a quarter.
+
+**Where the remaining traffic is, from `DIALEXITY_PROBE_BW_SITES=1` after (3).** No
+single line dominates any more; the largest items are:
+
+     12,640x  transition.py:commit < _build_wheels_for_cycle       (1,896 real creates)
+      7,536x  find_by_statement < wheel.py:_perspectives < polarity_count
+      4,896x  wheel.py:edges < wheel.py:_perspectives < polarity_count
+      4,656x  estimation.py:commit < _get_or_create_estimation < upsert_estimation
+      3,312x  base_node.py:save < base_node.py:commit < estimation.py:commit
+      3,620x  node_repository.py:find_by_hash, across three commit paths
+
+Two observations worth carrying forward. First, **`Wheel.polarity_count` is now the
+biggest read on the combination side** — 12,432 charges between its two lines, and
+`find_by_statement` is the most expensive query shape in the whole run (9,540 charges,
+2.96s). `_perspectives` walks every edge, reads both endpoints, and runs ONE repository
+query per component, then throws away every result not in `cycle.perspective_hashes`
+— which it already has in hand before the loop starts. Batching those 2N lookups into
+one query is the obvious next lever and preserves the filter and the first-seen
+ordering exactly.
+
+Second, **the top site is now a write path, not a read**, and writes are not
+compressible the same way: 1,896 Transitions genuinely have to be created. Of the
+2,144 `save_node` calls, note that 2,144 `SET n:___DIALEXITY_TEST___` (1.70s) is
+harness-only and has no production counterpart, so ~36% of the measured `save_node`
+time is not real.
+
+**What is still unsafe:** a plain memo on `Wheel.edges`, which several callers
+re-traverse per wheel (`statements`, `_perspectives`, `polarity_count`,
+`_collect_structure_hash_parts`, `_get_commit_dependents`, rendering). Transitions
+attach via `transition.cycle.connect(wheel)` — a write through a different manager on
+a different node, exactly the case `all()`'s docstring says the memo does not guard —
+and `_build_wheels_for_cycle` reads wheels mid-build.
 """
 
 from __future__ import annotations
