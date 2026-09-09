@@ -323,7 +323,31 @@ no digest was built. **That is now FIXED and unmeasured: the label moved into
 single-pass call actually runs, and `ingest`'s own declared count dropped from 2 to 1.
 Two consequences for reading any run archived before that move: the label's presence
 was NOT evidence a digest was built, and on a 120 KB source it landed in the same
-instant as the parts' own steps (the 0.0s flash). No run has been taken since.
+instant as the parts' own steps (the 0.0s flash).
+
+**MEASURED, at all three sizes, and the re-home holds in every direction.** A 10 KB
+source was run for the first time because it is the ONLY size that reaches the branch:
+the single-pass label fires for 1,500 < len <= 40,000 chars, and the two sizes archived
+above straddle it.
+
+- **10 KB (94.8s, 184 calls, 152 progress events, closed 41/41, no phantoms):** the
+  label appears at 0.2s and holds the stream until 10.1s, and the one `DigestDto` call
+  of the run ran 0.2s -> 10.1s. The label now COVERS its call instead of preceding it —
+  9.9s of the wall correctly accounted for by the only line a person could read there.
+- **1 KB (47.2s, 70 calls, closed 22/22):** the label is ABSENT. Below the threshold no
+  digest is built, and nothing now claims one. This is the phantom-in-spirit that the
+  archived runs recorded (label present, zero `DigestDto` calls) and it is gone.
+- **120 KB (93.8s, 184 calls, closed 40/40):** the label is ABSENT there too. The parts
+  branch speaks for itself — "Reading part 1 of 4" x4, then "Combining 4 readings into
+  one understanding" — so the re-home below the dispatch also removed the 0.0s flash
+  without leaving that branch silent.
+
+**A prediction written here was wrong, and the way it was wrong matters.** It said the
+declared total would drop by exactly one (1 KB 22 -> 21, 120 KB 44 -> 43). The label did
+go, but 1 KB closed 22/22 and 120 KB closed 40/40: **these totals are model-dependent,
+not structural** — the number of extraction passes, surviving candidates, merged pairs
+and validated perspectives all vary run to run. Never diff two runs of this probe by
+their closing count; diff them by which labels appear.
 **SEVENTH RUN (120 KB), and it is the one that CONFIRMS both closures live — with TWO
 corrections (the consolidation gap was relabelled, not split; the 94.2s justifying the
 angle notes was provider-seconds, not wall) and ONE new finding (the 100% plateau).** 106.2s, 138 calls at 5.85x, 349 effects, 82 progress

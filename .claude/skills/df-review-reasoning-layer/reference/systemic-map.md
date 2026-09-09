@@ -447,8 +447,22 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     counterpart; `TestOneKeyConstructionForEveryStream` pins the construction against literal digests,
     since rekeying every stream in the tree is otherwise invisible to the suite. Pinned by
     `tests/test_tool_progress_scopes.py`, non-vacuous by nine mutations (each `with` → `nullcontext`
-    fails only its own test; the sanitisation and the re-homed label each fail theirs). Unmeasured: no
-    probe has run since. `edit_perspective` was DONE before them and was the only one with no
+    fails only its own test; the sanitisation and the re-homed label each fail theirs). MEASURED by
+    `tests/e2e/probe_tool_progress.py`, which drives all seven as entry points on a real provider
+    (68 calls, 93.8s) and found every one closing balanced. Its four live findings, none of which mock
+    brain can produce: `digest_input` writes ZERO graph effects when the Input is already digested, so
+    ten seconds are completely dark without this channel; `anchor_theses` is one label then 100% silence
+    over four unlabelled classification/taxonomy calls, the cheapest remaining step to add;
+    `expand_polarities` FLASHES two identical labels in the same instant because its fan-out declares
+    one per polarity, so a gather can duplicate its own label with no caller involved; and `add_input`
+    never names the capture, its first label coming from inside `SourceDigest`. Also: the two
+    `ingest`-stage doors key different WIDTHS for one node (10 chars of content digest vs 7 of the node
+    hash), correct but a warning against assuming key width. The re-homed digest label is confirmed at
+    all three ingest sizes — present and covering its 9.9s `DigestDto` call at 10 KB, correctly absent
+    at 1 KB (nothing is built) and at 120 KB (the parts branch speaks for itself). The prediction that
+    each closing count would drop by one was WRONG (1 KB 22/22, 120 KB 40/40): those totals are
+    model-dependent, so diff ingest runs by which labels appear, never by the count.
+    `edit_perspective` was DONE before them and was the only one with no
     sites at all to light up — 6-8 sequential awaits, nothing written to the graph until the end, so
     not even the node stream covered the wait. Its shape is worth copying for the rest: NO fixed step
     count and no `PROGRESS_STEPS` constant, because which branch runs is decided by similarity scores
