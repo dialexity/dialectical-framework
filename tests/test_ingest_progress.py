@@ -329,6 +329,50 @@ async def test_a_source_too_big_for_one_prompt_reports_both_fan_outs(
 
 @pytest.mark.llm
 @pytest.mark.asyncio
+async def test_a_returning_opposition_angle_reaches_the_channel(
+    collected_progress, two_theses
+):
+    """The second note site, pinned end-to-end — the ONE thing its own class cannot see.
+
+    `TestTheOppositionAnglesSayWhenTheyComeBack` drives `_extract_candidates` directly
+    with `note_progress` monkeypatched, so it proves the wrapper is applied to both
+    gather branches and nothing else: with the real seam swapped out, that class passes
+    identically whether or not a note could ever reach a bus.
+
+    What is added here is REACHABILITY of the ContextVar, and this site has the longest
+    reach of any in the tree — the scope is installed at the `ingest` tool, and the note
+    is published from a task inside `AntithesisExtraction._extract_candidates`' gather,
+    which itself runs inside a task inside `find_polarities`' gather, which runs inside
+    `AnalysisPipeline.resolve`'s gather. THREE nested fan-outs, and the seam's rule is
+    that a task created before the scope was installed sees nothing. Nothing at the
+    concern level can fail on that; only a run through the tool can.
+
+    Uses the cheap single-window source and the forced-extraction fixture: the note
+    needs at least one COMPLEX thesis to exist, and mock brain's identical DTOs
+    otherwise collapse in extraction's own dedup before any chain runs.
+    """
+    case = Case()
+    case.commit()
+
+    events = await _run_ingest_collecting(
+        collected_progress, case.sid, text=SHORT_SOURCE, intent=INTENT
+    )
+
+    details = [e.detail for e in events if not e.final]
+    assert "Weighing what could stand against this" in details, (
+        "the fan-out's own label never arrived, so this run did not take the COMPLEX"
+        " branch and the note assertion below would be about the wrong thing"
+    )
+    notes = [e.detail for e in events if e.note]
+    assert "Another angle weighed" in notes, (
+        "no returning angle reached the progress channel — the note is published"
+        " three gathers deep from where the scope is installed, so this is where a"
+        " scope opened after any of those gathers stops being invisible"
+    )
+
+
+@pytest.mark.llm
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "kilobytes", [None, 120], ids=["single-window", "swept"]
 )
@@ -620,19 +664,27 @@ class TestOneLabelNeverCoversAGatheredFanOut:
             self._count = count
             return ["Speed against explainability", "Review against throughput"]
 
-        classified: list[list[tuple[str, str]]] = []
+        # ONE timeline shared by the step and the work, because the ordering is the
+        # claim. `assert classified` — which is what stood here — only proves
+        # classification ran at all; it passes just as well when the step is
+        # published after the work it announces, which is the actual defect (a label
+        # that appears when the wait is already over).
+        timeline: list[str] = []
 
         async def fake_classify(self, pairs, *, domain_hint=""):
-            classified.append(list(pairs))
+            timeline.append("classified")
             return []
 
         monkeypatch.setattr(ThesisExtraction, "extract_candidates", fake_extract)
         monkeypatch.setattr(ThesisExtraction, "classify_candidates", fake_classify)
 
         reported: list[str] = []
-        monkeypatch.setattr(
-            thesis_extraction, "report_progress", lambda detail: reported.append(detail)
-        )
+
+        def _record(detail: str) -> None:
+            reported.append(detail)
+            timeline.append("step")
+
+        monkeypatch.setattr(thesis_extraction, "report_progress", _record)
 
         with progress_scope("ingest") as progress:
             await ThesisExtraction().resolve(text=SHORT_SOURCE, count=2)
@@ -646,7 +698,11 @@ class TestOneLabelNeverCoversAGatheredFanOut:
             " cannot tell how large their source was from the vocabulary, and it"
             f" must carry the real candidate count. Got: {reported}"
         )
-        assert classified, "the step must be declared BEFORE the work, not after"
+        assert timeline == ["step", "classified"], (
+            "the step must be declared BEFORE the work it announces, not after —"
+            f" a label that arrives once the wait is over is not progress. Got:"
+            f" {timeline}"
+        )
 
     @pytest.mark.asyncio
     async def test_the_opposition_chain_subdivides_inside_the_gather(
@@ -919,7 +975,7 @@ class TestTheConsolidationPhaseSaysItIsRunning:
 
     async def _consolidate(
         self, monkeypatch, hashes: list[str]
-    ) -> tuple[list[str], object, list[list[str]]]:
+    ) -> tuple[list[str], object, list[list[str]], list[str]]:
         """Run Phase 0 under a scope with detection stubbed to merge nothing.
 
         Merging nothing is the conservative case for this test: the step is declared
@@ -937,29 +993,38 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         from dialectical_framework.utils.progress import progress_scope
 
         called: list[list[str]] = []
+        # ONE timeline shared by the step and the detector call, because the ordering
+        # is the claim. `assert called` — which is what stood here under the message
+        # "the step must be declared BEFORE the work" — only proves the detector ran;
+        # it passes identically when the step is published afterwards.
+        timeline: list[str] = []
 
         async def fake_detect(self, *, thesis_hashes, text):
             called.append(list(thesis_hashes))
+            timeline.append("detected")
             return SimpleNamespace(merge_pairs=[], suggest_pairs=[])
 
         monkeypatch.setattr(AntitheticalThesisDetection, "resolve", fake_detect)
 
         reported: list[str] = []
-        monkeypatch.setattr(
-            find_polarities, "report_progress", lambda detail: reported.append(detail)
-        )
+
+        def _record(detail: str) -> None:
+            reported.append(detail)
+            timeline.append("step")
+
+        monkeypatch.setattr(find_polarities, "report_progress", _record)
 
         with progress_scope("ingest") as progress:
             await FindPolarities(thesis_hashes=hashes)._consolidate_antithetical(
                 hashes, "irrelevant under a stubbed detector"
             )
 
-        return reported, progress, called
+        return reported, progress, called, timeline
 
     @pytest.mark.asyncio
     async def test_the_phase_declares_one_step_before_it_runs(self, monkeypatch):
         """One step, carrying this run's count, published before the detector call."""
-        reported, progress, called = await self._consolidate(
+        reported, progress, called, timeline = await self._consolidate(
             monkeypatch, ["h1", "h2", "h3"]
         )
 
@@ -973,7 +1038,12 @@ class TestTheConsolidationPhaseSaysItIsRunning:
             "exactly one step: the merges after the detector call write graph nodes,"
             " which the `sid` channel already carries"
         )
-        assert called, "the step must be declared BEFORE the work, not after"
+        assert called, "the detector never ran, so this asserts nothing about order"
+        assert timeline == ["step", "detected"], (
+            "the step must be declared BEFORE the work it announces, not after — the"
+            " whole point is that this 11.4s wait gets a label a person can read"
+            f" while waiting. Got: {timeline}"
+        )
 
     @pytest.mark.asyncio
     async def test_below_two_tensions_it_declares_nothing(self, monkeypatch):
@@ -985,7 +1055,7 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         none of them, leaving the denominator one short forever and a bar that never
         fills.
         """
-        reported, progress, called = await self._consolidate(monkeypatch, ["h1"])
+        reported, progress, called, _ = await self._consolidate(monkeypatch, ["h1"])
 
         assert reported == [], f"a phase that did not run announced itself: {reported}"
         assert progress.total == 0, (
@@ -994,18 +1064,34 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         )
         assert not called, "detection ran on a single hash"
 
-    def test_the_label_names_no_machinery(self):
+    @pytest.mark.asyncio
+    async def test_the_label_names_no_machinery(self, monkeypatch):
         """`consolidate`, `antithetical` and `heuristic similarity` are all out.
 
         The honest wording has to describe a pairwise comparison without naming the
         concern that performs it or the score it thresholds on.
+
+        Asserted against the LIVE label, which is the only version of this test worth
+        having. It used to declare its own `label = "Checking whether any of the 3..."`
+        — a hand-copied duplicate of the production string — so it went on passing
+        while checking nothing about the code: renaming the real label to
+        "Consolidating antithetical theses" would leave this green. Any ban on wording
+        has to read the wording from the run.
         """
-        label = "Checking whether any of the 3 tension(s) already oppose each other"
-        for term in BANNED:
-            assert term not in label.lower(), f"{label!r} names {term!r}"
-        assert "consolidat" not in label.lower()
-        assert "heuristic" not in label.lower()
-        assert len(label) < 200
+        reported, _, _, _ = await self._consolidate(monkeypatch, ["h1", "h2", "h3"])
+
+        assert reported, "no label to check — the phase did not announce itself"
+        for label in reported:
+            lowered = label.lower()
+            for term in BANNED:
+                assert term not in lowered, f"{label!r} names {term!r}"
+            assert "consolidat" not in lowered, (
+                f"{label!r} names the concern that performs the check"
+            )
+            assert "heuristic" not in lowered, (
+                f"{label!r} names the score it thresholds on"
+            )
+            assert len(label) < 200
 
 
 class TestTheOppositionAnglesSayWhenTheyComeBack:
@@ -1045,17 +1131,18 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
 
     async def _weigh_angles(
         self, monkeypatch, *, count: int, angles: int = 3
-    ) -> tuple[list, object]:
-        """Run link 2 with a stubbed conversation, returning (events, scope).
+    ) -> tuple[list, object, list[str]]:
+        """Run link 2 with a stubbed conversation, returning (events, scope, models).
 
         `count` picks the branch: at or below `angles` the per-point call returns one
         candidate, above it the batch call returns several. Both are gathers of single
         provider calls, so both owe notes — and the batch branch is the one a reader
         is most likely to forget, since its wrapper looks different.
 
-        The calls return in STAGGERED order on purpose: it is the only fact a note
-        publishes, so a fixture where they all returned together would pass while
-        saying nothing.
+        The calls return in STAGGERED order so the cross-pair sequence is DETERMINISTIC
+        rather than dependent on how the loop happens to schedule three equal sleeps.
+        It is not what makes each note follow its own call — see
+        `test_each_note_lands_as_its_own_call_comes_back` for why that is atomicity.
 
         The stub logs its OWN returns into the same list as the notes, which is what
         lets a test tell "noted as each call came back" from "noted once the gather
@@ -1080,9 +1167,15 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
 
         delays = iter([0.03, 0.01, 0.02] * angles)
         events: list[tuple[str, str]] = []
+        #: Which response model each gathered call actually asked for. Without this a
+        #: test can only assert "three notes arrived" and cannot tell WHICH gather
+        #: expression produced them — so the batch-branch test below was passing on
+        #: the per-point branch, checking the thing it was written to rule out.
+        models: list[str] = []
 
         class _Isolated:
             async def submit(self, *, response_model, user_content):
+                models.append(response_model.__name__)
                 await asyncio.sleep(next(delays))
                 one = ModePointResultDto(
                     statement="Review before shipping",
@@ -1122,13 +1215,16 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
             candidates = await service._extract_candidates(thesis, taxonomy)
 
         assert candidates, "the fixture must produce candidates to mean anything"
-        return events, progress
+        return events, progress, models
 
     @pytest.mark.asyncio
     async def test_every_angle_reports_when_it_returns(self, monkeypatch):
         """One note per gathered call on the single-candidate branch."""
-        events, _ = await self._weigh_angles(monkeypatch, count=3)
+        events, _, models = await self._weigh_angles(monkeypatch, count=3)
 
+        assert models == ["ModePointResultDto"] * 3, (
+            f"this test is about the per-point branch and did not take it: {models}"
+        )
         notes = [detail for kind, detail in events if kind == "note"]
         assert notes == ["Another angle weighed"] * 3, (
             f"three gathered calls owe three notes. Got: {notes}"
@@ -1142,9 +1238,19 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         requested count exceeds the number of mode points, which on a narrow taxonomy
         is the ORDINARY case rather than an exotic one. It is a separate `gather`
         expression, so it is a separate place to forget the wrapper.
-        """
-        events, _ = await self._weigh_angles(monkeypatch, count=9)
 
+        **The branch assertion is the load-bearing line, not the note count.** Without
+        it this test only said "three notes arrived", which the per-point branch
+        satisfies just as well — so it was passing whether or not `count=9` actually
+        reached the code it exists to cover, and a change to `_candidates_per_branch`'s
+        threshold would have silently retired it.
+        """
+        events, _, models = await self._weigh_angles(monkeypatch, count=9)
+
+        assert models == ["ModePointBatchResultDto"] * 3, (
+            f"count=9 did not reach the batch branch, so this test covered the"
+            f" per-point gather twice and the batch gather never: {models}"
+        )
         notes = [detail for kind, detail in events if kind == "note"]
         assert notes == ["Another angle weighed"] * 3, (
             f"the batch branch dropped its notes. Got: {notes}"
@@ -1158,12 +1264,19 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         finished", so it is worth nothing unless it is published at the moment the
         thing finished. Wrapping the gather instead of each call — the natural
         simplification once the counter is gone — would emit all three notes at the
-        end, when the label above them is already changing anyway.
+        end, when the label above them is already changing anyway. That is the ONE
+        edit this assertion catches, and it is worth being precise about why.
 
-        The stub staggers its returns (0.03/0.01/0.02s), so a per-call note has to
-        interleave strictly: return, note, return, note, return, note.
+        **The strict pairing is guaranteed by ATOMICITY, not by the stub's delays.**
+        `_note_when_it_returns` is `result = await call` followed immediately by
+        `note_progress(...)`, with no suspension point between them, so once a call
+        returns its own task runs the note before the loop can schedule any other
+        task — three simultaneous returns would still pair correctly. What the
+        staggered delays (0.03/0.01/0.02s) buy is that the CROSS-pair order is
+        deterministic, so this assertion can be an equality against a fixed list
+        instead of a set-like check that would pass on a burst.
         """
-        events, _ = await self._weigh_angles(monkeypatch, count=3)
+        events, _, _ = await self._weigh_angles(monkeypatch, count=3)
 
         streamed = [kind for kind, _ in events if kind in ("returned", "note")]
         assert streamed == ["returned", "note"] * 3, (
@@ -1178,8 +1291,16 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         The step for link 2 is declared by `resolve`, one for the whole fan-out.
         Counting completions as steps here would report up to 11 against a declared 2
         and render a host past 100% — and it would do it once per thesis.
+
+        Only `total` is asserted, and deliberately: this fixture monkeypatches
+        `report_progress`, so `progress.done` cannot move no matter what the site
+        does, and `assert progress.done == 0` was an assertion about the harness.
+        That a note leaves `done` alone is a property of the SEAM and is pinned
+        where the seam is real — `tests/test_progress.py::
+        TestANoteSaysSomethingWithoutClaimingAStep`. `expect_progress` is NOT
+        patched, which is what makes the `total` line below carry information.
         """
-        events, progress = await self._weigh_angles(monkeypatch, count=3)
+        events, progress, _ = await self._weigh_angles(monkeypatch, count=3)
 
         steps = [detail for kind, detail in events if kind == "step"]
         assert steps == [], f"link 2's fan-out declared a step of its own: {steps}"
@@ -1187,7 +1308,6 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
             "the denominator grew inside the fan-out — `resolve` already declared"
             " this phase, and a note is not an addend"
         )
-        assert progress.done == 0
 
     @pytest.mark.asyncio
     async def test_a_returning_angle_promises_no_total(self, monkeypatch):
@@ -1203,7 +1323,7 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
         Asserted against the LIVE note rather than a literal, so that restoring a
         count at the site fails here even if this docstring is never read.
         """
-        events, _ = await self._weigh_angles(monkeypatch, count=3)
+        events, _, _ = await self._weigh_angles(monkeypatch, count=3)
 
         for _, label in [e for e in events if e[0] == "note"]:
             assert " of " not in label, (

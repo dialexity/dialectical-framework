@@ -43,6 +43,61 @@ def stubs(monkeypatch):
     return calls
 
 
+async def _deepen_collecting_progress(wheel_hash: str, sid: str = "sid-deepen") -> list:
+    """Run `run_deepen` under a real bus and return the `ProgressEvent`s it published.
+
+    Shared by the two progress tests below because both need the whole apparatus for
+    the same reason: the things they assert — how many `final` events a call produces,
+    and what `key` a host reads off them — exist only on the channel. Neither is
+    visible from the scope object, and a fake publisher would let either test pass
+    while the seam was broken.
+    """
+    import asyncio
+
+    from dialectical_framework.agents.advisor.tools.deepen import run_deepen
+    from dialectical_framework.events.graph_event_bus import GraphEventBus
+    from dialectical_framework.graph.scope_context import scope
+    from dialectical_framework.utils import progress as progress_module
+
+    bus = GraphEventBus()
+    await bus.connect()
+    # RESTORE, never clear: the module-level bus is wired once by the session-scoped
+    # container fixture, so `None` here would silently mute progress for every test
+    # that ran afterwards.
+    previous = progress_module._event_bus
+    progress_module.set_event_bus(bus)
+
+    received: list = []
+    ready = asyncio.Event()
+
+    async def _listen() -> None:
+        async with bus.subscribe_progress(sid) as subscriber:
+            ready.set()
+            async for event in subscriber:
+                received.append(event.message)
+
+    listener = asyncio.create_task(_listen())
+    await ready.wait()
+    try:
+        with scope(sid):
+            await run_deepen(wheel_hash)
+        # Publishes are fire-and-forget tasks; wait until the stream settles rather
+        # than for a fixed interval, which drops the closing event under load and
+        # reads as the very defect under test.
+        previous_len = -1
+        waited = 0.0
+        while previous_len != len(received) and waited < 5.0:
+            previous_len = len(received)
+            await asyncio.sleep(0.05)
+            waited += 0.05
+    finally:
+        listener.cancel()
+        progress_module.set_event_bus(previous)
+        await bus.disconnect()
+
+    return received
+
+
 class TestRunDeepen:
     async def test_generates_transformations_then_synthesis(self, stubs):
         from dialectical_framework.agents.advisor.tools.deepen import \
@@ -204,6 +259,18 @@ class TestOneDeepenIsOneProgressStream:
     The stubs open scopes exactly where the real skills do. Their stage names and
     keys differ from the tool's on purpose: an inner name reaching the channel is
     the visible symptom of a scope that installed instead of deferring.
+
+    **What this does NOT prove, stated so nobody reads more into a green run:** the
+    scopes that defer here are the STUBS'. If `ExploreTransformations` or
+    `GenerateSynthesis` dropped their own `progress_scope` tomorrow, this test would
+    still pass — it pins that the TOOL installs a stream and that the SEAM folds a
+    nested scope into it, at the two shapes the real skills use (`transformation`
+    with `expect_progress` growth, `synthesis` with `total=`). That is deliberate:
+    driving the real skills needs a committed Wheel with transitions and a full
+    transformation run, and the thing worth catching cheaply is the tool's install
+    plus the deferral. The real skills' scopes matter to their OTHER callers
+    (`explore`, `explorer.py`, the `generate_synthesis` tool), and nothing pins those
+    today — which is part of the `explore` gap, not of this one.
     """
 
     @pytest.fixture
@@ -238,45 +305,7 @@ class TestOneDeepenIsOneProgressStream:
         monkeypatch.setattr(gs_mod.GenerateSynthesis, "resolve", stub_synthesis)
 
     async def test_the_whole_call_closes_exactly_once(self, scoped_stubs):
-        import asyncio
-
-        from dialectical_framework.agents.advisor.tools.deepen import run_deepen
-        from dialectical_framework.events.graph_event_bus import GraphEventBus
-        from dialectical_framework.graph.scope_context import scope
-        from dialectical_framework.utils import progress as progress_module
-
-        bus = GraphEventBus()
-        await bus.connect()
-        previous = progress_module._event_bus
-        progress_module.set_event_bus(bus)
-
-        received: list = []
-        ready = asyncio.Event()
-
-        async def _listen() -> None:
-            async with bus.subscribe_progress("sid-deepen") as subscriber:
-                ready.set()
-                async for event in subscriber:
-                    received.append(event.message)
-
-        listener = asyncio.create_task(_listen())
-        await ready.wait()
-        try:
-            with scope("sid-deepen"):
-                await run_deepen("wheel444")
-            # Publishes are fire-and-forget tasks; wait until the stream settles
-            # rather than for a fixed interval, which drops the closing event under
-            # load and reads as the very defect under test.
-            previous_len = -1
-            waited = 0.0
-            while previous_len != len(received) and waited < 5.0:
-                previous_len = len(received)
-                await asyncio.sleep(0.05)
-                waited += 0.05
-        finally:
-            listener.cancel()
-            progress_module.set_event_bus(previous)
-            await bus.disconnect()
+        received = await _deepen_collecting_progress("wheel444")
 
         assert received, "the person saw silence for a whole deepen"
         finals = [e for e in received if e.final]
@@ -299,6 +328,57 @@ class TestOneDeepenIsOneProgressStream:
             "the deferred `total=1` was lost, so the bar closes short of its own"
             f" denominator: {finals[0]}"
         )
+
+    @pytest.mark.parametrize(
+        "given",
+        [
+            "[[a1b2c3d]]",
+            "  [[a1b2c3d]]  ",
+            "[a1b2c3d]",
+            "a1b2c3d",
+        ],
+        ids=["double-brackets", "padded", "single-brackets", "clean"],
+    )
+    async def test_the_key_is_sanitized_before_a_host_ever_sees_it(
+        self, scoped_stubs, given
+    ):
+        """`wheel_hash` is RAW MODEL OUTPUT, and the scope opens above any resolution.
+
+        The framework renders pathway and wheel hashes into prompts as `[[abc1234]]`,
+        so a model echoing the brackets back is the single most common malformed-hash
+        shape in this tree — `audit_feasibility` already strips them for exactly that
+        reason. Here the string is truncated to 7 and used as the stream key, which is
+        a surface a host may render beside its spinner: unsanitized, `"[[a1b2c3d]]"`
+        keyed the stream `"[[a1b2"`, putting punctuation from a prompt template in
+        front of a person and — worse — giving two spellings of ONE wheel two
+        different keys, which is the one thing the key exists to prevent.
+
+        Only the KEY is sanitized, never the argument passed on: what a malformed
+        hash should do to the reasoning path is `ExploreTransformations`' decision.
+        """
+        received = await _deepen_collecting_progress(given)
+
+        assert received, "no events to read a key from"
+        assert {e.key for e in received} == {"a1b2c3d"}, (
+            f"{given!r} keyed the stream {sorted({e.key for e in received})} — the"
+            f" brackets the framework itself printed reached the host"
+        )
+
+    async def test_a_missing_hash_still_produces_one_stream(self, scoped_stubs):
+        """The empty key is a legitimate state and must not raise in the scope line.
+
+        `run_deepen` is reachable with whatever the model emitted, and `(wheel_hash or
+        "")` exists so a `None` slipping past the tool signature cannot turn a bad
+        hash into a `TypeError` from the progress seam — the person would see a crash
+        where the framework should have reported that it could not find the wheel.
+        """
+        received = await _deepen_collecting_progress("[[]]")
+
+        assert received, "the person saw silence"
+        assert {e.key for e in received} == {""}, (
+            f"expected an empty key, got {sorted({e.key for e in received})}"
+        )
+        assert len([e for e in received if e.final]) == 1
 
 
 class _FakeTransition:

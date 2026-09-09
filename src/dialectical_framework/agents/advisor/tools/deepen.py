@@ -50,10 +50,23 @@ async def run_deepen(wheel_hash: str) -> str:
     `ingest`, nothing here is the person's own text, so there is nothing to hide
     from a host that renders the key. Truncated to 7 so it matches the
     `key=wheel.short_hash` the skills used to publish under.
+
+    BUT `wheel_hash` IS RAW MODEL OUTPUT AT THIS POINT, and the scope opens above
+    any attempt to resolve it, so the key must be sanitised the same way
+    `audit_feasibility` sanitises the hashes it is handed. The framework renders
+    pathway hashes to the model as `[[abc1234]]`, and a model that echoes the
+    brackets back — which is the single most common malformed-hash shape in this
+    tree — keyed the stream `"[[a1b2"` and put punctuation from a prompt template
+    into whatever a host shows beside its spinner. Sanitising only the KEY, not the
+    argument passed on: what a bad hash should do to the reasoning path is
+    `ExploreTransformations`' decision, not this line's.
     """
     from dialectical_framework.utils.progress import progress_scope
 
-    with progress_scope("deepen", key=(wheel_hash or "")[:7]):
+    # `.strip("[]")` after `.strip()`, matching `audit_feasibility`: whitespace can
+    # sit outside the brackets.
+    key = (wheel_hash or "").strip().strip("[]")[:7]
+    with progress_scope("deepen", key=key):
         return await _deepen(wheel_hash)
 
 

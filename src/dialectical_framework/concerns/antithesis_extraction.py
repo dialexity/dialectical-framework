@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Awaitable, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -49,6 +49,12 @@ from dialectical_framework.utils.progress import (expect_progress,
 
 if TYPE_CHECKING:
     pass
+
+#: For `_extract_candidates`' note wrapper, which must hand back exactly what it
+#: was given: the two gather branches await different response models and the
+#: `zip(mode_points, batch_results)` join below depends on the wrapper being
+#: transparent to both.
+_AwaitedT = TypeVar("_AwaitedT")
 
 
 # --- Extraction-specific DTOs ---
@@ -337,17 +343,32 @@ Generate:
         # Decide how many candidates per branch
         per_branch = self._candidates_per_branch(len(mode_points))
 
-        async def _note_when_it_returns(call):
+        async def _note_when_it_returns(
+            call: Awaitable[_AwaitedT],
+        ) -> _AwaitedT:
             """Publish a NOTE per returning call — the one fact this window has.
+
+            Generic and transparent by contract: the two branches below await
+            different response models, and the `zip(mode_points, batch_results)` join
+            further down depends on this returning its argument's result unchanged
+            and in position.
 
             Every clause of `note_progress`'s condition is met here and nowhere else
             on this path: the calls below are gathered, each is ONE provider call so
             there is nothing to subdivide, they all start in the same instant so
             per-item steps would share one timestamp, and this method writes NO graph
             node (see the docstring), so the `sid` channel is silent too. Measured as
-            the largest provider-time block of a 120 KB ingest — 22 calls, 94.2s,
+            the largest PROVIDER-time block of a 120 KB ingest — 22 calls, 94.2s,
             mean 4.3s — under the single label "Weighing what could stand against
             this" (`tests/e2e/probe_ingest_progress.py`).
+
+            **Provider-seconds are not wall-seconds, and the difference reduces this
+            site to correct-but-small.** The seventh run drew 208.3s across 44 of
+            these calls and spent about 7s of WALL on them (roughly 29x parallelism
+            in that window), so the silence actually closed here is ~3.1s, not 94s.
+            Worth keeping — 3s of dead air at a point where the graph channel is
+            mute is still the difference between waiting and wondering — but anyone
+            citing the 94.2s as the payoff is citing the wrong axis.
 
             DELIBERATELY UNCOUNTED, and this is the interesting constraint. The note
             first read "5 of 11 angles considered", which is a lie of a particular

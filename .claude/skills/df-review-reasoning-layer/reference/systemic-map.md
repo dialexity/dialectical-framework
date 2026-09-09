@@ -263,7 +263,16 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     reviewer should demand for it.** Each returning call publishes `"Another angle weighed"`,
     and BOTH gather branches are wrapped (the per-point one and the `ModePointBatchResultDto` one, which is
     ordinary rather than exotic: it is taken whenever the requested count exceeds the mode points). Pinned by
-    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack`. **Confirmed live, with a
+    `tests/test_ingest_progress.py::TestTheOppositionAnglesSayWhenTheyComeBack` **plus one end-to-end test,
+    and the split between them is the reviewable part.** That class monkeypatches `note_progress`, so it can
+    only show the wrapper is applied to both branches and pairs with each return — it would pass identically
+    if no note could ever reach a bus, and it needs an explicit branch assertion (which response model each
+    gathered call asked for) or the batch-branch case silently covers the per-point gather twice. What only
+    `test_a_returning_opposition_angle_reaches_the_channel` can show is REACHABILITY of the ContextVar, and
+    this note has the longest reach in the tree: the scope is installed at the `ingest` tool and the note is
+    published from a task inside this gather, inside a task inside `find_polarities`' gather, inside
+    `AnalysisPipeline.resolve`'s gather — THREE nested fan-outs against a seam whose rule is that a task
+    created before the scope was installed sees nothing. **Confirmed live, with a
     correction a reviewer should apply to the justification: the 94.2s was PROVIDER-seconds, not wall.** The
     seventh run drew 208.3s across 44 gathered calls in about 7s of wall, so this site closes ~3.1s, not 94s —
     correct but small. It also exposed a host-side rule worth demanding in any progress review: `done` reaches
@@ -1699,7 +1708,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   anchor/explore/discard). Explorer needs no equivalent — `explore_transformations` +
   `generate_synthesis` are already per-wheel user-driven tools there.
   **`run_deepen` owns the progress stream for the whole call** (`progress_scope("deepen",
-  key=wheel_hash[:7])`, installed in `run_deepen` and not in the `@llm.tool` wrapper, because the wrapper,
+  key=(wheel_hash or "").strip().strip("[]")[:7])`, installed in `run_deepen` and not in the `@llm.tool` wrapper, because the wrapper,
   `scoped.py`, the resume tests and the resume-hint pattern `build_status`'s docstring recommends to hosts
   all enter through it — `build_status` calls nothing itself, and an earlier version of this line and of
   `deepen`'s own docstring named it as a caller). Before that it
@@ -1713,7 +1722,20 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   seam: an inner stage name
   (`transformation`, `synthesis`) appearing on the channel during a `deepen`. Pinned at both levels —
   `tests/test_progress.py::TestNestingDefersToTheInstalledScope` and
-  `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`. **`explore` still owns no stream, and
+  `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream` — but the scopes that defer in the
+  second are the STUBS', so it proves the TOOL installs a stream and the SEAM folds a nested scope into
+  it, NOT that `ExploreTransformations`/`GenerateSynthesis` still open scopes at all; nothing pins those,
+  and it is part of the `explore` gap below.
+  **A REVIEWER'S RULE THIS TOOL PRODUCED: A PROGRESS KEY BUILT FROM A TOOL ARGUMENT IS BUILT FROM RAW
+  MODEL OUTPUT.** The scope opens above any resolution of the hash, and the framework itself prints
+  hashes to the model as `[[abc1234]]`, so a model echoing the brackets back — the most common
+  malformed-hash shape in this tree, which is why `audit_feasibility` already strips them — keyed the
+  stream `"[[a1b2"`. Two costs, and the second is the real one: prompt-template punctuation appears
+  beside a host's spinner, and two spellings of ONE wheel get two different keys, which is precisely
+  what a key exists to prevent. Sanitize the KEY only, never the argument passed on — what a bad hash
+  should do to the reasoning path is the skill's decision, not the scope line's. `tests/
+  test_advisor_deepen.py::TestOneDeepenIsOneProgressStream::test_the_key_is_sanitized_before_a_host_ever_sees_it`
+  parametrizes the four shapes; the empty-key case is a legitimate state and must not raise. **`explore` still owns no stream, and
   it is NOT a one-line fix — that claim was written here and is wrong.** Its two skills are SIBLINGS, not
   nested: `ExplorationPipeline` closes its scope before `explore`'s synthesis loop starts, so deferral
   never merges them and they publish `2 × deep_wheels` finals (`EXPLORE_DEEP_WHEELS = 1`, so two today,
