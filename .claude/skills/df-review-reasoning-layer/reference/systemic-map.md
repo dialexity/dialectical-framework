@@ -430,9 +430,25 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     pipeline owned a pair of its own, which has since moved into `FindPolarities`). Pinned by
     `tests/test_analyze_progress.py`, which was verified non-vacuous by deleting the `with` (all four
     fail). Tools still installing nothing, worst first: `find_polarities`, `digest_input`/`add_input`,
-    `surface_theses`, `explorer.explore`, `edit_perspective` (no sites at all), `build_wheels`
+    `surface_theses`, `explorer.explore`, `build_wheels`
     (uninstrumented and the first thing `explore` does), `expand_polarities`,
-    `introduce_polarity`/`anchor_theses`. Correctly silent: `sync`, `discard`, `inspect_node`,
+    `introduce_polarity`/`anchor_theses`. `edit_perspective` is DONE and was the only one with no
+    sites at all to light up — 6-8 sequential awaits, nothing written to the graph until the end, so
+    not even the node stream covered the wait. Its shape is worth copying for the rest: NO fixed step
+    count and no `PROGRESS_STEPS` constant, because which branch runs is decided by similarity scores
+    that come back from the provider — each step is declared at its own site immediately before its own
+    await, and the denominator grows as the path reveals itself. The two branches that take longest are
+    the two that REFUSE (three to four calls deciding what the person's wording looks like instead),
+    which is the worst silence to leave: a wait that ends in "no" is indistinguishable, while you sit in
+    it, from one that is going to succeed. It also declares NOTHING over the `AntithesisExtraction`
+    branch, which reports for itself — the 0.0s-flash lesson applied prospectively. Keyed by the NODE
+    (`deepen`'s pattern) rather than by hashed content, so no fifth copy of the sha256 key one-liner;
+    the `perspective_hash` is raw model output and is bracket-sanitised exactly as `deepen` and
+    `audit_feasibility` sanitise theirs. Pinned at two levels by `tests/test_edit_progress.py` — stubbed
+    concerns for per-branch order and count, the tool against mock brain for scope-exists/closes-once —
+    verified non-vacuous by four mutations (drop the `with`: all four stream tests fail; drop the
+    sanitisation: the key becomes `'  [[624'`; declare over the extraction branch or at the top of
+    `resolve()`: eight fail, including a refusal closing 1/1 instead of 0/0). Correctly silent: `sync`, `discard`, `inspect_node`,
     `query_graph`, `place_statement`, the pure graph writes — their effects ride the `sid` channel. `total` GROWS as
     work is discovered (2 → 4 → 34 in one run), so a host caching the first denominator draws a bar that
     goes backwards; `done` counts ANNOUNCED steps while `detail` names the one just announced, so they

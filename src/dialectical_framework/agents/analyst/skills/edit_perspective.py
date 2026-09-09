@@ -61,12 +61,33 @@ from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.estimation import (
     ArousalEstimation, ModeEstimation)
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  progress_scope,
+                                                  report_progress)
 
 ALL_POSITIONS = {POSITION_T, POSITION_A, POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS}
 POLARITY_POSITIONS = {POSITION_T, POSITION_A}
 ASPECT_POSITIONS = [POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS]
 
 HS_WRONG_CATEGORY_THRESHOLD = 0.1
+
+
+def _checking_wording_label(index: int, total: int) -> str:
+    """The per-part label for the aspect-only edit path.
+
+    A helper rather than an f-string at the site so the singular case has no
+    parenthetical at all: one changed part is by far the common edit, and
+    "(1 of 1)" beside a host's spinner is noise that says nothing.
+
+    Says "where you put it" and not which position, deliberately. `T+`/`A-` are the
+    framework's names for the corners of a tetrad, and the whole contract of this
+    channel is that a host may render these lines to a person verbatim — the
+    machinery stays on this side of the seam
+    (`tests/test_ingest_progress.py`'s banned-vocabulary list).
+    """
+    if total <= 1:
+        return "Checking your wording fits where you put it"
+    return f"Checking your wording fits where you put it ({index} of {total})"
 
 
 @dataclass
@@ -91,6 +112,33 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
 
     Creates a new PP and connects old→new via CHANGED_TO (analytical lineage).
     Does not discard the old PP or modify Nexus memberships — that's up to the caller.
+
+    PROGRESS: no fixed step count, deliberately
+    ===========================================
+    Every other instrumented skill either declares its denominator up front or
+    exposes a `PROGRESS_STEPS` constant (`IntroducePolarity`, pinned by
+    `tests/test_progress.py`). This one cannot honestly do either: what it costs is
+    decided by which positions changed, and then again by whether they validate.
+
+        both T and A changed  3 awaits  (classify T, weigh the pair, generate four)
+        T changed             3 awaits  + `AntithesisExtraction`'s own chain if the
+                                          existing A no longer opposes the new T
+        A changed             2 awaits  happy; 1 + up to 4 on the refusal path
+        aspects only        N+2 awaits  (N = positions changed, 1-4), and the two
+                                          coherence checks gather 2 calls each, so
+                                          the four-aspect edit is 8 calls in 6 waits;
+                                          a rejected aspect adds 3 and then bails
+
+    So each step is declared at its own site, immediately before its own await, and
+    the denominator grows as the path reveals itself. The cost of that is the
+    backwards-jump caveat `utils/progress.py` documents — a host's bar can shrink
+    when a branch adds work. The alternative is worse: a count declared at entry
+    would be wrong on every path that refuses, and a step declared for work that a
+    guard then skips is a phantom, indistinguishable to a host from a step that
+    failed. NOTHING is declared above a guard that can return without a provider call.
+
+    None of this is measured. No probe covers `edit_perspective` yet — the counts
+    above are read off the code, not off a run, and the labels' timings are unknown.
     """
 
     def __init__(self, perspective_hash: str, changes: dict[str, str], text: str = "") -> None:
@@ -186,6 +234,13 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
     async def _handle_both_ta_changed(self, new_t_text: str, new_a_text: str) -> EditPerspectiveResult:
         assert self._working_pp is not None
 
+        # Both poles are the person's own wording here, which is precisely
+        # `introduce_polarity`'s situation — so its two labels are reused verbatim
+        # rather than paraphrased. A person who introduces a tension and then
+        # corrects it should not be able to tell from the vocabulary which of the
+        # two tools they are watching.
+        expect_progress(1)
+        report_progress("Taking in both sides of what you described")
         t_classifier = StatementClassification()
         t_classification = await t_classifier.resolve(statement=new_t_text, text=self.text)
         self._report = self._report.merge(t_classifier.report)
@@ -194,6 +249,8 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         new_t.commit()
         self._report.node_created(new_t)
 
+        expect_progress(1)
+        report_progress("Weighing how strongly the two pull against each other")
         a_classifier = AntithesisClassification()
         a_validation = await a_classifier.resolve(thesis=new_t, antithesis_statement=new_a_text, text=self.text)
         self._report = self._report.merge(a_classifier.report)
@@ -233,6 +290,16 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         if not current_a:
             return EditPerspectiveResult(is_valid=False, error_message="Original Perspective has no antithesis")
 
+        # Declared BELOW the `current_a` guard, not above it: that guard returns
+        # without a single provider call, and a step declared over it would be a
+        # phantom — announced, never reported, and to a host indistinguishable from
+        # one that failed.
+        #
+        # Singular wording, because only one side was retyped. `anchor_theses` says
+        # the same sentence for the same work (one statement of the person's own,
+        # classified once).
+        expect_progress(1)
+        report_progress("Taking in the position you named")
         t_classifier = StatementClassification()
         t_classification = await t_classifier.resolve(statement=new_t_text, text=self.text)
         self._report = self._report.merge(t_classifier.report)
@@ -241,6 +308,8 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         new_t.commit()
         self._report.node_created(new_t)
 
+        expect_progress(1)
+        report_progress("Weighing how strongly the two pull against each other")
         a_classifier = AntithesisClassification()
         a_validation = await a_classifier.resolve(thesis=new_t, antithesis_statement=current_a.text, text=self.text)
         self._report = self._report.merge(a_classifier.report)
@@ -251,6 +320,13 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         regenerated: list[str] = []
 
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
+            # NOTHING is declared for this branch, and it is the longest one on the
+            # path — `AntithesisExtraction.resolve` declares its own steps ("Weighing
+            # what could stand against this", then "Judging how strongly each
+            # opposition holds") and notes each angle as it comes back. A step here
+            # would publish in the same instant as extraction's own and be superseded
+            # before a person could read it: the 0.0s flash that moved the extraction
+            # label out of `AnalysisPipeline` and into `FindPolarities.resolve()`.
             extractor = AntithesisExtraction()
             antitheses = await extractor.resolve(thesis=new_t, text=self.text)
             self._report = self._report.merge(extractor.report)
@@ -290,6 +366,9 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         if not current_t:
             return EditPerspectiveResult(is_valid=False, error_message="Original Perspective has no thesis")
 
+        # Below the guard, for the same reason as the thesis path above.
+        expect_progress(1)
+        report_progress("Weighing how strongly the two pull against each other")
         a_classifier = AntithesisClassification()
         a_validation = await a_classifier.resolve(thesis=current_t, antithesis_statement=new_a_text, text=self.text)
         self._report = self._report.merge(a_classifier.report)
@@ -297,7 +376,22 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         if a_validation.heuristic_similarity <= HS_WRONG_CATEGORY_THRESHOLD:
             current_a = self._original_pp.get_component(POSITION_A)
             if current_a:
+                # Up to four more provider calls before the person is told "no".
+                # This is a REFUSAL path, which makes it the worst kind of silence to
+                # leave: the wait is indistinguishable from a wait that is going to
+                # succeed, and it ends in nothing being written to the graph, so
+                # there is no node event to cover it either.
                 for aspect_pos in ASPECT_POSITIONS:
+                    # One step per iteration, declared inside the loop and immediately
+                    # before the await. These calls are SEQUENTIAL, so each genuinely
+                    # starts at its own moment and a step per iteration says something
+                    # true — the gathered case, where N steps would share one instant,
+                    # is what `note_progress` is for and does not apply here. No
+                    # fraction in the label: the loop returns early the moment
+                    # something fits, and a line that stops at "2 of 4" reads as
+                    # broken rather than as finished.
+                    expect_progress(1)
+                    report_progress("Checking where what you wrote fits better")
                     aspect_classifier = AspectClassification()
                     try:
                         aspect_result = await aspect_classifier.resolve(
@@ -378,6 +472,16 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         pp.polarity.connect(polarity, relationship=HasPolarityRelationship())
         self._report.relationship_created(pp.polarity, pp, polarity)
 
+        # ONE step for all four, because `AspectGeneration` makes ONE provider call
+        # when handed all four positions (`_generate_tetrad` — the diagonal pairs are
+        # generated together so they genuinely contradict). Four steps here would be
+        # four events for one call, which is the fan-out defect inverted.
+        #
+        # Declared here rather than at the three callers: all of them route through
+        # this method, and the label describes the generation, which begins on the
+        # next line. `expand_polarities` says the same sentence for the same call.
+        expect_progress(1)
+        report_progress("Working out how each side helps and how each overreaches")
         generator = AspectGeneration()
         generated_aspects = await generator.resolve(perspective=pp, positions=ASPECT_POSITIONS, text=self.text)
         self._report = self._report.merge(generator.report)
@@ -429,7 +533,18 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         aspect_validations: dict[str, tuple[Statement, AspectClassificationResult]] = {}
         invalid_aspects: list[str] = []
 
-        for aspect_pos, aspect_text in changes.items():
+        # A step per changed part, and here a FRACTION is honest where it was not in
+        # the refusal probe above: this loop runs to completion for every valid
+        # aspect, and `len(changes)` is the whole of what the person is waiting
+        # through in this phase. Same rule as `SourceDigest`'s "Reading part 3 of 4"
+        # — a number shown to a person is a promise about the whole, so only a window
+        # that knows its whole may make one. Nothing gathers this loop: `edit_perspective`
+        # opens one scope per call and keys it by the node, so there is no sibling
+        # chain whose count could interleave with this one.
+        total_changes = len(changes)
+        for index, (aspect_pos, aspect_text) in enumerate(changes.items(), start=1):
+            expect_progress(1)
+            report_progress(_checking_wording_label(index, total_changes))
             aspect_classifier = AspectClassification()
             aspect_result = await aspect_classifier.resolve(
                 thesis=current_t, antithesis=current_a,
@@ -553,6 +668,14 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         pp = self._working_pp
         errors: list[str] = []
 
+        # Two steps for two checks, not one for the phase. Each concern gathers two
+        # provider calls internally, but they are awaited one after the other, so a
+        # single label would cover a stretch in which one of them starts, finishes and
+        # is replaced — the shape `TestOneLabelNeverCoversAGatheredFanOut` was written
+        # for. Each is declared immediately before its own `await`, so a `ValueError`
+        # out of the first cannot leave the second's step declared and unreported.
+        expect_progress(1)
+        report_progress("Checking that opposing sides really do pull apart")
         diag_checker = DiagonalOppositionsCheck()
         try:
             diag_result = await diag_checker.resolve(perspective=pp, text=self.text)
@@ -574,6 +697,8 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         except ValueError:
             pass
 
+        expect_progress(1)
+        report_progress("Checking that each side's strength needs the other")
         ctrl_checker = ControlStatementsCheck()
         try:
             ctrl_result = await ctrl_checker.resolve(perspective=pp, text=self.text)
@@ -606,6 +731,14 @@ class EditPerspective(ReasonableConcern[EditPerspectiveResult]):
         best_hs = HS_WRONG_CATEGORY_THRESHOLD
 
         for pos in other_positions:
+            # Three more sequential calls, and the person is already past a failed
+            # check when this starts — same reasoning as the antithesis refusal probe.
+            # This loop DOES visit every position (a raising call `continue`s rather
+            # than breaking), so a fraction would be truthful here; it is left off
+            # anyway, because the antithesis probe publishes the same sentence and
+            # cannot carry one. One line, one wording.
+            expect_progress(1)
+            report_progress("Checking where what you wrote fits better")
             try:
                 classifier = AspectClassification()
                 result = await classifier.resolve(
@@ -683,6 +816,31 @@ async def edit_perspective(
     text: Annotated[str, Field(description="Optional context for validation and regeneration")] = "",
 ) -> str:
     """Edit any position(s) of a Perspective. Changing T or A regenerates all aspects automatically. Changing only aspects (T+/T-/A+/A-) validates coherence. Creates a new Perspective linked to the original via CHANGED_TO lineage."""
-    concern = EditPerspective(perspective_hash=perspective_hash, changes=changes, text=text)
-    await concern.resolve()
-    return str(concern.report)
+    # The scope belongs HERE and not in `resolve()`: this is the only entry point
+    # that is an action a person took, and `resolve()` must stay composable — an
+    # inner scope would defer to whatever installed one anyway, but a tool that
+    # opens its own is the difference between events reaching a host and being
+    # dropped. Nothing upstream installs one; the Analyst calls this tool directly.
+    #
+    # Keyed by the NODE, like `deepen`, `generate_synthesis` and
+    # `explore_transformations`, rather than by hashed content like `ingest`,
+    # `anchor`, `analyze` and `record_decision`. The subject of this tool is a
+    # Perspective, and its hash is already an opaque id, so there is no person's
+    # text to hide from a host that renders the key. The `changes` values ARE the
+    # person's own words and are deliberately NOT folded in — which costs one thing,
+    # stated plainly: two DIFFERENT edits of the SAME Perspective in flight at once
+    # would share a stream. That is not a shape the Analyst produces (the second
+    # edit's target is the new Perspective the first one created), and the
+    # alternative was a fifth copy of the sha256 key one-liner.
+    #
+    # Sanitised the same way `deepen` and `audit_feasibility` sanitise theirs, for
+    # the same measured reason: `perspective_hash` is RAW MODEL OUTPUT at this point,
+    # the framework renders hashes to the model as `[[abc1234]]`, and a model that
+    # echoes the brackets back would key the stream `"[[a1b2"` — prompt-template
+    # punctuation beside a host's spinner. Only the KEY is sanitised; what a
+    # malformed hash should do to the edit is `_resolve_perspective`'s decision.
+    key = (perspective_hash or "").strip().strip("[]")[:7]
+    with progress_scope("edit", key=key):
+        concern = EditPerspective(perspective_hash=perspective_hash, changes=changes, text=text)
+        await concern.resolve()
+        return str(concern.report)
