@@ -93,11 +93,37 @@ relationship traversals off `Statement`:
 hundreds of thousands of them, which is what a GQLAlchemy `RelationshipManager`
 access costs when it is read inside a loop. The remainder is small by comparison:
 22,776 `BELONGS_TO_CYCLE` traversals (5.2s), 9,540 aspect-position reads (4.3s),
-4,099 hash-prefix lookups (4.2s). **This probe locates the cost in
-`_build_wheels_for_cycle` and names the queries; it does NOT pin the attribute
-access that issues them** — that is the next thing to read, and reading it is free.
+4,099 hash-prefix lookups (4.2s).
 Subtract 2.65s of the k=4 wall as harness-only: 2,144x `SET n:___DIALEXITY_TEST___`
 comes from the test client wrapper and has no production counterpart.
+
+**2b. `DIALEXITY_PROBE_BW_SITES=1` names the code, and it is one call path.** Of
+303,101 charges at k=4, 196,568 (65%) are opened beneath a single line —
+`find_by_component_sequence`, called once per candidate arrangement:
+
+     105,396x  wheel.py:statements < find_by_component_sequence < _build_wheels_for_cycle
+      75,504x  order_transitions < wheel.py:edges < wheel.py:statements
+      15,668x  wheel.py:edges < wheel.py:statements < find_by_component_sequence
+
+The repository runs ONE query for every wheel in the sid with a matching transition
+count, then reads `wheel.statements` on each to compare canonical signatures. So each
+new arrangement re-reads every wheel already built at that size: quadratic, and the
+per-read cost is not 1 query but 1 + 4N, because `Wheel.statements` reads
+`self.edges`, and `edges` runs `order_transitions`, which walks the chain with its
+OWN `source.get()` per transition plus a `target.get()` per step — before the
+`statements` loop then reads source and target again for each transition.
+
+Two things had made this look 13x bigger than a hand-derivation predicted: the
+`order_transitions` pass (a factor of ~2 that reading `statements` alone does not
+show), and charges being `next()` calls rather than queries — a single-row query is
+charged three times (open, row, StopIteration), so the 226,533 figure in (2) is
+~75,500 actual round-trips. The hand estimate was the right order after all; the
+comparison was against the wrong unit.
+
+That also makes `Wheel.edges` a hot spot in its own right, independent of this path:
+every access costs 2N+1 traversals, and `_perspectives`, `polarity_count`,
+`edge_pairs` and rendering all go through it. The writes are NOT the problem —
+`transition.commit` is 12,640 charges for 1,896 real Transition creates.
 
 **3. The paid run's 137s off-provider is exactly this.** 116s combination + ~28s of
 estimation writes, with its 26.4s of provider time overlapping rather than adding.
@@ -124,6 +150,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 import time
 
 import pytest
@@ -222,27 +249,72 @@ def _wrap_async(patch, owner, name: str, label: str, clock: _Clock, *, mark=Fals
     patch.setattr(owner, name, wrapper)
 
 
+#: Attributing every query to its call site walks the stack 300k times, which
+#: inflates the seconds. Opt in when you want the WHO and read the timings from a
+#: run with it off.
+SITES = os.getenv("DIALEXITY_PROBE_BW_SITES") == "1"
+
+#: Layers that only pass a query through; the interesting frame is above them.
+_PLUMBING = ("relationship_manager.py", "database_client.py", "memgraph.py")
+
+
 def _shape(query: str) -> str:
     """Collapse a query to something groupable — whitespace out, head kept."""
     flat = " ".join(str(query).split())
     return flat[:110]
 
 
-def _wrap_db(patch, db, clock: _Clock, shapes: dict[str, list]) -> None:
+def _site() -> str:
+    """The nearest framework frames above the client, innermost first.
+
+    Hand-walked rather than `traceback.extract_stack` because this runs on every
+    single query and the stack is deep.
+    """
+    frames: list[str] = []
+    frame = sys._getframe(1)
+    walked = 0
+    while frame is not None and walked < 30 and len(frames) < 3:
+        walked += 1
+        name = frame.f_code.co_filename
+        if "dialectical_framework" in name:
+            base = name.rsplit("/", 1)[-1]
+            if base not in _PLUMBING:
+                frames.append(f"{base}:{frame.f_code.co_name}")
+        frame = frame.f_back
+    return " < ".join(frames) or "?"
+
+
+def _wrap_db(
+    patch,
+    db,
+    clock: _Clock,
+    shapes: dict[str, list],
+    sites: dict[str, list] | None = None,
+) -> None:
     """Time ALL client traffic, including the lazy generator's consumption.
 
     `execute_and_fetch` returns the connection's generator: the query runs when the
     caller iterates. Timing the call would report ~0s for every read in the tree.
+
+    `sites` groups the same traffic by the framework frames that opened it. The site
+    is taken where the query is OPENED, not where a row is pulled: by the time
+    `consume()` runs, the opener's frames are gone and the generator's own frame is
+    all that is left.
     """
 
-    def charge(query, seconds: float) -> None:
+    def charge(query, seconds: float, site: str | None = None) -> None:
         row = shapes.setdefault(_shape(query), [0, 0.0])
         row[0] += 1
         row[1] += seconds
+        if sites is not None and site is not None:
+            row = sites.setdefault(site, [0, 0.0])
+            row[0] += 1
+            row[1] += seconds
 
     execute = db.execute
 
     def execute_wrapper(*args, **kwargs):
+        site = _site() if sites is not None else None
         started = time.monotonic()
         try:
             return execute(*args, **kwargs)
@@ -250,17 +322,18 @@ def _wrap_db(patch, db, clock: _Clock, shapes: dict[str, list]) -> None:
             elapsed = time.monotonic() - started
             clock.add("db execute", elapsed)
             if args:
-                charge(args[0], elapsed)
+                charge(args[0], elapsed, site)
 
     fetch = db.execute_and_fetch
 
     def fetch_wrapper(*args, **kwargs):
         query = args[0] if args else kwargs.get("query", "?")
+        site = _site() if sites is not None else None
         started = time.monotonic()
         inner = fetch(*args, **kwargs)
         opened = time.monotonic() - started
         clock.add("db execute_and_fetch", opened)
-        charge(query, opened)
+        charge(query, opened, site)
 
         def consume():
             while True:
@@ -270,11 +343,11 @@ def _wrap_db(patch, db, clock: _Clock, shapes: dict[str, list]) -> None:
                 except StopIteration:
                     elapsed = time.monotonic() - tick
                     clock.add("db execute_and_fetch", elapsed)
-                    charge(query, elapsed)
+                    charge(query, elapsed, site)
                     return
                 elapsed = time.monotonic() - tick
                 clock.add("db execute_and_fetch", elapsed)
-                charge(query, elapsed)
+                charge(query, elapsed, site)
                 yield item
 
         return consume()
@@ -316,6 +389,7 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
     ready = asyncio.Event()
     sid_holder: dict[str, str] = {}
     shapes: dict[str, list] = {}
+    sites: dict[str, list] | None = {} if SITES else None
 
     async def collect() -> None:
         async with bus.subscribe(sid_holder["sid"]) as subscriber:
@@ -337,7 +411,7 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
             await ready.wait()
 
             with monkeypatch.context() as patch:
-                _wrap_db(patch, di_container.graph_db(), clock, shapes)
+                _wrap_db(patch, di_container.graph_db(), clock, shapes, sites)
                 _wrap_sync(patch, BuildWheels, "_resolve_nexus",
                            "resolve nexus", clock)
                 _wrap_sync(patch, BuildWheels, "_resolve_perspectives",
@@ -419,6 +493,18 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
     print(f"    ({len(shapes)} distinct shapes,"
           f" {sum(c for c, _ in shapes.values())} charges total — a charge is one"
           f" `next()`, so a query returning many rows is charged many times)")
+
+    if sites:
+        # A shape names the query; only the stack names the code to change. Reading
+        # the tree by hand got the order of magnitude wrong, which is why this exists.
+        print("\n  WHO OPENS THE QUERIES (innermost framework frames first)")
+        for site, (count, seconds) in sorted(
+            sites.items(), key=lambda kv: -kv[1][1]
+        )[:12]:
+            print(f"    {seconds:7.2f}s  {count:7d}x  {site}")
+        print(f"    ({len(sites)} distinct sites. Timings here are INFLATED — the"
+              f" stack walk runs on every query; take seconds from a run with"
+              f" DIALEXITY_PROBE_BW_SITES unset.)")
 
     print("\n  CAN THE GRAPH CHANNEL SPEAK WHILE THE SYNC PHASE RUNS?")
     boundary = clock.marks.get("COMBINATION (sync)")
