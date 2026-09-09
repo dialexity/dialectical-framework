@@ -145,6 +145,16 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
             List of Transition nodes in order, or empty list if no edges
         """
         all_edges = [edge for edge, _ in self._edges.all()]
+
+        # Ordering the chain reads both endpoints of every edge, and `statements`
+        # (plus rendering, `_perspectives`, `polarity_count`) then reads the same
+        # endpoints off the same objects. Two batched reads fill those memos up
+        # front, so the whole pass costs 3 round-trips instead of 2N+1.
+        from dialectical_framework.graph.nodes.transition import Transition
+
+        Transition.source.prefetch(all_edges)
+        Transition.target.prefetch(all_edges)
+
         return order_transitions(all_edges)
 
     @property

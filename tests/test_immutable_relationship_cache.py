@@ -213,6 +213,168 @@ class TestTheFlagIsWhatGatesIt:
         assert Transition.target.immutable is True
 
 
+@pytest.fixture
+def wheel_of_four(di_container):
+    """A committed wheel whose four transitions form a closed chain."""
+    case = Case()
+    case.commit()
+    with scope(case.sid):
+        statements = []
+        for i in range(4):
+            statement = Statement(text=f"Component {i} {random.random()}", meaning="test")
+            statement.commit()
+            statements.append(statement)
+
+        wheel = Wheel(intent=f"prefetch-{random.random()}")
+        wheel.save()
+        for i in range(4):
+            trans = Transition()
+            trans.set_source(statements[i]).set_target(statements[(i + 1) % 4])
+            trans.commit()
+            trans.cycle.connect(wheel)
+
+        yield wheel, statements, case.sid
+
+
+class TestABatchedReadCostsTheSameWhateverTheEdgeCount:
+    """`prefetch` is the lever the per-instance memo could not reach.
+
+    `Wheel.edges` builds a FRESH list of Transitions every call, so nothing an
+    earlier call memoised is available to this one — and ordering the chain reads
+    both endpoints of every edge before `statements` reads the same endpoints off
+    the same objects. The memo made the second pass free; only a batched read
+    makes the first pass cheap.
+    """
+
+    def test_reading_a_wheel_costs_two_endpoint_queries_not_two_per_edge(
+        self, di_container, wheel_of_four, monkeypatch
+    ):
+        wheel, statements, sid = wheel_of_four
+        db = di_container.graph_db()
+
+        with scope(sid):
+            seen = _count_endpoint_queries(db, monkeypatch)
+            ordered = wheel.edges
+            after_ordering = len(seen)
+            components = wheel.statements
+
+        assert len(ordered) == 4, "the wheel should have four edges"
+        assert after_ordering == 2, (
+            f"one query per direction, whatever the edge count: got {after_ordering}"
+        )
+        # `statements` traverses `edges` again — deliberately, it re-reads the
+        # graph — so it pays for its own batch and nothing more. Two traversals
+        # is 4 queries; it was 16 with only the per-instance memo and 27 without.
+        assert len(seen) == 4, (
+            f"`statements` re-read endpoints its own batch already had: {len(seen)}"
+        )
+        # Cheaper, and still the same chain.
+        assert [c.hash for c in components] == [s.hash for s in statements]
+
+    def test_the_chain_order_is_what_it_was_before_prefetching(
+        self, di_container, wheel_of_four, monkeypatch
+    ):
+        """What the memo holds must be what that node's own read would have held.
+
+        Drives both paths and compares. This catches the failure that actually
+        threatens a batched read — rows landing under the wrong source, verified by
+        cross-wiring them and watching this fail.
+
+        It does NOT pin the `ORDER BY`, and cannot: both declarations carrying
+        `immutable=True` are 1:1, so each source has exactly one row and no order
+        is observable. The clause is there for the general case, where consumers
+        treat relationship order as canonical (`build_pp_index`'s T1/T2 indices,
+        rendered component sequences) — unpinned insurance, not a tested claim.
+        """
+        wheel, _, sid = wheel_of_four
+
+        with scope(sid):
+            prefetched = [
+                (t.hash, t.source.get()[0].hash, t.target.get()[0].hash)
+                for t in wheel.edges
+            ]
+
+            # The same edges, each reading for itself with no memo in the way.
+            unprimed = []
+            for edge, _rel in wheel._edges.all():
+                fresh = Transition()
+                fresh._id = edge._id
+                fresh.hash = edge.hash
+                unprimed.append(
+                    (fresh.hash, fresh.source.get()[0].hash, fresh.target.get()[0].hash)
+                )
+
+        assert sorted(prefetched) == sorted(unprimed), "prefetch changed an endpoint"
+        assert prefetched[0][2] == prefetched[1][1], "the chain is no longer ordered"
+
+
+class TestPrefetchRefusesWhatItCannotGuarantee:
+    def test_a_mutable_edge_set_cannot_be_prefetched(self, di_container, transition):
+        """A memo on a mutable edge set is written and never read.
+
+        `all()` only consults the cache when the declaration is immutable, so
+        priming one elsewhere would look like a cache and do nothing — the kind of
+        dead lever that gets cited as evidence a path is already optimised.
+        """
+        trans, _, _, sid = transition
+
+        with scope(sid):
+            with pytest.raises(ValueError, match="not declared immutable"):
+                Transition.cycle.prefetch([trans])
+
+    def test_an_unconnected_node_is_left_to_read_for_itself(
+        self, di_container, monkeypatch
+    ):
+        """Absent rows must not become a memoised absence.
+
+        Same hazard as `_store_all`'s empty-read refusal, reached a different way:
+        one node in the batch has no endpoints yet, so the query returns nothing
+        for it. Priming that as "no endpoints" would outlive the connect.
+
+        The assertion has to be that the read STILL GOES TO THE DATABASE, not that
+        the answer is right after committing — mutation testing showed the latter
+        passes even when absent rows are primed empty, because `connect` drops the
+        memo on the way through and covers for it. Redundant guards again, same as
+        `TestAnEmptyReadIsNotMemoised` records.
+        """
+        db = di_container.graph_db()
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            source = Statement(text=f"Source {random.random()}", meaning="test")
+            source.commit()
+            target = Statement(text=f"Target {random.random()}", meaning="test")
+            target.commit()
+
+            connected = Transition()
+            connected.set_source(source).set_target(target)
+            connected.commit()
+
+            pending = Transition()
+            pending.set_source(source).set_target(target)
+            pending.save()
+            assert pending._id is not None
+
+            unsaved = Transition()
+            assert unsaved._id is None
+
+            # The unsaved one must not break the batch it is in.
+            Transition.source.prefetch([connected, pending, unsaved])
+
+            seen = _count_endpoint_queries(db, monkeypatch)
+            assert connected.source.get() is not None, "the connected one was skipped"
+            assert not seen, "the connected one was not primed"
+
+            assert pending.source.get() is None, "the pending edge does not exist yet"
+            assert len(seen) == 1, (
+                "an absent row was memoised as an absent edge — this read should"
+                " have gone to the database"
+            )
+
+            pending.commit()
+            assert pending.source.get() is not None
+
+
 class TestTheCallerCannotCorruptTheMemo:
     def test_a_memo_hit_is_a_copy(self, di_container, transition):
         """`all()` results get sorted and sliced by callers all over this tree.

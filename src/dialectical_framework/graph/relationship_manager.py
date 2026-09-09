@@ -109,6 +109,27 @@ def _get_all_labels_for_class_name(class_name: str) -> list[str]:
     return labels
 
 
+def _resolved_target_labels(target_class_name: str) -> str:
+    """The Cypher label alternation an edge set's targets can carry.
+
+    `target_class_name` may be pipe-separated for a union declaration, and each
+    member expands to its own subclass labels so a polymorphic read finds them.
+    """
+    all_labels: list[str] = []
+    for class_name in target_class_name.split("|"):
+        all_labels.extend(_get_all_labels_for_class_name(class_name))
+    return "|".join(dict.fromkeys(all_labels))
+
+
+def _match_pattern(direction: str, relationship_type: str, labels: str) -> str:
+    """The `(source)-[r]-(target)` pattern for one direction of an edge set."""
+    if direction == "outgoing":
+        return f"(source)-[r:{relationship_type}]->(target:{labels})"
+    if direction == "incoming":
+        return f"(source)<-[r:{relationship_type}]-(target:{labels})"
+    return f"(source)-[r:{relationship_type}]-(target:{labels})"
+
+
 def _is_class_compatible(source_class_name: str, target_class_names: list[str]) -> bool:
     """
     Check if source_class_name is compatible with any of the target_class_names.
@@ -312,6 +333,71 @@ class RelationshipManager(Generic[T]):
             immutable=self.immutable,
         )
         return bound
+
+    @inject
+    def prefetch(
+        self,
+        source_nodes: list[BaseNode],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> None:
+        """Read this edge set for MANY source nodes in one query, filling their memos.
+
+        The memo `immutable=True` installs is per instance, so it collapses repeated
+        reads of one object and nothing across a list of them. That is the shape the
+        cost actually has here: `Wheel.edges` hands `order_transitions` a fresh list
+        of Transitions every call, and ordering them costs one endpoint read per
+        transition plus one per chain step — round-trips whose answers the memo then
+        serves to `Wheel.statements` for free, having paid full price to get them.
+        This collapses one edge set's N reads to 1, and every later read on those
+        same objects is a memo hit.
+
+        Deliberately does NOT change what a read returns. Rows are grouped in the
+        SAME `ORDER BY` as `all()`, so a primed memo holds what that node's own
+        `all()` would have returned, in the same order. (That clause is insurance,
+        not a tested claim: both declarations carrying the flag today are 1:1, so no
+        order is observable on them — see the test of the same name.) A node the
+        query returns nothing for is left unprimed rather than primed empty, so it
+        falls back to its own read: same reason `_store_all` refuses an empty result.
+
+        Restricted to `immutable=True` declarations. On a mutable edge set the memo
+        would be written and never read, which looks like a cache and is not one.
+        """
+        if not self.immutable:
+            raise ValueError(
+                f"prefetch is only meaningful for an immutable edge set; "
+                f"'{self.relationship_type}' is not declared immutable."
+            )
+
+        by_id: dict[int, list[BaseNode]] = {}
+        for node in source_nodes:
+            if node._id is not None:
+                by_id.setdefault(node._id, []).append(node)
+        if not by_id:
+            return
+
+        pattern = _match_pattern(
+            self.direction,
+            self.relationship_type,
+            _resolved_target_labels(self.target_class_name),
+        )
+        query = f"""
+        MATCH {pattern}
+        WHERE id(source) IN $source_ids
+        RETURN id(source) as source_id, target, r as relationship
+        ORDER BY target.committed_at ASC, id(target) ASC
+        """
+
+        rows: dict[int, list[tuple[T, GQLRelationship]]] = {}
+        for result in graph_db.execute_and_fetch(
+            query, {"source_ids": list(by_id)}
+        ):
+            rows.setdefault(result["source_id"], []).append(
+                (result["target"], result["relationship"])
+            )
+
+        for source_id, pairs in rows.items():
+            for node in by_id[source_id]:
+                self.__get__(node, type(node))._store_all(pairs)
 
 
 class BoundRelationshipManager(Generic[T]):
@@ -1306,22 +1392,11 @@ class BoundRelationshipManager(Generic[T]):
         if self._resolve_source_id() is None:
             return []
 
-        # Resolve class names to labels, including subclass labels for polymorphic queries
-        # target_class_name may be pipe-separated for union types
-        class_names = self.target_class_name.split("|")
-        all_labels = []
-        for cn in class_names:
-            all_labels.extend(_get_all_labels_for_class_name(cn))
-        # Deduplicate while preserving order
-        resolved_labels = "|".join(dict.fromkeys(all_labels))
-
-        # Build query based on direction
-        if self.direction == "outgoing":
-            pattern = f"(source)-[r:{self.relationship_type}]->(target:{resolved_labels})"
-        elif self.direction == "incoming":
-            pattern = f"(source)<-[r:{self.relationship_type}]-(target:{resolved_labels})"
-        else:  # any
-            pattern = f"(source)-[r:{self.relationship_type}]-(target:{resolved_labels})"
+        pattern = _match_pattern(
+            self.direction,
+            self.relationship_type,
+            _resolved_target_labels(self.target_class_name),
+        )
 
         # Deterministic ordering: without ORDER BY, Cypher result order is
         # unspecified (stable only by accident of current storage) — but

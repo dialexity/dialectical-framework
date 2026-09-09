@@ -1640,14 +1640,26 @@ class, at 1 + 4N queries a read (`Wheel.statements` reads `self.edges`; `edges` 
 walks the chain with its own `source.get()`/`target.get()`; the `statements` loop then reads both endpoints
 again). Now cached per wheel in `_signature_of`: **145.1s → 44.8s**, combination 115.3s → 22.6s,
 `execute_and_fetch` 300,517 → 120,309, with structure and writes byte-identical (24 cycles / 96 wheels / 2,144
-`save_node` / 2,821 `save_relationship` / 1,750 effects). Two things to carry into any review here. **Neither
+`save_node` / 2,821 `save_relationship` / 1,750 effects). **Two more levers then landed on the endpoint reads,
+taking the whole thing to 30.3s and 74,920 fetches (-75% from baseline).** `immutable=True` on a relationship
+DECLARATION memoises a non-empty `all()` on the source node INSTANCE; it is on exactly `Transition.source` and
+`Transition.target`, safe because `commit()` connects both exactly once and refuses on an already-committed node.
+And `RelationshipManager.prefetch(nodes)`, called from `Wheel.edges`, batch-reads both endpoint sets for all of a
+wheel's transitions — the lever the memo could not reach, since `edges` hands back FRESH Transitions every call so
+the memo started cold and only made `statements`' second pass free. One traversal is now 3 round-trips, not 2N+1.
+Structure and writes still byte-identical at every step. Three things to carry into any review here. **Neither
 progress nor graph effects can be delivered from this phase at all** — both channels end in
 `loop.create_task`, and a task does not run until the loop is next given control, so 0 of 1,750 effects arrived
 before `resolve()` returned and all 1,750 flooded after; adding labels inside it would publish nothing and then
 jump a host from zero to done, which reads as an instant wait. Narrating it requires the phase to YIELD, a change
-to a synchronous reasoning path, and the 5x win above is the argument for not needing to. And **`Wheel.edges` is
-a hot spot in its own right** — every access costs 2N+1 traversals via `order_transitions`, which `statements`
-then duplicates, and `_perspectives`, `polarity_count`, `edge_pairs` and all rendering read it. Measured by
+to a synchronous reasoning path, and the win above is the argument for not needing to. **`Wheel.edges` is still
+re-traversed by six callers per wheel** (`statements`, `_perspectives`, `polarity_count`,
+`_collect_structure_hash_parts`, `_get_commit_dependents`, rendering) and each traversal is a fresh read — but
+memoising it on the Wheel is UNSAFE, because transitions attach via `transition.cycle.connect(wheel)`, a write
+through a different manager on a different node, which is exactly what `immutable=True` does not guard, and
+`_build_wheels_for_cycle` reads wheels mid-build. **And the two safety guards on the endpoint memo are REDUNDANT**
+— removing either the empty-read refusal or the invalidate-on-connect leaves the suite green; only removing both
+regresses, so a green run is not evidence that a given guard is exercised. Measured by
 `tests/probe_build_wheels_offprovider.py` (free, mocked, `DIALEXITY_PROBE_BW_K=4`; `DIALEXITY_PROBE_BW_SITES=1`
 attributes every query to its call site) and `tests/e2e/probe_build_wheels_progress.py` (paid). The paid probe
 also settled that **`CausalityEstimation` had never run in any archived explore measurement** — it is gated at

@@ -149,36 +149,59 @@ layer or cycle boundary — which is a change to a synchronous reasoning path an
 to be decided as one, not slipped in as instrumentation. Fixing (2) first may make
 the question moot, which is the argument for doing it in that order.
 
-AFTER THE FIX
-=============
-`WheelRepository` now caches the canonical signature per wheel, so
-`find_by_component_sequence` reads each wheel's components at most once instead of
-once per candidate arrangement. Two k=4 runs, same machine, same day:
+AFTER THE FIXES
+===============
+Three landed, in this order, each measured at k=4 on the same machine:
 
-                             before        after
-      wall                  145.11s      44.83s     3.2x
-      COMBINATION (sync)    115.27s      22.57s     5.1x
-      build_wheels_for_cycle 110.70s     18.63s     5.9x
-      execute_and_fetch     300,517     120,309     -60%
-      IS_SOURCE_OF          134,496      34,332     -74%
-      IS_TARGET_OF           92,037      26,865     -71%
-      BELONGS_TO_CYCLE       22,776       7,904     -65%
+  **(1) `WheelRepository._signature_of`** caches the canonical signature per wheel,
+  so `find_by_component_sequence` reads each wheel's components at most once
+  instead of once per candidate arrangement — the quadratic call path from 2b.
+
+  **(2) `immutable=True` on `Transition.source`/`.target`** memoises a non-empty
+  endpoint read on the source node INSTANCE, killing the `order_transitions` /
+  `statements` double read of the same two endpoints off the same objects.
+
+  **(3) `RelationshipManager.prefetch`, called from `Wheel.edges`** reads both
+  endpoint sets for ALL of a wheel's transitions in two batched queries. This is
+  the lever (2) could not reach: `edges` builds a FRESH transition list every
+  call, so the per-instance memo starts cold each time and (2) only made the
+  SECOND pass free. Ordering a wheel now costs 3 round-trips, not 2N+1.
+
+                            baseline        (1)         (2)         (3)
+      wall                   145.11s     44.83s      48.84s      30.27s
+      COMBINATION (sync)     115.27s     22.57s      18.44s      11.46s
+      build_wheels_for_cycle 110.70s     18.63s      18.99s      10.63s
+      execute_and_fetch      300,517    120,309      94,650      74,920
+      IS_SOURCE_OF           134,496     34,332      18,282       7,904
+      IS_TARGET_OF            92,037     26,865      17,256       7,904
+      BELONGS_TO_CYCLE        22,776      7,904       7,904       7,904
+
+**Read the counts, not the wall, between (1) and (2)** — charges fell 21% while the
+wall rose, because per-query latency moved 0.32 -> 0.43ms on the same box and the
+mocked estimation phase swings 16-25s run to run. Cumulatively the wall is a real
+4.8x and the traffic a real -75%, but no single column pair is a clean A/B.
 
 **The reasoning is untouched, and these counts are the evidence.** 24 cycles and 96
-wheels both times, 2,144 `save_node` and 2,821 `save_relationship` both times, 1,750
-effects both times. Identical structure, identical writes, identical stream — only
-the reads the code did to decide are gone. Full suite green (2,314 passed).
+wheels every run, 2,144 `save_node` and 2,821 `save_relationship` every run, 1,750
+effects every run. Identical structure, identical writes, identical stream — only
+the reads the code did to decide are gone. Full suite green after each.
 
 What did NOT change: the phase is still `def`, so it still delivered 0 of 1,750
-effects before returning. 22.6s of silence is a smaller lie than 116s but it is the
+effects before returning. 11.5s of silence is a smaller lie than 116s but it is the
 same lie, so the 5b question survives — just with much less riding on it.
 
-Where the remaining traffic goes: 61,197 source/target charges are now mostly
-`order_transitions`, which every `Wheel.edges` access runs (2N+1 traversals a time)
-and which `statements` then duplicates by re-reading both endpoints itself.
-De-duplicating those two passes is the next lever, and it is a `Wheel` change with a
-wider blast radius than this one — `_perspectives`, `polarity_count`, `edge_pairs`
-and all rendering read `edges`.
+**No dominant site remains.** After (3) the endpoint reads are down to 3 queries per
+`edges` traversal and the profile is flat: 4,099 hash-prefix lookups (3.67s, the
+slowest per-query shape at 0.90ms), 9,540 aspect-position reads (3.19s), 7,904 each
+of BELONGS_TO_CYCLE and the two prefetches, 2,144 harness-only test-label writes
+(1.94s, no production counterpart). The next lever would be `Wheel.edges` being
+re-traversed several times per wheel by different callers — `statements`,
+`_perspectives`, `polarity_count`, `_collect_structure_hash_parts`,
+`_get_commit_dependents`, rendering — which is a caching question on `Wheel`
+itself, and unsafe as a plain memo: transitions attach via
+`transition.cycle.connect(wheel)`, a write through a different manager on a
+different node, which is exactly the case `all()`'s docstring says the memo does
+not guard, and `_build_wheels_for_cycle` reads wheels mid-build.
 """
 
 from __future__ import annotations
