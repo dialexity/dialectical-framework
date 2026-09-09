@@ -256,6 +256,20 @@ class BaseNode(Node, label="Node", metaclass=MixinAwareNodeMeta):
 
         # Dedup check: for content-addressable nodes (Rationale, Estimation),
         # the same content produces the same hash. Reuse existing if found.
+        #
+        # Ask it in ONE place. save() runs exactly this lookup under exactly the
+        # conditions that hold here — `self.hash` set, `self._id is None` — and nothing
+        # between the two calls can change the answer (autocommit, and GQLAlchemy is not
+        # concurrency-safe so there is no other writer). Asking here as well made every
+        # commit on this path pay two identical round-trips: 688 of the 4,099 hash
+        # lookups in one k=4 `build_wheels` (17%) were the same question twice.
+        if self._id is None:
+            return self.save()
+
+        # `_id` already set (saved before commit): save()'s dedup guard requires
+        # `_id is None` and would skip the check entirely, so keep it here. Adopting
+        # another node's `_id` abandons the row already written under this one — long
+        # standing behaviour, preserved deliberately rather than fixed here.
         from dialectical_framework.graph.repositories.node_repository import NodeRepository
         existing = NodeRepository().find_by_hash(self.hash)
         if existing is not None:

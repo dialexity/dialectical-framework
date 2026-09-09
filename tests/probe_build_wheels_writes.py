@@ -104,6 +104,23 @@ charges to `find_by_hash < base_node.py:save < base_node.py:commit`, and a miss 
 charges (open + StopIteration), so 688 calls — exactly the 552 + 112 + 24 nodes committed
 through this path. 688 of the run's 4,099 hash lookups (17%) are asked twice.
 
+**Fixed, and the prediction held to the unit.** `BaseNode.commit()` now delegates to
+`save()` when `_id is None` instead of asking first; removing 688 double misses had to
+remove exactly 1,376 charges, and the shape went 4,099 -> 2,723. Writing the number down
+before the change is what made it evidence rather than a fitted result. (The `_id is not
+None` branch keeps its own lookup — `save()`'s guard requires `_id is None` and would
+skip dedup entirely there. Pinned in `tests/test_commit_asks_dedup_once.py`.)
+
+One thing that surfaced while pinning it, and was NOT changed: **committing a duplicate
+Estimation directly raises** `ValueError: maximum cardinality 1 already reached`, because
+`Estimation.commit()` re-connects the target after delegating up and on a dedup hit
+`self._id` is the EXISTING node, which already holds that edge. It raises identically
+without the change above, so it is pre-existing rather than introduced, and production
+never reaches it: `EstimationManager._get_or_create_estimation` looks for an
+`(e {value})-[:ESTIMATES]->(target)` match before constructing one. So Estimation's dedup
+HIT path is effectively dead code guarded by the manager. Recorded, not fixed — making it
+work is a reasoning-layer decision about what a duplicate estimation means.
+
 **Run it by path — it is NOT part of the default suite.** Nothing named `probe_*.py`
 is: pytest's default `python_files` is `test_*.py`/`*_test.py` and this repo does not
 override it, so every probe here is opt-in and none of them guards a regression.

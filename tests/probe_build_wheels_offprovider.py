@@ -179,14 +179,40 @@ Three landed, in this order, each measured at k=4 on the same machine:
   the planner fall back to `ScanAllByLabelProperties (n :Node {sid})`: every node
   in the case, then filtered.
 
-                            baseline        (1)         (2)         (3)         (4)
-      wall                   145.11s     44.83s      48.84s      30.27s      23.67s
-      COMBINATION (sync)     115.27s     22.57s      18.44s      11.46s      11.05s
-      build_wheels_for_cycle 110.70s     18.63s      18.99s      10.63s      10.34s
-      execute_and_fetch      300,517    120,309      94,650      74,920      74,920
-      IS_SOURCE_OF           134,496     34,332      18,282       7,904       7,904
-      IS_TARGET_OF            92,037     26,865      17,256       7,904       7,904
-      BELONGS_TO_CYCLE        22,776      7,904       7,904       7,904       7,904
+  **(5) `BaseNode.commit()` stops asking `find_by_hash` before calling `save()`**,
+  which asks the identical question under identical conditions. See below — the
+  charge arithmetic for this one closes to the unit.
+
+  **(6) `PerspectiveRepository.find_by_statements`, called from `Wheel._perspectives`**
+  batches what was one lookup per edge endpoint (2N per wheel) into one query. This
+  was named as "the obvious next lever" in the (3)/(4) notes below, and it was.
+
+                            baseline        (1)         (2)         (3)         (4)     (5)+(6)
+      wall                   145.11s     44.83s      48.84s      30.27s      23.67s      19.29s
+      COMBINATION (sync)     115.27s     22.57s      18.44s      11.46s      11.05s       9.88s
+      build_wheels_for_cycle 110.70s     18.63s      18.99s      10.63s      10.34s       9.20s
+      execute_and_fetch      300,517    120,309      94,650      74,920      74,920      67,556
+      IS_SOURCE_OF           134,496     34,332      18,282       7,904       7,904       7,904
+      IS_TARGET_OF            92,037     26,865      17,256       7,904       7,904       7,904
+      BELONGS_TO_CYCLE        22,776      7,904       7,904       7,904       7,904       7,904
+
+**(5) and (6) share one column because they were measured in one run, not A/B'd.** The
+wall is a single sample either way; what each bought individually is legible in the two
+shapes they touch, and both fell by the amount predicted before the change:
+
+      shape                                     charges before   after   predicted
+      MATCH (n:Node) WHERE n.hash = $hash               4,099     2,723     2,723
+      // Aspect positions ... (c:Statement)             9,540     3,552         -
+
+**The hash figure is the one worth trusting, because it was predicted to the unit.** The
+write probe found that 688 commits asked the same question twice; a miss costs 2 charges
+(open, then StopIteration), so removing them had to remove exactly 1,376 charges. It did:
+4,099 - 1,376 = 2,723. That is not a fitted number, it was written down first.
+
+For (6) no charge prediction was possible — batching does not remove calls one-for-one,
+it trades many small results for one larger one, so charges per call go UP while calls
+collapse. Time is the readable measure there: that shape was the most expensive in the
+run at 2.96s clean and is now 0.84s, sixth.
 
 **Read the counts, not the wall, between (1) and (2)** — charges fell 21% while the
 wall rose, because per-query latency moved 0.32 -> 0.43ms on the same box and the
@@ -214,14 +240,14 @@ effects every run. Identical structure, identical writes, identical stream — o
 the reads the code did to decide are gone. Full suite green after each.
 
 What did NOT change: the phase is still `def`, so it still delivered 0 of 1,750
-effects before returning. 11.5s of silence is a smaller lie than 116s but it is the
+effects before returning. ~10s of silence is a smaller lie than 116s but it is the
 same lie, so the 5b question survives — just with much less riding on it.
 
 **The phase that dominated no longer does.** COMBINATION and ESTIMATION are now
-11.05s and 10.94s of a 23.67s wall — an even split, where the baseline was 116s
+9.88s and 8.77s of a 19.29s wall — an even split, where the baseline was 116s
 against 28s. Anything further on the combination side is worth at most the smaller
 half, and the estimation half is mocked here: on a real provider that phase carries
-1,102.8s of API time, so its ~11s of graph work is noise. **Off-provider wall is no
+1,102.8s of API time, so its ~9s of graph work is noise. **Off-provider wall is no
 longer the thing to optimise on this path.** It was 84% of the paid k=4 run; the same
 arithmetic now puts it at roughly a quarter.
 
@@ -242,7 +268,10 @@ biggest read on the combination side** — 12,432 charges between its two lines,
 query per component, then throws away every result not in `cycle.perspective_hashes`
 — which it already has in hand before the loop starts. Batching those 2N lookups into
 one query is the obvious next lever and preserves the filter and the first-seen
-ordering exactly.
+ordering exactly. **This became lever (6) above** and did preserve both, though the
+ordering claim needed more care than "obvious" suggests: `_perspectives` order becomes
+the wheel's `polar_segments`, so it is pinned differentially in
+`tests/test_perspectives_batched_lookup.py` against a copy of the per-component loop.
 
 Second, **the top site is now a write path, not a read**, and writes are not
 compressible the same way: 1,896 Transitions genuinely have to be created. Of the

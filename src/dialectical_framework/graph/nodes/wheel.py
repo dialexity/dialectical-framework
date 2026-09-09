@@ -207,25 +207,32 @@ class Wheel(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="Wheel")
         if cycle_result:
             allowed_hashes = set(cycle_result[0].perspective_hashes)
 
+        # Collect every endpoint first, then ask once. Endpoint reads themselves are
+        # free — `edges` prefetches source and target into their memos — but the
+        # perspective lookup used to be one round-trip per endpoint, 2N per wheel, and
+        # this property is recomputed by ~20 call sites. `edges` order still drives the
+        # iteration below, so the result order is unchanged (that order is the wheel's
+        # arrangement: it becomes `polar_segments`).
+        components_in_order: list[Statement] = []
         for edge in self.edges:
             source_result = edge.source.get()
             target_result = edge.target.get()
 
-            components = []
             if source_result:
-                components.append(source_result[0])
+                components_in_order.append(source_result[0])
             if target_result:
-                components.append(target_result[0])
+                components_in_order.append(target_result[0])
 
-            for component in components:
-                pp_tuples = pp_repo.find_by_statement(component)
-                for pp, _ in pp_tuples:
-                    if pp.hash in seen_hashes:
-                        continue
-                    if allowed_hashes is not None and pp.hash not in allowed_hashes:
-                        continue
-                    seen_hashes.add(pp.hash)
-                    result.append(pp)
+        rows_by_component = pp_repo.find_by_statements(components_in_order)
+
+        for component in components_in_order:
+            for pp, _ in rows_by_component.get(component._id, []):
+                if pp.hash in seen_hashes:
+                    continue
+                if allowed_hashes is not None and pp.hash not in allowed_hashes:
+                    continue
+                seen_hashes.add(pp.hash)
+                result.append(pp)
 
         return result
 

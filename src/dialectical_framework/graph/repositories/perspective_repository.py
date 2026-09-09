@@ -175,6 +175,100 @@ class PerspectiveRepository:
         return [(result["pp"], result["rel_type"]) for result in results]
 
     @inject
+    def find_by_statements(
+        self,
+        components: list[Statement],
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db]
+    ) -> dict[int, list[tuple[Perspective, str]]]:
+        """Run `find_by_statement` for MANY components in one query.
+
+        `Wheel._perspectives` asks this question once per endpoint of every edge — 2N
+        round-trips for an N-perspective wheel — and then throws most answers away,
+        because it already holds the cycle's `perspective_hashes` and filters against
+        them. Batching does not change that filter; it only stops paying per component.
+        In one k=4 `build_wheels` this shape was the single most expensive query in the
+        run, and `_perspectives` is recomputed by ~20 call sites per wheel.
+
+        Returns a map keyed by `component._id` (the graph's node id) holding that
+        component's rows, so the CALLER keeps driving the iteration order — which is
+        load-bearing: `_perspectives` order becomes `polar_segments` order, i.e. the
+        wheel's arrangement.
+
+        Rows for one component come back in the same order as the single-component
+        query's, and that is what makes this substitutable — pinned differentially
+        against the per-component path in `tests/test_perspectives_batched_lookup.py`,
+        including a component that matches both legs at once.
+
+        The explicit leg marker and sort are INSURANCE, not a tested claim: Memgraph
+        already emits `UNION ALL`'s legs in order, so dropping the sort changes nothing
+        observable today (verified by mutation). It is here because `UNION`'s dedup
+        offers no such guarantee once more than one component is in flight, and the
+        result order is load-bearing upstream. Dedup is reproduced in Python instead, in
+        order, which is the part that would otherwise be lost by moving to `UNION ALL`.
+        """
+        # Deduplicated, order preserved. Endpoints repeat — each statement in a wheel's
+        # chain is the source of one edge and the target of another.
+        component_ids: list[int] = []
+        asked: set[int] = set()
+        for component in components:
+            if component._id is None:
+                continue
+            # Same scope guard as the single-component form.
+            if sid and component.sid != sid:
+                continue
+            if component._id not in asked:
+                asked.add(component._id)
+                component_ids.append(component._id)
+        if not component_ids:
+            return {}
+
+        query = """
+        // Aspect positions (T+, T-, A+, A-) directly on Perspective
+        MATCH (c:Statement)-[r]->(pp:Perspective)
+        WHERE id(c) IN $component_ids
+        AND type(r) IN ['T_PLUS', 'T_MINUS', 'A_PLUS', 'A_MINUS']
+        RETURN 0 AS leg, id(c) AS component_id, pp, type(r) AS rel_type
+
+        UNION ALL
+
+        // T and A positions via Polarity
+        MATCH (c:Statement)-[r]->(p:Polarity)<-[:HAS_POLARITY]-(pp:Perspective)
+        WHERE id(c) IN $component_ids
+        AND type(r) IN ['T', 'A']
+        RETURN 1 AS leg, id(c) AS component_id, pp, type(r) AS rel_type
+        """
+
+        legs: dict[int, list[tuple[int, Perspective, str]]] = {}
+        for result in graph_db.execute_and_fetch(
+            query, {"component_ids": component_ids}
+        ):
+            legs.setdefault(result["component_id"], []).append(
+                (result["leg"], result["pp"], result["rel_type"])
+            )
+
+        found: dict[int, list[tuple[Perspective, str]]] = {}
+        for component_id, rows in legs.items():
+            # Stable, so the DB's order within a leg survives.
+            rows.sort(key=lambda row: row[0])
+            # `UNION ALL` above keeps duplicates that `UNION` would have dropped;
+            # drop them here instead, keeping the first occurrence. Keyed on `_id`
+            # rather than `hash` because that is what Cypher's own row dedup compares
+            # (node identity), and because an uncommitted Perspective has no hash — two
+            # distinct ones would collapse into a single row.
+            seen: set[tuple[Optional[int], str]] = set()
+            ordered: list[tuple[Perspective, str]] = []
+            for _, pp, rel_type in rows:
+                key = (pp._id, rel_type)
+                if key in seen:
+                    continue
+                seen.add(key)
+                ordered.append((pp, rel_type))
+            found[component_id] = ordered
+
+        return found
+
+    @inject
     def discard_uncommitted(
         self,
         perspective: Perspective,

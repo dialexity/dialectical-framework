@@ -1641,7 +1641,7 @@ walks the chain with its own `source.get()`/`target.get()`; the `statements` loo
 again). Now cached per wheel in `_signature_of`: **145.1s → 44.8s**, combination 115.3s → 22.6s,
 `execute_and_fetch` 300,517 → 120,309, with structure and writes byte-identical (24 cycles / 96 wheels / 2,144
 `save_node` / 2,821 `save_relationship` / 1,750 effects). **Two more levers then landed on the endpoint reads,
-taking the whole thing to 30.3s and 74,920 fetches (-75% from baseline).** `immutable=True` on a relationship
+taking the whole thing to 30.3s (the figures below carry it further).** `immutable=True` on a relationship
 DECLARATION memoises a non-empty `all()` on the source node INSTANCE; it is on exactly `Transition.source` and
 `Transition.target`, safe because `commit()` connects both exactly once and refuses on an already-committed node.
 And `RelationshipManager.prefetch(nodes)`, called from `Wheel.edges`, batch-reads both endpoint sets for all of a
@@ -1657,8 +1657,22 @@ hexdigests, so equal-length, so prefix and equality select the same nodes — an
 `STARTS WITH`, because `short_hash` is what gets rendered into prompts (equality-only matching is the bug that once
 broke `ingest` silently). Worth ~1s of a 24s run on the probe's ~2,100-node database; the point is
 `tests/probe_hash_lookup_scaling.py`, where equality is FLAT (823/875/805us at 200/1000/4000 nodes) and the prefix
-scan grows linearly (~0.55us per node in the case). **After all four the phase that dominated no longer does:**
-COMBINATION 11.05s vs ESTIMATION 10.94s of a 23.67s wall, against a 116s/28s baseline — and estimation is mocked
+scan grows linearly (~0.55us per node in the case). **A fifth and sixth lever each removed a question that was
+already being asked, taking the wall to 19.29s and fetches to 67,556 (-78% from baseline).** (5) `BaseNode.commit()`
+stopped calling `find_by_hash` before `save()`, which runs the identical lookup under identical conditions
+(`hash` set, `_id is None`) with nothing in between able to change the answer; it now delegates with
+`if self._id is None: return self.save()`, while the `_id is not None` branch KEEPS its own lookup because `save()`'s
+guard requires `_id is None` and would skip dedup entirely. **Predicted to the unit before the change** — 1,376
+charges attributed to `find_by_hash < save < commit`, 2 charges per miss, so 688 duplicate calls = exactly 552
+estimations + 112 rationales + 24 cycles, and the shape had to go 4,099 → 2,723. It did. (6)
+`PerspectiveRepository.find_by_statements` batches `Wheel._perspectives`' per-endpoint lookups into one query,
+taking that shape from most expensive in the run (2.96s) to sixth (0.84s). **The risk in (6) was ordering, not the
+query:** `_perspectives` order becomes the wheel's `polar_segments` and `sequence_generation` documents its input as
+priority order, so the caller still drives the loop from `edges`, and the result is pinned differentially against a
+copy of the old per-component loop — including a shape where chain order deliberately opposes node-id order, added
+because mutation testing showed the first four shapes were VACUOUS about ordering (an implementation iterating the
+result map instead of the edges passed them all). **After all six the phase that dominated no longer does:**
+COMBINATION 9.88s vs ESTIMATION 8.77s of a 19.29s wall, against a 116s/28s baseline — and estimation is mocked
 here, carrying 1,102.8s of real provider time, so off-provider wall has gone from 84% of the paid k=4 run to
 roughly a quarter. **Reviewers should stop treating this path as the wall-clock problem.** Four things to carry
 into any review here. **Neither
@@ -1673,12 +1687,15 @@ memoising it on the Wheel is UNSAFE, because transitions attach via `transition.
 through a different manager on a different node, which is exactly what `immutable=True` does not guard, and
 `_build_wheels_for_cycle` reads wheels mid-build. **And the two safety guards on the endpoint memo are REDUNDANT**
 — removing either the empty-read refusal or the invalidate-on-connect leaves the suite green; only removing both
-regresses, so a green run is not evidence that a given guard is exercised. **And the biggest remaining read on the
-combination side is now `Wheel.polarity_count`** — 12,432 charges across its two lines, whose `find_by_statement`
-is the most expensive query shape in the whole run (9,540 charges, 2.96s): `Wheel._perspectives` walks every edge,
-reads both endpoints, and runs ONE repository query per component, then discards every result not in
-`cycle.perspective_hashes`, which it already holds before the loop starts. Batching those 2N lookups into a single
-query preserves the filter and the first-seen ordering exactly, and is the obvious next lever if one is wanted.
+regresses, so a green run is not evidence that a given guard is exercised. **And two dedup paths here are not what
+they look like.** Committing a duplicate `Estimation` directly RAISES (`maximum cardinality 1 already reached`)
+rather than deduping, because `Estimation.commit()` re-connects the target after delegating up and on a hit
+`self._id` is the existing node, which already holds that edge — pre-existing, and unreached because
+`EstimationManager._get_or_create_estimation` queries for a matching `(e {value})-[:ESTIMATES]->(target)` first. So
+Estimation's dedup-hit path is dead code guarded by the manager, and making it live is a reasoning decision about
+what a duplicate estimation means, not a bug fix. And `Statement.commit()` runs its OWN `find_by_hash` before
+delegating, for the Input-collision check — a different question about the same row, carrying a TODO about
+extending it to all content-addressable nodes, so a Statement commit is two lookups by design, not one.
 Measured by
 `tests/probe_build_wheels_offprovider.py` (free, mocked, `DIALEXITY_PROBE_BW_K=4`; `DIALEXITY_PROBE_BW_SITES=1`
 attributes every query to its call site) and `tests/e2e/probe_build_wheels_progress.py` (paid). The paid probe
