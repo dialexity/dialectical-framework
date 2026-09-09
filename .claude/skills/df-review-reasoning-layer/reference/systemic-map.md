@@ -433,7 +433,9 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     (`opposition`), `surface_theses` (`extraction`), `expand_polarities` (`expansion`), `anchor_theses`
     and `introduce_polarity` (`anchor`), `digest_input` and `add_input` (`ingest`) — so the tools still
     installing nothing are just `explorer.explore` and `build_wheels` (uninstrumented and the first
-    thing `explore` does). Review points from that pass: the stage is the NOUN OF THE WORK and never the
+    thing `explore` does). (`build_wheels` is now known to be UNINSTRUMENTABLE as written, not merely
+    uninstrumented — see the Exploration chain section: its phase is synchronous, so neither channel can
+    deliver from inside it.) Review points from that pass: the stage is the NOUN OF THE WORK and never the
     tool's name, because all seven tool names are banned vocabulary and `stage` is as host-visible as
     `detail`; two stage names are deliberately REUSED (`anchor`, `ingest`), which only holds because
     nesting DEFERS, and `introduce_polarity` calls `advisor.anchor._progress_key` itself so both doors
@@ -1628,6 +1630,31 @@ onto another rationale's node is BY DESIGN — first attribution stands). Locked
 deleting it, and the hash will find it again.**
 
 ### Exploration chain (`ExplorationPipeline.resolve`)
+**BuildWheels' cost is not where it looks.** Its structural half is `def` all the way down
+(`PerspectiveCombination.resolve` → `_build_layer` → `_find_or_create_cycle` / `_build_wheels_for_cycle` /
+`_connect_opposite_direction_pairs`), no `await` anywhere, and at k=4 perspectives it was **116s of a 145s wall
+with 94% of that in graph client round-trips, not the provider**. 65% of all traffic came from ONE line:
+`WheelRepository.find_by_component_sequence`, called once per candidate arrangement, which asks the DB for every
+wheel of the right size and then read each one's components to compare signatures — quadratic in wheels per size
+class, at 1 + 4N queries a read (`Wheel.statements` reads `self.edges`; `edges` runs `order_transitions`, which
+walks the chain with its own `source.get()`/`target.get()`; the `statements` loop then reads both endpoints
+again). Now cached per wheel in `_signature_of`: **145.1s → 44.8s**, combination 115.3s → 22.6s,
+`execute_and_fetch` 300,517 → 120,309, with structure and writes byte-identical (24 cycles / 96 wheels / 2,144
+`save_node` / 2,821 `save_relationship` / 1,750 effects). Two things to carry into any review here. **Neither
+progress nor graph effects can be delivered from this phase at all** — both channels end in
+`loop.create_task`, and a task does not run until the loop is next given control, so 0 of 1,750 effects arrived
+before `resolve()` returned and all 1,750 flooded after; adding labels inside it would publish nothing and then
+jump a host from zero to done, which reads as an instant wait. Narrating it requires the phase to YIELD, a change
+to a synchronous reasoning path, and the 5x win above is the argument for not needing to. And **`Wheel.edges` is
+a hot spot in its own right** — every access costs 2N+1 traversals via `order_transitions`, which `statements`
+then duplicates, and `_perspectives`, `polarity_count`, `edge_pairs` and all rendering read it. Measured by
+`tests/probe_build_wheels_offprovider.py` (free, mocked, `DIALEXITY_PROBE_BW_K=4`; `DIALEXITY_PROBE_BW_SITES=1`
+attributes every query to its call site) and `tests/e2e/probe_build_wheels_progress.py` (paid). The paid probe
+also settled that **`CausalityEstimation` had never run in any archived explore measurement** — it is gated at
+layer 2 and every archived run is one perspective, so the 1.5s on record for that stage is the branch that does
+nothing; at k=4 it is 112 calls and 1,102.8s of provider time, per
+`calls(k) = Σ_{L=2..min(k,max_wheel_layer)} C(k,L)·(L-1)!·(1+W(L))` with `W(1..4)=1,2,4,8` (k=2→3, k=4→112).
+
 **BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
 `_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —
 the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS = 1` in

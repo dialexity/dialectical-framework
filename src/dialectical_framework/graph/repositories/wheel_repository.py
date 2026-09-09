@@ -6,6 +6,7 @@ All queries are scoped by sid (injected from DI context) to prevent cross-user d
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from typing import Optional, Union, TYPE_CHECKING
 
 from dependency_injector.wiring import Provide, inject
@@ -20,6 +21,37 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.nexus import Nexus
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.perspective import Perspective
+
+
+#: Canonical component signature per wheel, keyed by (sid, wheel id).
+#:
+#: `find_by_component_sequence` is called once per candidate arrangement and asks
+#: the DB for every wheel of the right size, then reads each one's components to
+#: compare. So each new arrangement re-reads every wheel already built at that
+#: size, and one read is 1 + 4N queries: `Wheel.statements` reads `self.edges`,
+#: `edges` runs `order_transitions` which walks the chain with its own
+#: `source.get()`/`target.get()`, and then the `statements` loop reads both
+#: endpoints again. Measured at k=4 perspectives (96 wheels), that one call site
+#: opens 196,568 of 303,101 total charges — 65% of all client traffic, in a phase
+#: that is 116s of a 145s wall. See `tests/probe_build_wheels_offprovider.py`.
+#:
+#: Safe to cache: a wheel's transitions are written once when it is created and
+#: no path in this framework rewires or deletes them, so a signature never goes
+#: stale. Keyed by internal id, which assumes ids are not reused — true here for
+#: the same reason (nothing deletes a Wheel or a Transition). `clear_signature_cache`
+#: exists for tests, which do delete.
+#:
+#: Bounded so a long-lived process does not accumulate a signature for every wheel
+#: it has ever touched. The cap is far above any single build — the pattern is a
+#: tight burst over one nexus's wheels (96 at k=4), so eviction only ever reaches
+#: entries from finished work.
+_SIGNATURE_CACHE_MAX = 50_000
+_signature_cache: OrderedDict[tuple[Optional[str], Optional[int]], str] = OrderedDict()
+
+
+def clear_signature_cache() -> None:
+    """Drop all cached wheel signatures. For tests that delete graph data."""
+    _signature_cache.clear()
 
 
 class WheelRepository:
@@ -47,6 +79,31 @@ class WheelRepository:
         rotations = [hashes[i:] + hashes[:i] for i in range(len(hashes))]
         canonical = min(rotations)
         return ":".join(canonical)
+
+    @classmethod
+    def _signature_of(cls, wheel: Wheel, sid: Optional[str]) -> str:
+        """
+        Canonical signature of a wheel's component sequence, read at most once.
+
+        Empty string for a wheel with no components — matching the caller's old
+        `if wheel_components:` skip, since a target signature built from a
+        non-empty sequence can never equal "".
+        """
+        key = (sid, wheel._id)
+        if key in _signature_cache:
+            return _signature_cache[key]
+
+        components = wheel.statements
+        signature = (
+            cls._get_canonical_signature([c.hash for c in components])
+            if components
+            else ""
+        )
+        if wheel._id is not None:
+            _signature_cache[key] = signature
+            if len(_signature_cache) > _SIGNATURE_CACHE_MAX:
+                _signature_cache.popitem(last=False)
+        return signature
 
     @inject
     def find_by_component_sequence(
@@ -91,12 +148,8 @@ class WheelRepository:
         # Filter by canonical signature match
         for row in results:
             wheel: Wheel = row["w"]
-            wheel_components = wheel.statements
-            if wheel_components:
-                wheel_hashes = [c.hash for c in wheel_components]
-                wheel_signature = self._get_canonical_signature(wheel_hashes)
-                if wheel_signature == target_signature:
-                    return wheel
+            if self._signature_of(wheel, sid) == target_signature:
+                return wheel
 
         return None
 

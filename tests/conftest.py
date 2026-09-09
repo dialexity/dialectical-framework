@@ -285,6 +285,11 @@ def cleanup_test_graph_data(di_container):
     if is_cleanup_enabled():
         db = di_container.graph_db()
         cleanup_test_data(db)
+    # Wheel signatures are cached by internal node id, which is only stable while
+    # nothing deletes nodes. Cleanup does, and Memgraph may reuse the ids.
+    from dialectical_framework.graph.repositories.wheel_repository import \
+        clear_signature_cache
+    clear_signature_cache()
 
 
 @pytest.fixture(autouse=True)

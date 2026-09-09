@@ -68,6 +68,10 @@ machine: read the SHAPE, not the seconds.
 
 RESULTS
 =======
+The numbers below are the BASELINE, before the signature cache in
+`WheelRepository`. They are kept because they are what identified the cache; for
+what it changed, see AFTER THE FIX at the end.
+
 2026-09-09, mock brain. k=2 in 1.18s; k=4 twice, 180.7s and 149.8s (same machine,
 so read the seconds as ±20%; the counts below were IDENTICAL across both runs).
 
@@ -144,6 +148,37 @@ wait was instant. Narrating it requires the phase to YIELD — an `await` at eac
 layer or cycle boundary — which is a change to a synchronous reasoning path and has
 to be decided as one, not slipped in as instrumentation. Fixing (2) first may make
 the question moot, which is the argument for doing it in that order.
+
+AFTER THE FIX
+=============
+`WheelRepository` now caches the canonical signature per wheel, so
+`find_by_component_sequence` reads each wheel's components at most once instead of
+once per candidate arrangement. Two k=4 runs, same machine, same day:
+
+                             before        after
+      wall                  145.11s      44.83s     3.2x
+      COMBINATION (sync)    115.27s      22.57s     5.1x
+      build_wheels_for_cycle 110.70s     18.63s     5.9x
+      execute_and_fetch     300,517     120,309     -60%
+      IS_SOURCE_OF          134,496      34,332     -74%
+      IS_TARGET_OF           92,037      26,865     -71%
+      BELONGS_TO_CYCLE       22,776       7,904     -65%
+
+**The reasoning is untouched, and these counts are the evidence.** 24 cycles and 96
+wheels both times, 2,144 `save_node` and 2,821 `save_relationship` both times, 1,750
+effects both times. Identical structure, identical writes, identical stream — only
+the reads the code did to decide are gone. Full suite green (2,314 passed).
+
+What did NOT change: the phase is still `def`, so it still delivered 0 of 1,750
+effects before returning. 22.6s of silence is a smaller lie than 116s but it is the
+same lie, so the 5b question survives — just with much less riding on it.
+
+Where the remaining traffic goes: 61,197 source/target charges are now mostly
+`order_transitions`, which every `Wheel.edges` access runs (2N+1 traversals a time)
+and which `statements` then duplicates by re-reading both endpoints itself.
+De-duplicating those two passes is the next lever, and it is a `Wheel` change with a
+wider blast radius than this one — `_perspectives`, `polarity_count`, `edge_pairs`
+and all rendering read `edges`.
 """
 
 from __future__ import annotations
