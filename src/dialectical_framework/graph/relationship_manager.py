@@ -206,6 +206,7 @@ class RelationshipManager(Generic[T]):
         relationship_model: Optional[Type[GQLRelationship]] = None,
         direction: str = "outgoing",  # 'outgoing', 'incoming', 'any'
         cardinality: Optional[tuple[int, Optional[int]]] = None,
+        immutable: bool = False,
     ):
         """
         Initialize relationship manager.
@@ -224,6 +225,11 @@ class RelationshipManager(Generic[T]):
                 - (1, None): One or more
                 - (0, 1): Zero or one
                 - (0, None): Zero or more
+            immutable: This edge set is written once and never changes, so a
+                successful non-empty read may be memoised on the source node
+                instance for the life of that object. Declare it ONLY where the
+                owning node freezes the edge at commit time — see `all()` for
+                what the cache does and does not guard.
         """
         def _get_label(tc):
             """Get the database label for a class (uses GQLAlchemy's label attribute)."""
@@ -244,6 +250,7 @@ class RelationshipManager(Generic[T]):
         self.relationship_model = relationship_model
         self.direction = direction
         self.cardinality = cardinality
+        self.immutable = immutable
         self.source_node = None  # Set when accessed as descriptor
 
         # Determine relationship_type: infer from model if not provided
@@ -302,6 +309,7 @@ class RelationshipManager(Generic[T]):
             relationship_model=self.relationship_model,
             direction=self.direction,
             cardinality=self.cardinality,
+            immutable=self.immutable,
         )
         return bound
 
@@ -321,6 +329,7 @@ class BoundRelationshipManager(Generic[T]):
         relationship_model: Optional[Type[GQLRelationship]],
         direction: str,
         cardinality: Optional[tuple[int, Optional[int]]] = None,
+        immutable: bool = False,
     ):
         self.source_node = source_node
         self.target_class_name = target_class_name
@@ -328,6 +337,45 @@ class BoundRelationshipManager(Generic[T]):
         self.relationship_model = relationship_model
         self.direction = direction
         self.cardinality = cardinality
+        self.immutable = immutable
+
+    @property
+    def _cache_key(self) -> tuple[str, str, str]:
+        """Identity of this edge set on its source node."""
+        return (self.relationship_type, self.direction, self.target_class_name)
+
+    def _cached_all(self) -> Optional[list[tuple[T, GQLRelationship]]]:
+        """Memoised `all()` result for this edge set, if one was stored."""
+        cache = getattr(self.source_node, "_immutable_rel_cache", None)
+        if not cache:
+            return None
+        hit = cache.get(self._cache_key)
+        # A copy: callers sort and slice what `all()` hands back, and a shared
+        # list would let one caller rewrite every later reader's answer.
+        return list(hit) if hit is not None else None
+
+    def _store_all(self, results: list[tuple[T, GQLRelationship]]) -> None:
+        """Memoise a read, but only a NON-EMPTY one.
+
+        An empty read is not evidence of an empty edge set: on this tree the
+        write path is `save_node` → `connect` → `commit`, so anything reading
+        between those sees nothing legitimately. Caching that would freeze a
+        transient truth into a permanent lie, which is the one way an
+        immutable-edge cache can be wrong.
+        """
+        if not results:
+            return
+        cache = getattr(self.source_node, "_immutable_rel_cache", None)
+        if cache is None:
+            cache = {}
+            self.source_node._immutable_rel_cache = cache
+        cache[self._cache_key] = list(results)
+
+    def _invalidate(self) -> None:
+        """Drop this edge set's memo. Called on every write through this manager."""
+        cache = getattr(self.source_node, "_immutable_rel_cache", None)
+        if cache:
+            cache.pop(self._cache_key, None)
 
     @inject
     def _resolve_source_id(
@@ -964,6 +1012,11 @@ class BoundRelationshipManager(Generic[T]):
         """
         db = graph_db
 
+        # Before the write, not after: if the write raises we have merely dropped a
+        # valid memo, which costs one re-read. The other order can leave a stale one.
+        if self.immutable:
+            self._invalidate()
+
         # Helper function to get node ID
         def get_node_id(node):
             """Get node ID, querying by hash if _id not set."""
@@ -1124,6 +1177,9 @@ class BoundRelationshipManager(Generic[T]):
         # Block disconnection of structural relationships on committed nodes
         self._validate_structural_immutability(target_node, "disconnect")
 
+        if self.immutable:
+            self._invalidate()
+
         # Determine direction
         if self.direction == "outgoing":
             query = f"""
@@ -1226,8 +1282,27 @@ class BoundRelationshipManager(Generic[T]):
             List of tuples: (target_node, relationship)
             - target_node: The connected node (type T)
             - relationship: Typed GQLAlchemy Relationship object (e.g., TRelationship with .alias)
+
+        For a relationship declared `immutable=True`, a non-empty result is
+        memoised on the source node INSTANCE and reused for that object's life.
+        This is a read-volume lever, not a micro-optimisation: `Transition.source`
+        and `.target` were 61,197 of 122,893 charges in one `build_wheels` at k=4,
+        because `Wheel.statements` reads `self.edges`, `edges` runs
+        `order_transitions` which pulls both endpoints to walk the chain, and the
+        `statements` loop then pulls the SAME two endpoints off the SAME objects
+        again. See `tests/probe_build_wheels_offprovider.py`.
+
+        What the memo guards: writes through this manager (`connect`/`disconnect`)
+        drop it. What it does NOT guard: a write to the same edge performed
+        through a DIFFERENT Python object for the same node, or raw Cypher. That
+        is why `immutable=True` is opt-in per declaration and belongs only on
+        edges the owning node freezes at commit.
         """
         db = graph_db  # Use injected db
+        if self.immutable:
+            cached = self._cached_all()
+            if cached is not None:
+                return cached
         if self._resolve_source_id() is None:
             return []
 
@@ -1262,7 +1337,10 @@ class BoundRelationshipManager(Generic[T]):
         """
 
         results = db.execute_and_fetch(query, {"source_id": self.source_node._id})
-        return [(result["target"], result["relationship"]) for result in results]
+        pairs = [(result["target"], result["relationship"]) for result in results]
+        if self.immutable:
+            self._store_all(pairs)
+        return pairs
 
     def get(
         self,
@@ -1387,6 +1465,7 @@ def RelationshipTo(
     relationship_type: Optional[str] = None,
     model: Optional[Type[GQLRelationship]] = None,
     cardinality: Optional[tuple[int, Optional[int]]] = None,
+    immutable: bool = False,
 ) -> RelationshipManager[T]:
     """
     Define an outgoing relationship (similar to neomodel).
@@ -1398,6 +1477,8 @@ def RelationshipTo(
                           will be inferred from model.type)
         model: Optional relationship model class
         cardinality: (min, max) where max=None means unbounded
+        immutable: Edge set is written once and never changes, so a non-empty
+                  read may be memoised per node instance (see `all()`)
 
     Returns:
         RelationshipManager descriptor
@@ -1408,6 +1489,7 @@ def RelationshipTo(
         relationship_model=model,
         direction="outgoing",
         cardinality=cardinality,
+        immutable=immutable,
     )
 
 
@@ -1416,6 +1498,7 @@ def RelationshipFrom(
     relationship_type: Optional[str] = None,
     model: Optional[Type[GQLRelationship]] = None,
     cardinality: Optional[tuple[int, Optional[int]]] = None,
+    immutable: bool = False,
 ) -> RelationshipManager[T]:
     """
     Define an incoming relationship (similar to neomodel).
@@ -1427,6 +1510,8 @@ def RelationshipFrom(
                           will be inferred from model.type)
         model: Optional relationship model class
         cardinality: (min, max) where max=None means unbounded
+        immutable: Edge set is written once and never changes, so a non-empty
+                  read may be memoised per node instance (see `all()`)
 
     Returns:
         RelationshipManager descriptor
@@ -1437,6 +1522,7 @@ def RelationshipFrom(
         relationship_model=model,
         direction="incoming",
         cardinality=cardinality,
+        immutable=immutable,
     )
 
 

@@ -97,16 +97,28 @@ class Transition(AssessableEntity, label="Transition"):
     _source_ref: Optional[Statement] = None
     _target_ref: Optional[Statement] = None
 
+    # `immutable=True`: both endpoints are connected exactly once, inside
+    # `commit()`, which raises ImmutableNodeError if the node is already
+    # committed — and `_validate_structural_immutability` blocks a later
+    # connect/disconnect on a committed node besides. So a Transition's
+    # endpoints cannot change under a memo, and reading them was the single
+    # largest query cost in the tree: `Wheel.statements` reads `self.edges`,
+    # `edges` runs `order_transitions` which pulls both endpoints to walk the
+    # chain, and the `statements` loop then pulls the SAME endpoints off the
+    # SAME objects again. Measured at 61,197 of 122,893 charges in one k=4
+    # `build_wheels` — see `tests/probe_build_wheels_offprovider.py`.
     source: ClassVar[RelationshipManager[Statement]] = RelationshipFrom(
         "Statement",
         model=IsSourceOfRelationship,
-        cardinality=(1, 1)
+        cardinality=(1, 1),
+        immutable=True,
     )
 
     target: ClassVar[RelationshipManager[Statement]] = RelationshipTo(
         "Statement",
         model=IsTargetOfRelationship,
-        cardinality=(1, 1)
+        cardinality=(1, 1),
+        immutable=True,
     )
 
     # Container for this transition (Cycle or Wheel)
