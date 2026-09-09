@@ -243,7 +243,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     (one provider call plus graph writes) that was narrated by the label of the phase AFTER it, so a person
     read "Looking for what genuinely pushes back" for 12.4s while pairwise consolidation ran and potentially
     deleted 80% of the extraction that label promised. It now declares `expect_progress(1)` +
-    `report_progress("Checking whether any of the N tension(s) already oppose each other")` at its own site,
+    `report_progress("Checking whether any of the N tensions already oppose each other")` at its own site,
     BELOW the `len(unique_hashes) < 2` guard — above the guard it would be a phantom step on every
     single-thesis `anchor` run. One step, not two: the merges after the detector call write
     Polarity/Mode/Arousal, which the `sid` channel already carries. A reviewer's checks on this label are the
@@ -1735,7 +1735,39 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   what a key exists to prevent. Sanitize the KEY only, never the argument passed on — what a bad hash
   should do to the reasoning path is the skill's decision, not the scope line's. `tests/
   test_advisor_deepen.py::TestOneDeepenIsOneProgressStream::test_the_key_is_sanitized_before_a_host_ever_sees_it`
-  parametrizes the four shapes; the empty-key case is a legitimate state and must not raise. **`explore` still owns no stream, and
+  parametrizes the four shapes; the empty-key case is a legitimate state and must not raise.
+  **THREE MORE HOST-SURFACE RULES CAME OUT OF THE SAME SWEEP, and all three are things a reviewer reads
+  off a diff rather than measures.** (1) **The closing event carries an EMPTY `detail`.** It used to be
+  `f"{stage} finished"`, and the tell that it is back is a vocabulary test that exempts `final`: all
+  three (`test_ingest_progress.py::test_no_detail_string_names_the_machinery`,
+  `test_anchor_progress.py`'s counterpart, `test_analyze_progress.py::test_nothing_a_host_renders_carries_the_persons_words_or_the_machinery`)
+  used to skip it "by convention", and that convention was hiding a live leak — `synthesis` is a BANNED
+  word, `GenerateSynthesis` installs its own scope under the Advisor's `explore`, which owns none, so
+  `"synthesis finished"` reached a person past every test written to catch exactly that. Any wording is
+  wrong here: naming the stage repeats a field the event already carries, and anything cheerful asserts a
+  success `done` cannot back. Pinned at the seam by
+  `tests/test_progress.py::TestTheCountersTellTheTruth::test_the_closing_event_carries_no_label_of_its_own`,
+  which is the one that survives a regression to a word the three ban-lists happen to miss.
+  (2) **`audit_feasibility` keys its stream `",".join(sorted(t.short_hash for t in to_audit))`.** It had
+  no key at all, so two audits in one turn (ask about one pathway, ask about a second before the first
+  returns) both published under `feasibility`/`key=None`. Raw hashes, not a `_progress_key` digest: those
+  digests exist because their input is the person's own text, and a short hash is already opaque — hashing
+  it hides nothing and costs a host its only way to match a bar to the pathway asked about. Sorted so a
+  SET keys one stream regardless of the order the model named them; drawn from `to_audit`, not `targets`,
+  so key and denominator describe the same work. (3) **ONE operation, ONE label — enforced in code.**
+  `placing_candidates_label(count)` (`concerns/thesis_extraction.py`) is read by both the single-window
+  and swept classify announcements, so a person cannot read their source's size off the vocabulary; that
+  was two comments asking two files to agree. `AUDITING_LABEL` (`concerns/transformation_audit.py`) is
+  read by `explore`'s eager audit AND `audit_feasibility`, which had two wordings for one identical
+  `resolve(tr, input_text)` — and because the tool SKIPS a pathway the eager pass already scored, the
+  second wording made an already-done check read as a different, cheaper one. Corollary a reviewer can
+  apply mechanically: **pluralise only where the singular is reachable.** `find_polarities`'
+  consolidation label sits below the `len(unique_hashes) < 2` guard, so its "(s)" hedged a case the code
+  returns before reaching and is gone; `placing_candidates_label` branches for real, because both call
+  sites slice a list that is legitimately 1. Pinned by
+  `tests/test_transformation_audit_optional.py::TestBothCallersDescribeTheAuditTheSameWay` and
+  `tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut::test_the_classify_label_reads_as_a_sentence_at_either_count`.
+  **`explore` still owns no stream, and
   it is NOT a one-line fix — that claim was written here and is wrong.** Its two skills are SIBLINGS, not
   nested: `ExplorationPipeline` closes its scope before `explore`'s synthesis loop starts, so deferral
   never merges them and they publish `2 × deep_wheels` finals (`EXPLORE_DEEP_WHEELS = 1`, so two today,

@@ -153,8 +153,8 @@ async def run_audit_feasibility(transformation_hashes: list[str]) -> str:
     practical achievability, skipping any already scored. Returns str(report).
     """
     from dialectical_framework.agents.execution_report import ExecutionReport
-    from dialectical_framework.concerns.transformation_audit import \
-        TransformationAudit
+    from dialectical_framework.concerns.transformation_audit import (
+        AUDITING_LABEL, TransformationAudit)
     from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.repositories.node_repository import \
         NodeRepository
@@ -217,9 +217,32 @@ async def run_audit_feasibility(transformation_hashes: list[str]) -> str:
     failed: list[str] = []
     if to_audit:
         input_text = await _get_input_text()
-        with progress_scope("feasibility", total=len(to_audit)):
+        # KEY the stream, because two audits can be in flight at once and both
+        # published under `feasibility`/`key=None`: the person asks about one pathway,
+        # then about another before the first returns, and a host keying on
+        # (stage, key) folded two independent bars into one that walked backwards.
+        # `explore`'s own audit pass cannot collide here (it defers to `explore`'s
+        # scope and never installs this one), but two `audit_feasibility` calls can,
+        # and the Advisor is free to issue them in the same turn.
+        #
+        # The hashes themselves, joined — NOT hashed. The `_progress_key` helpers
+        # elsewhere in this tree exist because their input is the person's own text
+        # and a key is a host-rendered surface; a Transformation short hash is already
+        # an opaque 7 characters the model reads off its own prompt, so hashing it
+        # again would hide nothing and cost a host the one thing the key is good for:
+        # matching a bar to the pathway the person just asked about. Sorted so the
+        # same SET of pathways keys the same stream whatever order they were named in,
+        # and drawn from `to_audit` (what this scope actually counts) rather than
+        # `targets`, so the denominator and the key describe the same work.
+        key = ",".join(sorted(t.short_hash for t in to_audit if t.short_hash))
+        with progress_scope("feasibility", key=key, total=len(to_audit)):
             for tr in to_audit:
-                report_progress("Checking whether the move is actually doable")
+                # Owned by the concern: `explore`'s eager pass runs the identical
+                # `resolve` and used to announce it as "Checking the move against the
+                # situation", so one check had two names — and this tool SKIPS a pathway
+                # that pass already scored, which made the two wordings look like two
+                # different amounts of work. See `AUDITING_LABEL`.
+                report_progress(AUDITING_LABEL)
                 auditor = TransformationAudit()
                 try:
                     await auditor.resolve(tr, input_text)

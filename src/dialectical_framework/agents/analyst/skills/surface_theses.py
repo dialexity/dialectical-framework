@@ -32,7 +32,8 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.concerns.statement_deduplication import \
     StatementDeduplication
-from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
+from dialectical_framework.concerns.thesis_extraction import (
+    ThesisExtraction, placing_candidates_label)
 from dialectical_framework.enums.di import DI
 from dialectical_framework.graph.nodes.ideas import Ideas
 from dialectical_framework.graph.nodes.rationale import Rationale
@@ -394,7 +395,11 @@ Determine:
         # Classify only the survivors, each against the window it came from.
         selected = candidates[:target_count]
         expect_progress(1)
-        report_progress(f"Placing {len(selected)} candidate tension(s)")
+        # Shared with `ThesisExtraction.resolve`'s single-window announcement, by
+        # construction rather than by two comments agreeing: a person must not be able
+        # to read how big their source was off the label. See
+        # `placing_candidates_label`.
+        report_progress(placing_candidates_label(len(selected)))
         classifier = ThesisExtraction()
         components = await classifier.classify_candidates(
             selected, domain_hint=parsed.domain_hint

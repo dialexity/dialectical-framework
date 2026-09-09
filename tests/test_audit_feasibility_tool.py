@@ -168,6 +168,39 @@ def wired(monkeypatch):
     return state
 
 
+@pytest.fixture
+def scope_spy(monkeypatch):
+    """Collect the `ProgressScope`s the tool installs, in order.
+
+    The scope object is enough for both tests that use it: `_publish` reads `stage`,
+    `key`, `done` and `total` straight off it, so what a host receives is what is
+    asserted here — without a bus, a listener and a settle loop. The channel-level
+    apparatus exists in `test_advisor_deepen.py`, where the thing under test (how many
+    `final` events a call produces) is genuinely invisible from the scope.
+    """
+    from dialectical_framework.utils import progress as progress_mod
+
+    seen: list = []
+    real_scope = progress_mod.progress_scope
+
+    def spy(stage, **kwargs):
+        ctx = real_scope(stage, **kwargs)
+
+        class _Wrapper:
+            def __enter__(self):
+                scope = ctx.__enter__()
+                seen.append(scope)
+                return scope
+
+            def __exit__(self, *exc):
+                return ctx.__exit__(*exc)
+
+        return _Wrapper()
+
+    monkeypatch.setattr(progress_mod, "progress_scope", spy)
+    return seen
+
+
 def _register(state, *pathways):
     for p in pathways:
         state["pathways"][p.short_hash] = p
@@ -330,39 +363,98 @@ class TestAskingCostsTwoCallsAndAnswersWithReasons:
         assert "not estimated" in report
         assert "feasibility=0.00" not in report
 
-    async def test_progress_counts_what_is_actually_audited(self, wired, monkeypatch):
+    async def test_progress_counts_what_is_actually_audited(self, wired, scope_spy):
         """Reused pathways cost nothing, so counting them would leave the bar
         short of its total for the rest of the run."""
         from dialectical_framework.agents.orchestrator.tools import \
             audit_feasibility as af_mod
-        from dialectical_framework.utils import progress as progress_mod
 
-        seen: list = []
-        real_scope = progress_mod.progress_scope
-
-        def spy(stage, **kwargs):
-            ctx = real_scope(stage, **kwargs)
-
-            class _Wrapper:
-                def __enter__(self):
-                    scope = ctx.__enter__()
-                    seen.append(scope)
-                    return scope
-
-                def __exit__(self, *exc):
-                    return ctx.__exit__(*exc)
-
-            return _Wrapper()
-
-        monkeypatch.setattr(progress_mod, "progress_scope", spy)
         fresh = _pathway("aaaaaaa")
         done = _pathway(
             "bbbbbbb", ac_plus=(0.8, "on record"), re_plus=(0.4, "on record")
         )
         await af_mod.run_audit_feasibility(_register(wired, fresh, done))
 
-        assert len(seen) == 1
-        assert seen[0].total == 1 == seen[0].done
+        assert len(scope_spy) == 1
+        assert scope_spy[0].total == 1 == scope_spy[0].done
+
+    async def test_the_stream_is_keyed_by_the_pathways_it_audits(
+        self, wired, scope_spy
+    ):
+        """Two audits can be in flight, and both used to publish with `key=None`.
+
+        A person asks about one pathway and then, before the answer lands, about
+        another — the Advisor is free to spend both calls in one turn. A host telling
+        streams apart by `(stage, key)` folded those two into a single bar whose
+        denominator and count came from two unrelated runs, which is the exact failure
+        `key` exists to prevent.
+
+        Keyed by what is AUDITED, not by what was named: an already-estimated pathway
+        contributes nothing to the count, so including it would describe work this
+        stream is not doing.
+        """
+        from dialectical_framework.agents.orchestrator.tools import \
+            audit_feasibility as af_mod
+
+        fresh = _pathway("aaaaaaa")
+        done = _pathway(
+            "bbbbbbb", ac_plus=(0.8, "on record"), re_plus=(0.4, "on record")
+        )
+        await af_mod.run_audit_feasibility(_register(wired, fresh, done))
+
+        assert scope_spy[0].key == "aaaaaaa", (
+            f"key is {scope_spy[0].key!r}; with None a host cannot tell two"
+            f" concurrent audits apart, and naming the reused pathway would claim"
+            f" work this stream never counts"
+        )
+
+    async def test_the_key_does_not_depend_on_the_order_the_model_named_them(
+        self, wired, scope_spy
+    ):
+        """Same set of pathways, same stream key — the identity is the set.
+
+        Unsorted, one turn's `["bb", "aa"]` and the next's `["aa", "bb"]` are two keys
+        for one piece of work, so a host resuming or de-duplicating on the key sees two
+        streams where there is one.
+        """
+        from dialectical_framework.agents.orchestrator.tools import \
+            audit_feasibility as af_mod
+
+        # Re-registered between the calls, under the SAME hashes: the fake audit writes
+        # bands the way the real concern does, so the second call would otherwise find
+        # both pathways already estimated, audit nothing and open no scope at all — a
+        # green-looking `len(scope_spy) == 1` that proves nothing about the key.
+        _register(wired, _pathway("aaaaaaa"), _pathway("bbbbbbb"))
+        await af_mod.run_audit_feasibility(["bbbbbbb", "aaaaaaa"])
+
+        _register(wired, _pathway("aaaaaaa"), _pathway("bbbbbbb"))
+        await af_mod.run_audit_feasibility(["aaaaaaa", "bbbbbbb"])
+
+        assert len(scope_spy) == 2
+        assert scope_spy[0].key == scope_spy[1].key == "aaaaaaa,bbbbbbb", (
+            f"the two calls keyed the same work differently: "
+            f"{[s.key for s in scope_spy]}"
+        )
+
+    async def test_the_key_is_a_hash_a_host_can_match_not_an_opaque_digest(
+        self, wired, scope_spy
+    ):
+        """The key must contain the short hash the person was shown.
+
+        Elsewhere in this tree a progress key is a sha256 of its input, because that
+        input is the person's own text and the key is a host-rendered surface. Here the
+        input IS a hash — seven characters the model read off its own prompt — so
+        digesting it again hides nothing and costs a host its only way to line a bar up
+        with the pathway that was asked about.
+        """
+        from dialectical_framework.agents.orchestrator.tools import \
+            audit_feasibility as af_mod
+
+        await af_mod.run_audit_feasibility(_register(wired, _pathway("c0ffee1")))
+
+        assert "c0ffee1" in (scope_spy[0].key or ""), (
+            f"key {scope_spy[0].key!r} does not contain the pathway's short hash"
+        )
 
 
 # --- Wiring ---------------------------------------------------------------

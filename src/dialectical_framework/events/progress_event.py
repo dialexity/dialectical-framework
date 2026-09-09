@@ -103,10 +103,17 @@ class ProgressEvent:
             module docstring before rendering this as a completion count.
         total: Steps expected so far — a moving target, see the module docstring.
         detail: Human-readable description of the step that just started — or, when
-            `note` is set, of something that just finished.
+            `note` is set, of something that just finished. **EMPTY on the `final`
+            event**, always: see `final` below.
         final: True on the single event published when the stage ends. A host can
             clear its spinner on this without waiting for `done == total`, which
-            may never happen.
+            may never happen. Its `detail` is the empty string, because the only
+            thing this event knows that the fields do not already say would be a
+            success claim, and `done` cannot back one (above). It carried
+            `f"{stage} finished"` for a while, which was `stage` repeated as prose
+            and leaked internal stage names — `"synthesis finished"` reached a
+            person. The closing label belongs to the host, which has `stage`, `key`,
+            `done` and `total` to write it from.
         note: True on an event that is NOT a step: `done` and `total` are the same
             values the previous event carried, so a host refreshes its label and
             leaves its bar where it is. Counting notes as steps would make `done`

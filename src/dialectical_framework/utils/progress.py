@@ -152,6 +152,25 @@ def progress_scope(
     folded into the outer denominator so a deferring skill's declared work still
     counts, while `stage` and `key` are DISCARDED: one tool call is one stream, and
     the outer names it.
+
+    **THE CLOSING EVENT CARRIES AN EMPTY `detail`, and that is deliberate.** It used
+    to read `f"{stage} finished"`, which was wrong three ways. It carried no
+    information — its only content was `stage`, which the event already has in its own
+    field, so a host was being handed the same string twice. It leaked machinery into
+    prose: `stage` is an internal name, and the one that reaches a person on the silent
+    Advisor path is `"synthesis finished"` — `synthesis` being a word this tree's
+    progress vocabulary bans, since `GenerateSynthesis` opens its own scope under
+    `explore`, which owns none. And every replacement wording was worse: anything
+    naming the stage is machinery, and anything cheerful (`"Done"`, `"Finished"`) is a
+    success claim that `done` cannot back — `report_progress` counts steps ANNOUNCED,
+    so a run whose last step raised still closes at 24/24.
+
+    So the closing event says what it actually knows: `final=True`, plus the counters.
+    The label beside a host's spinner is the host's to write, and it has `stage`,
+    `key`, `done` and `total` to write it from. The side benefit is that the
+    banned-vocabulary tests no longer need to exempt `final` — they cover every event
+    on the channel now, which is where a leak like `"synthesis finished"` should have
+    been caught in the first place.
     """
     outer = _current.get()
     if outer is not None:
@@ -166,7 +185,8 @@ def progress_scope(
     finally:
         _current.reset(token)
         scope._closed = True
-        _publish(scope, detail=f"{stage} finished", final=True)
+        # Empty on purpose — see the docstring. `stage` is already its own field.
+        _publish(scope, detail="", final=True)
 
 
 def report_progress(detail: str) -> None:

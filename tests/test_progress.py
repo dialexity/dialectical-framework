@@ -290,6 +290,55 @@ class TestTheCountersTellTheTruth:
 
         assert any(e.final for e in got)
 
+    @pytest.mark.asyncio
+    async def test_the_closing_event_carries_no_label_of_its_own(self, bus):
+        """The stage name is not prose, and "done" is a claim `done` cannot back.
+
+        This closed with `f"{stage} finished"` for a long time, and it was wrong three
+        ways at once. It repeated `stage`, which the event already carries in its own
+        field. It put an internal name in front of a person: the vocabulary tests on
+        `ingest`, `anchor` and `analyze` all had to exempt `final` to stay green, and
+        that exemption hid a live leak — `synthesis` is a banned word, and
+        `GenerateSynthesis` opens its own scope under the Advisor's `explore`, which
+        installs none, so `"synthesis finished"` went out on the silent path. And every
+        cheerful replacement ("Done", "Finished") asserts success, which `done` cannot
+        support: it counts steps ANNOUNCED, so a run whose last step raised still
+        closes full.
+
+        So the closing event says only what it knows — `final=True` and the counters —
+        and the label belongs to the host. Pinned here at the seam rather than only in
+        the three vocabulary tests, because those would each go green again if this
+        regressed to a word they happen not to ban.
+        """
+        received = []
+
+        async def _listen() -> None:
+            async with bus.subscribe_progress("sid-empty") as subscriber:
+                ready.set()
+                async for event in subscriber:
+                    received.append(event.message)
+
+        ready = asyncio.Event()
+        listener = asyncio.create_task(_listen())
+        await ready.wait()
+
+        with scope("sid-empty"), progress_scope("synthesis", total=1):
+            report_progress("Drawing out what emerges from the whole picture")
+
+        got = await _drain_list(received)
+        listener.cancel()
+
+        final = [e for e in got if e.final]
+        assert len(final) == 1
+        assert final[0].detail == "", (
+            f"the closing event labelled itself {final[0].detail!r}; a host writes"
+            f" that line from `stage`, `key`, `done` and `total`"
+        )
+        assert final[0].stage == "synthesis", (
+            "the stage must still be on the event — dropping the detail moves the"
+            " label to the host, it does not withhold what the host needs"
+        )
+
     def test_expect_is_additive_because_work_is_discovered_lazily(self):
         with progress_scope("s") as prog:
             assert prog.total == 0

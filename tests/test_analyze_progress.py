@@ -290,20 +290,29 @@ async def test_nothing_a_host_renders_carries_the_persons_words_or_the_machinery
     )
     assert events
 
+    # No exemption for `final`. It used to be exempt "by convention", because the
+    # seam built its detail as `f"{stage} finished"` — and that convention hid a real
+    # leak: `synthesis` is BANNED, and `GenerateSynthesis` opens its own scope under
+    # the Advisor's `explore`, which installs none, so `"synthesis finished"` went out
+    # to a host past three tests written to catch exactly that. The seam now closes
+    # with an empty detail, which passes the ban trivially and honestly.
     for event in events:
-        # `final` is exempt from the vocabulary ban by convention: the seam builds
-        # it as `f"{stage} finished"`, which is machinery by construction.
-        if not event.final:
-            lowered = event.detail.lower()
-            for term in BANNED:
-                assert term not in lowered, (
-                    f"label {event.detail!r} names the machinery ({term!r}) — the"
-                    f" silent Advisor's contract is that a host may render these"
-                    f" verbatim"
-                )
-            assert len(event.detail) < 200, (
-                f"label is {len(event.detail)} chars: too long to be a label and"
-                f" long enough to be carrying content"
+        lowered = event.detail.lower()
+        for term in BANNED:
+            assert term not in lowered, (
+                f"label {event.detail!r} names the machinery ({term!r}) — the"
+                f" silent Advisor's contract is that a host may render these"
+                f" verbatim"
+            )
+        assert len(event.detail) < 200, (
+            f"label is {len(event.detail)} chars: too long to be a label and"
+            f" long enough to be carrying content"
+        )
+        if event.final:
+            assert event.detail == "", (
+                f"the closing event labelled itself {event.detail!r}; the label"
+                f" beside a host's spinner is the host's to write, from `stage`,"
+                f" `key`, `done` and `total`"
             )
 
         for start in range(0, len(SITUATION) - _LEAK_RUN):

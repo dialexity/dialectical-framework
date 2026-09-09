@@ -218,13 +218,18 @@ class ExploreTransformations(
             # calls per Transformation. See `settings.audit_transformations` for
             # the measurement and for the one thing the absence does cost.
             if all_new and self.settings.audit_transformations:
-                from dialectical_framework.concerns.transformation_audit import TransformationAudit
+                from dialectical_framework.concerns.transformation_audit import (
+                    AUDITING_LABEL, TransformationAudit)
 
                 async def _audit_one(tr: Transformation) -> TransformationAudit:
                     # One step per Transformation, not per call. The audit is two
                     # provider calls, but a person watching wants "auditing 3 of 6",
                     # not a denominator inflated by an internal detail.
-                    report_progress("Checking the move against the situation")
+                    #
+                    # The label comes from the concern, not from here: `audit_feasibility`
+                    # runs the same `resolve` and used to describe it differently, so one
+                    # check had two names — see `AUDITING_LABEL`.
+                    report_progress(AUDITING_LABEL)
                     auditor = TransformationAudit()
                     await auditor.resolve(tr, input_text)
                     return auditor

@@ -316,11 +316,21 @@ async def test_no_detail_string_names_the_machinery(
     # which is exactly what it did while the harness was dropping every event.
     assert steps, "no step events to inspect; this test would pass vacuously"
 
+    # EVERY event, `final` included. This loop used to `continue` past the closing
+    # one because the seam built its detail as `f"{stage} finished"` — machinery by
+    # construction, so the exemption was the only way to keep the test green. That
+    # exemption was also a hole: `"synthesis finished"` leaks a BANNED word on the
+    # Advisor's own path and nothing here would have said so. The seam now closes
+    # with an empty detail, so nothing needs exempting.
     for event in events:
-        if event.final:
-            # The closing event's detail is "<stage> finished", i.e. the stage
-            # name — a host's own label, not prose written for the person.
-            continue
         lowered = event.detail.lower()
         leaked = [term for term in BANNED if term in lowered]
         assert not leaked, f"progress detail leaked {leaked}: {event.detail!r}"
+
+    closing = [e for e in events if e.final]
+    assert closing, "no closing event"
+    assert all(e.detail == "" for e in closing), (
+        "the closing event carries a label again — whatever it says is either the"
+        f" stage name (already its own field) or an unbackable success claim:"
+        f" {[e.detail for e in closing]}"
+    )

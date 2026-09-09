@@ -517,8 +517,13 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         # that label was promising (`probe_ingest_progress.py`). A person reading
         # the wrong label for twelve seconds was the whole finding.
         expect_progress(1)
+        # Plain "tensions", no "(s)": the guard four lines up returns before this on
+        # anything under two, so the count is always at least 2 and the parenthetical
+        # only ever showed a person a hedge the code had already ruled out. Elsewhere
+        # in this tree "(s)" IS load-bearing (`thesis_extraction` can legitimately
+        # place one), which is why this is a local fix and not a sweep.
         report_progress(
-            f"Checking whether any of the {len(unique_hashes)} tension(s)"
+            f"Checking whether any of the {len(unique_hashes)} tensions"
             " already oppose each other"
         )
 

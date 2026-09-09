@@ -255,9 +255,12 @@ CLOSED — neither measured live yet, so the next run at 120 KB is what confirms
    pushes back" while what ran was pairwise consolidation that may delete most of the
    extraction it is promising. It is also the phase with the most surprising effect on
    the graph, since it can remove 80% of the surfaced theses from extraction without
-   any line saying so. The step reads "Checking whether any of the N tension(s) already
+   any line saying so. The step reads "Checking whether any of the N tensions already
    oppose each other", and is declared BELOW the `len < 2` guard: above the guard it
-   would be a phantom step on every single-thesis `anchor` run. **Confirmed live in the
+   would be a phantom step on every single-thesis `anchor` run. (The transcripts below
+   quote it as "tension(s)", which is what it said when they were recorded — the guard
+   makes N >= 2 always, so the parenthetical was dropped afterwards. Read the quotes as
+   evidence of timing, not as the current wording.) **Confirmed live in the
    seventh run below — though it RELABELLED the gap rather than splitting it, which is
    the correction that section carries.**
 2. **Link 2 was a gathered fan-out that writes nothing — the textbook `note_progress`

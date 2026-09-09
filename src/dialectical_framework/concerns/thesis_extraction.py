@@ -44,6 +44,31 @@ if TYPE_CHECKING:
     pass
 
 
+def placing_candidates_label(count: int) -> str:
+    """The progress label for the classify-and-anchor phase, for BOTH callers.
+
+    Two sites announce this phase and the wording has to be byte-identical:
+    `resolve()` below, on a source small enough for one prompt, and
+    `SurfaceTheses._sweep_and_classify`, which gathers candidates across windows
+    first. **A person must not be able to tell how large their source was from the
+    vocabulary they are shown** — the swept path is the slow one, and a different
+    label there would read as a different, unexplained phase.
+
+    That was a comment asking two files to agree, which is the kind of agreement that
+    holds until someone edits one of them. It is a function now, so the wording has one
+    definition; `surface_theses` already imports from this module, so this costs no new
+    coupling.
+
+    The plural is REAL here, unlike the pairwise-consolidation label in
+    `find_polarities`: `count` is `all_candidates[:self._count]` on one path and
+    `candidates[:target_count]` on the other, and both are legitimately 1 for a short
+    source — so "1 candidate tension(s)" was reaching people rather than being
+    unreachable dead punctuation.
+    """
+    noun = "tension" if count == 1 else "tensions"
+    return f"Placing {count} candidate {noun}"
+
+
 # --- System Prompt ---
 
 SYSTEM_PROMPT = """You are a dialectical thesis extractor.
@@ -162,10 +187,10 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         # 27% of a 45.5s wall spent under a line that said "Reading the material
         # for tensions" long after reading had finished
         # (`tests/e2e/probe_ingest_progress.py`). Same wording as the sweep on
-        # purpose: the person should not be able to tell how large their source
-        # was from the vocabulary.
+        # purpose — see `placing_candidates_label`, which is where that "same
+        # wording" now lives instead of in two comments hoping to stay in step.
         expect_progress(1)
-        report_progress(f"Placing {len(candidates_to_process)} candidate tension(s)")
+        report_progress(placing_candidates_label(len(candidates_to_process)))
 
         # STEP 3-4: Classify and anchor each candidate using StatementClassification
         components = await self.classify_candidates(

@@ -77,6 +77,22 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.transition import Transition
 
 
+#: The progress label for one run of this concern, owned HERE because BOTH callers
+#: announce it and they were announcing it differently: `explore_transformations` said
+#: "Checking the move against the situation" and `audit_feasibility` said "Checking
+#: whether the move is actually doable", for the identical `resolve(tr, input_text)`
+#: call. Two labels for one operation is worse than either label alone, and this pair
+#: had a specific way of misleading: `audit_feasibility` SKIPS a pathway the eager pass
+#: already scored, so the person who saw the first wording during `explore` and then
+#: asked for feasibility got a fast answer under a different label with no way to tell
+#: it was the same check, already done.
+#:
+#: The doable wording won because it names what the person receives ("could I actually
+#: do that?") rather than the method; "against the situation" describes how the concern
+#: works, which is exactly the kind of thing progress labels are not for.
+AUDITING_LABEL = "Checking whether the move is actually doable"
+
+
 SYSTEM_PROMPT = """You are a practical feasibility auditor for dialectical transformations.
 
 Your role is to critically evaluate whether a proposed transition step is actually implementable

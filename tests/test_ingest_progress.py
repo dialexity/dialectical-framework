@@ -397,10 +397,21 @@ async def test_no_detail_string_names_the_machinery(collected_progress, kilobyte
     # Without this the loop below iterates nothing and the test cannot fail.
     assert steps, "no step events to inspect; this test would pass vacuously"
 
-    for event in steps:
+    # `events`, not `steps`: the closing event is a rendered surface too. Filtering it
+    # out here was the third place in this tree that silently exempted `final` from the
+    # ban, back when the seam closed with `f"{stage} finished"`. It closes with an
+    # empty detail now, and the empty case is pinned separately below so the coverage
+    # cannot quietly become vacuous.
+    for event in events:
         lowered = event.detail.lower()
         leaked = [term for term in BANNED if term in lowered]
         assert not leaked, f"progress detail leaked {leaked}: {event.detail!r}"
+
+    closing = [e for e in events if e.final]
+    assert closing and all(e.detail == "" for e in closing), (
+        "the closing event names something again; `stage` is already its own field"
+        f" and `done` cannot back a success claim: {[e.detail for e in closing]}"
+    )
 
 
 @pytest.mark.llm
@@ -693,7 +704,7 @@ class TestOneLabelNeverCoversAGatheredFanOut:
                 " caller's step and the step-2 gate stays inside it"
             )
 
-        assert reported == ["Placing 2 candidate tension(s)"], (
+        assert reported == ["Placing 2 candidate tensions"], (
             "the label must match the sweep's wording verbatim, so the person"
             " cannot tell how large their source was from the vocabulary, and it"
             f" must carry the real candidate count. Got: {reported}"
@@ -814,14 +825,47 @@ class TestOneLabelNeverCoversAGatheredFanOut:
         `two_theses` patches `ThesisExtraction.resolve`, so
         `test_no_detail_string_names_the_machinery` never sees the classify label.
         """
+        from dialectical_framework.concerns.thesis_extraction import \
+            placing_candidates_label
+
         labels = (
-            "Placing 2 candidate tension(s)",
+            # Read LIVE, not copied: a transcribed label is checked forever after the
+            # thing it transcribes has moved on.
+            placing_candidates_label(2),
+            placing_candidates_label(1),
             "Weighing what could stand against this",
             "Judging how strongly each opposition holds",
         )
         for label in labels:
             for term in BANNED:
                 assert term not in label.lower(), f"{label!r} names {term!r}"
+
+    @pytest.mark.parametrize(
+        "count, expected",
+        [
+            (1, "Placing 1 candidate tension"),
+            (2, "Placing 2 candidate tensions"),
+            (11, "Placing 11 candidate tensions"),
+        ],
+    )
+    def test_the_classify_label_reads_as_a_sentence_at_either_count(
+        self, count, expected
+    ):
+        """One candidate is a real case, so "1 candidate tension(s)" was real too.
+
+        Both callers slice a list — `all_candidates[:count]` on the single-window path,
+        `candidates[:target_count]` after the sweep — and a short source legitimately
+        yields one. This is the opposite of the pairwise-consolidation label in
+        `find_polarities`, where a guard makes 1 unreachable and the parenthetical was
+        dead punctuation; here the parenthetical was being shown to people.
+
+        Pinned on the shared builder rather than on the two call sites, because that is
+        now the only place the wording exists — which is the point of it existing.
+        """
+        from dialectical_framework.concerns.thesis_extraction import \
+            placing_candidates_label
+
+        assert placing_candidates_label(count) == expected
 
 
 class TestTheDigestSaysWhenAPartComesBack:
@@ -1029,7 +1073,7 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         )
 
         assert reported == [
-            "Checking whether any of the 3 tension(s) already oppose each other"
+            "Checking whether any of the 3 tensions already oppose each other"
         ], (
             "the label must name the pairwise check and carry the real count, so a"
             f" person can tell this phase from the extraction after it. Got: {reported}"
@@ -1054,6 +1098,10 @@ class TestTheConsolidationPhaseSaysItIsRunning:
         known — would be expected on every single-thesis `anchor` run and reported on
         none of them, leaving the denominator one short forever and a bar that never
         fills.
+
+        This guard is also why the label above reads plain "tensions" rather than
+        "tension(s)": the count it carries can never be 1, so the parenthetical hedged
+        against a case the code returns before reaching.
         """
         reported, progress, called, _ = await self._consolidate(monkeypatch, ["h1"])
 

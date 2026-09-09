@@ -254,3 +254,114 @@ class TestTheProgressDenominatorFollowsTheGate:
 
         assert len(captured) == 1, "one scope per tool call, keyed by wheel"
         return captured[0]
+
+
+class TestBothCallersDescribeTheAuditTheSameWay:
+    """One check, one wording — the two callers used to disagree.
+
+    `explore`'s eager pass announced "Checking the move against the situation";
+    `audit_feasibility` announced "Checking whether the move is actually doable". The
+    call underneath is byte-for-byte the same `TransformationAudit.resolve(tr,
+    input_text)`, so a person met one operation under two names.
+
+    The specific harm is this file's own subject matter. The tool SKIPS a pathway the
+    eager pass already scored, so someone who watched the audit go by during `explore`
+    and then asked for feasibility got a near-instant answer under a *different* label —
+    which reads as a second, cheaper kind of check rather than as "already done". The
+    wording now lives on the concern as `AUDITING_LABEL`, and this pins that both
+    callers actually read it rather than each holding a copy that drifts.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_eager_pass_uses_the_concerns_label(
+        self, di_container, driven, monkeypatch
+    ):
+        from dialectical_framework.agents.explorer.skills import \
+            explore_transformations as et_mod
+        from dialectical_framework.concerns.transformation_audit import \
+            AUDITING_LABEL
+
+        make, _ = driven
+        reported: list[str] = []
+        monkeypatch.setattr(et_mod, "report_progress", reported.append)
+
+        with _settings(di_container, audit_transformations=True):
+            await make().resolve()
+
+        assert reported, "no step reported, so this asserts nothing about the wording"
+        assert set(reported) == {AUDITING_LABEL}, (
+            f"the eager audit announced {sorted(set(reported))} instead of the"
+            f" concern's own label {AUDITING_LABEL!r}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_on_demand_tool_uses_the_same_label(self, monkeypatch):
+        """Driven through the tool, not asserted on its source.
+
+        Same fakes as `test_audit_feasibility_tool.py` in miniature: the point here is
+        only which string reaches `report_progress`, and reusing that file's `wired`
+        fixture would mean importing a fixture across modules to check one literal.
+        """
+        from dialectical_framework.agents.orchestrator.tools import \
+            audit_feasibility as af_mod
+        from dialectical_framework.concerns import transformation_audit as ta_mod
+        from dialectical_framework.concerns.transformation_audit import \
+            AUDITING_LABEL
+        from dialectical_framework.graph.nodes.transformation import \
+            Transformation
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
+        pathway = Transformation()
+        object.__setattr__(pathway, "hash", "abc1234" + "0" * 10)
+        # No estimation anywhere on it, so `_needs_audit` is True and the audit runs.
+        object.__setattr__(pathway, "edge", type("_E", (), {"get": staticmethod(lambda: None)})())
+        for position in ("ac_plus", "re_plus"):
+            transition = type(
+                "_T",
+                (),
+                {
+                    "estimations": type("_M", (), {"all": staticmethod(lambda: [])})(),
+                    # The renderer reads these after the audit; without them the tool
+                    # raises past the assertion and the failure looks like the label.
+                    "instruction": "Hand the accounts over deliberately",
+                    "summary": None,
+                },
+            )()
+            object.__setattr__(
+                pathway,
+                position,
+                type("_One", (), {"get": staticmethod(lambda t=transition: (t, object()))})(),
+            )
+
+        monkeypatch.setattr(
+            NodeRepository, "find_by_hash", lambda self, hash, **_k: pathway
+        )
+
+        async def fake_input_text():
+            return "the situation as digested"
+
+        monkeypatch.setattr(af_mod, "_get_input_text", fake_input_text)
+
+        async def fake_audit(self, transformation, input_text="", audit_all=False):
+            self._report.summary = "audited"
+            return []
+
+        monkeypatch.setattr(ta_mod.TransformationAudit, "resolve", fake_audit)
+
+        # Patched on the seam module, not on the tool's namespace: this tool imports
+        # `report_progress` inside the function body (the deferred-import style the
+        # whole `tools/` package uses to keep the agent's import graph flat), so there
+        # is no module attribute to replace. The eager-pass test above patches
+        # `et_mod` because that module does import it at the top.
+        from dialectical_framework.utils import progress as progress_mod
+
+        reported: list[str] = []
+        monkeypatch.setattr(progress_mod, "report_progress", reported.append)
+
+        await af_mod.run_audit_feasibility(["abc1234"])
+
+        assert reported == [AUDITING_LABEL], (
+            f"the on-demand audit announced {reported} instead of the concern's own"
+            f" label {AUDITING_LABEL!r}"
+        )
