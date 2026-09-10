@@ -657,6 +657,19 @@ class ExploreTransformations(
 
         # Two calls, neither of which writes a node — so without these two lines
         # Phase 1 is part of the same silence Phase 2 was.
+        #
+        # Both edges of a pair run this concurrently, so the FIRST label below is
+        # published twice in one instant (measured: 2.6s, 1/3 then 2/5, in
+        # `probe_explore_progress.py`'s fourth run). That is accepted, not
+        # overlooked. The duplicate carries the SAME text, so nothing is superseded
+        # and a host renders one label that stays — unlike the 0.0s flashes this
+        # tree has actually fixed, which were a different label arriving on top.
+        # It cannot be hoisted anyway: only a site above the whole fan-out could
+        # declare it once, and whether ANY Phase 1 task runs is decided per pair by
+        # the buildability analysis in `_process_edge_pair`, so hoisting buys a step
+        # that can be declared and never reported. Same shape as
+        # `expand_polarities`' per-polarity label and the audit phase's six at once;
+        # see the probe's fourth-run section before changing it.
         expect_progress(2)
 
         report_progress("Working out what good looks like here")

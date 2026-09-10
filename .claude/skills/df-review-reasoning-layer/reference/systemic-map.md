@@ -1953,10 +1953,19 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   down from 10.0-12.7s, with 28 of 31 events inside the graph hole. Still open: narrating the INSIDE of the
   synchronous combination phase, which the k=4 figure now SIZES — the widest remaining gap IS that labelled
   phase (12.8s, 25% of wall), and at k=2 the widest is 52% of the wall, so the share is worse at the size
-  the Advisor actually runs. **And a live defect nothing fixes yet: a duplicate-label flash at 2.6s** in the
-  explore run, two events publishing the identical "Working out what good looks like here" (1/3 then 2/5)
-  because `ExploreTransformations` Phase 1 declares one step per edge into a gather — `expand_polarities`'
-  shape, and the one `note_progress` warns about.
+  the Advisor actually runs. That run also duplicated a label at 2.6s — two events
+  publishing the identical "Working out what good looks like here" (1/3 then 2/5), because
+  `_phase1_for_edge` reports before its first await and both edges of a pair enter it concurrently.
+  **Filed as a defect first and that was wrong: the harmful flashes here are the SUPERSEDED ones, not the
+  simultaneous ones.** Identical text means a host renders one label that stays; only the documented
+  additive denominator moves. **No fixable site exists** — declaring it once needs a site above the whole
+  Phase 1 fan-out, and whether any Phase 1 task runs is decided per pair by the buildability analysis in
+  `_process_edge_pair`, so hoisting trades 6 publishes for 3 and buys a step that can be declared and never
+  reported. `note_progress`'s "who gathers your gather?" governs NUMBERS, not labels. **Third recorded
+  instance of one shape, same answer as the other two** (`expand_polarities`' per-polarity label at 0.09s;
+  the transformation audit's six at 38.0s, recorded adequate): a concurrent fan-out whose children narrate
+  themselves duplicates its own first label, and the alternative is silence over the fan-out. Reasoning
+  lives at the site and in the probe's fourth-run section.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +

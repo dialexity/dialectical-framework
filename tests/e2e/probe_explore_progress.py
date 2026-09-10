@@ -219,12 +219,36 @@ out how these could cause one another` at the head — because it defers instead
 installing. The wall is not comparable to run A/B (34 calls against 47-50, and
 transformation audits are off by default now); read the gap columns, not the wall.
 
-**One defect this run surfaced and nothing fixes yet:** at 2.6s two events publish the
-SAME label ("Working out what good looks like here", 1/3 then 2/5). That is
-`ExploreTransformations` Phase 1 declaring one step per edge into a gather — the same
-shape `expand_polarities` has, and the shape `note_progress`' docstring warns about. A
-person sees one label flash twice and the denominator jump; nothing is wrong with the
-count, only with what it reads like.
+**The duplicate label at 2.6s is NOT a defect, and this is where that class gets
+settled.** Two events publish the SAME label ("Working out what good looks like here",
+1/3 then 2/5) in one instant, because `_phase1_for_edge` reports before its first await
+and two edges enter it concurrently. It was first written up here as a defect; that was
+wrong. **The distinguishing property of the harmful flashes in this tree is
+SUPERSESSION, not simultaneity** — `FindPolarities`' extraction label lived 0.0s because
+a DIFFERENT label replaced it before it could be read, and the digest label preceded a
+call it did not cover. Here both events carry identical text, so a host renders one
+label that stays until the next distinct one; the only visible artifact is the
+denominator growing, which is documented behaviour with its own caveat. Nothing is
+superseded and nothing is unlabelled.
+
+**And there is no site that could fix it without inventing a phantom step.** The label
+would have to be declared once above the whole Phase 1 fan-out, and no such site knows
+the fan-out exists: `resolve()` gathers the edge PAIRS, and whether any Phase 1 task
+runs at all is decided inside `_process_edge_pair` by the buildability analysis (a wheel
+whose edges are all complete runs none). Hoisting to the pair level trades 6 identical
+publishes for 3 and buys a step that can be declared and never reported — the phantom
+whose signature is a bar that cannot fill. This is exactly `note_progress`' "who gathers
+your gather?" case, and its answer is about NUMBERS: a fraction may not be promised
+where the whole is unknown. A label may.
+
+So this makes THREE recorded instances of one shape, and the tree's answer is the same
+for all three: `expand_polarities` (two identical "Working out how each side helps..."
+at 0.09s, the tool gathering one child per polarity), the audit phase in this very file
+(6 identical `AUDITING_LABEL` events at 38.0s, recorded above as adequate), and this
+one. **A concurrent fan-out where each child narrates its own steps will duplicate its
+own first label, and that is the cost of narrating the child rather than the gather.**
+Do not "fix" a fourth instance without a NEW argument; the alternative is silence over
+the fan-out, which is what all of this exists to remove.
 """
 
 from __future__ import annotations
