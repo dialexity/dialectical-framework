@@ -182,6 +182,49 @@ Second-order findings from the same runs, both worth knowing before optimising:
 - Wall clock ran 68.0s / 75.2s here against 80.9s / 97.5s earlier. That is
   run-to-run variance on 47-50 calls, NOT an effect of any change in this file's
   history. Do not read any of these deltas as a latency result.
+
+FOURTH RUN, 2026-09-10 — one stream for the whole call
+======================================================
+After the three-door scopes landed (`run_exploration_detailed`,
+`ExplorationPipeline.resolve`, `BuildWheels.resolve` — see CLAUDE.md). 1 PP through
+the Advisor door::
+
+    wall                      47.2s     (34 calls, 138 effects, depth ~8.2, 6 transformations)
+    graph-only largest gap    34.2s     <- UNCHANGED again, 2.5-36.7s, before Transformation
+    with progress              7.9s     (was 10.0 / 12.7)
+    graph-only dead air          88%
+    with progress                72%
+    progress events              31
+    stages reporting          exploration          <- ONE, closing once at 30/30
+
+**The two-stream defect is gone on the real path.** Runs A and B published
+`transformation` and `synthesis` as stages of their own, so a 1-PP explore closed
+`2 x deep_wheels` times and a host cleared its indicator mid-call. Here the whole call
+is one stage under one key with a single `final` at 30/30 — which is what
+`tests/test_explore_progress_scope.py` asserts against a stub bus, confirmed against a
+provider.
+
+**The compatibility promise held for the third time running.** 34.2s graph-only gap,
+0.0s to first effect, same bursts — byte-for-byte what a non-subscribing host saw
+before the seam existed, three separate rounds of change later. That figure is now the
+control in this file.
+
+**The widest labelled gap fell to 7.9s (17.1-25.0s)**, from 10.0-12.7s in run A/B. Not
+a synthesis result: the third run's floor claim was about the closing synthesis call
+and this hole sits in the middle of the transformation phase. 28 of the 31 events land
+inside the 34.2s graph hole, which is the hole doing its job.
+
+`BuildWheels`' own label is now visible folded into this stream — `2.2s 0/1 Working
+out how these could cause one another` at the head — because it defers instead of
+installing. The wall is not comparable to run A/B (34 calls against 47-50, and
+transformation audits are off by default now); read the gap columns, not the wall.
+
+**One defect this run surfaced and nothing fixes yet:** at 2.6s two events publish the
+SAME label ("Working out what good looks like here", 1/3 then 2/5). That is
+`ExploreTransformations` Phase 1 declaring one step per edge into a gather — the same
+shape `expand_polarities` has, and the shape `note_progress`' docstring warns about. A
+person sees one label flash twice and the denominator jump; nothing is wrong with the
+count, only with what it reads like.
 """
 
 from __future__ import annotations

@@ -1940,8 +1940,23 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   evidence: no provider call, and every node and edge it writes already reaches the host on the `sid`
   channel. Pinned by `tests/test_explore_progress_scope.py` (10 tests, three `nullcontext` mutations
   failing 3/1/3), with the same limit `deepen`'s class has — the deferring scopes in the Advisor-door tests
-  are the STUBS', so they cannot catch a skill that dropped its own scope. Still open: narrating the
-  INSIDE of the synchronous combination phase, and re-running the two explore probes on a real provider.
+  are the STUBS', so they cannot catch a skill that dropped its own scope. **MEASURED on a real provider
+  (2026-09-10, weak tier), and both probes' docstrings carry the figures.** `build_wheels` closes 3/3 at
+  k=2 (4 calls, 3 cycles/4 wheels, 17.1s) and k=4 (113 calls, 24/96, 51.0s) with `pred` matching `calls`
+  exactly, and **`flush_progress` works live: the combination label publishes at 2.05s while that phase's
+  own 1,629 effects land at 14.87s** — 12.8s of LABELLED quiet where the pre-seam run had 110.9s of blank
+  quiet. The same run is the first PAID confirmation of the six DB levers (k=4 wall 163.2s -> 51.0s,
+  off-provider 136.8s -> 25.5s, provider time and structure counts unmoved). `explore` through the Advisor
+  door, 1 PP: 47.2s, 34 calls, **one stage `exploration` closing ONCE at 30/30** where runs A/B published
+  `transformation` and `synthesis` streams and closed `2 x deep_wheels` times; graph-only widest gap 34.2s,
+  UNMOVED for the third consecutive round of change (the compatibility promise); widest labelled gap 7.9s,
+  down from 10.0-12.7s, with 28 of 31 events inside the graph hole. Still open: narrating the INSIDE of the
+  synchronous combination phase, which the k=4 figure now SIZES — the widest remaining gap IS that labelled
+  phase (12.8s, 25% of wall), and at k=2 the widest is 52% of the wall, so the share is worse at the size
+  the Advisor actually runs. **And a live defect nothing fixes yet: a duplicate-label flash at 2.6s** in the
+  explore run, two events publishing the identical "Working out what good looks like here" (1/3 then 2/5)
+  because `ExploreTransformations` Phase 1 declares one step per edge into a gather — `expand_polarities`'
+  shape, and the one `note_progress` warns about.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +

@@ -88,15 +88,14 @@ The progress stream was EMPTY on the first run, and that was the point of it:
 contained zero progress calls between them — verified by grep, not assumed — so the
 results below are the BEFORE side of the pair.
 
-**That has since changed, and this probe is now the before-and-after.** `BuildWheels`
-opens a scope of its own (it is a tool a model can call directly) and reports three
-steps: the combination phase, then one per estimation pass. So a re-run should show
-three step events plus one `final`, not an empty stream, and the widest silent stretch
-should be the estimation window rather than finding 3's 110.9s. Two things are worth
-checking against finding 3 specifically, because both are claims a green unit test
-cannot make: that the combination label ARRIVES BEFORE the phase it announces (that
-phase never suspends, so the label is delivered by an explicit `flush_progress` and
-nothing else), and how wide the remaining gaps are once it does.
+**That has since changed, and this probe is now the before-and-after** — see the
+2026-09-10 run at the bottom, which answers both questions this paragraph posed.
+`BuildWheels` opens a scope of its own (it is a tool a model can call directly) and
+reports three steps: the combination phase, then one per estimation pass. The two
+claims worth checking here are ones a green unit test cannot make: that the
+combination label ARRIVES BEFORE the phase it announces (that phase never suspends,
+so the label is delivered by an explicit `flush_progress` and nothing else), and how
+wide the remaining gaps are once it does. Both now measured.
 
     poetry run pytest tests/e2e/probe_build_wheels_progress.py -s --real-llm
 
@@ -142,7 +141,52 @@ streams a host would have to draw. At 6 Transformations per wheel and 4 sequenti
 `TransformationGeneration` calls each, that is on the order of 2,300 provider calls
 for one tool call. **Read this as a budget question and not an instrumentation one:**
 the Advisor door caps at `EXPLORE_DEEP_WHEELS = 1` on purpose and the Explorer door
-caps at nothing, and no measurement of the Explorer door at k>1 exists.
+caps at nothing, and no measurement of the Explorer door at k>1 exists. (The 192
+streams are now ONE — both skills defer into `ExplorationPipeline`'s scope — so the
+instrumentation half of this is closed and the SPEND half is untouched.)
+
+SECOND RUN, 2026-09-10 — three labels land, and the k=4 wall fell 3.2x
+=====================================================================
+Same probe, same tier, after two unrelated changes landed: the six DB levers (see
+CLAUDE.md's `_signature_of` note) and the three-door progress scopes. 117 calls again,
+179.5s total against 287s::
+
+    k  cycles  wheels  calls  wall   in-flight  off-provider  graph gap  BOTH channels
+    2       3       4      4  17.1s      15.2s          1.9s   9.0s(52%)   8.9s (52%)
+    4      24      96    113  51.0s      25.5s         25.5s  14.9s(29%)  12.8s (25%)
+
+    (was: k=2 15.6s / 7.5s(48%) graph-only; k=4 163.2s / 136.8s off-provider /
+     110.9s(68%) graph gap, with an EMPTY progress channel)
+
+**1. The combination label arrives BEFORE the phase, and only `flush_progress` makes
+that true.** At k=4 the label publishes at **2.05s** and the phase's own 1,629 effects
+land at **14.87s** — 12.8s of labelled quiet where finding 3 measured 110.9s of blank
+quiet. The phase never suspends, so without the four `asyncio.sleep(0)`s the label
+would have been stamped and delivered at 14.87s alongside the flood it was meant to
+announce: a 0.0s flash. This is the claim `tests/test_explore_progress_scope.py`
+asserts against a real bus, confirmed here on the real path.
+
+**2. Both sizes close 3/3 with one stage, one key, no phantom step.** k=2 at
+1.08s / 2.22s / 8.19s / final 17.08s; k=4 at 2.05s / 14.87s / 25.24s / final 51.05s.
+Every label covers work that ran, and `pred` matches `calls` exactly at both sizes
+(4 and 113), so the estimator is still one call per structure.
+
+**3. The k=4 wall is 51.0s, down from 163.2s, and this is the first PAID confirmation
+of the DB work** — off-provider fell 136.8s -> 25.5s, i.e. the 84%-of-wall finding
+above is now 50%, and the structure counts are unchanged (24C/96W, 113 calls,
+2,437 effects). Provider time barely moved (1,052.9s at 41.22x against 1,102.8s at
+41.75x), which is the point: nothing here touched a provider call. **Finding 2's
+"where that 137s goes is UNMEASURED" is therefore obsolete** — it went where the
+off-provider probe said it did, and most of it is gone.
+
+**4. The widest remaining k=4 gap IS the combination phase, now labelled** (12.8s
+between the label and its own flood), which is exactly the part of the seam work still
+open: `flush_progress` puts a label in FRONT of a synchronous phase and cannot narrate
+its inside. **And the share inverted between the sizes** — k=2's 8.9s is 52% of its
+wall against k=4's 25% — so on the door people actually hit (the Advisor caps at 2)
+the last estimation pass is half the wait under one correct label. That pass gathers
+its calls per (type, size) group and writes Rationale effects as each group persists,
+so it is `note_progress`'s recorded counter-case, not a site for it.
 """
 
 from __future__ import annotations
