@@ -364,7 +364,11 @@ class TestOneExploreIsOneProgressStream:
 
 
 class TestTheExplorerDoorOwnsItsStream:
-    """`ExplorationPipeline` is called directly by the Explorer agent and by probes.
+    """`ExplorationPipeline` is called directly by HEADLESS callers and by probes.
+
+    It was the Explorer agent's `explore` tool too, until that tool turned out to be
+    in no toolset and was deleted (2026-09-10) — the Explorer reaches exploration
+    through `build_wheels` + `explore_transformations`, one wheel at a time.
 
     Its key is the nexus rather than a digest, because there IS one node the person
     named to get here — `progress_hash_key`'s dividing line.

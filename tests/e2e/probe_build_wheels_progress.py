@@ -141,9 +141,20 @@ streams a host would have to draw. At 6 Transformations per wheel and 4 sequenti
 `TransformationGeneration` calls each, that is on the order of 2,300 provider calls
 for one tool call. **Read this as a budget question and not an instrumentation one:**
 the Advisor door caps at `EXPLORE_DEEP_WHEELS = 1` on purpose and the Explorer door
-caps at nothing, and no measurement of the Explorer door at k>1 exists. (The 192
-streams are now ONE — both skills defer into `ExplorationPipeline`'s scope — so the
-instrumentation half of this is closed and the SPEND half is untouched.)
+caps at nothing.
+
+**BOTH HALVES CLOSED 2026-09-10, and the door turned out not to exist.** The 192
+streams became ONE when both skills started deferring into `ExplorationPipeline`'s
+scope. The spend half was then measured free, since the fan-out is structural
+(`tests/probe_explore_deep_wheels.py`, which counts formatted calls by wrapping
+`mock_brain.build_mock_response` — `call_census` reads ZERO under mock brain): at k=2
+uncapped asks **100** calls against the capped **36**, only 4 of which build wheels,
+and edge-pair reuse saves ~30% rather than an order of magnitude. At k=4 the 96-wheel
+arm **had not returned after 41 minutes with the LLM mocked**, so the ceiling is graph
+work and the "~2,300 provider calls" estimate above was never the binding constraint.
+And `explorer.explore` was in NO toolset — deleted, with the reasoning in
+`explorer.py` where it stood. `max_deep_wheels=None` stays the default for headless
+callers, who bound k instead.
 
 SECOND RUN, 2026-09-10 — three labels land, and the k=4 wall fell 3.2x
 =====================================================================
