@@ -1735,9 +1735,10 @@ nothing; at k=4 it is 112 calls and 1,102.8s of provider time, per
 `calls(k) = Σ_{L=2..min(k,max_wheel_layer)} C(k,L)·(L-1)!·(1+W(L))` with `W(1..4)=1,2,4,8` (k=2→3, k=4→112).
 
 **BuildWheels** (structural + `CausalityEstimation` scoring, no gate) → **depth gate
-`_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all —
-the Explorer agent path; the Advisor's `run_exploration` pins `MAX_DEEP_WHEELS = 1` in
-`advisor/tools/explore.py`) → **ExploreTransformations ×deepened-wheels**
+`_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all,
+which is a HEADLESS batch default and not any agent's path — the Advisor's `run_exploration` pins
+`EXPLORE_DEEP_WHEELS = 1` in `advisor/tools/explore.py` and the Explorer never runs this pipeline at all;
+see the `_select_deep_wheels` bullet under §Gates for what uncapped costs and for the orphan tool deleted 2026-09-10) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
 annotation, **opt-in and off by default** in this chain — `settings.audit_transformations`; the same concern is
@@ -1853,7 +1854,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `deferred_perspective_hashes`, never dropped; env
   `DIALEXITY_ADVISOR_*`; synthesis is UNCONDITIONAL for deepened wheels — a deepened wheel without
   S+/S- is structurally unfinished, the toggle was removed 2026-07-31) — "rich vs simple" exploration is this runtime budget, not a schema concept.
-  Explorer agent path passes None (user selects wheels). The Advisor explore tool docs narrate
+  Explorer agent path NEVER RUNS THIS PIPELINE: its tools are `build_wheels` (structural, all wheels)
+  + `explore_transformations` (the one wheel the user picked), so "the user selects wheels" is two tool
+  calls and not an uncapped run. An uncapped `@llm.tool explore` did sit at the bottom of
+  `explorer/explorer.py`, in NO toolset, reading as live only because `test_tool_signatures.py` listed it
+  among the framework's tools — deleted 2026-09-10 with a comment in its place. Priced before deleting
+  (`tests/probe_explore_deep_wheels.py`, LLM mocked, counting formatted calls by wrapping
+  `mock_brain.build_mock_response` because `call_census` reads ZERO under mock brain): at k=2 uncapped
+  asks 100 calls against the capped 36, of which only 4 build wheels — the rest is per-wheel deepening,
+  and edge-pair reuse saves ~30%, not an order of magnitude. At k=4 (96 wheels) the uncapped run had not
+  returned after 41 MINUTES with a zero-latency model, so its ceiling is graph work before any provider
+  time. `None` stays the default for HEADLESS callers, who bound k instead (`test_agents_e2e.py`).
+  Two transferable parts: a tool nobody registered is still a trap while a test lists it among the real
+  ones; and a docstring that explains a default by naming a path the code does not take
+  ("the Explorer agent's path ... is already lazy and never sets this") is right about the behaviour and
+  useless as a guard. The Advisor explore tool docs narrate
   `shallow_wheel_hashes` + `deferred_perspective_hashes` semantics — keep in lockstep with the budget.
   **The `explore` tool doc also carries the CALL threshold** ("Two mapped tensions are already
   enough", + the consequence: waiting for a fuller map is how a decision closes with no pathway).

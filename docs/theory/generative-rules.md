@@ -199,8 +199,11 @@ Matrix cell ≡ the edge's Transformation (`ExploreTransformations`); higher lay
 via `TransformationRepository.find_parent_transformations` → `parent_context` in
 `transformation_generation.py`.
 **Status:** implemented (as wheel-native decomposition)
-**Notes:** Eager vs lazy fill is *application policy*, not a framework gap (Navigator can explore
-every wheel; Advisor deepens lazily, `EXPLORE_DEEP_WHEELS = 1`). A matrix *view* is an assembly
+**Notes:** Eager vs lazy fill is *application policy*, not a framework gap (the Navigator can reach
+every wheel, ONE AT A TIME — `explore_transformations` per wheel the user picks, never a whole-nexus
+sweep; the Advisor deepens lazily, `EXPLORE_DEEP_WHEELS = 1`. Eager over all wheels is a headless
+batch mode: 96 wheels at k=4, measured as not finishing in 41 minutes with the LLM mocked —
+`tests/probe_explore_deep_wheels.py`). A matrix *view* is an assembly
 query over existing nodes — group Transitions by source/target Statement and dedupe (Transitions
 are per-container by nonce) — trivial when a consumer needs it; none does yet. **Same-side cells
 (T_i−→T_i+) are deliberately not produced**: a wheel edge always crosses segments, and reaching

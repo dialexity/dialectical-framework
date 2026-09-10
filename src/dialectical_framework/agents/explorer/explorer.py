@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import aclosing
-from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, AsyncGenerator, Optional
 
-from mirascope import llm
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.agent_context import agent_scope
@@ -232,9 +231,26 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
     `max_deep_wheels` caps step 2: ALL wheels are still built and estimated
     (structural, cheap), but only the top-plausibility wheels — deepest layer
     first, then highest causality P — get transformations. The rest stay
-    shallow, available for deepening on demand. None (default) deepens every
-    wheel (the Explorer agent's path, where the user selects wheels, is
-    already lazy and never sets this).
+    shallow, available for deepening on demand.
+
+    **None (the default) deepens EVERY wheel, and the wheel count is
+    combinatorial**, so this default belongs to headless callers who have
+    bounded their own input, not to anything a model can reach:
+
+    - The Advisor passes `EXPLORE_DEEP_WHEELS = 1` (`advisor/tools/explore.py`).
+    - The Explorer agent never runs this pipeline at all: its tools are
+      `build_wheels` (structural, all wheels) and `explore_transformations` (one
+      wheel the user picked), which is what "the user selects wheels" means here.
+    - A headless caller bounds k instead — two perspectives, not two wheels.
+
+    Priced with the LLM mocked (`tests/probe_explore_deep_wheels.py`): at k=2 the
+    uncapped run asks for 100 formatted calls against the capped run's 36, and
+    only 4 of the 100 build wheels — the rest is per-wheel deepening. Wheels
+    sharing edge pairs reuse transformations, but that saves ~30%, not an order
+    of magnitude. At k=4 (96 wheels) the uncapped run had not finished after 41
+    minutes with a zero-latency model, so the ceiling is graph work before any
+    provider time is added. Uncapped is a batch mode; pass a cap for anything a
+    person is waiting on.
 
     Does not create nexuses — that's the Analyst's job.
     Does not interact with the user — curates the graph and returns results.
@@ -446,21 +462,18 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         return [w.hash for w in ranked[: self.max_deep_wheels]]
 
 
-@llm.tool
-async def explore(
-    nexus_hash: Annotated[
-        str, Field(description="Hash of the Nexus to explore within")
-    ],
-    perspective_hashes: Annotated[
-        list[str] | None,
-        Field(
-            description="Additional perspective hashes to add to Nexus before building"
-        ),
-    ] = None,
-) -> str:
-    """Run full exploration pipeline within a Nexus: builds structural combinations (Cycles + Wheels) and generates action-reflection transformations. Use when all perspectives are ready and exploration should proceed."""
-    pipeline = ExplorationPipeline(
-        nexus_hash=nexus_hash, perspective_hashes=perspective_hashes
-    )
-    await pipeline.resolve()
-    return str(pipeline.report)
+# There is deliberately NO `@llm.tool` wrapper around this pipeline here.
+#
+# One used to live at the bottom of this file, uncapped, and it was in no
+# toolset: `_build_tools()` above hands the Explorer `build_wheels` +
+# `explore_transformations`, the system prompt tells it to let the user pick a
+# wheel and deepen that one, and the Advisor has its own budgeted `explore`
+# (`advisor/tools/explore.py`). Nothing imported it but a signature test that
+# listed it among the framework's tools — so it read as live, and wiring it into
+# `_build_tools()` would have handed the model a single call that deepens every wheel
+# the combinatorics produced. Measured at k=4 (96 wheels), with the LLM MOCKED so
+# no call takes any time at all, that call had not returned after 41 minutes
+# (`tests/probe_explore_deep_wheels.py`).
+#
+# If an agent ever needs the whole pipeline in one call, it needs a cap in its
+# signature, not a default of None.

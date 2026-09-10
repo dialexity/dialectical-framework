@@ -2,22 +2,25 @@
 
 WHY
 ===
+*(Read WHAT THIS DID NOT TURN OUT TO BE at the end before this section: the tool
+described here was deleted the same day, and it is why. The reason to keep the
+measurement is that the uncapped DEFAULT it priced is still the default.)*
+
 `ExplorationPipeline.max_deep_wheels` defaults to `None`, and `None` means **deepen
-every wheel that was built**. The Advisor door sets it to 1 (`EXPLORE_DEEP_WHEELS`
-in `advisor/tools/explore.py`, a module constant with its rationale in a comment),
-but the Explorer agent's own `explore` tool passes nothing, and the pipeline's
-docstring justifies that with "the Explorer agent's path, where the user selects
+every wheel that was built**. The Advisor sets it to 1 (`EXPLORE_DEEP_WHEELS` in
+`advisor/tools/explore.py`, a module constant with its rationale in a comment), but
+`explorer.py` carried an `@llm.tool explore` that passed nothing, and the pipeline's
+docstring justified that with "the Explorer agent's path, where the user selects
 wheels, is already lazy and never sets this."
 
-**That sentence is about a path the tool does not take.** `explore` builds ALL
+**That sentence was about a path the tool did not take.** The pipeline builds ALL
 Cycles and Wheels for the Nexus and then fans out one `ExploreTransformations` per
 wheel, concurrently, before the person has selected anything. Wheel count is
 `C(N,k) x max(1,(k-1)!) x W(k)` summed over layers, so it is 4 wheels at k=2 and
-**96 at k=4** — one `@llm.tool` call whose provider spend is set by a combinatorial
-count nobody at the keyboard chose.
+**96 at k=4** — a spend set by a combinatorial count nobody at the keyboard chose.
 
-This probe measures what that fan-out asks for, so the cap can be decided on a
-number instead of on the arithmetic in this paragraph.
+This probe measures what that fan-out asks for, so the cap is decided on a number
+instead of on the arithmetic in this paragraph.
 
 WHAT IT MEASURES, AND WHY IT IS FREE
 ====================================
@@ -75,15 +78,15 @@ WHAT IT FOUND, 2026-09-10
 k=2, one box, mock brain:
 
                                        cycles wheels deep transf calls off-provider
-    Explorer door (max_deep_wheels=None)    3      4    4     12   100        8.22s
-    Advisor door (max_deep_wheels=1)        3      4    1      4    36        3.27s
+    Uncapped (max_deep_wheels=None)         3      4    4     12   100        8.22s
+    Advisor policy (max_deep_wheels=1)      3      4    1      4    36        3.27s
 
 The `off-provider` column is printed to show the shape of the work, not to be quoted:
 a repeat run right after a `docker compose restart` gave 56.26s / 33.35s for the same
 two arms, 7x the numbers above, while every count — 3/4/12/100 and 3/4/4/36 — came back
 identical. **The counts are structural; the seconds are the box's cache.**
 
-Deepening is where the money is: 36 of the uncapped door's 100 calls are
+Deepening is where the money is: 36 of the uncapped run's 100 calls are
 `ActionCandidateDto` and only 4 (3 `CausalCycleAssessmentDto` + 1 preset resolution)
 belong to building the wheels at all. Reuse is real but weak — 4 wheels cost 100 calls
 where 4 independent ones would cost ~144, so sharing edge pairs saves ~30%, not the
@@ -97,8 +100,8 @@ before a single token is paid for.
 
 WHAT THIS DID *NOT* TURN OUT TO BE
 ==================================
-The uncapped door **no agent can open.** `explorer.py`'s `@llm.tool explore` is in NO
-toolset: `Explorer._tools()` returns `build_wheels` + `explore_transformations` (the
+**The uncapped door is one no agent can open.** `explorer.py`'s `@llm.tool explore` is in NO
+toolset: `_build_tools()` returns `build_wheels` + `explore_transformations` (the
 lazy pair), the Advisor has its own capped `advisor/tools/explore.py`, the Explorer
 system prompt says "let the user choose which wheel(s)... call
 `explore_transformations` for that specific wheel", and `docs/agents.md` documents only
@@ -131,8 +134,8 @@ K = max(1, min(len(TENSIONS), int(os.getenv("DIALEXITY_PROBE_EDW_K", "2"))))
 
 #: The two doors, by the only thing that differs between them.
 ARMS: list[tuple[str, int | None]] = [
-    ("Explorer door (max_deep_wheels=None)", None),
-    ("Advisor door (max_deep_wheels=1)", 1),
+    ("Uncapped (max_deep_wheels=None)", None),
+    ("Advisor policy (max_deep_wheels=1)", 1),
 ]
 
 #: `tests/e2e/probe_explore_cost.py`, 2026-08-27, weak tier, 1 PP. Used only to turn
@@ -225,7 +228,7 @@ async def test_probe_what_the_uncapped_explore_asks_for(di_container, monkeypatc
             f"{row['transformations']:>8}{row['calls']:>7}{row['wall']:>13.2f}s"
         )
 
-    print("\n  CALLS BY DTO (the uncapped door)")
+    print("\n  CALLS BY DTO (the uncapped run)")
     uncapped = rows[0][1]
     for name, count in sorted(
         uncapped["by_format"].items(), key=lambda kv: -kv[1]
@@ -236,7 +239,7 @@ async def test_probe_what_the_uncapped_explore_asks_for(di_container, monkeypatc
     if capped["calls"]:
         ratio = uncapped["calls"] / capped["calls"]
         print(
-            f"\n  The uncapped door asks for {ratio:.1f}x the capped one"
+            f"\n  Uncapped asks for {ratio:.1f}x what the Advisor policy asks"
             f" ({uncapped['calls']} calls against {capped['calls']})."
         )
     print(
@@ -252,11 +255,11 @@ async def test_probe_what_the_uncapped_explore_asks_for(di_container, monkeypatc
     # The finding, not a health check: the two doors differ only in the cap, and the
     # uncapped one deepens everything the combinatorics produced.
     assert uncapped["deepened"] == uncapped["wheels"], (
-        "the uncapped door did not deepen every wheel, so `max_deep_wheels=None`"
+        "the uncapped run did not deepen every wheel, so `max_deep_wheels=None`"
         " no longer means what this probe was written to size"
     )
     assert capped["deepened"] == 1, (
-        f"the capped door deepened {capped['deepened']} wheels, not 1"
+        f"the capped run deepened {capped['deepened']} wheels, not 1"
     )
     assert uncapped["calls"] > capped["calls"], (
         "capping changed nothing about the call count, which would mean the cost is"

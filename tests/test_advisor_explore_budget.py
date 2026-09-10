@@ -128,13 +128,52 @@ class TestExploreBudget:
 
 
 class TestExplorerPathUnaffected:
-    def test_explorer_agent_pipeline_has_no_budget(self):
-        """The Explorer's LLM-facing explore tool constructs the pipeline
-        without a deep-wheel cap — the user selects wheels there."""
+    """The Explorer is lazy by TOOLSET, and that is what has to be pinned.
+
+    This class used to read the source of an `explore` tool in `explorer.py` and
+    assert it set no cap — treating "uncapped" as the Explorer's correct policy
+    because the user picks wheels there. The tool was in no toolset, so the
+    assertion described a path no agent could take, and the belief it encoded was
+    the dangerous one: uncapped means deepen EVERY wheel, and the wheel count is
+    combinatorial. Measured with the LLM mocked, k=4's 96 wheels had not finished
+    after 41 minutes (`tests/probe_explore_deep_wheels.py`). The tool is gone.
+
+    What makes the Explorer lazy is that it never reaches `ExplorationPipeline`
+    at all: it builds structure with `build_wheels` and deepens the wheel the user
+    named with `explore_transformations`. Pin THAT, so wiring a whole-pipeline
+    tool into this toolset has to argue with a test.
+    """
+
+    def test_explorer_deepens_per_wheel_and_not_by_pipeline(self):
+        from dialectical_framework.agents.explorer.explorer import _build_tools
+
+        names = {getattr(t, "__name__", None) for t in _build_tools()}
+        assert {"build_wheels", "explore_transformations"} <= names, (
+            "the Explorer's lazy depth IS these two tools — structure for all"
+            " wheels, transformations for the one the user picked"
+        )
+
+    def test_no_explorer_tool_runs_the_whole_pipeline(self):
+        """No Explorer tool may construct `ExplorationPipeline`.
+
+        Source-level on purpose: the cost is in what the tool CALLS, and calling
+        it here would need a committed Nexus plus a full transformation run per
+        wheel — which is the very thing that does not return.
+        """
         import inspect
 
-        from dialectical_framework.agents.explorer import explorer as exp_mod
+        from dialectical_framework.agents.explorer.explorer import _build_tools
 
-        src = inspect.getsource(exp_mod.explore)
-        assert "max_deep_wheels" not in src
-        assert "advisor_" not in src
+        for tool in _build_tools():
+            try:
+                src = inspect.getsource(tool)
+            except (OSError, TypeError):  # closures over C-level wrappers
+                continue
+            assert "ExplorationPipeline" not in src, (
+                f"{getattr(tool, '__name__', tool)} runs the whole exploration"
+                " pipeline. Uncapped that deepens every wheel built"
+                " (96 at k=4, measured as not returning in 41 minutes with the"
+                " LLM mocked); the Explorer's contract is per-wheel deepening"
+                " on the user's pick. If an agent really needs the pipeline in"
+                " one call, give the tool a cap in its own signature."
+            )

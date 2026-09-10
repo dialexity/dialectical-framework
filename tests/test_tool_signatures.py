@@ -34,7 +34,6 @@ from dialectical_framework.agents.analyst.skills.anchor_theses import anchor_the
 from dialectical_framework.agents.analyst.skills.surface_theses import surface_theses
 from dialectical_framework.agents.orchestrator.tools.create_dx_input import create_dx_input
 from dialectical_framework.agents.analyst.tools.place_statement import place_statement
-from dialectical_framework.agents.explorer.explorer import explore
 from dialectical_framework.agents.explorer.skills.build_wheels import build_wheels
 from dialectical_framework.agents.explorer.skills.explore_transformations import (
     explore_transformations,
@@ -65,7 +64,11 @@ ALL_TOOLS = [
     introduce_polarity,
     place_statement,
     create_dx_input,
-    explore,
+    # No `explore` from `explorer/explorer.py`: that tool existed but was in no
+    # toolset, and listing it here was the only thing that made it look live. The
+    # Explorer reaches the pipeline through `build_wheels` +
+    # `explore_transformations` below; the Advisor's own capped `explore` is
+    # covered by the `build_scoped_tools` extension further down.
     build_wheels,
     explore_transformations,
     create_nexus,
