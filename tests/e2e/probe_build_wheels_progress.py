@@ -83,11 +83,20 @@ should reproduce exactly; the seconds are a single sample and the explore probe'
 history is the warning there (a 1 KB source ran 651s once and 45.5s the next time).
 Read the counts as facts and the durations as an order of magnitude.
 
-The progress stream is expected to be EMPTY on the first run. `build_wheels`,
-`perspective_combination`, `causality_estimation` and the estimator contain zero
-progress calls between them — verified by grep, not assumed — so this run establishes
-the before side of that pair. A non-empty stream here means someone instrumented the
-path and this docstring is stale.
+The progress stream was EMPTY on the first run, and that was the point of it:
+`build_wheels`, `perspective_combination`, `causality_estimation` and the estimator
+contained zero progress calls between them — verified by grep, not assumed — so the
+results below are the BEFORE side of the pair.
+
+**That has since changed, and this probe is now the before-and-after.** `BuildWheels`
+opens a scope of its own (it is a tool a model can call directly) and reports three
+steps: the combination phase, then one per estimation pass. So a re-run should show
+three step events plus one `final`, not an empty stream, and the widest silent stretch
+should be the estimation window rather than finding 3's 110.9s. Two things are worth
+checking against finding 3 specifically, because both are claims a green unit test
+cannot make: that the combination label ARRIVES BEFORE the phase it announces (that
+phase never suspends, so the label is delivered by an explicit `flush_progress` and
+nothing else), and how wide the remaining gaps are once it does.
 
     poetry run pytest tests/e2e/probe_build_wheels_progress.py -s --real-llm
 
@@ -313,23 +322,24 @@ def _report(k: int, run: dict) -> None:
     else:
         print("  NO provider calls — estimation did not run at this size")
 
-    # The fan-out this size implies on the Explorer door, which is the number 5c
-    # turns on: one ExploreTransformations scope per deepened wheel, and that door
-    # deepens all of them.
+    # The fan-out this size implies on the Explorer door. No longer a stream count —
+    # `ExplorationPipeline` owns one stream now and both skills defer into it — but the
+    # PROVIDER fan-out is untouched, and that door still deepens every wheel.
     print(f"  => on the Explorer door this nexus deepens {len(wheels)} wheel(s),"
-          f" so ExplorationPipeline would open {len(wheels)} concurrent"
-          f" `transformation` stream(s) plus {len(wheels)} `synthesis` one(s)")
+          f" so ExplorationPipeline would run {len(wheels)} concurrent"
+          f" transformation chain(s) plus {len(wheels)} synthesis call(s) —"
+          f" one stream, unbounded spend")
 
     print(f"  graph effects {len(seen)}   progress events {len(progress)}")
     if progress:
-        print("  PROGRESS STREAM (unexpected — see the docstring's last paragraph):")
+        print("  PROGRESS STREAM:")
         for t, event in progress:
             kind = "final" if event.final else ("note " if event.note else "step ")
             print(f"    {t:7.2f}  {event.done:3d}/{event.total:<4d} {kind}"
                   f" {event.detail or '(empty)'}")
     else:
-        print("  PROGRESS STREAM EMPTY — nothing on this path reports, as expected"
-              " before instrumentation")
+        print("  PROGRESS STREAM EMPTY — this is now a DEFECT, not the finding:"
+              " `BuildWheels` opens its own scope and reports three steps")
 
     # Burst-by-burst, because at k=4 the wall is mostly NOT provider time and the
     # only way to see where it went is when the writes actually land.
@@ -358,10 +368,21 @@ def _report(k: int, run: dict) -> None:
     worst, where = max(_gaps(stamps, waited), key=lambda g: g[0])
     share = worst / waited * 100 if waited else 0.0
     print(f"  WIDEST GRAPH-SILENT GAP {worst:.1f}s ({share:.0f}% of the wall) — {where}")
-    if worst >= _NOTICEABLE_GAP_S:
-        print(f"    over the {_NOTICEABLE_GAP_S}s legibility floor, and with an empty"
-              f" progress stream this is dead air a person cannot distinguish from a"
-              f" hang")
+
+    # The number that says whether the instrumentation earned anything: a host
+    # subscribed to BOTH channels sees the union, so the graph gap above is only dead
+    # air where no progress event falls inside it. Reported separately rather than
+    # replacing the graph figure, because the two answer different questions — the
+    # graph stream is what a host had BEFORE any of this, and the comparison is the
+    # finding.
+    both = sorted(stamps + [t for t, _ in progress])
+    worst_both, where_both = max(_gaps(both, waited), key=lambda g: g[0])
+    share_both = worst_both / waited * 100 if waited else 0.0
+    print(f"  WIDEST GAP ON BOTH CHANNELS {worst_both:.1f}s ({share_both:.0f}%)"
+          f" — {where_both}")
+    if worst_both >= _NOTICEABLE_GAP_S:
+        print(f"    still over the {_NOTICEABLE_GAP_S}s legibility floor: dead air a"
+              f" person cannot distinguish from a hang even with progress subscribed")
 
 
 @pytest.mark.real_llm
@@ -382,8 +403,8 @@ async def test_probe_build_wheels_progress(di_container):
     )
     assert progress_module._event_bus is bus, (
         "progress is not wired to this bus — see `utils/progress.set_event_bus`;"
-        " without this the empty progress stream below would be a setup bug rather"
-        " than the finding"
+        " without this a silent progress stream below would be a setup bug rather"
+        " than a finding"
     )
 
     runs: dict[int, dict] = {}

@@ -35,6 +35,15 @@ so there is nothing to subdivide. What differs is when they come BACK. Read
 `note_progress`'s docstring before adding a second site — the condition is narrow and
 the measurement that bounds it is there.
 
+AND ONE AWAIT, FOR THE ONE PHASE THAT CANNOT YIELD ON ITS OWN
+=============================================================
+`flush_progress` publishes nothing. It buys the loop the turns a fire-and-forget
+publish needs, and it is required in exactly one shape: immediately before a stretch
+that is SYNCHRONOUS all the way down, where the announcing coroutine will not suspend
+again until the stretch it just announced is over. `build_wheels`' combination phase is
+that shape and is the widest silence measured in this tree. Everywhere else the next
+await is real work and no flush is wanted.
+
 WHY A MUTABLE OBJECT IN THE ContextVar
 ======================================
 Same reason as `retry_accounting` and `call_census`, and it is the whole reason this
@@ -290,6 +299,53 @@ def expect_progress(steps: int) -> None:
     if scope is None:
         return
     scope.expect(steps)
+
+
+#: Loop turns `flush_progress` yields. One per hop the in-memory bus needs to carry a
+#: publish from `_publish`'s task into a subscriber's hands: the `_send` task itself,
+#: the broadcaster backend's listener draining its published queue, then the
+#: subscriber's own queue. The fourth is slack.
+#:
+#: One turn would be enough to fix the TIMESTAMP, since `_send` stamps the event as
+#: soon as it runs. It is not enough to fix what the person sees: on the path this
+#: exists for, the loop does not get another turn for seconds, so an event sitting in
+#: the backend's queue is an event nobody has. Three is the measured floor and the
+#: assertion is behavioural for that reason — `test_explore_progress_scope.py`
+#: subscribes a real bus and requires the event to have ARRIVED when the flush returns,
+#: which fails at 1 and at 2.
+_FLUSH_TURNS = 4
+
+
+async def flush_progress() -> None:
+    """Give the loop the turns a just-announced step needs to be DELIVERED.
+
+    `_publish` is fire-and-forget — it hands the send to `loop.create_task` — so an
+    announced step does not leave this process until the announcing coroutine suspends.
+    Almost everything suspends almost immediately (one provider call, one `gather`),
+    which is why no other site in this tree needs this. The exception is a phase that is
+    SYNCHRONOUS all the way down, and `build_wheels` owns the widest one measured
+    anywhere here: `PerspectiveCombination` builds 24 cycles and 96 wheels at k=4
+    without a single await, and that stretch was 110.9s of a 163.2s wall with no event
+    of any kind on either channel (`tests/e2e/probe_build_wheels_progress.py`).
+    Announcing that phase without this would publish its label only once the phase it
+    describes had already ended, then be replaced at once by the next step's — the
+    0.0s flash, i.e. worse than silence, because it names the wait as over while the
+    person is still in it.
+
+    So: `report_progress(...)` then `await flush_progress()` immediately BEFORE a fully
+    synchronous stretch, and nowhere else. A yield in front of real awaited work would
+    read as if the seam required one.
+
+    This does NOT make such a phase narratable. Steps announced from INSIDE synchronous
+    code have the same delivery problem and no boundary left to flush at, and the graph
+    effects it writes arrive in one burst at the end for the same reason. Giving the
+    inside of that phase a voice is a redesign of the phase, not of this seam.
+
+    Cheap and safe with no scope installed: it yields either way, which is why callers
+    need not ask whether anything is listening.
+    """
+    for _ in range(_FLUSH_TURNS):
+        await asyncio.sleep(0)
 
 
 def current_progress_scope() -> Optional[ProgressScope]:

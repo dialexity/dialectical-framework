@@ -431,11 +431,14 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     `tests/test_analyze_progress.py`, which was verified non-vacuous by deleting the `with` (all four
     fail). **Seven more went the same way, in one pass, one `with` each** — `find_polarities`
     (`opposition`), `surface_theses` (`extraction`), `expand_polarities` (`expansion`), `anchor_theses`
-    and `introduce_polarity` (`anchor`), `digest_input` and `add_input` (`ingest`) — so the tools still
-    installing nothing are just `explorer.explore` and `build_wheels` (uninstrumented and the first
-    thing `explore` does). (`build_wheels` is now known to be UNINSTRUMENTABLE as written, not merely
-    uninstrumented — see the Exploration chain section: its phase is synchronous, so neither channel can
-    deliver from inside it.) Review points from that pass: the stage is the NOUN OF THE WORK and never the
+    and `introduce_polarity` (`anchor`), `digest_input` and `add_input` (`ingest`) — and the two that were still
+    installing nothing — `explorer.explore` and `build_wheels` — are DONE as of 2026-09-10, which took
+    THREE `with`s rather than two: `run_exploration_detailed`, `ExplorationPipeline.resolve()` and
+    `BuildWheels.resolve()`. That third is the reviewable one, because **`build_wheels` is itself an
+    `@llm.tool`**, so without its own scope its three labels are dead code on the one door where they are
+    all a person has. (The earlier note here that `build_wheels` was UNINSTRUMENTABLE was too strong and is
+    withdrawn: its combination phase cannot be narrated from INSIDE — see the Exploration chain section —
+    but a label in front of it can, and that is what `flush_progress` buys.) Review points from that pass: the stage is the NOUN OF THE WORK and never the
     tool's name, because all seven tool names are banned vocabulary and `stage` is as host-visible as
     `detail`; two stage names are deliberately REUSED (`anchor`, `ingest`), which only holds because
     nesting DEFERS, and `introduce_polarity` calls `advisor.anchor._progress_key` itself so both doors
@@ -1676,11 +1679,21 @@ COMBINATION 9.88s vs ESTIMATION 8.77s of a 19.29s wall, against a 116s/28s basel
 here, carrying 1,102.8s of real provider time, so off-provider wall has gone from 84% of the paid k=4 run to
 roughly a quarter. **Reviewers should stop treating this path as the wall-clock problem.** Four things to carry
 into any review here. **Neither
-progress nor graph effects can be delivered from this phase at all** — both channels end in
+progress nor graph effects can be delivered from INSIDE this phase** — both channels end in
 `loop.create_task`, and a task does not run until the loop is next given control, so 0 of 1,750 effects arrived
 before `resolve()` returned and all 1,750 flooded after; adding labels inside it would publish nothing and then
 jump a host from zero to done, which reads as an instant wait. Narrating it requires the phase to YIELD, a change
-to a synchronous reasoning path, and the win above is the argument for not needing to. **`Wheel.edges` is still
+to a synchronous reasoning path, and the win above is the argument for not needing to. **What IS delivered is one
+label in FRONT of it, and getting that right needed a fourth verb on the seam** (2026-09-10): `BuildWheels`
+declares one step, reports `"Working out how these could cause one another"`, then `await flush_progress()` — four
+`asyncio.sleep(0)`s publishing nothing, which is the only thing that makes the label arrive BEFORE the 110.9s
+(of a 163.2s k=4 wall) rather than after it. Review rule: `flush_progress` belongs immediately before a stretch
+that is synchronous all the way down and NOWHERE else, since everywhere else the next await is real work. One turn
+would fix the timestamp (`_send` stamps on run); **three is the measured floor for DELIVERY** — `_send`'s task, the
+broadcaster backend's listener draining its published queue, then the subscriber's own queue — so the assertion is
+behavioural (real bus, subscribed, event must have ARRIVED when the flush returns) and fails at 1 and at 2; the
+fourth is slack. It does NOT make the phase's inside narratable, and a reviewer should reject any claim that it
+does. **`Wheel.edges` is still
 re-traversed by six callers per wheel** (`statements`, `_perspectives`, `polarity_count`,
 `_collect_structure_hash_parts`, `_get_commit_dependents`, rendering) and each traversal is a fresh read — but
 memoising it on the Wheel is UNSAFE, because transitions attach via `transition.cycle.connect(wheel)`, a write
@@ -1902,17 +1915,33 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   sites slice a list that is legitimately 1. Pinned by
   `tests/test_transformation_audit_optional.py::TestBothCallersDescribeTheAuditTheSameWay` and
   `tests/test_ingest_progress.py::TestOneLabelNeverCoversAGatheredFanOut::test_the_classify_label_reads_as_a_sentence_at_either_count`.
-  **`explore` still owns no stream, and
-  it is NOT a one-line fix — that claim was written here and is wrong.** Its two skills are SIBLINGS, not
-  nested: `ExplorationPipeline` closes its scope before `explore`'s synthesis loop starts, so deferral
-  never merges them and they publish `2 × deep_wheels` finals (`EXPLORE_DEEP_WHEELS = 1`, so two today,
-  scaling with `budget.deep_wheels`). Closing it needs the `_anchor`/`_ingest`/`_deepen` body split applied
-  to `run_exploration_detailed`'s ~115 lines, and it must go in the shared body rather than in a
-  `@llm.tool` for the same reason as `deepen` — though the count matters less than one specific caller:
-  there are TWO tool wrappers (`explore.py`'s and `scoped.py`'s, both via `run_exploration`) and four
-  direct callers in tests and probes, one of which is `probe_explore_progress.py` entering at
-  `run_exploration_detailed` itself. A scope installed in a wrapper would leave the very probe that
-  measures this channel measuring nothing.
+  **`explore` owns its stream as of 2026-09-10, at
+  THREE doors, and the door count is the reviewable part.** The two skills were SIBLINGS, never nested —
+  `ExplorationPipeline` closed its scope before `explore`'s synthesis loop started, so deferral could not
+  merge them and they published `2 × deep_wheels` finals (`EXPLORE_DEEP_WHEELS = 1`, so two) — which is why
+  nothing below could fix it and an outer scope had to. It went in `run_exploration_detailed`, the SHARED
+  body, not a `@llm.tool`: two wrappers (`explore.py`'s and `scoped.py`'s, both via `run_exploration`),
+  `advisor.py`'s closing seam and four direct test/probe callers arrive there, one of them
+  `probe_explore_progress.py` entering at `run_exploration_detailed` itself — a scope in a wrapper would
+  leave the very probe that measures this channel measuring nothing. `ExplorationPipeline.resolve()` opens
+  the same stage for the Explorer agent's door, and `BuildWheels.resolve()` for its own `@llm.tool`; the
+  inner two DEFER under the outer, so one action is one stream whichever door it came through. All three
+  split the body out (`_run_exploration`, `_resolve`) rather than indenting it, because a task created
+  before the scope is installed never sees it. Key construction differs by door on purpose: the Advisor
+  door joins the SORTED short hashes of the perspectives being woven (`audit_feasibility`'s rule — opaque
+  hashes the model read off its own prompt, so a digest hides nothing and costs a host its only way to
+  match a bar to the tensions the person named), each sanitised with `progress_hash_key` since they are raw
+  model output, nexus-prefixed when present, and taken from the CAPPED list so key and denominator describe
+  the same work; **`intent` is deliberately excluded**, being the person's own free text. The other two key
+  on the nexus. Three labels, all inside `BuildWheels`, each declared inside its own guard (phantom-step
+  rule): the combination phase, then one per estimation pass — TWO there and not one per structure, because
+  `CausalityEstimation` gathers per (type, size) group so per-structure steps would share one timestamp,
+  and the group completions already write graph effects. **No step for the nexus create/expand phase**, on
+  evidence: no provider call, and every node and edge it writes already reaches the host on the `sid`
+  channel. Pinned by `tests/test_explore_progress_scope.py` (10 tests, three `nullcontext` mutations
+  failing 3/1/3), with the same limit `deepen`'s class has — the deferring scopes in the Advisor-door tests
+  are the STUBS', so they cannot catch a skill that dropped its own scope. Still open: narrating the
+  INSIDE of the synchronous combination phase, and re-running the two explore probes on a real provider.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +

@@ -86,13 +86,24 @@ async def run_exploration_detailed(
     hashes from the graph would be a second query for something already in
     hand — and one that cannot tell "the pathway I just built for this
     closing" from "some pathway on some wheel".
+
+    ONE PROGRESS STREAM for the whole call, opened here rather than in the
+    `@llm.tool` wrapper because the wrapper is not the only door — the
+    nexus-scoped variant and the Advisor's closing seam come straight in here,
+    and a stream that only exists for one of three callers is worse than none.
+    Everything below defers into it: `ExplorationPipeline` opens the same stage,
+    and the two skills it drives (`ExploreTransformations`, `GenerateSynthesis`)
+    each own a stage of their own when called directly. Before this, one explore
+    call published `2 x deepened wheels` `final` events — the same defect
+    `deepen` had, where a host cleared its indicator halfway through the work
+    and started over.
+
+    The cap is applied ABOVE the scope so the key describes the perspectives
+    actually woven, not the ones handed in: the deferred ones are reported and
+    left for a follow-up call, and that call is a different stream.
     """
-    from dialectical_framework.agents.explorer.explorer import \
-        ExplorationPipeline
-    from dialectical_framework.agents.explorer.skills.generate_synthesis import \
-        GenerateSynthesis
-    from dialectical_framework.concerns.create_nexus import CreateNexus
-    from dialectical_framework.concerns.expand_nexus import ExpandNexus
+    from dialectical_framework.utils.progress import (progress_hash_key,
+                                                      progress_scope)
 
     budget = _ExploreBudget()
 
@@ -106,6 +117,55 @@ async def run_exploration_detailed(
         deferred_hashes = perspective_hashes[budget.max_perspectives :]
         perspective_hashes = perspective_hashes[: budget.max_perspectives]
 
+    # The hashes themselves, joined and sorted — NOT digested, for
+    # `audit_feasibility`'s reason: these are already opaque short hashes the model
+    # read off its own prompt, so a digest would hide nothing and cost a host the
+    # one thing a key is good for, lining a bar up with the tensions the person just
+    # named. Sanitised one by one because they are raw model output and this
+    # framework renders hashes into prompts as `[[abc1234]]`; unstripped, a model
+    # echoing the brackets keys a second stream for the same call. `intent` is
+    # deliberately NOT in here: it is free-form text in the person's own words, and
+    # including it would force a digest over the whole key to keep it off a host's
+    # surface.
+    key = ",".join(
+        sorted(k for k in (progress_hash_key(h) for h in perspective_hashes) if k)
+    )
+    if nexus_hash:
+        key = f"{progress_hash_key(nexus_hash)}:{key}"
+    with progress_scope("exploration", key=key):
+        return await _run_exploration(
+            perspective_hashes=perspective_hashes,
+            intent=intent,
+            nexus_hash=nexus_hash,
+            deferred_hashes=deferred_hashes,
+            budget=budget,
+        )
+
+
+async def _run_exploration(
+    perspective_hashes: list[str],
+    intent: str,
+    nexus_hash: str | None,
+    deferred_hashes: list[str],
+    budget: _ExploreBudget,
+) -> tuple[str, list[str]]:
+    """The body, split out so `run_exploration_detailed` can own the progress stream.
+
+    Split rather than indented for the reason the seam requires: a task created
+    before the scope is installed captures the context without it, so the `with`
+    has to sit above every await here — which is the whole body.
+    """
+    from dialectical_framework.agents.explorer.explorer import \
+        ExplorationPipeline
+    from dialectical_framework.agents.explorer.skills.generate_synthesis import \
+        GenerateSynthesis
+    from dialectical_framework.concerns.create_nexus import CreateNexus
+    from dialectical_framework.concerns.expand_nexus import ExpandNexus
+
+    # No progress step for the nexus phase, deliberately: it is graph work with no
+    # provider call in it, and every node and edge it writes is already announced
+    # on the `sid` channel as an effect. A step here would report the one phase
+    # that needs no reporting.
     if nexus_hash:
         expand = ExpandNexus()
         await expand.resolve(

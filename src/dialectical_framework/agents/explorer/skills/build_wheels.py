@@ -40,6 +40,11 @@ from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.nodes.wheel import Wheel
 from dialectical_framework.graph.repositories.nexus_repository import NexusRepository
 from dialectical_framework.graph.repositories.node_repository import NodeRepository
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  flush_progress,
+                                                  progress_hash_key,
+                                                  progress_scope,
+                                                  report_progress)
 from dialectical_framework.utils.use_brain import use_brain
 
 if TYPE_CHECKING:
@@ -130,12 +135,22 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
 
     async def resolve(self) -> BuildWheelsResult:
         """
-        Create structural combinations and estimate them.
+        Create structural combinations and estimate them, as ONE progress stream.
 
         Returns:
             BuildWheelsResult with newly created structures
-        """
 
+        The scope is here and not only at the callers because `build_wheels` is a tool
+        a model can call on its own, and `report_progress` is a no-op with no scope
+        installed — so without this the three steps below would be dead code on the one
+        door where they are the only thing a person has to look at. Under `explore`
+        (either door) it defers, `stage` and `key` are discarded, and the steps fold
+        into the caller's stream.
+        """
+        with progress_scope("exploration", key=progress_hash_key(self.nexus_hash)):
+            return await self._resolve()
+
+    async def _resolve(self) -> BuildWheelsResult:
         # 1. Resolve Nexus
         nexus = self._resolve_nexus()
         if nexus is None:
@@ -191,6 +206,17 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
             PerspectiveCombination,
         )
 
+        # The one label for the widest silence measured in this tree. Combination is
+        # synchronous all the way down — 110.9s of a 163.2s k=4 wall with no event on
+        # either channel, since every cycle and wheel it builds is committed and
+        # reported only as the phase unwinds. `flush_progress` is what makes the label
+        # arrive BEFORE the wait instead of after it; without the yield this phase never
+        # gives the loop the turn a publish needs. Narrating the phase's INSIDE is a
+        # different job and needs the phase itself to change — see `flush_progress`.
+        expect_progress(1)
+        report_progress("Working out how these could cause one another")
+        await flush_progress()
+
         combination = PerspectiveCombination()
         combination_result = combination.resolve(
             nexus=nexus, perspectives=perspectives, preset=cycle_intent,
@@ -241,17 +267,32 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         Estimate newly created Cycles and Wheels.
 
         The estimator is resolved from each structure's intent by CausalityEstimation.
+
+        TWO progress steps, one per pass, and not one per structure. This is the block
+        that costs the most provider time on the path (k=4: 112 calls, 1,102.8s of
+        provider time at 41.75x parallelism), but the calls are GATHERED per type+size
+        group, so per-structure steps would all carry one timestamp and say nothing —
+        the same reason `note_progress` exists for the ingest path. Each step is declared
+        inside its own guard so an empty pass never announces work that will not happen.
+        Unlike a single `CausalityEstimation.resolve`, this method knows both counts up
+        front; it does not use them, because a fraction over structures is not what the
+        person is waiting for here (they wait for two passes), and the group-level
+        completions that could fill one already write graph effects of their own.
         """
         from dialectical_framework.concerns.causality_estimation import (
             CausalityEstimation,
         )
 
         if cycles:
+            expect_progress(1)
+            report_progress("Weighing which order of events is most likely")
             estimation = CausalityEstimation()
             await estimation.resolve(cycles)
             self._report = self._report.merge(estimation.report)
 
         if wheels:
+            expect_progress(1)
+            report_progress("Weighing how well each arrangement holds up")
             estimation = CausalityEstimation()
             await estimation.resolve(wheels)
             self._report = self._report.merge(estimation.report)

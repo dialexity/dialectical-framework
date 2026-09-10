@@ -28,6 +28,8 @@ from dialectical_framework.agents.toolsets import merge_app_tools
 from dialectical_framework.graph.rendering import pathway_line
 from dialectical_framework.graph.repositories.nexus_repository import \
     NexusRepository
+from dialectical_framework.utils.progress import (progress_hash_key,
+                                                  progress_scope)
 
 if TYPE_CHECKING:
     pass
@@ -249,6 +251,23 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         self.max_deep_wheels = max_deep_wheels
 
     async def resolve(self) -> ExplorationResult:
+        """Run the pipeline as ONE progress stream.
+
+        The stage is `exploration` and the key is the nexus, which is the one node the
+        person named to get here. Both are DISCARDED when a caller already owns a stream
+        — the Advisor's `explore` opens one around this same pipeline — so the split
+        below is what lets this be either an entry point or a sub-step: the scope defers,
+        and the steps `BuildWheels` and the two skills report fold into the caller's
+        stream instead of opening a second one.
+
+        Without this the two skills under `_explore_wheel` each closed a stream of their
+        own, so one direct call published `2 x deepened wheels` `final` events and the
+        whole wheel-building phase in front of them published none.
+        """
+        with progress_scope("exploration", key=progress_hash_key(self.nexus_hash)):
+            return await self._resolve()
+
+    async def _resolve(self) -> ExplorationResult:
         from dialectical_framework.agents.explorer.skills.build_wheels import \
             BuildWheels
         from dialectical_framework.agents.explorer.skills.explore_transformations import \
