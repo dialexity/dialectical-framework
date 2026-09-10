@@ -268,11 +268,17 @@ class TestOneDeepenIsOneProgressStream:
     with `expect_progress` growth, `synthesis` with `total=`). That is deliberate:
     driving the real skills needs a committed Wheel with transitions and a full
     transformation run, and the thing worth catching cheaply is the tool's install
-    plus the deferral. The real skills' scopes now matter only where they are the
+    plus the deferral. The real skills' scopes matter only where they are the
     OUTERMOST one — the `generate_synthesis` tool and `explore_transformations`'
-    module-level helper — and nothing pins those today. Under `explore` (either door)
-    they DEFER into a stream the caller owns, so `tests/test_explore_progress_scope.py`
-    covers those doors from the outside and carries this same stub limit.
+    module-level helper — and THAT is pinned, since 2026-09-10, by
+    `test_explore_progress_scope.py::TestTheTwoSkillsInstallTheirOwnScopes`, which runs
+    both real skills against a real Wheel with nothing installed (~3s each under the
+    mock brain, so the cost above was overestimated). **It has to be run that way, and
+    that is the transferable part:** under an outer scope a skill whose own scope was
+    deleted still publishes into the caller's stream, so a nested test notices the
+    deletion only when the inner scope declared a `total` the outer denominator loses —
+    deleting `GenerateSynthesis`' (`total=1`) fails a nested assertion at 13/12, and
+    deleting `ExploreTransformations`' does not fail one at all.
     """
 
     @pytest.fixture

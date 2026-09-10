@@ -37,8 +37,10 @@ one line lower there would publish a tidy `final` over total silence.
 Two stage names are REUSED — `anchor` by two skills and the Advisor's own `anchor`
 tool, `ingest` by two tools and the Advisor's `ingest`. That is safe because a nested
 `progress_scope` defers rather than installing, and it is pinned here against the REAL
-skills rather than stubs (`test_progress.py`'s deferral class uses stubs, so a skill
-that dropped its own scope would leave it green).
+skills rather than stubs (`test_progress.py`'s deferral class uses stubs). What that
+catches is an inner scope that INSTALLS; an inner scope DELETED leaves it green just as
+the stubbed version would, since the events land in the outer stream either way — see
+that test's own docstring.
 
 Mock brain throughout: this is about the accounting, not the reasoning.
 
@@ -572,6 +574,13 @@ async def test_the_reused_stage_names_are_safe_because_nesting_defers(bus):
     STUBS, so a skill that quietly dropped its own `progress_scope` would leave it
     green. This drives the real tools under an outer scope: whatever they declare must
     fold into the outer stream, and the outer `final` must be the only one.
+
+    **Which is about the SEAM, not about the skill's scope existing.** Delete
+    `introduce_polarity`'s own `progress_scope` and its `report_progress` calls publish
+    into the outer stream instead — one stage, one key, one `final`, still green. What
+    fails here is the reverse: an inner scope that INSTALLS puts its own stage name on
+    the channel. Pinning that a skill installs a scope at all needs it run with nothing
+    outer (`test_explore_progress_scope.py::TestTheTwoSkillsInstallTheirOwnScopes`).
     """
     from dialectical_framework.agents.analyst.skills.introduce_polarity import \
         introduce_polarity

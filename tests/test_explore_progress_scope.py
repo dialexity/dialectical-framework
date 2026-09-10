@@ -12,7 +12,7 @@ host clears its indicator on `final` and so cleared it halfway through the work 
 nothing whatsoever in front of them, across the phase
 `tests/e2e/probe_build_wheels_progress.py` measured as 110.9s of a 163.2s k=4 wall.
 
-So three claims, and they need three different kinds of test:
+So four claims, and they need four different kinds of test:
 
 1. **Each door installs one stream**, keyed, named `exploration`, closing once. Stubs at
    the door (`TestOneExploreIsOneProgressStream`, `TestTheExplorerDoorOwnsItsStream`),
@@ -24,15 +24,20 @@ So three claims, and they need three different kinds of test:
    event TIMESTAMPS, because the phase it announces is synchronous all the way down —
    the announcement is published as a task, and without `flush_progress` that task
    cannot run until the phase it describes has already finished.
+4. **The two skills still install their own scopes.** That claim survives none of the
+   above — where a stub opens the nested scope, it is the STUB'S scope that defers, so
+   deleting either real `with progress_scope(...)` left claims 1-3 green. It needs the
+   REAL skills, run with nothing outer installed, against a real Wheel
+   (`TestTheTwoSkillsInstallTheirOwnScopes`). ~3s each under the mock brain, which is
+   why "too expensive to drive for real" turned out to be wrong.
 
 WHAT THIS DOES NOT PROVE
 ========================
-Same limit as `test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`, and for the
-same reason: where a stub opens the nested scope, it is the STUB'S scope that defers. If
-`ExploreTransformations` dropped its own `progress_scope` tomorrow these would stay
-green. Driving the real skills needs a committed Wheel with transitions and a full
-transformation run; what is worth catching cheaply is the door's install plus the seam's
-deferral.
+Same limit as `test_advisor_deepen.py::TestOneDeepenIsOneProgressStream` for the STUBBED
+claims: they describe the composition, not the reasoning, and a skill that stopped
+reporting altogether would still satisfy them. Section 4 is what covers the skills
+themselves, and only for the events they publish — that the labels are the RIGHT labels
+for the work underway is a judgement no assertion here makes.
 
 Run: poetry run pytest tests/test_explore_progress_scope.py
 """
@@ -72,6 +77,14 @@ BANNED = (
     "synthesis",
     "digest",
 )
+
+#: `synthesis` is BANNED as a label and yet it IS a stage name in production
+#: (`GenerateSynthesis`, and CLAUDE.md's list of instrumented stages), reaching a host
+#: only when that skill runs outside a tool that owns the stream. Exempted here rather
+#: than dropped from BANNED, so the check keeps biting for every other stage and for
+#: every label: renaming a stage a host may already key on is a decision about the
+#: public channel, not something a test should force through the back door.
+STAGES_EXEMPT_FROM_BANNED = {"synthesis"}
 
 
 @pytest.fixture
@@ -162,8 +175,9 @@ def _assert_one_stream(events: list, *, stage: str, key: str) -> list[str]:
         f"stream keyed {sorted({e.key for e in events})}, expected {key!r}"
     )
 
-    for term in BANNED:
-        assert term not in stage.lower(), f"stage {stage!r} names the machinery"
+    if stage not in STAGES_EXEMPT_FROM_BANNED:
+        for term in BANNED:
+            assert term not in stage.lower(), f"stage {stage!r} names the machinery"
     for event in events:
         lowered = event.detail.lower()
         for term in BANNED:
@@ -639,7 +653,144 @@ class TestBuildWheelsSpeaksBeforeItGoesQuiet:
 
 
 # ---------------------------------------------------------------------------
-# 4. The seam primitive the above depends on
+# 4. The two skills underneath the door, driven for real
+# ---------------------------------------------------------------------------
+
+
+async def _wheel_over_two_tensions(sid: str) -> tuple[Nexus, str]:
+    """A real committed Wheel, built the way production builds one.
+
+    Outside any `_collect` window on purpose: `BuildWheels` is itself a progress door
+    and its `exploration` stream is not what these tests are about.
+
+    **Outside is not enough on its own.** A publish is `loop.create_task`, so the door's
+    closing event can still be in flight when `resolve` returns, and it then lands on a
+    subscriber that attached afterwards — which read as a second `final` on the stream
+    under test. `flush_progress` drains it here, while nobody is listening; it is a
+    no-op with no scope installed, which is exactly the state after the `with` exits.
+    """
+    from dialectical_framework.agents.explorer.skills.build_wheels import \
+        BuildWheels
+
+    with scope(sid):
+        nexus = _nexus_over_two_tensions()
+        result = await BuildWheels(nexus_hash=nexus.hash).resolve()
+    await flush_progress()
+
+    hashes = [w.hash for w in result.new_wheels if w.hash]
+    assert hashes, "no wheel was built — the fixture is broken"
+    return nexus, hashes[0]
+
+
+class TestTheTwoSkillsInstallTheirOwnScopes:
+    """The gap the rest of this file left open, closed by driving the real skills.
+
+    Everything above stubs `ExploreTransformations` and `GenerateSynthesis`, and so does
+    `test_advisor_deepen.py::TestOneDeepenIsOneProgressStream`. Where a stub opens the
+    nested scope it is the STUB'S scope that defers, so deleting the real
+    `with progress_scope(...)` in either skill left the whole suite green — verified by
+    mutation. The consequence is not cosmetic: each skill has exactly one production
+    call site with NOTHING outer installed — its own `@llm.tool` on the Explorer's
+    per-wheel path (the module-level `explore_transformations`, and
+    `explorer/tools/generate_synthesis.py`) — and `report_progress` is a deliberate
+    no-op with no scope, so on that path the person gets a silent channel through the
+    longest phase there is.
+
+    **The STANDALONE tests are the ones that bite.** Under an outer scope, a skill whose
+    own scope was deleted still publishes — into the outer stream — and one stage, one
+    key, one `final` all still hold. Measured, by replacing both `with progress_scope(...)`
+    with `nullcontext()`: the two standalone tests fail with "the person saw silence",
+    and the nested one fails only at `13/12`, because `GenerateSynthesis` declares
+    `total=1` and losing its scope loses that 1 from the caller's denominator. Remove the
+    transformation scope ALONE and the nested test stays green (verified) — it has no
+    total of its own to lose. So the nested test pins the DEFERRAL, not the install.
+
+    Cost is one build plus one transformation pass per test, ~3s each under the mock
+    brain (`tests/probe_explore_deep_wheels.py`'s capped arm is the same work).
+    """
+
+    async def test_explore_transformations_owns_a_stream_when_nothing_else_does(
+        self, bus
+    ):
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformations
+
+        case = Case()
+        case.commit()
+        _nexus, wheel_hash = await _wheel_over_two_tensions(case.sid)
+
+        events = await _collect(
+            bus,
+            case.sid,
+            lambda: ExploreTransformations(wheel_hash=wheel_hash).resolve(),
+        )
+        labels = _assert_one_stream(
+            events, stage="transformation", key=wheel_hash[:7]
+        )
+        assert "Working out what good looks like here" in labels, (
+            f"the transformation phase went quiet: {labels}"
+        )
+
+    async def test_generate_synthesis_owns_a_stream_when_nothing_else_does(self, bus):
+        """Run on a freshly deepened wheel, because both other paths skip the scope.
+
+        `resolve` raises without Transformations, and returns on an EXISTING synthesis
+        BEFORE entering the scope — so a wheel that already has one would prove nothing.
+        """
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformations
+        from dialectical_framework.agents.explorer.skills.generate_synthesis import \
+            GenerateSynthesis
+
+        case = Case()
+        case.commit()
+        _nexus, wheel_hash = await _wheel_over_two_tensions(case.sid)
+        with scope(case.sid):
+            await ExploreTransformations(wheel_hash=wheel_hash).resolve()
+        # Same in-flight `final` as in the fixture — drain it before subscribing.
+        await flush_progress()
+
+        events = await _collect(
+            bus,
+            case.sid,
+            lambda: GenerateSynthesis(wheel_hash=wheel_hash).resolve(),
+        )
+        labels = _assert_one_stream(events, stage="synthesis", key=wheel_hash[:7])
+        assert labels == ["Drawing out what emerges from the whole picture"], (
+            f"one indivisible provider call, so exactly one label: {labels}"
+        )
+
+    async def test_both_real_skills_fold_into_a_caller_that_owns_the_stream(self, bus):
+        """The `deepen`/`explore` shape, with nothing stubbed.
+
+        Two real skills, two real nested scopes, one stream: the composition the
+        stubbed tests above assert on a stand-in.
+        """
+        from dialectical_framework.agents.explorer.skills.explore_transformations \
+            import ExploreTransformations
+        from dialectical_framework.agents.explorer.skills.generate_synthesis import \
+            GenerateSynthesis
+
+        case = Case()
+        case.commit()
+        nexus, wheel_hash = await _wheel_over_two_tensions(case.sid)
+
+        async def _deepen_and_finish() -> None:
+            with progress_scope("exploration", key=nexus.short_hash):
+                await ExploreTransformations(wheel_hash=wheel_hash).resolve()
+                await GenerateSynthesis(wheel_hash=wheel_hash).resolve()
+
+        events = await _collect(bus, case.sid, _deepen_and_finish)
+        labels = _assert_one_stream(
+            events, stage="exploration", key=nexus.short_hash
+        )
+        assert "Drawing out what emerges from the whole picture" in labels, (
+            f"the synthesis step did not reach the caller's stream: {labels}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 5. The seam primitive the above depends on
 # ---------------------------------------------------------------------------
 
 

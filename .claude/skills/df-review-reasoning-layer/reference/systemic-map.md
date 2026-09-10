@@ -1904,8 +1904,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `tests/test_progress.py::TestNestingDefersToTheInstalledScope` and
   `tests/test_advisor_deepen.py::TestOneDeepenIsOneProgressStream` — but the scopes that defer in the
   second are the STUBS', so it proves the TOOL installs a stream and the SEAM folds a nested scope into
-  it, NOT that `ExploreTransformations`/`GenerateSynthesis` still open scopes at all; nothing pins those,
-  and it is part of the `explore` gap below.
+  it, NOT that `ExploreTransformations`/`GenerateSynthesis` still open scopes at all. That last claim is
+  pinned separately by
+  `tests/test_explore_progress_scope.py::TestTheTwoSkillsInstallTheirOwnScopes`, which drives both REAL
+  skills against a real Wheel — and the test that bites is the one run with NO outer scope, because under
+  a caller's scope a skill whose own scope was deleted still publishes into that caller's stream and every
+  one-stage/one-key/one-final assertion still holds. **THE TRANSFERABLE LESSON: a "nested scope folds in"
+  test cannot pin the nested scope's EXISTENCE** — it catches a deleted scope only when that scope
+  declared a `total` the caller's denominator then loses (`GenerateSynthesis`, `total=1`, fails at 13/12;
+  `ExploreTransformations` declares none and its deletion stayed green — both measured by mutation).
+  A second finding from writing it: a door's closing event can outlive its own `resolve()`, since
+  `_publish` is `loop.create_task`, so a fixture that runs one door before subscribing must
+  `await flush_progress()` or that `final` lands on the next stream under test.
   **A REVIEWER'S RULE THIS TOOL PRODUCED: A PROGRESS KEY BUILT FROM A TOOL ARGUMENT IS BUILT FROM RAW
   MODEL OUTPUT.** The scope opens above any resolution of the hash, and the framework itself prints
   hashes to the model as `[[abc1234]]`, so a model echoing the brackets back — the most common
