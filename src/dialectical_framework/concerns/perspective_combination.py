@@ -16,7 +16,7 @@ Usage:
     from dialectical_framework.concerns.perspective_combination import PerspectiveCombination
 
     concern = PerspectiveCombination()
-    result = concern.resolve(
+    result = await concern.resolve(
         nexus=nexus,
         perspectives=[pp1, pp2, pp3],
     )
@@ -25,10 +25,17 @@ Usage:
         print(f"Cycle: {cycle.short_hash}")
     for wheel in result.wheels:
         print(f"Wheel: {wheel.short_hash}")
+
+`resolve` is a coroutine that makes NO provider call and does no I/O concurrency.
+It is async for one reason, and `resolve`'s own docstring carries the measurement:
+effects are published fire-and-forget via `loop.create_task`, so a phase that never
+gives the loop a turn produces a graph event for every node it writes and delivers
+none of them until it returns.
 """
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from itertools import combinations
 from typing import Optional, TYPE_CHECKING
@@ -95,7 +102,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         """Access the execution report."""
         return self._report
 
-    def resolve(
+    async def resolve(
         self,
         nexus: Nexus,
         perspectives: list[Perspective],
@@ -106,6 +113,32 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
 
         Adds WUs to the Nexus (skipping duplicates), then builds all
         layer-by-layer structural combinations up to settings.max_wheel_layer.
+
+        A COROUTINE THAT AWAITS NOTHING BUT THE EVENT LOOP. There is no provider
+        call and no I/O concurrency in this phase; the awaits inside `_build_layer`
+        exist so that the effects it writes can be DELIVERED while it runs.
+        `ExecutionReport._emit` publishes fire-and-forget via `loop.create_task`, so
+        a phase that never yields queues one task per node and edge and hands the
+        loop none of them until it returns. Measured before the yields
+        (`tests/e2e/probe_build_wheels_progress.py`, k=4): 12.8s in which this phase
+        wrote 24 Cycles, 96 Wheels, 632 Transitions and 781 relationships, all 1,629
+        effects arriving in ONE burst at the instant it returned. Nothing was slow
+        about the reporting — the reports had nowhere to go.
+
+        This is why the answer here is a yield and NOT a progress label. The phase
+        already reports everything it does, on the channel built for it; per
+        `report_progress`'s own rule a step is owed where a wait produces no graph
+        effect, and this wait produces 1,629. What it lacked was a turn.
+
+        THE YIELDS GO BETWEEN COMPLETE FIND-OR-CREATE UNITS, WHICH IS WHAT KEEPS
+        DEDUPLICATION CORRECT. `_find_or_create_cycle` and the wheel branch of
+        `_build_wheels_for_cycle` each query for an existing structure and then write
+        one, and both are synchronous throughout — so no yield can land between a
+        check and its write. Two concurrent explorations of the same Nexus therefore
+        still cannot both create the "same" cycle: whichever resumes second queries
+        after the first one's write and finds it. Interleaving at these boundaries was
+        already possible (this phase's caller awaits providers on either side of it);
+        splitting a check from its write would not be, and no yield below does.
 
         Args:
             nexus: Required exploration context (must be committed)
@@ -184,7 +217,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
 
         top_layer = min(total_pps, self.settings.max_wheel_layer)
         for layer in range(1, top_layer + 1):
-            layer_result = self._build_layer(nexus, all_nexus_pps, layer)
+            layer_result = await self._build_layer(nexus, all_nexus_pps, layer)
 
             if layer_result.new_cycles:
                 cycles_by_layer[layer] = layer_result.new_cycles
@@ -226,7 +259,7 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
                 self._report.relationship_created(pp.nexus, pp, nexus)
                 existing_hashes.add(pp.hash)
 
-    def _build_layer(
+    async def _build_layer(
         self,
         nexus: Nexus,
         perspectives: list[Perspective],
@@ -240,6 +273,9 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
         2. Create missing Cycle nodes (connected to Nexus)
         3. For each Cycle, generate Wheel arrangements
         4. Create missing Wheel nodes
+
+        Async only to yield — see `resolve`'s docstring for the measurement and for
+        why the yields sit where they do.
         """
         all_cycles: list[Cycle] = []
         all_wheels: list[Wheel] = []
@@ -265,10 +301,20 @@ class PerspectiveCombination(ReasonableConcern[CombinationResult], SettingsAware
                 all_wheels.extend(wheels_for_cycle)
                 new_wheels.extend(new_wheels_for_cycle)
 
+                # Hand the loop a turn so the effects just written can be DELIVERED
+                # rather than queued behind the rest of the phase. One cycle's wheels
+                # is a complete unit: the find-or-create pairs inside it have already
+                # closed, so nothing here splits a check from its write. At k=4 this
+                # is ~24 turns across what was one 12.8s burst.
+                await asyncio.sleep(0)
+
         # Connect opposite-direction pairs (queries DB for full layer scope)
         self._connect_opposite_direction_pairs(
             nexus, [list(combo) for combo in pp_combinations]
         )
+        # Its own turn: this one call queries and writes for the WHOLE layer scope, so
+        # at the top layer it is the single largest block of relationships in the phase.
+        await asyncio.sleep(0)
 
         return LayerResult(
             layer=layer,

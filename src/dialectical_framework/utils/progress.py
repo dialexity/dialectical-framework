@@ -35,14 +35,22 @@ so there is nothing to subdivide. What differs is when they come BACK. Read
 `note_progress`'s docstring before adding a second site — the condition is narrow and
 the measurement that bounds it is there.
 
-AND ONE AWAIT, FOR THE ONE PHASE THAT CANNOT YIELD ON ITS OWN
-=============================================================
+AND ONE AWAIT, FOR A PHASE THAT WILL NOT SUSPEND SOON ENOUGH
+============================================================
 `flush_progress` publishes nothing. It buys the loop the turns a fire-and-forget
 publish needs, and it is required in exactly one shape: immediately before a stretch
-that is SYNCHRONOUS all the way down, where the announcing coroutine will not suspend
-again until the stretch it just announced is over. `build_wheels`' combination phase is
-that shape and is the widest silence measured in this tree. Everywhere else the next
-await is real work and no flush is wanted.
+where the announcing coroutine will not suspend again until the stretch it just
+announced is over. `build_wheels`' combination phase is that shape and was the widest
+silence measured in this tree. Everywhere else the next await is real work and no flush
+is wanted.
+
+**The corollary runs the other way too, and it is the cheaper fix where it applies.**
+A phase that never yields cannot DELIVER what it already reports: `PerspectiveCombination`
+wrote 1,629 graph effects across 12.8s at k=4 and handed a host none of them until it
+returned, because `ExecutionReport._emit` is `loop.create_task` as well. That phase now
+yields between complete find-or-create units, so its effects arrive as it builds and it
+needed no label at all. Reach for a yield when the wait already reports itself, and for
+a step when it does not.
 
 WHY A MUTABLE OBJECT IN THE ContextVar
 ======================================
@@ -336,10 +344,14 @@ async def flush_progress() -> None:
     synchronous stretch, and nowhere else. A yield in front of real awaited work would
     read as if the seam required one.
 
-    This does NOT make such a phase narratable. Steps announced from INSIDE synchronous
-    code have the same delivery problem and no boundary left to flush at, and the graph
-    effects it writes arrive in one burst at the end for the same reason. Giving the
-    inside of that phase a voice is a redesign of the phase, not of this seam.
+    This does NOT make the inside of a synchronous stretch narratable: steps announced
+    from within it have the same delivery problem and no boundary left to flush at. What
+    the inside needs is a yield of its own, which is a change to the phase and not to
+    this seam — `PerspectiveCombination` took that change (it awaits between complete
+    find-or-create units, so the 1,629 effects it used to dump at the end now arrive as
+    it builds). This call stays anyway, because it guarantees the label leads the phase
+    whatever the phase's internals do, and because a Nexus whose structures all already
+    exist gives those yields nothing to deliver.
 
     Cheap and safe with no scope installed: it yields either way, which is why callers
     need not ask whether anything is listening.

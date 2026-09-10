@@ -182,7 +182,13 @@ off-provider probe said it did, and most of it is gone.
 **4. The widest remaining k=4 gap IS the combination phase, now labelled** (12.8s
 between the label and its own flood), which is exactly the part of the seam work still
 open: `flush_progress` puts a label in FRONT of a synchronous phase and cannot narrate
-its inside. **And the share inverted between the sizes** — k=2's 8.9s is 52% of its
+its inside. **Closed the same day, and not by the seam** — that flood was the phase
+holding the event loop, not the reporting being slow, so `PerspectiveCombination` now
+awaits between complete find-or-create units and delivers 1,459 of 1,750 effects while
+it runs (measured in `tests/probe_build_wheels_offprovider.py`, which is free and is the
+right instrument for it: delivery timing has nothing to do with provider time). Read the
+12.8s below as the last measurement of the OLD behaviour; a paid re-run would re-time the
+same graph writes and is not what proves this one. **And the share inverted between the sizes** — k=2's 8.9s is 52% of its
 wall against k=4's 25% — so on the door people actually hit (the Advisor caps at 2)
 the last estimation pass is half the wait under one correct label. That pass gathers
 its calls per (type, size) group and writes Rationale effects as each group persists,

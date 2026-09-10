@@ -139,6 +139,23 @@ class TestGraphEventBus:
 
 
 class TestExecutionReportEventIntegration:
+    """Swaps the CLASS-LEVEL bus, so every test here must put it back.
+
+    `ExecutionReport.set_event_bus` writes a class attribute and `di_container` is
+    session-scoped, so `set_event_bus(None)` in a `finally` is not a teardown — it
+    unwires the container's own bus for every test that runs after this module, and
+    the symptom is silent: reports still buffer, tools still return the right answer,
+    and only a test that SUBSCRIBES notices it received nothing. That is exactly how
+    `test_graph.py::test_perspective_combination_delivers_effects_while_it_runs`
+    failed in the suite while passing alone. Restore the previous value, the way the
+    progress-test modules do with `progress_module.set_event_bus(previous)`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def restore_execution_report_bus(self):
+        previous = ExecutionReport._event_bus
+        yield
+        ExecutionReport.set_event_bus(previous)
 
     @pytest.mark.asyncio
     async def test_report_publishes_via_bus(self, bus: GraphEventBus):

@@ -39,6 +39,10 @@ wheels and commits them without a single `await`. So every effect it emits is
 QUEUED, and the flood at the end of the paid run is not a host rendering slowly:
 it is the first moment the loop was free to deliver anything.
 
+(That was true when this was written and the phase has since been changed — see THE
+PHASE NOW YIELDS at the end. The paragraphs below are kept as the measurement that
+identified the fix.)
+
 The consequence for instrumentation is the finding, not a caveat: **`report_progress`
 inside that phase would be scheduled and not delivered, then arrive all at once when
 the phase ends.** `_publish`'s own comment already warns that "the task below does
@@ -154,6 +158,10 @@ layer or cycle boundary — which is a change to a synchronous reasoning path an
 to be decided as one, not slipped in as instrumentation. Fixing (2) first may make
 the question moot, which is the argument for doing it in that order.
 
+(Both happened, in that order: (2) shrank the phase from 116s to ~10s mocked, and the
+yield was then taken as its own decision. See THE PHASE NOW YIELDS at the end. The
+sentence above is still right about LABELS — none were added.)
+
 AFTER THE FIXES
 ===============
 Three landed, in this order, each measured at k=4 on the same machine:
@@ -239,9 +247,10 @@ wheels every run, 2,144 `save_node` and 2,821 `save_relationship` every run, 1,7
 effects every run. Identical structure, identical writes, identical stream — only
 the reads the code did to decide are gone. Full suite green after each.
 
-What did NOT change: the phase is still `def`, so it still delivered 0 of 1,750
+What did NOT change: the phase was still `def`, so it still delivered 0 of 1,750
 effects before returning. ~10s of silence is a smaller lie than 116s but it is the
-same lie, so the 5b question survives — just with much less riding on it.
+same lie, so the question survived — just with much less riding on it. It is answered
+in the next section.
 
 **The phase that dominated no longer does.** COMBINATION and ESTIMATION are now
 9.88s and 8.77s of a 19.29s wall — an even split, where the baseline was 116s
@@ -285,6 +294,45 @@ re-traverse per wheel (`statements`, `_perspectives`, `polarity_count`,
 attach via `transition.cycle.connect(wheel)` — a write through a different manager on
 a different node, exactly the case `all()`'s docstring says the memo does not guard —
 and `_build_wheels_for_cycle` reads wheels mid-build.
+
+THE PHASE NOW YIELDS, 2026-09-10
+================================
+`resolve` and `_build_layer` are `async def`, with `await asyncio.sleep(0)` after each
+cycle's wheels and after each layer's opposite-direction pass. No label was added and
+none is wanted: the phase writes 1,750 effects, so what it lacked was a turn, not a
+voice. Three k=4 runs on one box, back to back:
+
+                          with yields   WITHOUT (A/B)   with yields
+    effects BEFORE return       1,459               9         1,459
+    wall                       59.41s          49.82s        55.13s
+    COMBINATION                29.07s          23.83s        25.56s
+    build_wheels_for_cycle     27.35s          22.09s        23.59s
+    execute_and_fetch          67,556          67,556        67,556
+    cycles / wheels             24/96           24/96         24/96
+    harness-only query        2.169ms         1.879ms       1.984ms   <- box drift
+
+**1. The finding is 9 -> 1,459 of 1,750 effects delivered while the phase runs**, and
+the reading it kills is the one this file made twice: silence during the combination was
+never a reporting cost, it was a scheduling artifact. The 291 that still arrive after
+the boundary are the estimation phase's, which is where they belong.
+
+**2. The yields cost a few percent, and the raw walls overstate it.** Normalise each run
+by the harness-only `SET n:___DIALEXITY_TEST___` query — 2,144 identical statements that
+no framework change can touch, so it reads as this box's per-query drift — and the
+combination phase costs +2% and +6% against the A/B, the wall +3% and +5%. Some of that
+is real: the same 1,750 publish tasks now run INSIDE the phase's window instead of after
+it, so the phase is charged for delivery it used to defer. Nothing else moved —
+identical charges, identical structures, identical effect count.
+
+**3. Do NOT compare these walls to the 19.29s column above.** That box ran the
+harness-only query at 1.24ms and this one at 1.88-2.17ms, so it is ~1.5x slower today
+for reasons no code in this repo controls. Same-session A/B or nothing, which is why
+three runs were taken rather than one.
+
+**4. `test_the_progress_channel_cannot_speak_from_a_synchronous_phase` still passes and
+still matters.** It demonstrates the seam property in isolation — three labels from a
+`def` block all land at 0.46s — and that property is why the fix had to be a yield. It
+no longer describes `PerspectiveCombination`, and its docstring says so.
 """
 
 from __future__ import annotations
@@ -559,10 +607,14 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
                            "resolve perspectives", clock)
                 _wrap_async(patch, BuildWheels, "_resolve_auto_preset",
                             "auto preset (1 call)", clock)
-                _wrap_sync(patch, PerspectiveCombination, "resolve",
-                           "COMBINATION (sync)", clock, mark=True)
-                _wrap_sync(patch, PerspectiveCombination, "_build_layer",
-                           "  build_layer", clock)
+                # Both are coroutines since the phase started yielding — wrapped
+                # SYNC they would time the coroutine's construction (0.00s) and mark
+                # the boundary before any work had run, which is how this probe first
+                # reported the change.
+                _wrap_async(patch, PerspectiveCombination, "resolve",
+                            "COMBINATION", clock, mark=True)
+                _wrap_async(patch, PerspectiveCombination, "_build_layer",
+                            "  build_layer", clock)
                 _wrap_sync(patch, PerspectiveCombination, "_find_or_create_cycle",
                            "    find_or_create_cycle", clock)
                 _wrap_sync(patch, PerspectiveCombination, "_build_wheels_for_cycle",
@@ -596,7 +648,7 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
           " rows do NOT add up)")
     order = [
         "resolve nexus", "resolve perspectives", "auto preset (1 call)",
-        "COMBINATION (sync)", "  build_layer", "    find_or_create_cycle",
+        "COMBINATION", "  build_layer", "    find_or_create_cycle",
         "    build_wheels_for_cycle", "    connect_opposite_pairs",
         "ESTIMATION (mocked LLM)",
     ]
@@ -604,12 +656,12 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
         count, seconds = clock.totals.get(label, [0, 0.0])
         share = seconds / wall * 100 if wall else 0.0
         print(f"    {seconds:7.2f}s  {share:5.1f}%  {count:5d}x  {label}")
-    accounted = clock.seconds("COMBINATION (sync)") + clock.seconds(
+    accounted = clock.seconds("COMBINATION") + clock.seconds(
         "ESTIMATION (mocked LLM)"
     )
     print(f"    {wall - accounted:7.2f}s  {(wall - accounted) / wall * 100:5.1f}%"
           f"         residual outside those two phases")
-    unlabelled = clock.seconds("COMBINATION (sync)") - clock.seconds("  build_layer")
+    unlabelled = clock.seconds("COMBINATION") - clock.seconds("  build_layer")
     print(f"    within COMBINATION: {unlabelled:.2f}s sits outside build_layer"
           f" (which is where the two indented rows below it live)")
 
@@ -647,8 +699,8 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
               f" stack walk runs on every query; take seconds from a run with"
               f" DIALEXITY_PROBE_BW_SITES unset.)")
 
-    print("\n  CAN THE GRAPH CHANNEL SPEAK WHILE THE SYNC PHASE RUNS?")
-    boundary = clock.marks.get("COMBINATION (sync)")
+    print("\n  CAN THE GRAPH CHANNEL SPEAK WHILE THE COMBINATION PHASE RUNS?")
+    boundary = clock.marks.get("COMBINATION")
     if boundary is None:
         print("    combination never ran — nothing to say")
     else:
@@ -657,9 +709,10 @@ async def test_probe_where_the_off_provider_wall_goes(di_container, monkeypatch)
         print(f"    PerspectiveCombination.resolve returned at {boundary:.2f}s")
         print(f"    effects delivered BEFORE it returned: {len(before)}")
         print(f"    effects delivered AFTER  it returned: {after}")
-        print("    Both channels end in `loop.create_task`, and that phase is `def`"
-              " all the way down — so its events are QUEUED, not slow. A label added"
-              " inside it would arrive in the same flood.")
+        print("    Both channels end in `loop.create_task`. While that phase was `def`"
+              " all the way down this read 0 before / everything after: its events"
+              " were QUEUED, not slow. It now awaits between complete find-or-create"
+              " units, so BEFORE should carry most of them.")
 
 
 @pytest.mark.asyncio
@@ -696,7 +749,7 @@ async def test_the_progress_channel_cannot_speak_from_a_synchronous_phase(
             await ready.wait()
 
             def synchronous_phase() -> float:
-                """Exactly the shape of `PerspectiveCombination.resolve`."""
+                """The shape `PerspectiveCombination.resolve` had before it yielded."""
                 for i in range(3):
                     report_progress(f"step {i + 1}")
                     time.sleep(0.15)

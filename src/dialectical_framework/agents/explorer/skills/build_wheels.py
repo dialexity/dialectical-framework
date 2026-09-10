@@ -211,14 +211,19 @@ class BuildWheels(ReasonableConcern[BuildWheelsResult]):
         # either channel, since every cycle and wheel it builds is committed and
         # reported only as the phase unwinds. `flush_progress` is what makes the label
         # arrive BEFORE the wait instead of after it; without the yield this phase never
-        # gives the loop the turn a publish needs. Narrating the phase's INSIDE is a
-        # different job and needs the phase itself to change — see `flush_progress`.
+        # gives the loop the turn a publish needs.
+        #
+        # The phase now yields between complete units of its own, so its effects are
+        # delivered WHILE it runs (see `PerspectiveCombination.resolve`'s docstring for
+        # the measurement). `flush_progress` stays regardless: it guarantees this label
+        # leads the phase whatever the phase's internals do, and on a Nexus whose
+        # structures all already exist there is nothing for those yields to deliver.
         expect_progress(1)
         report_progress("Working out how these could cause one another")
         await flush_progress()
 
         combination = PerspectiveCombination()
-        combination_result = combination.resolve(
+        combination_result = await combination.resolve(
             nexus=nexus, perspectives=perspectives, preset=cycle_intent,
         )
         self._report = self._report.merge(combination.report)

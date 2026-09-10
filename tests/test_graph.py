@@ -1568,7 +1568,7 @@ def test_cycle_rejects_duplicate_perspectives():
     print("✓ Cycle rejects duplicate perspectives")
 
 
-def test_perspective_combination_dedups_duplicate_nexus_edge():
+async def test_perspective_combination_dedups_duplicate_nexus_edge():
     """PerspectiveCombination must not emit degenerate cycles when the Nexus
     has a duplicate BELONGS_TO_NEXUS edge.
 
@@ -1624,7 +1624,7 @@ def test_perspective_combination_dedups_duplicate_nexus_edge():
         # Passing the PPs is just to clear the non-empty guard; the build
         # reads all PPs from the Nexus (including the duplicate edge) anyway.
         combination = PerspectiveCombination()
-        result = combination.resolve(nexus=nexus, perspectives=[pp1, pp2])
+        result = await combination.resolve(nexus=nexus, perspectives=[pp1, pp2])
 
         # Every produced cycle must reference distinct perspectives.
         for cycle in result.cycles:
@@ -1641,6 +1641,120 @@ def test_perspective_combination_dedups_duplicate_nexus_edge():
             assert set(c.perspective_hashes) == {pp1.hash, pp2.hash}
 
     print("✓ PerspectiveCombination dedups duplicate nexus edges")
+
+
+async def test_perspective_combination_delivers_effects_while_it_runs(di_container):
+    """The phase must hand the loop a turn, so a host sees wheels as they are built.
+
+    `ExecutionReport._emit` publishes fire-and-forget via `loop.create_task`, and a
+    task does not run until the loop is next given control. While `resolve` was fully
+    synchronous it therefore wrote every Cycle, Wheel and Transition and delivered
+    NONE of them until it returned: measured at 0 of 1,750 effects before the boundary
+    at both sizes (`tests/probe_build_wheels_offprovider.py`), and on a real provider
+    as 1,629 effects arriving in one burst after 12.8s of apparent silence
+    (`tests/e2e/probe_build_wheels_progress.py`, k=4). Nothing was slow; the reports
+    had nowhere to go.
+
+    So this asserts the property that fixed it and nothing about the counts: at least
+    one effect is DELIVERED to a subscriber before `resolve` returns. It cannot be
+    written against a stub — the whole defect lives in when the loop runs, which is
+    invisible to anything that does not subscribe to a real bus and read arrival
+    times. Two PPs are enough (3 Cycles, 4 Wheels): the yields are per cycle, so the
+    smallest case that builds more than one structure already exercises them.
+
+    A structural check (`iscoroutinefunction`) would pass on a coroutine that awaits
+    nothing, which is exactly the state this used to be in one refactor away.
+    """
+    import asyncio
+    import time
+
+    from dialectical_framework.agents.execution_report import ExecutionReport
+    from dialectical_framework.concerns.perspective_combination import \
+        PerspectiveCombination
+    from dialectical_framework.graph.nodes.case import Case
+    from dialectical_framework.graph.nodes.nexus import Nexus
+    from dialectical_framework.graph.scope_context import scope
+
+    bus = di_container.event_bus()
+    await bus.connect()
+    # Subscribing to a bus the reports do not publish on delivers zero effects and
+    # looks exactly like the defect this test exists to catch — say which it is.
+    # `set_event_bus` writes a CLASS attribute and `di_container` is session-scoped,
+    # so any test that swaps it without restoring mutes this one for the rest of the
+    # run (it did: `test_event_bus.py` used to end on `set_event_bus(None)`).
+    assert ExecutionReport._event_bus is bus, (
+        "reports are not wired to this bus, so nothing could arrive whatever the"
+        " phase does — some earlier test left `ExecutionReport.set_event_bus`"
+        " pointing elsewhere"
+    )
+
+    case_node = Case()
+    case_node.commit()
+
+    arrivals: list[float] = []
+    ready = asyncio.Event()
+
+    async def collect() -> None:
+        async with bus.subscribe(case_node.sid) as subscriber:
+            ready.set()
+            async for _ in subscriber:
+                arrivals.append(time.monotonic())
+
+    with scope(case_node.sid):
+        uid = random.random()
+
+        pp1, _, _ = create_perspective_with_polarity(
+            t_statement="Yield thesis 1", a_statement="Yield antithesis 1",
+            t_plus_statement="Y1T+", t_minus_statement="Y1T-",
+            a_plus_statement="Y1A+", a_minus_statement="Y1A-",
+            intent=f"yield_pp1_{uid}",
+        )
+        pp1.commit()
+
+        pp2, _, _ = create_perspective_with_polarity(
+            t_statement="Yield thesis 2", a_statement="Yield antithesis 2",
+            t_plus_statement="Y2T+", t_minus_statement="Y2T-",
+            a_plus_statement="Y2A+", a_minus_statement="Y2A-",
+            intent=f"yield_pp2_{uid}",
+        )
+        pp2.commit()
+
+        nexus = Nexus(intent=f"yield_nexus_{uid}")
+        nexus.commit()
+
+        collector = asyncio.create_task(collect())
+        await ready.wait()
+        # Only what the phase itself emits counts, so the setup's own effects are
+        # dropped rather than filtered by type — a subscriber that started late is
+        # the one thing that could make this pass vacuously.
+        arrivals.clear()
+        try:
+            result = await PerspectiveCombination().resolve(
+                nexus=nexus, perspectives=[pp1, pp2]
+            )
+            boundary = time.monotonic()
+            during = len(arrivals)
+            # Let the queue drain so the failure message can say how many were
+            # merely LATE rather than missing.
+            for _ in range(10):
+                await asyncio.sleep(0.05)
+        finally:
+            collector.cancel()
+
+    assert result.wheels, "nothing was built, so there was nothing to deliver"
+    total = len([a for a in arrivals if a <= boundary]) + len(
+        [a for a in arrivals if a > boundary]
+    )
+    assert during > 0, (
+        "the phase delivered 0 of its effects while running — it built"
+        f" {len(result.cycles)} cycles and {len(result.wheels)} wheels and a host"
+        f" watching nodes saw all {total} of them arrive at once, after the wait"
+    )
+
+    print(
+        f"✓ PerspectiveCombination delivered {during} effects mid-phase"
+        f" ({total} in total)"
+    )
 
 
 async def test_create_nexus_dedups_repeated_hashes():

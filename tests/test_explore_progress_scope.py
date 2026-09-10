@@ -502,7 +502,7 @@ def _nexus_over_two_tensions() -> Nexus:
 class TestBuildWheelsSpeaksBeforeItGoesQuiet:
     """The widest silence measured anywhere in this tree, and why a label is not enough.
 
-    `PerspectiveCombination` is synchronous all the way down — at k=4 it built 24
+    `PerspectiveCombination` was synchronous all the way down — at k=4 it built 24
     cycles and 96 wheels without a single await, 110.9s of a 163.2s wall with no event
     on either channel. A publish is a fire-and-forget task, so announcing that phase
     the ordinary way would deliver the label only once the phase had ENDED, and a host
@@ -511,22 +511,34 @@ class TestBuildWheelsSpeaksBeforeItGoesQuiet:
 
     Which makes the load-bearing assertion a TIMESTAMP, not a label: the count and the
     wording would be identical on the broken path.
+
+    **THE BOUNDARY IS THE PHASE'S ENTRY, NOT ITS RETURN, AND THAT CHANGED ON 2026-09-10.**
+    This used to compare the label's arrival against the instant `resolve` returned,
+    which was the whole of the defect while the phase never yielded at all. The phase
+    now awaits between complete find-or-create units, so a label published without a
+    flush is delivered at its FIRST internal yield — before the return, and therefore
+    unfalsifiable against it: deleting `await flush_progress()` left this test green
+    (verified by mutation). What `flush_progress` still buys is that the label leads
+    the phase rather than trailing one cycle's worth of it, so ENTRY is the instant to
+    measure, and the assertion fails again when the flush is removed.
     """
 
-    async def test_the_combination_label_is_published_before_the_phase_returns(
+    async def test_the_combination_label_is_published_before_the_phase_starts(
         self, bus, monkeypatch
     ):
         from dialectical_framework.agents.explorer.skills.build_wheels import \
             BuildWheels
         from dialectical_framework.concerns import perspective_combination as pc_mod
 
-        returned_at: list[float] = []
+        entered_at: list[float] = []
         real_resolve = pc_mod.PerspectiveCombination.resolve
 
-        def timed_resolve(self, *args, **kwargs):
-            result = real_resolve(self, *args, **kwargs)
-            returned_at.append(time.time())
-            return result
+        # `async def` and awaited, because `resolve` is a coroutine function: a sync
+        # wrapper would stamp the instant the COROUTINE WAS CREATED and never see the
+        # body run at all.
+        async def timed_resolve(self, *args, **kwargs):
+            entered_at.append(time.time())
+            return await real_resolve(self, *args, **kwargs)
 
         monkeypatch.setattr(pc_mod.PerspectiveCombination, "resolve", timed_resolve)
 
@@ -542,7 +554,7 @@ class TestBuildWheelsSpeaksBeforeItGoesQuiet:
         )
         labels = [e.detail for e in events if not e.final and not e.note]
 
-        assert returned_at, "the combination phase never ran — the fixture is broken"
+        assert entered_at, "the combination phase never ran — the fixture is broken"
         assert "Working out how these could cause one another" in labels, (
             f"the build phase is still silent: {labels}"
         )
@@ -550,11 +562,15 @@ class TestBuildWheelsSpeaksBeforeItGoesQuiet:
             e for e in events
             if e.detail == "Working out how these could cause one another"
         )
-        assert announced.timestamp < returned_at[0], (
-            f"the label was published {announced.timestamp - returned_at[0]:.3f}s"
-            f" AFTER the phase it announces had finished — that is the 0.0s flash,"
-            f" worse than silence, because it names the wait as over while the person"
-            f" is still in it. `flush_progress` is what prevents it."
+        # `<=` and not `<`: with the flush the two instants are three loop turns apart
+        # and could read equal on a coarse clock, while the failure this guards is
+        # milliseconds of built structure wide.
+        assert announced.timestamp <= entered_at[0], (
+            f"the label was published {announced.timestamp - entered_at[0]:.3f}s AFTER"
+            f" the phase it announces had already begun. `_send` stamps the event when"
+            f" its task runs, so this means the label rode the phase's OWN first yield"
+            f" instead of leading it — a person reads that the work is starting after"
+            f" some of it is done. `flush_progress` is what prevents it."
         )
 
     async def test_both_estimation_passes_announce_themselves(self, bus):

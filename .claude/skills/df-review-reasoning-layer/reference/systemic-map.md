@@ -1678,12 +1678,24 @@ result map instead of the edges passed them all). **After all six the phase that
 COMBINATION 9.88s vs ESTIMATION 8.77s of a 19.29s wall, against a 116s/28s baseline — and estimation is mocked
 here, carrying 1,102.8s of real provider time, so off-provider wall has gone from 84% of the paid k=4 run to
 roughly a quarter. **Reviewers should stop treating this path as the wall-clock problem.** Four things to carry
-into any review here. **Neither
-progress nor graph effects can be delivered from INSIDE this phase** — both channels end in
-`loop.create_task`, and a task does not run until the loop is next given control, so 0 of 1,750 effects arrived
-before `resolve()` returned and all 1,750 flooded after; adding labels inside it would publish nothing and then
-jump a host from zero to done, which reads as an instant wait. Narrating it requires the phase to YIELD, a change
-to a synchronous reasoning path, and the win above is the argument for not needing to. **What IS delivered is one
+into any review here. **THE PHASE NOW YIELDS, and the silence it used to
+produce was never a reporting cost** (2026-09-10). Both channels end in `loop.create_task` and a task does not run
+until the loop is next given control, so while `resolve()` was `def` all the way down 0 of 1,750 effects arrived
+before it returned and all 1,750 flooded after — on the paid k=4 run, 1,629 effects in one burst after 12.8s of
+apparent silence. `resolve` and `_build_layer` are now `async def` with `await asyncio.sleep(0)` after each cycle's
+wheels and after each layer's opposite-direction pass, which takes delivery to **1,459 of 1,750 before the phase
+returns** (the other 291 are the estimation phase's). **No label was added and a reviewer should reject one**: the
+phase writes 1,750 effects, so per `report_progress`'s own rule it owes no step — what it lacked was a turn, not a
+voice. Two things to check if this is ever touched. **Correctness rests on WHERE the yields sit**: both
+`_find_or_create_cycle` and the wheel branch of `_build_wheels_for_cycle` query for an existing structure and then
+write one, and they are synchronous throughout, so no yield splits a check from its write and two concurrent
+explorations of one Nexus still cannot both create the "same" cycle. **And the cost is a few percent, not zero** —
+normalised against the harness-only `SET n:___DIALEXITY_TEST___` query across three same-box runs, the combination
+phase costs +2% to +6%, because the same 1,750 publish tasks now run inside the phase's window instead of after it.
+Charges, structures and effect counts are identical. Pinned by
+`tests/test_graph.py::test_perspective_combination_delivers_effects_while_it_runs` (real bus, arrival times, fails
+at 0 delivered when the yields are removed); a structural `iscoroutinefunction` check would pass on a coroutine
+that awaits nothing, which is one refactor away. **What IS delivered is one
 label in FRONT of it, and getting that right needed a fourth verb on the seam** (2026-09-10): `BuildWheels`
 declares one step, reports `"Working out how these could cause one another"`, then `await flush_progress()` — four
 `asyncio.sleep(0)`s publishing nothing, which is the only thing that makes the label arrive BEFORE the 110.9s
@@ -1692,8 +1704,13 @@ that is synchronous all the way down and NOWHERE else, since everywhere else the
 would fix the timestamp (`_send` stamps on run); **three is the measured floor for DELIVERY** — `_send`'s task, the
 broadcaster backend's listener draining its published queue, then the subscriber's own queue — so the assertion is
 behavioural (real bus, subscribed, event must have ARRIVED when the flush returns) and fails at 1 and at 2; the
-fourth is slack. It does NOT make the phase's inside narratable, and a reviewer should reject any claim that it
-does. **`Wheel.edges` is still
+fourth is slack. It does NOT make the inside of a synchronous stretch narratable, and a reviewer should reject any claim
+that it does — the inside needs a yield of its own, which is what the phase above took. `flush_progress` stays
+regardless: it guarantees the label leads the phase whatever the phase's internals do, and on a Nexus whose
+structures all already exist those yields have nothing to deliver. **And the yield left that label's own test vacuous
+until it was rewritten** — it compared arrival against the instant `resolve` RETURNED, which the phase's first
+internal yield now precedes, so the flush could be deleted with the suite green; it asserts against the phase's
+ENTRY instead. A reviewer meeting a new yield should ask which "before this returns" assertions it just weakened. **`Wheel.edges` is still
 re-traversed by six callers per wheel** (`statements`, `_perspectives`, `polarity_count`,
 `_collect_structure_hash_parts`, `_get_commit_dependents`, rendering) and each traversal is a fresh read — but
 memoising it on the Wheel is UNSAFE, because transitions attach via `transition.cycle.connect(wheel)`, a write
@@ -1950,10 +1967,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   door, 1 PP: 47.2s, 34 calls, **one stage `exploration` closing ONCE at 30/30** where runs A/B published
   `transformation` and `synthesis` streams and closed `2 x deep_wheels` times; graph-only widest gap 34.2s,
   UNMOVED for the third consecutive round of change (the compatibility promise); widest labelled gap 7.9s,
-  down from 10.0-12.7s, with 28 of 31 events inside the graph hole. Still open: narrating the INSIDE of the
-  synchronous combination phase, which the k=4 figure now SIZES — the widest remaining gap IS that labelled
-  phase (12.8s, 25% of wall), and at k=2 the widest is 52% of the wall, so the share is worse at the size
-  the Advisor actually runs. That run also duplicated a label at 2.6s — two events
+  down from 10.0-12.7s, with 28 of 31 events inside the graph hole. The k=4 figure SIZED what was left — the widest remaining
+  gap IS that labelled phase (12.8s, 25% of wall), and at k=2 the widest is 52% of the wall, so the share is
+  worse at the size the Advisor actually runs — **and the answer turned out to be a yield, not a label**: the
+  phase's own effects were being written and not delivered, so it now awaits between complete find-or-create
+  units and 1,459 of 1,750 arrive while it runs. See the `PerspectiveCombination` entry above. That run also duplicated a label at 2.6s — two events
   publishing the identical "Working out what good looks like here" (1/3 then 2/5), because
   `_phase1_for_edge` reports before its first await and both edges of a pair enter it concurrently.
   **Filed as a defect first and that was wrong: the harmful flashes here are the SUPERSEDED ones, not the
