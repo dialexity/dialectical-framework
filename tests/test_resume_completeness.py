@@ -481,9 +481,14 @@ async def _run_edge_pair(
             )
             for category in (only_categories or INSIGHT_CATEGORIES)
         ]
-        return object(), candidates, ExecutionReport(tool="fake")
+        # "" is the fourth element: looked up, no coarser ancestry. These fakes
+        # carry the refinement context only so the real hand-off's shape stays
+        # honest here; what it CONTAINS is pinned by test_refinement_context.py.
+        return object(), candidates, ExecutionReport(tool="fake"), ""
 
-    async def fake_generate(self, edge, ac_plus, opposite_ac, apexes, input_text):
+    async def fake_generate(
+        self, edge, ac_plus, opposite_ac, apexes, input_text, parent_context=None
+    ):
         from dialectical_framework.agents.execution_report import ExecutionReport
 
         return (edge.label, ac_plus, opposite_ac), ExecutionReport(tool="fake")

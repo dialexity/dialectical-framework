@@ -27,9 +27,11 @@ from dialectical_framework.concerns.ac_re_taxonomy import (
     proactiveness_label_to_value)
 from dialectical_framework.concerns.action_extraction import \
     ActionCandidateResultDto
-from dialectical_framework.graph.repositories.transformation_repository import (
-    CoarserTransformation, TransformationRepository)
-from dialectical_framework.utils.edge_context import build_edge_context
+from dialectical_framework.graph.repositories.transformation_repository import \
+    TransformationRepository
+from dialectical_framework.utils.edge_context import (
+    REFINE_REFLECTION, REFINE_TETRAD, build_coarser_context,
+    build_edge_context, coarser_journey_section)
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
     ApexDerivationResultDto
 from dialectical_framework.concerns.scoring_scales import HS_SCALE
@@ -342,6 +344,7 @@ class TransformationGeneration(
         opposite_ac_plus: ActionCandidateResultDto,
         apexes: ApexDerivationResultDto,
         input_text: str = "",
+        parent_context: Optional[str] = None,
     ) -> TransformationTetradDto:
         """
         Generate a complete transformation tetrad from an Ac+ candidate.
@@ -356,6 +359,14 @@ class TransformationGeneration(
             opposite_ac_plus: The Ac+ from the opposite edge (grounds Re-side)
             apexes: Derived apex statements for HS calculation
             input_text: Optional source content context
+            parent_context: Rendered coarser-layer refinement context. Passed in
+                by a caller that already looked it up for THIS edge — the Ac+ that
+                becomes this tetrad's own first position was generated against the
+                same string, and re-deriving it here would ask the same question
+                once per candidate (three times an edge) for an answer that cannot
+                have changed: parents live on strictly coarser wheels, which the
+                climb commits in an earlier rung behind a barrier. None means look
+                it up, so a direct caller keeps working.
 
         Returns:
             TransformationTetradDto with all 6 positions and HS scores
@@ -376,10 +387,12 @@ class TransformationGeneration(
             source_segment.opposite, target_segment.opposite
         )
 
-        # Look up coarser-layer parents for refinement context
-        tr_repo = TransformationRepository()
-        parents = tr_repo.find_parent_transformations(edge=edge)
-        parent_context = self._build_coarser_context(parents)
+        # Look up coarser-layer parents for refinement context, unless the caller
+        # already did it for this edge (see `parent_context` in the docstring).
+        if parent_context is None:
+            tr_repo = TransformationRepository()
+            parents = tr_repo.find_parent_transformations(edge=edge)
+            parent_context = build_coarser_context(parents)
 
         # Determine expected Re+ category based on Ac+ polar pair
         expected_re_category = self._get_expected_re_category(
@@ -403,10 +416,19 @@ class TransformationGeneration(
         )
 
         # Generate Re+, Re- (opposite-edge context + opposite Ac+)
+        #
+        # `parent_context` is handed over explicitly even though this call shares
+        # `self._conversation` with the Ac- one above, so the hierarchy is already
+        # in history. In the window is not the same as being ASKED to refine from
+        # it: measured, this call read `<broader_journey>` from history and had no
+        # instruction pointing at it, so it refined by accident of ordering — and
+        # nothing enforces that Ac- runs first, nor that a future edit does not
+        # `isolate()` this call the way `ActionExtraction` does. It now names the
+        # `Reflection:` line it descends from, which history alone cannot do.
         report_progress("Working out the answering move")
         re_side_completion = await self._generate_re_side(
             opposite_edge_context, opposite_ac_plus, ac_plus,
-            expected_re_category,
+            expected_re_category, parent_context=parent_context,
         )
 
         # Build transition DTOs
@@ -448,7 +470,17 @@ class TransformationGeneration(
             ac_minus_completion.ac_minus_haiku,
         )
 
-        # Score HS in a separate LLM call
+        # Score HS in a separate LLM call.
+        #
+        # NO `parent_context`, and that is deliberate rather than an oversight left
+        # over from the two calls above. This is a judgement against the apexes, and
+        # HS both gates (`HS_THRESHOLD`) and renders — a score nudged by "be more
+        # concrete than the broader path" is a different class of defect from an
+        # unrefined statement. It shares `self._conversation`, so the hierarchy is in
+        # its window regardless; what a prompt controls is whether anything ASKS it
+        # to score against the ancestry, and nothing should. Same for the category
+        # reframings below, which derive from positions already refined.
+        # Pinned by tests/test_refinement_context.py.
         report_progress("Scoring how well the pair holds together")
         hs_scores = await self._score_hs(
             ac_plus.statement,
@@ -517,60 +549,6 @@ class TransformationGeneration(
             # Default to Interpretation if no polar pair found
             return "Interpretation"
 
-    def _build_coarser_context(
-        self, parents: list[CoarserTransformation]
-    ) -> Optional[str]:
-        """
-        Build hierarchical refinement context from coarser parent Transformations.
-
-        Parents are ordered coarsest-first. Each represents a broader transition
-        that the current edge is a sub-step of.
-
-        Returns:
-            Formatted string for LLM prompt, or None if no parents
-        """
-        if not parents:
-            return None
-
-        parts = []
-        current_edge_id = None
-
-        for ct in parents:
-            tr = ct.transformation
-
-            edge_result = tr.edge.get()
-            if not edge_result:
-                continue
-            tr_edge, _ = edge_result
-
-            edge_source = tr_edge.source.get()
-            edge_target = tr_edge.target.get()
-            if not edge_source or not edge_target:
-                continue
-
-            source_text = edge_source[0].prompt_text
-            target_text = edge_target[0].prompt_text
-
-            indent = "  " * (ct.layer - 1)
-
-            if tr_edge._id != current_edge_id:
-                current_edge_id = tr_edge._id
-                parts.append(f"{indent}\"{source_text}\" → \"{target_text}\":")
-            else:
-                parts.append(f"{indent}(variant):")
-
-            ac_plus_result = tr.ac_plus.get()
-            if ac_plus_result:
-                trans, _ = ac_plus_result
-                parts.append(f"{indent}  Action: {trans.instruction}")
-
-            re_plus_result = tr.re_plus.get()
-            if re_plus_result:
-                trans, _ = re_plus_result
-                parts.append(f"{indent}  Reflection: {trans.instruction}")
-
-        return "\n".join(parts) if parts else None
-
     async def _generate_ac_minus(
         self,
         edge_context: str,
@@ -583,21 +561,7 @@ class TransformationGeneration(
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        parent_section = ""
-        if parent_context:
-            parent_section = f"""
-<broader_journey>
-Your current edge is one detailed sub-step within a broader transition.
-Below is the hierarchy from broadest to most specific (indented = more detailed):
-
-{parent_context}
-
-Your tetrad details one sub-step of the most-indented transition above.
-Be more concrete and specific than the broader path, while staying coherent
-with its overall direction.
-</broader_journey>
-
-"""
+        parent_section = coarser_journey_section(parent_context, REFINE_TETRAD)
 
         prompt = f"""{context_section}{parent_section}Given this Action Perspective:
 
@@ -635,9 +599,12 @@ Requirements:
         opposite_ac_plus: ActionCandidateResultDto,
         own_ac_plus: ActionCandidateResultDto,
         expected_re_category: str,
+        parent_context: Optional[str] = None,
     ) -> ReSideCompletionDto:
         """Generate Re+ and Re- from the opposite edge's context and action."""
-        prompt = f"""Now consider the opposite edge — the other side's dynamics that ground your reflection.
+        parent_section = coarser_journey_section(parent_context, REFINE_REFLECTION)
+
+        prompt = f"""{parent_section}Now consider the opposite edge — the other side's dynamics that ground your reflection.
 
 <reflection_perspective>
 {opposite_edge_context}

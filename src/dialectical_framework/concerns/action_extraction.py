@@ -26,7 +26,8 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.concerns.ac_re_taxonomy import (
     AC_PLUS_APEX_TARGET, INSIGHT_CATEGORIES, insight_label_to_value,
     proactiveness_label_to_value)
-from dialectical_framework.utils.edge_context import build_edge_context
+from dialectical_framework.utils.edge_context import (
+    REFINE_ACTION, build_edge_context, coarser_journey_section)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 if TYPE_CHECKING:
@@ -142,6 +143,7 @@ class ActionExtraction(
         input_text: str = "",
         not_like_these: Optional[list[Transformation]] = None,
         only_categories: Optional[set[str]] = None,
+        parent_context: Optional[str] = None,
     ) -> list[ActionCandidateResultDto]:
         """
         Extract Ac+ candidates for a wheel edge.
@@ -157,6 +159,16 @@ class ActionExtraction(
                 only — used when resuming an edge that already carries some.
                 None (the default) means all of `INSIGHT_CATEGORIES`. A
                 top-up must not pay for bands the edge already has.
+            parent_context: Rendered coarser-layer refinement context for this
+                edge, from `build_coarser_context`. Ac+ is the position the
+                refinement recursion exists for — "find a friend" at one
+                perspective becoming "find a colleague who could be your
+                friend" at three — and it is generated HERE, in Phase 1,
+                before `TransformationGeneration` looks anything up. So it has
+                to be handed in: this concern has its own facilitator and
+                `isolate()`s every candidate, meaning nothing reaches it
+                through shared history either. None = no ancestry (a layer-1
+                wheel, or a caller that has none to give).
 
         Returns:
             List of ActionCandidateResultDto with statements and coordinates
@@ -194,7 +206,8 @@ class ActionExtraction(
 
         tasks = [
             self._generate_candidate_for_category(
-                context, input_text, category, info, exclusion_statements
+                context, input_text, category, info, exclusion_statements,
+                parent_context,
             )
             for category, info in wanted.items()
         ]
@@ -232,8 +245,15 @@ class ActionExtraction(
         category: str,
         category_info: dict,
         exclusions: list[str],
+        parent_context: Optional[str] = None,
     ) -> Optional[ActionCandidateDto]:
-        """Generate a single Ac+ candidate for an insight category."""
+        """Generate a single Ac+ candidate for an insight category.
+
+        The refinement section goes in the PROMPT and never into shared history:
+        the `isolate()` below is what keeps the three insight bands from seeing
+        each other's candidates, and putting the hierarchy in a shared
+        conversation to save tokens would couple them.
+        """
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
@@ -249,8 +269,10 @@ class ActionExtraction(
 Generate something DIFFERENT from the statements above.
 """
 
+        parent_section = coarser_journey_section(parent_context, REFINE_ACTION)
+
         levels_str = ", ".join(category_info["levels"])
-        prompt = f"""{context_section}Given this Perspective:
+        prompt = f"""{context_section}{parent_section}Given this Perspective:
 
 <perspective>
 {edge_context}

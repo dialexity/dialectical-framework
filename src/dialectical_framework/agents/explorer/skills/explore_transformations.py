@@ -76,6 +76,15 @@ class _EdgeProcessingData:
     missing_categories: set[str] = field(default_factory=set)
     ac_candidates: list = field(default_factory=list)
     apexes: Optional[ApexDerivationResultDto] = None
+    #: Rendered coarser-layer refinement context for this edge, looked up ONCE
+    #: in Phase 1 and reused by every Phase 2 candidate. Both phases generate
+    #: against it (Ac+ in Phase 1, Ac-/Re in Phase 2), and it cannot change
+    #: between them: parents live on strictly coarser wheels, which the climb
+    #: commits in an earlier rung behind a barrier. Three states, and the third
+    #: is why this is not a plain `str`: a rendered hierarchy, "" for looked up
+    #: and there is no ancestry, None for the edge skipped Phase 1 — which
+    #: `TransformationGeneration` reads as permission to look it up itself.
+    parent_context: Optional[str] = None
     source_segment: Optional[WheelSegment] = None
     target_segment: Optional[WheelSegment] = None
 
@@ -439,13 +448,14 @@ class ExploreTransformations(
                     if not edge_data[edge.hash].complete:
                         edge_data[edge.hash] = _EdgeProcessingData(skip=True)
                     continue
-                apexes, ac_candidates, report = result
+                apexes, ac_candidates, report, parent_context = result
                 self._report = self._report.merge(report)
                 if apexes:
                     last_apexes = apexes
                 data = edge_data[edge.hash]
                 data.apexes = apexes
                 data.ac_candidates = ac_candidates or []
+                data.parent_context = parent_context
 
         # Phase 2: Generate tetrads in parallel
         generation_tasks: list[tuple[Transition, _EdgeProcessingData, ActionCandidateResultDto, asyncio.Task]] = []
@@ -476,7 +486,10 @@ class ExploreTransformations(
                     continue
 
                 task = asyncio.ensure_future(
-                    self._generate_tetrad(edge, ac_plus, opposite_ac, data.apexes, input_text)
+                    self._generate_tetrad(
+                        edge, ac_plus, opposite_ac, data.apexes, input_text,
+                        data.parent_context,
+                    )
                 )
                 generation_tasks.append((edge, data, ac_plus, task))
 
@@ -649,9 +662,21 @@ class ExploreTransformations(
         wheel: Wheel,
         input_text: str,
         only_categories: Optional[set[str]] = None,
-    ) -> tuple[Optional[ApexDerivationResultDto], list[ActionCandidateResultDto], Any]:
-        """Run ApexDerivation + ActionExtraction for a single edge. Returns (apexes, candidates, merged_report)."""
+    ) -> tuple[Optional[ApexDerivationResultDto], list[ActionCandidateResultDto], Any, str]:
+        """Run ApexDerivation + ActionExtraction for one edge.
+
+        Returns (apexes, candidates, merged_report, parent_context).
+
+        The parent lookup lives here rather than in either concern because BOTH
+        phases need the same answer for the same edge, and this is the one place
+        that runs once per edge — Phase 2 runs per CANDIDATE, so the lookup it
+        used to do itself was three identical queries an edge.
+        """
         from dialectical_framework.agents.execution_report import ExecutionReport
+        from dialectical_framework.graph.repositories.transformation_repository import \
+            TransformationRepository
+        from dialectical_framework.utils.edge_context import \
+            build_coarser_context
 
         merged_report = ExecutionReport(tool=self.__class__.__name__)
 
@@ -677,16 +702,28 @@ class ExploreTransformations(
         apexes = await apex_service.resolve(edge, input_text)
         merged_report = merged_report.merge(apex_service.report)
 
+        # Before extracting, find what this edge is a sub-step OF. Ac+ is copied
+        # into the tetrad verbatim, so an Ac+ generated blind is a Transformation
+        # whose leading position never refined anything, however much context the
+        # three later calls are given.
+        parents = TransformationRepository().find_parent_transformations(edge=edge)
+        # "" rather than None when there is no ancestry, because Phase 2 reads
+        # None as "nobody looked" and would re-query — three times an edge — for
+        # an answer already settled here. A layer-1 wheel has no parents and that
+        # IS the final answer, not a missing one.
+        parent_context = build_coarser_context(parents) or ""
+
         report_progress("Looking for concrete moves to take")
         extractor = ActionExtraction()
         ac_candidates = await extractor.resolve(
             edge, input_text,
             not_like_these=wheel.transformations,
             only_categories=only_categories,
+            parent_context=parent_context,
         )
         merged_report = merged_report.merge(extractor.report)
 
-        return apexes, ac_candidates or [], merged_report
+        return apexes, ac_candidates or [], merged_report, parent_context
 
     async def _generate_tetrad(
         self,
@@ -695,10 +732,20 @@ class ExploreTransformations(
         opposite_ac: ActionCandidateResultDto,
         apexes: ApexDerivationResultDto,
         input_text: str,
+        parent_context: Optional[str] = None,
     ) -> tuple[TransformationTetradDto, Any]:
-        """Run TransformationGeneration for one candidate. Returns (tetrad, report)."""
+        """Run TransformationGeneration for one candidate. Returns (tetrad, report).
+
+        `parent_context` is Phase 1's lookup for this edge, reused rather than
+        re-queried: this runs once per CANDIDATE (three an edge) and the answer
+        cannot differ between them. Defaulted so `TransformationGeneration` still
+        looks it up if a future caller here forgets.
+        """
         generator = TransformationGeneration()
-        tetrad = await generator.resolve(edge, ac_plus, opposite_ac, apexes, input_text)
+        tetrad = await generator.resolve(
+            edge, ac_plus, opposite_ac, apexes, input_text,
+            parent_context=parent_context,
+        )
         return tetrad, generator.report
 
     @staticmethod

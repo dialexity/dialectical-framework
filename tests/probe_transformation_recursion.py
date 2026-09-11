@@ -98,9 +98,10 @@ calls are ordered smallest-wheel-first, so the first finished pathway arrives EA
 than the single-wheel arm's does, not later.
 
 **3. The finding this probe was not looking for, and the reason it is measured
-rather than read: only ONE call is HANDED the context, but three more can READ it,
-and the one real gap is Ac+.** `parent_context` is a parameter of exactly one of the
-five generation calls:
+rather than read: BEING IN THE CONTEXT WINDOW IS NOT BEING ASKED. Fixed
+2026-09-11; the table below is what it looked like before, and it is why the
+assertion now reads the PROMPT and not visibility.** `parent_context` used to be a
+parameter of exactly one of the five generation calls:
 
     no    ActionExtraction.resolve                 (produces Ac+)
     YES   TransformationGeneration._generate_ac_minus       (Ac-)
@@ -112,7 +113,7 @@ five generation calls:
 that way on its first run.** `TransformationGeneration` creates ONE
 `ConversationFacilitator` in `__init__` and all four of its calls submit to that
 same conversation, so the `<broader_journey>` block stays in the context window.
-Measured per submit:
+Measured per submit, before the fix:
 
     response model              in its prompt   in history
     AcMinusCompletionDto                  YES           no
@@ -120,20 +121,53 @@ Measured per submit:
     HsScoringDto                           no          YES
     CategoryReframingDto                   no          YES
 
-So Re+/Re-, the HS scoring and the category reframings all see the coarser
-hierarchy AND its instruction ("Be more concrete and specific than the broader
-path"), by history rather than by parameter. Ordering is load-bearing: Ac- happens
-to run first. Nothing enforces that, so a reordering would silently un-refine the
-rest — worth a comment at the site, not a redesign.
+So Re+/Re- were never BLIND — they were UNASKED. They saw the coarser hierarchy and
+its instruction, by history rather than by parameter, which made refinement an
+accident of ordering: Ac- happened to run first, nothing enforced that, and an
+`isolate()` on any later call would have dropped it with every signature untouched.
+Re+/Re- are now handed `parent_context` and told which line of the hierarchy they
+descend from (a parent Transformation carries BOTH spiral directions, so its
+`Reflection:` line is the coarser reflection for the same edge).
 
-**Ac+ is the genuine exception, and it is exactly the position the theory's example
-is about.** `ActionExtraction` has its OWN facilitator and submits through
-`isolate()`, so nothing accumulates there; it runs in Phase 1, before any
-`TransformationGeneration` exists; and its candidate is copied into the tetrad
-verbatim (`ac_plus_dto` is built field-for-field off it). So "find a friend" ->
-"find a colleague who could be your friend" has no route into Ac+ even on a climb.
-One position, not four — the scope of this finding is much narrower than the
-signature table alone suggests.
+**Ac+ was the genuine hole, and it is exactly the position the theory's example is
+about.** `ActionExtraction` has its OWN facilitator and submits through `isolate()`,
+so nothing accumulates there; it ran in Phase 1, before any parent lookup happened
+at all; and its candidate is copied into the tetrad verbatim (`ac_plus_dto` is built
+field-for-field off it). So "find a friend" -> "find a colleague who could be your
+friend" had no route into Ac+ even on a climb — the tetrad's LEADING position, the
+generative one, refined nothing however much context the three later calls got. The
+lookup now happens once per edge in `_phase1_for_edge` and is carried to both phases
+on `_EdgeProcessingData`, which is also a net REDUCTION in queries: Phase 2 runs per
+CANDIDATE, so the lookup it used to do itself was three identical questions an edge.
+
+**HS scoring and the category reframings are still deliberately not asked**, and the
+assertion pins that too: HS gates (`HS_THRESHOLD`) and renders, so biasing a
+judgement with "be more concrete than the broader path" is a different class of
+defect, and the reframings derive from positions that are already refined.
+
+Measured after the fix, k=4 climb arm, per response model across the whole run —
+`asked` = the section was in that call's OWN prompt, `history only` = it could see
+it but nothing pointed at it:
+
+    response model              calls  asked  history only
+    ActionCandidateDto             60     54             0
+    AcMinusCompletionDto           20     18             0
+    ReSideCompletionDto            20     18             0
+    HsScoringDto                   20      0            18
+    CategoryReframingDto           20      0            18
+
+18 of 20 edges have ancestry (the 2 that do not are the layer-1 rung), and 54 = 18 x
+3 insight categories — so every generative position is asked on exactly the edges
+that have a broader path, and on all of them. **The assertion is that RATIO, not
+"every call carries it"**: a layer-1 wheel's prompt is correctly bare, because
+`coarser_journey_section` returns `""` rather than a "no parents" note.
+
+**The lookup count is a net REDUCTION, and the table above is where to see it: 20
+lookups for 20 edges.** `_generate_tetrad` runs per CANDIDATE, so the lookup
+`TransformationGeneration` used to do itself was three identical queries an edge;
+hoisting it into `_phase1_for_edge` makes it one, even after adding Ac+. Cost in
+provider calls is unchanged (273 against 177) — this fix adds prompt text, not
+calls.
 
 **4. Nothing is reused between rungs: 20 edges produce 20 Transformations.** A
 `Transition` carries a nonce and belongs to exactly one container, so wheels at
@@ -153,10 +187,13 @@ import pytest
 
 import mock_brain as mock_brain_module
 from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
+from dialectical_framework.concerns import \
+    transformation_generation as transformation_generation_module
 from dialectical_framework.concerns.action_extraction import ActionExtraction
 from dialectical_framework.concerns.create_nexus import CreateNexus
 from dialectical_framework.concerns.transformation_generation import \
     TransformationGeneration
+from dialectical_framework.utils import edge_context as edge_context_module
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.repositories.transformation_repository import \
     TransformationRepository
@@ -241,10 +278,10 @@ def _watch_parent_lookups(patch, record: _Lookups) -> None:
         })
         return parents
 
-    original_build = TransformationGeneration._build_coarser_context
+    original_build = edge_context_module.build_coarser_context
 
-    def build_wrapper(self, parents):
-        rendered = original_build(self, parents)
+    def build_wrapper(parents):
+        rendered = original_build(parents)
         if rendered:
             depth = len({ct.layer for ct in parents})
             record.contexts.append((depth, rendered))
@@ -253,8 +290,18 @@ def _watch_parent_lookups(patch, record: _Lookups) -> None:
     patch.setattr(
         TransformationRepository, "find_parent_transformations", find_wrapper
     )
+    # Two module attributes for ONE function. The renderer lives in
+    # `utils/edge_context.py` (it was `TransformationGeneration._build_coarser_context`
+    # until 2026-09-11, when Ac+ started needing it too and a shared home became the
+    # only non-circular one). `explore_transformations` imports it INSIDE
+    # `_phase1_for_edge`, so it resolves the patched attribute at call time and the
+    # first line here is what catches the shipped path; `transformation_generation`
+    # binds it at module import, so its own fallback lookup — the one a direct caller
+    # that passes no `parent_context` still takes — needs its own patch or this probe
+    # would under-count silently.
+    patch.setattr(edge_context_module, "build_coarser_context", build_wrapper)
     patch.setattr(
-        TransformationGeneration, "_build_coarser_context", build_wrapper
+        transformation_generation_module, "build_coarser_context", build_wrapper
     )
 
 
@@ -482,7 +529,7 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
         if not contexts:
             print(
                 f"\n  RENDERED CONTEXT — {arm['label']}: NONE."
-                f" `_build_coarser_context` returned None every time, so the"
+                f" `build_coarser_context` returned None every time, so the"
                 f" prompt's <broader_journey> section did not exist."
             )
             continue
@@ -510,7 +557,10 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
     if not conversations:
         print("       the context never appeared in any prompt — nothing to show")
     else:
-        rows = conversations[0]
+        # The LONGEST, not the first. Since Ac+ started being asked, most carrying
+        # conversations are `ActionExtraction`'s isolated one-row ones, and picking
+        # the first showed a single Ac+ line under a heading promising a tetrad.
+        rows = max(conversations, key=len)
         print(f"       {'response model':<26}{'in its prompt':>14}{'in history':>12}")
         for model, in_prompt, in_history in rows:
             print(
@@ -522,6 +572,24 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
             f" {len(climb['exposure'].by_conversation)} conversations in the run"
             f" carried it; the rest are other concerns' own facilitators)"
         )
+
+    # And the same question asked ACROSS the run rather than within one tetrad,
+    # because Ac+ cannot appear in the table above at all: `ActionExtraction` has its
+    # own facilitator and `isolate()`s every candidate, so each Ac+ call is a
+    # conversation of ONE row. Whether the position that the refinement recursion
+    # exists for is being asked to refine is only visible here.
+    print("\n  BY POSITION, ACROSS THE WHOLE CLIMB ARM")
+    per_model: dict[str, list[int]] = {}
+    for rows in climb["exposure"].by_conversation.values():
+        for model, in_prompt, in_history in rows:
+            tally = per_model.setdefault(model, [0, 0, 0])
+            tally[0] += 1
+            tally[1] += 1 if in_prompt else 0
+            tally[2] += 1 if in_history and not in_prompt else 0
+    print(f"       {'response model':<26}{'calls':>7}{'asked':>7}{'history only':>14}")
+    for model in sorted(per_model):
+        calls, asked, history_only = per_model[model]
+        print(f"       {model:<26}{calls:>7}{asked:>7}{history_only:>14}")
 
     print("\n  WHICH CALLS ARE HANDED IT AS A PARAMETER")
     candidates = [
@@ -575,23 +643,56 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
         " L-1, chained transitively) has collapsed to a single-layer lookup"
     )
 
-    # The correction, pinned. Three of the four tetrad calls are refined only because
-    # Ac- runs FIRST into a shared conversation, and nothing in the code says it has
-    # to. Reordering `resolve`, or giving any of the later calls its own facilitator
-    # or an `isolate()`, would leave every signature untouched and silently drop the
-    # coarser hierarchy out of Re+/Re-, the HS scoring and the reframings.
-    tetrads = [rows for rows in climb["exposure"].with_marker() if len(rows) > 1]
-    assert tetrads, (
-        "no conversation carried the context across more than one call, so either the"
-        " tetrad no longer shares one ConversationFacilitator or Ac- no longer runs"
-        " first — three of the four calls have lost the coarser hierarchy"
-    )
-    for rows in tetrads:
-        blind = [model for model, in_prompt, in_history in rows[1:]
-                 if not (in_prompt or in_history)]
-        assert not blind, (
-            f"{blind} submitted after the context was already in the conversation and"
-            f" still could not see it — the shared-history refinement is broken"
+    # Every GENERATIVE position must be ASKED, in its own prompt. In history is a
+    # weaker claim and it is the one this probe used to settle for: until 2026-09-11
+    # Re+/Re- read `<broader_journey>` out of the conversation Ac- had filled, which
+    # is refinement by accident of ordering — nothing enforced that Ac- ran first,
+    # and an `isolate()` on any later call would have dropped it with every
+    # signature untouched. Ac+ was worse than unasked: its own facilitator, its own
+    # `isolate()`, Phase 1 before any parent lookup existed, and its candidate copied
+    # into the tetrad verbatim, so the tetrad's LEADING position refined nothing.
+    #: response model -> (calls, of which carried the section in their own prompt)
+    asked: dict[str, tuple[int, int]] = {}
+    for rows in climb["exposure"].by_conversation.values():
+        for model, in_prompt, in_history in rows:
+            calls, in_prompt_count = asked.get(model, (0, 0))
+            asked[model] = (calls + 1, in_prompt_count + (1 if in_prompt else 0))
+    # NOT "every call carries it": the coarsest rung has no ancestry, and a layer-1
+    # wheel's Ac+ prompt is CORRECTLY bare — `coarser_journey_section` returns ""
+    # rather than a "no parents" note, so the model is not invited to treat a
+    # complete answer as a gap. So the claim is the RATIO, against the lookups that
+    # actually found something: a position must be asked on exactly the edges that
+    # have ancestry, and on all of them. Measured at k=2 as 4 of 6 lookups finding a
+    # parent, and 12 of 18 Ac+ prompts / 4 of 6 tetrad prompts carrying the section
+    # — the same fraction three times, which is the part that would break if any one
+    # position were dropped or if the hand-off leaked between phases.
+    for model in ("ActionCandidateDto", "AcMinusCompletionDto", "ReSideCompletionDto"):
+        calls, in_prompt_count = asked.get(model, (0, 0))
+        assert calls, (
+            f"{model} was never submitted in the climb arm, so this probe cannot say"
+            f" whether that position is refined — the arm no longer reaches it"
+        )
+        assert in_prompt_count * len(climb["record"].rows) == calls * len(climb_hits), (
+            f"{model} was asked to refine in {in_prompt_count} of {calls} prompts,"
+            f" but {len(climb_hits)} of {len(climb['record'].rows)} edges have"
+            f" ancestry to refine from. That position is not being asked on the edges"
+            f" that have a broader path — at best it is reading the hierarchy out of"
+            f" a conversation someone else filled, which is what the 2026-09-11 fix"
+            f" removed the reliance on"
+        )
+    # HS scoring and the category reframings are deliberately NOT asked. HS gates
+    # (`HS_THRESHOLD`) and renders, so biasing it with "be more concrete than the
+    # broader path" is a different class of defect from an unrefined statement; the
+    # reframings derive from positions that are already refined. They still have the
+    # hierarchy in their window, because they share the tetrad's facilitator — which
+    # is exactly why this has to be asserted on the PROMPT and not on visibility.
+    for model in ("HsScoringDto", "CategoryReframingDto"):
+        calls, in_prompt_count = asked.get(model, (0, 0))
+        assert in_prompt_count == 0, (
+            f"{model} was handed a refinement instruction in {in_prompt_count} of"
+            f" {calls} prompts. That is a reasoning change, not a wiring one: read"
+            f" TestScoringIsDeliberatelyNotRefined in tests/test_refinement_context.py"
+            f" before deciding it is an improvement"
         )
     print(
         f"\n  direct: {len(direct_hits)} of {len(direct['record'].rows)} lookups"

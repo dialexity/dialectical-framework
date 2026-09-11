@@ -2019,9 +2019,10 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
 - **`_plan_rungs`** (`explorer/explorer.py`, `refine_from_coarser`): the OTHER half of the depth policy, and
-  the half that decides whether the refinement recursion runs AT ALL. `TransformationGeneration` renders the
-  coarser Transformations its edge descends from into the prompt as the broader journey the current step has to
-  be more concrete than — and with one wheel deepened on a fresh nexus there are none to find. Measured at k=4
+  the half that decides whether the refinement recursion runs AT ALL. Every generative position renders the
+  coarser Transformations its edge descends from into its prompt as the broader journey the current step has to
+  be more concrete than (see the entry below) — and with one wheel deepened on a fresh nexus there are none to
+  find. Measured at k=4
   (`tests/probe_transformation_recursion.py`, LLM mocked, both arms driving the REAL pipeline): **0 of 8 parent
   lookups found anything with the climb off, 18 of 20 with it on**, chained transitively (layer 4 sees layers 1,
   2 and 3 at once, up to 7 parents on one edge). So the deepest arrangement — the one the theory says carries
@@ -2043,6 +2044,36 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   first — refinement there is a RACE, and layering is what would make an uncapped run reproducible.
   Locked by `tests/test_exploration_lazy_depth.py::TestPlanRungs` (nesting, depth-over-plausibility, gaps,
   shared ancestors, soft degradation) + the probe above for the end-to-end claim.
+- **The `<broader_journey>` section and the three `REFINE_*` instructions** (`utils/edge_context.py`, shared by
+  `action_extraction` and `transformation_generation`): the other half of the recursion — the climb makes
+  parents EXIST, this decides which calls are ASKED to refine from them. `build_coarser_context(parents)`
+  renders the ancestry coarsest-first and indented, one `Action:` and one `Reflection:` line per parent (a
+  Transformation encodes BOTH spiral directions); `coarser_journey_section(parent_context, refine)` wraps it,
+  returning `""` when there is nothing coarser — deliberately not a "no parents" note, since a layer-1 wheel has
+  no ancestry to be MISSING and saying so invites the model to treat a complete answer as a gap. Three
+  instructions, not one, because the two rendered lines are refined by different positions: `REFINE_ACTION` for
+  Ac+ (the parents' `Action:` line), `REFINE_REFLECTION` for Re+/Re- (their `Reflection:` line), `REFINE_TETRAD`
+  for Ac- (the whole tetrad as a sub-step). Collapsing them is the tempting simplification and it loses the
+  point. **`_score_hs` and `_generate_category_reframings` are deliberately NOT asked**: HS is a judgement that
+  gates (`HS_THRESHOLD`) and renders, so nudging it with "be more concrete than the broader path" is a different
+  class of defect from an unrefined statement, and the reframings derive from positions already refined. **The
+  reviewer's trap here is that BEING IN THE CONTEXT WINDOW IS NOT BEING ASKED, and this file's own predecessor
+  fell into it.** `TransformationGeneration` holds ONE `ConversationFacilitator`, so before 2026-09-11 Re+/Re-,
+  HS and the reframings all read `<broader_journey>` out of the history Ac- had filled — refinement by accident
+  of ordering, with nothing enforcing that Ac- ran first and nothing stopping a future `isolate()`. They were
+  UNASKED, not blind. Ac+ was the real hole: `ActionExtraction` has its own facilitator, `isolate()`s every
+  candidate band, and runs in Phase 1 before any parent lookup happened, so the position the recursion exists
+  for ("find a friend" → "find a colleague who could be your friend") saw nothing in prompt OR history — and its
+  candidate is copied into the tetrad verbatim, so the tetrad's LEADING position refined nothing. So: **never
+  conclude a position is refined from its signature, and never from visibility — read the submitted prompt.**
+  The lookup now happens ONCE per edge in `ExploreTransformations._phase1_for_edge` and travels to Phase 2 on
+  `_EdgeProcessingData.parent_context`, which is a net query REDUCTION (Phase 2 runs per CANDIDATE, so its own
+  lookup was three identical questions an edge). That field is three-state and the third is load-bearing: a
+  rendered hierarchy / `""` = looked up, no ancestry / `None` = nobody looked, which
+  `TransformationGeneration.resolve` reads as permission to look it up itself.
+  Locked by `tests/test_refinement_context.py` (the three builders, the wiring through the REAL pipeline against
+  a committed Wheel, one-lookup-per-edge, and HS staying uninstructed) + the probe above, whose exposure table
+  asserts each generative DTO is asked in its OWN prompt on exactly the edges that have ancestry.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
   empirical inequalities run post-commit on every generated tetrad; verdict persisted on
   `Perspective.validation` ("passed" / "failed: reasons" / None). NOT a blocking gate — prompts
