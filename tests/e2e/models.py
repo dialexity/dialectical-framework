@@ -573,6 +573,25 @@ def _graph_summary_is_populated(summary: Optional[str]) -> bool:
     return found
 
 
+def perspectives_in_summary(summary: Optional[str]) -> Optional[int]:
+    """`perspectives=N` out of a `_graph_summary()` line, or None if it does not say.
+
+    Module-level rather than a method so the RUNNER can ask the same question of a
+    provenance it has just built, before any `RunRecord` exists to hold it. Two
+    parsers for one format is how a warning line and an archived flag drift apart
+    and disagree about the same build.
+    """
+    for part in (summary or "").split():
+        key, _, value = part.partition("=")
+        if key != "perspectives":
+            continue
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
 class SessionRecord(BaseModel):
     label: str
     turns: list[TurnRecord] = Field(default_factory=list)
@@ -952,37 +971,68 @@ class RunRecord(BaseModel):
         )
 
     @property
-    def collapsed_to_a1_without_context(self) -> bool:
-        """True when an A1.5 run was handed no static context — it IS an A1 run.
+    def static_context_perspectives(self) -> Optional[int]:
+        """How many perspectives the pre-built dump carried, if it says.
+
+        Parsed out of the provenance the way `wove_no_pathway` parses `woven=` out
+        of `graph_summary` — same format, same source (`E2EDriver._graph_summary`),
+        so one reading habit covers both. `None` means the cell predates the field
+        or the provenance is a `failed:` / `unavailable:` sentence rather than a
+        count, i.e. cannot tell.
+        """
+        return perspectives_in_summary(self.static_context_provenance)
+
+    @property
+    def collapsed_to_a1_without_structure(self) -> bool:
+        """True when an A1.5 run was handed no structure — it IS an A1 run.
 
         The same defect as `collapsed_to_a1`, at the other end of the ladder and
         by a different route. A1.5's whole definition is "A1 plus a pre-built
-        graph as text", so an empty dump does not make it a weak A1.5 — it makes
-        it a second A1 cell wearing an A1.5 label, and any A1.5-vs-A1 reading over
-        it compares an arm against itself. `PromptArm` takes `static_context`
-        truthily, so `""` is not merely thin: not one character of it reaches the
-        model, and the two arms' prompts are then byte-identical.
+        graph as text", so a structureless dump does not make it a weak A1.5 — it
+        makes it a second A1 cell wearing an A1.5 label, and any A1.5-vs-A1 reading
+        over it compares an arm against itself.
         Deliberately NOT exempted for `poor_fit` the way `collapsed_to_a1` is:
         there, an empty graph is the pass condition because A2 CHOOSES what to
         build during the conversation. Nothing about A1.5 is a choice — the dump is
         prepared before the arm exists, so on any scenario an absent one is a
         missing input rather than correct restraint.
 
-        Reads the dump's length rather than `carryover_in`, because a session-level
-        field cannot distinguish "the build raised" from "the build ran and mapped
-        nothing" and the two imply opposite fixes; `static_context_provenance`
-        carries which. `None` (not 0) means the cell predates these fields, and
-        returns False: an unmeasured build must not be reported as a failed one,
-        the same asymmetry `read_turn_timing`'s `not recorded` marker enforces.
-        Every A1.5 record in the archive is `None` here for the honest reason that
-        there are none — across 43 archived stems and 488 cells, A1.5 has never
-        been run.
+        TWO ROUTES IN, AND THE SECOND ONE IS WHY THIS IS NOT `..._without_context`
+        =========================================================================
+        The first is an empty dump. `PromptArm` takes `static_context` truthily, so
+        `""` is not merely thin: not one character reaches the model and the two
+        arms' prompts are byte-identical.
+
+        The second was found by the arm's first-ever run (`a15-precheck`,
+        premature_relocation, 2026-09-11), which is the whole argument for
+        prechecking an unexercised path. It returned a **695-character dump with
+        `perspectives=0`** — a decision ledger, and the renderer's own sentence "No
+        tensions identified yet", underneath `_STATIC_CONTEXT_INTRO`'s promise that
+        "a dialectical analysis of this person's situation was prepared". So a
+        length test alone passes a cell whose static context is a header saying
+        there is no analysis, and an A1.5-vs-A1 reading over it measures that
+        header. `chars > 0` is not `has structure`, and only the provenance can
+        tell them apart.
+
+        `perspectives`, not `woven` or `transformations`: a perspective is the unit
+        A1.5 is meant to be handed, and a mapped tension with no pathway through it
+        is thin structure rather than none. Those two get their own reading via
+        `wove_no_pathway`'s question, which is about what A2 built, not about what
+        A1.5 was given.
+
+        An unreadable count returns False, matching `wove_no_pathway`: "cannot
+        tell" must not be reported as "built nothing". Likewise `None` chars means
+        the cell predates these fields, the same asymmetry `read_turn_timing`'s
+        `not recorded` marker enforces — an unmeasured build must not read as a
+        failed one.
         """
         if self.arm is not Arm.A1_5:
             return False
         if self.static_context_chars is None:
             return False
-        return self.static_context_chars == 0
+        if self.static_context_chars == 0:
+            return True
+        return self.static_context_perspectives == 0
 
     @property
     def turn_errors(self) -> list[str]:
@@ -1053,7 +1103,7 @@ class RunRecord(BaseModel):
             bool(self.error)
             or self.all_turns_errored
             or self.collapsed_to_a1
-            or self.collapsed_to_a1_without_context
+            or self.collapsed_to_a1_without_structure
         )
 
     def session(self, label: str) -> Optional[SessionRecord]:

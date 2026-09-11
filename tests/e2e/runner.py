@@ -41,6 +41,7 @@ from .models import (
     RunRecord,
     Scenario,
     ScenarioKind,
+    perspectives_in_summary,
 )
 from .report import load_records, render_report, save_records
 from .scenarios import scenarios_for
@@ -155,14 +156,22 @@ class E2ERun:
                     )
                     # Loud, and not an exception: the rest of the matrix is
                     # unaffected by an A1.5 build failure and must still run. The
-                    # cells themselves carry `collapsed_to_a1_without_context`, so
+                    # cells themselves carry `collapsed_to_a1_without_structure`, so
                     # the archive says it too — this line only makes sure nobody
                     # watching a run mistakes the A1.5 column for a null result.
-                    if not static_context:
+                    #
+                    # Both routes, because a length test alone is not enough: the
+                    # arm's first run built a 695-character dump carrying
+                    # `perspectives=0`, i.e. a decision ledger and the renderer's
+                    # own "No tensions identified yet" under a heading promising a
+                    # prepared analysis. Waiting the whole matrix out to discover
+                    # that from the archive is the cost this line exists to avoid.
+                    if not static_context or perspectives_in_summary(provenance) == 0:
                         say(
-                            f"[{tier}]   *** A1.5 HAS NO STATIC CONTEXT — its cells "
-                            f"below are A1 cells with an A1.5 label, and are "
-                            f"flagged invalid_as_evidence ***"
+                            f"[{tier}]   *** A1.5 HAS NO STRUCTURE TO WORK FROM — "
+                            f"its cells below are A1 cells with an A1.5 label, and "
+                            f"are flagged invalid_as_evidence. KILL THE RUN unless "
+                            f"you meant to measure the header. ***"
                         )
                 for replicate in range(1, replicates + 1):
                     for branch in cells:
@@ -238,7 +247,7 @@ class E2ERun:
                                 )
                             if record.collapsed_to_a1:
                                 note += " !! NO TOOL CALLS (A2 collapsed)"
-                            if record.collapsed_to_a1_without_context:
+                            if record.collapsed_to_a1_without_structure:
                                 note += " !! NO STATIC CONTEXT (A1.5 is A1 here)"
                             say(f"{label} done: {note}")
         return self.runs

@@ -550,6 +550,18 @@ conclusion. The guards, each with a test in `test_e2e.py`:
   already outside the pooled line for unrelated reasons, which is why this is a
   guard rather than a correction. `TestAnUnexercisedArmIsNotAWeakArm` pins it, and
   one of its cases fails the moment a *pooled* stem acquires an invalid cell.
+- **A1.5 has the same collapse, and `chars > 0` is not `has structure`.**
+  `PromptArm` appends its static-context section only when the string is truthy, so
+  an empty dump produces a prompt byte-identical to A1's — and the first live run of
+  the arm (`a15-precheck`, 2026-09-11) produced a *695-character* dump carrying
+  `perspectives=0`: a decision ledger plus the renderer's own "No tensions identified
+  yet", under a heading promising the person's situation was analysed beforehand. Non-empty,
+  no structure, A1 in all but the label. `RunRecord.collapsed_to_a1_without_structure`
+  therefore tests BOTH routes — zero chars, or zero perspectives parsed out of the
+  archived build provenance — and feeds `invalid_as_evidence`. An *unreadable*
+  provenance returns False: cannot-tell must not be reported as built-nothing.
+  Written up in [rounds.md](rounds.md), pinned by
+  `TestA15GetsItsStaticContextOrSaysItDidNot`.
 - **Blind, paired, position-randomised judging**, per-dimension, with length and
   eloquence explicitly discounted — and raw word counts printed anyway, because
   "instructed to ignore" is not "did ignore".

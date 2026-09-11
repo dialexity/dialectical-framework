@@ -2587,11 +2587,17 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
     so its path had never executed, and nothing tested it.
     """
 
-    def _a15(self, *, chars: int | None, build_s: float | None = 12.0) -> RunRecord:
+    def _a15(
+        self,
+        *,
+        chars: int | None,
+        build_s: float | None = 12.0,
+        provenance: str | None = "perspectives=3 woven=2",
+    ) -> RunRecord:
         run = _run(Arm.A1_5, "weak")
         run.static_context_chars = chars
         run.static_context_build_s = build_s
-        run.static_context_provenance = "perspectives=3 woven=2"
+        run.static_context_provenance = provenance
         return run
 
     def test_an_empty_dump_makes_the_arm_invalid_not_weak(self):
@@ -2602,13 +2608,58 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         character reaches the model and the two arms' prompts are byte-identical.
         """
         run = self._a15(chars=0)
-        assert run.collapsed_to_a1_without_context is True
+        assert run.collapsed_to_a1_without_structure is True
         assert run.invalid_as_evidence is True
 
     def test_a_real_dump_is_valid(self):
         run = self._a15(chars=4096)
-        assert run.collapsed_to_a1_without_context is False
+        assert run.collapsed_to_a1_without_structure is False
         assert run.invalid_as_evidence is False
+
+    def test_a_non_empty_dump_with_no_perspectives_is_still_a1(self):
+        """The case a length test passes and should not, found on the first run.
+
+        `a15-precheck` (premature_relocation, 2026-09-11) built a 695-character
+        dump carrying `perspectives=0`: a decision ledger plus the renderer's own
+        sentence "No tensions identified yet", sitting under
+        `_STATIC_CONTEXT_INTRO`'s promise that an analysis "was prepared". An
+        A1.5-vs-A1 reading over that measures the header, not the structure. This
+        is why the predicate is `..._without_structure` and not `..._without_context`.
+        """
+        run = self._a15(chars=695, provenance="perspectives=0 woven=0 decisions=1")
+        assert run.static_context_perspectives == 0
+        assert run.collapsed_to_a1_without_structure is True
+        assert run.invalid_as_evidence is True
+
+    def test_one_perspective_is_thin_but_real_and_stays_valid(self):
+        """The floor is one, not many. `cofounder_equity` yields 1-7 run to run.
+
+        `perspectives`, not `woven`: a mapped tension with no pathway through it is
+        thin structure rather than none, and half of r26's A2 cells wove nothing
+        while mapping 1-6 perspectives. Reading `woven=0` as a collapse would
+        invalidate the ordinary case.
+        """
+        run = self._a15(chars=1200, provenance="perspectives=1 woven=0 decisions=2")
+        assert run.collapsed_to_a1_without_structure is False
+        assert run.invalid_as_evidence is False
+
+    def test_an_unreadable_provenance_is_not_reported_as_a_collapse(self):
+        """"Cannot tell" must not read as "built nothing" — `wove_no_pathway`'s rule.
+
+        A build that raised carries `failed: ...` rather than a count. If it also
+        rendered nothing the chars test already catches it; if it somehow produced
+        text, inventing a collapse from an unparseable string would invalidate a
+        cell on no evidence.
+        """
+        for provenance in (
+            "failed: RuntimeError: no wheel",
+            "unavailable: ConnectionError: memgraph",
+            None,
+            "perspectives=many",
+        ):
+            run = self._a15(chars=2048, provenance=provenance)
+            assert run.static_context_perspectives is None, provenance
+            assert run.collapsed_to_a1_without_structure is False, provenance
 
     def test_a_cell_predating_the_fields_is_not_reported_as_a_failed_build(self):
         """`None` is "never measured", which is not "measured as empty".
@@ -2618,7 +2669,7 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         strength of a field they could not have carried.
         """
         run = self._a15(chars=None, build_s=None)
-        assert run.collapsed_to_a1_without_context is False
+        assert run.collapsed_to_a1_without_structure is False
         assert run.invalid_as_evidence is False
 
     def test_the_tripwire_belongs_to_a1_5_alone(self):
@@ -2631,7 +2682,8 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         for arm in (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2):
             run = _run(arm, "weak", tool_calls=["anchor"])
             run.static_context_chars = 0
-            assert run.collapsed_to_a1_without_context is False, arm
+            run.static_context_provenance = "perspectives=0"
+            assert run.collapsed_to_a1_without_structure is False, arm
 
     def test_a_poor_fit_scenario_does_not_excuse_a_missing_dump(self):
         """`collapsed_to_a1` exempts `poor_fit`; this must NOT.
@@ -2643,7 +2695,7 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         """
         run = self._a15(chars=0)
         run.scenario_kind = ScenarioKind.POOR_FIT
-        assert run.collapsed_to_a1_without_context is True
+        assert run.collapsed_to_a1_without_structure is True
 
     def test_the_build_is_archived_and_not_merely_printed(self):
         """`build_static_context` claimed this for months while only printing it.
@@ -2686,8 +2738,11 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         import inspect
 
         source = inspect.getsource(E2ERun.run_matrix)
-        assert "if not static_context:" in source
-        assert "collapsed_to_a1_without_context" in source
+        assert "collapsed_to_a1_without_structure" in source
+        # BOTH routes, not just the empty one — waiting the whole matrix out to
+        # learn from the archive that the dump had no perspectives is the cost
+        # this warning exists to avoid.
+        assert "if not static_context or perspectives_in_summary(provenance) == 0:" in source
 
     def test_the_abandoned_cell_still_says_what_it_was_given(self):
         """A hang is when the input matters most — a giant dump is a hypothesis.
@@ -2709,13 +2764,19 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         """
         assert Arm.A1_5 not in DEFAULT_ARMS
 
-    def test_no_archived_cell_carries_the_new_fields(self):
-        """The pin that made this change safe: it can revalidate nothing.
+    def test_only_a1_5_cells_can_ever_carry_the_new_fields(self):
+        """What actually keeps the new `invalid_as_evidence` term safe.
 
-        Adding a term to `invalid_as_evidence` is only safe if no archived record
-        can trip it. If a future run archives an A1.5 cell with an empty dump,
-        this failing is the correct alarm — the archive would then hold cells whose
-        validity changed under a code edit.
+        This started life as "no archived cell carries these fields", which was
+        true when written and stopped being true 90 minutes later, when the arm's
+        first precheck run archived one. That pin failing was correct behaviour —
+        its own docstring said so — but the property worth keeping is narrower and
+        permanent: the fields are written ONLY for A1.5, so the new term cannot
+        revalidate or invalidate a cell of any other arm, and every published
+        number in the archive belongs to A0/A1/A1.7/A2.
+
+        `results/` is gitignored, so this reads whatever the local archive holds and
+        cannot be made to pass by editing a fixture.
         """
         import json
         from pathlib import Path
@@ -2723,19 +2784,24 @@ class TestA15GetsItsStaticContextOrSaysItDidNot:
         results = Path(__file__).resolve().parent / "results"
         stems = sorted(results.glob("*-runs.json"))
         assert stems, "archive is empty — this pin would pass vacuously"
-        arms: set[str] = set()
-        with_fields = 0
+        offenders: list[str] = []
         for path in stems:
             payload = json.loads(path.read_text())
             runs = payload if isinstance(payload, list) else payload.get("runs", [])
             for raw in runs:
-                arms.add(str(raw.get("arm")))
-                if raw.get("static_context_chars") is not None:
-                    with_fields += 1
-        assert with_fields == 0
-        assert "A1.5" not in arms, (
-            "an A1.5 cell has been archived — re-read this class's premise before "
-            "trusting its docstrings, which all say the arm has never run"
+                carries = any(
+                    raw.get(f) is not None
+                    for f in (
+                        "static_context_chars",
+                        "static_context_build_s",
+                        "static_context_provenance",
+                    )
+                )
+                if carries and str(raw.get("arm")) != "A1.5":
+                    offenders.append(f"{path.name}: {raw.get('arm')}")
+        assert offenders == [], (
+            "a non-A1.5 cell carries the static-context fields, so the new "
+            f"invalid_as_evidence term can reach arms it was never about: {offenders}"
         )
 
 

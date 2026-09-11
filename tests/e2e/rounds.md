@@ -5140,3 +5140,52 @@ Probe runs behind the figures: `probe_pole_overlap.py` n=5 in 2m41s (0 retries i
 `probe_first_delta.py` 2×5 turns in 5m09s, `probe_anchor_retry_cost.py` n=3 per side. Both new
 probes carry a RESULT section and a row in `tests/e2e/README.md`'s registry, which is the file a
 reader consults before spending provider budget.
+
+---
+
+### a15-precheck: the arm that had never run, and the tripwire that would have passed its failure (2026-09-11)
+
+**Not a round. A wiring precheck, and it is written up here because it produced control cells** —
+`premature_relocation`, weak tier, 1 replicate, judge off, one arm, 111.66s — and a control that ran
+and was not read is worse than no control
+(`TestThePoorFitControlWasNeverTheControl::test_a_control_that_has_run_in_a_readable_stem_is_written_up`
+is what demanded this paragraph, on the run that made its condition true). Read nothing from its
+numbers: n=1, one scenario, no comparator.
+
+**What it was run to check, and why that was worth provider money.** A1.5 is on the documented
+ablation ladder and in `README.md`'s arm table, and the plan was to price its turn latency. Before
+spending, the archive was asked whether the arm had ever run: across **43 stems and 488 cells the
+arms present are A0 (8), A1 (105), A1.7 (173) and A2 (202)**. **A1.5 has never been run at all** — so
+its code path had never executed, no test touched it, and `grep` found the enum member on one line of
+the whole bench. Two defects were closed on that evidence before any measurement (`72c55b5`): the
+static-context build's provenance was `print()`ed and dropped rather than archived, and the build's
+seconds were attributed to no cell — which would have let A1.5's per-turn latency be published with
+its entire setup cost missing. The arm is opt-in (`DEFAULT_ARMS` omits it) precisely because it is
+the most expensive rung per unit of information, and that is why nothing noticed.
+
+**What the precheck found, which is the actual result.** The A1.5 tripwire added an hour earlier —
+`collapsed_to_a1_without_context`, flagging a cell whose static context came back empty, because
+`PromptArm` appends its static-context section only when the string is truthy and an empty one
+produces a prompt **byte-identical to A1's** — tested `chars == 0`. The precheck produced a **695-character
+dump with `perspectives=0 woven=0 transformations=0 decisions=1`**: a decision ledger, plus the
+renderer's own sentence *"No tensions identified yet — sources above (if any) are captured but not yet
+analyzed"*, sitting under a heading that promises the person's situation *was* analysed before the
+conversation. Non-empty, so the tripwire passed it; no structure, so the arm was A1 with an A1.5
+label and a misleading header. **`chars > 0` is not `has structure`.** Fixed by parsing the build's
+own provenance line (`perspectives_in_summary`), renaming the predicate to
+`collapsed_to_a1_without_structure`, widening it to both routes, and widening the runner's kill-the-run
+warning to match. An unreadable count returns False — *cannot tell* must not be reported as *built
+nothing*, which is `wove_no_pathway`'s rule. Mutation-verified: reverting to the length-only test fails
+exactly `test_a_non_empty_dump_with_no_perspectives_is_still_a1`.
+
+**The generalisable part.** An unexercised path that returns a plausible-looking value hands a reader
+a table that is perfectly accurate about the wrong arm — 64 A1 turns under an A1.5 heading, every row
+correct. And a tripwire written from the failure mode you imagined (empty) does not cover the failure
+mode the path produces (thin). The scenario was a poor fit by design — `premature_relocation` is the
+PREMATURE control, chosen because it is short and cheap — but **a poor-fit scenario does not excuse a
+missing dump**, which is now its own test: the arm must either get its static context or say it did
+not.
+
+Suites: **640** in `tests/e2e/test_e2e.py` (626 at the previous entry), **35** in
+`tests/test_turn_record_timing.py` (28), and every published `r26` figure still reproduces
+byte-for-byte from the archive.
