@@ -141,7 +141,8 @@ anchors.
 - [ ] **Taxonomy dict/table lockstep (R8, top hotspot).** Editing `SYSTEMIC_TAXONOMY`/`ELEMENTAL_TAXONOMY` OR
       the hand-typed taxonomy table in `statement_classification.py`'s SYSTEM_PROMPT requires updating BOTH — the
       LLM classifies against the table while `lookup_aspect_apex` scores HS against the dict. Divergence = silent HS corruption.
-- [ ] **Circular-causality directionality (R2).** Keep `Ac+ = T-→A+`, `Re+ = A-→T+`, and "Ac+ without Re+
+- [ ] **Circular-causality directionality (R2).** Keep `Ac+ = this edge's T-→A+`, `Re+ = the OPPOSITE edge's
+      T-→A+` (i.e. `source.opposite`/`target.opposite`), and "Ac+ without Re+
       degenerates into Ac-, Re+ without Ac+ degenerates into Re-". Restated across 4+ prompts with no owner —
       verify all agree. **The SUBJECT is preserved and its own polarity flips**, exactly as at the aspect level
       ("T+ without A+ yields T-", `control_statements_check.py`; "What T itself degenerates into when A+ is
@@ -149,6 +150,9 @@ anchors.
       would have enforced the bug: `transformation_generation`'s CC block and the Ac-/Re- prompt bodies each
       described the OTHER position's mechanism, while lines 85/87 of the same prompt stated the rule correctly.
       A swapped subject reads plausibly, so check the subject, not just that a "without" sentence is present.
+      `Re+ = A-→T+` is the **1-Polarity collapse only** — true when the edge joins the two sides of one
+      Polarity, so `source.opposite == target`. Several sites still state it unconditionally (see the R2 row
+      in the reference map); treat that shorthand as a defect on any wheel with ≥2 Polarities.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
 - [ ] **A plus that only restates its own pole fails R1, and it is the most common measured tetrad defect
@@ -327,6 +331,14 @@ anchors.
 - [ ] **A prompt that sets a score is a gate input.** `AntithesisExtraction` / `AntithesisClassification` /
       `TransformationGeneration._score_hs` feed `_rank_polarities` (0.7) and consolidation bands (0.7/0.1). A
       wording change that shifts the distribution changes what passes — review the gate, not just the call.
+- [ ] **A reference must be derived from the frame it scores.** `AcReApexDerivation` builds the Ac+ apex from
+      THIS edge and the Re+ apex from the OPPOSITE edge (`source_segment.opposite, target_segment.opposite`),
+      because that is where each path runs and where `TransformationGeneration` generates each position from.
+      Until 2026-09-11 it read both apexes off the own edge, so every Re+ HS score on a wheel with ≥2
+      Polarities compared a path against a reference through different nodes. **Neither module was wrong on
+      its own — only the pair disagreed**, which is why this needs a cross-module assertion rather than a
+      reading (`TestApexFramesMatchGenerationFrames`). When you touch either module, check the frames still
+      match. Generalize: for any score, ask what the reference was built from, not just whether it exists.
 - [ ] **Honor the downstream consumer's contract.** Aspect/transition text is quoted verbatim into edge context
       and synthesis; `insight_label`/`proactiveness_label` must stay in the known scales (else matching falls back
       to defaults); only Ac+/Re+ **headlines** reach synthesis.

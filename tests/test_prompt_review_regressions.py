@@ -472,6 +472,63 @@ class TestApexSweetSpots:
         assert "(proactiveness 0.5-0.7" not in src
 
 
+class TestApexFramesMatchGenerationFrames:
+    """An apex is the reference an HS score is measured against, so it must be
+    derived from the SAME aspects the position it scores is generated from.
+
+    Ac+ runs on the edge; Re+ runs on the OPPOSITE edge (`explore_transformations`:
+    "A tetrad pairs an edge's Ac+ with the opposite edge's Ac+ — that Ac+ becomes
+    its Re+"). Until 2026-09-11 the apex concern built only the own-edge context and
+    read BOTH apexes off it, so every Re+ HS score on a wheel with more than one
+    Polarity compared a path against a reference through different nodes. It could
+    not be caught by inspection of either module alone — each was internally
+    consistent; only the pair disagreed. Hence the cross-module assertion below."""
+
+    def test_apex_derivation_builds_both_frames(self):
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as m
+
+        src = inspect.getsource(m.AcReApexDerivation.resolve)
+        assert "build_edge_context(source_segment, target_segment)" in src
+        assert "source_segment.opposite, target_segment.opposite" in src
+
+    def test_apex_and_generation_derive_the_opposite_frame_identically(self):
+        from dialectical_framework.concerns import transformation_generation as tg
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as ap
+
+        opposite = "source_segment.opposite, target_segment.opposite"
+        # The Re+ apex and the Re+ it scores must come off the same two segments.
+        assert opposite in inspect.getsource(ap.AcReApexDerivation.resolve)
+        assert opposite in inspect.getsource(tg.TransformationGeneration)
+
+    def test_apex_prompt_separates_the_two_perspectives(self):
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as m
+
+        src = inspect.getsource(m.AcReApexDerivation._generate_apex_pair)
+        assert "<action_perspective>" in src
+        assert "<reflection_perspective>" in src
+        # the Re+ apex must be pinned to the reflection frame, not this edge
+        assert "REFLECTION Perspective's T- → A+" in src
+        # the shape that shipped: one unlabelled perspective, Re+ read off it
+        assert "<perspective>" not in src
+        assert "(A- → T+ reflection path)" not in src
+
+    def test_system_prompt_says_the_two_paths_run_on_different_perspectives(self):
+        from dialectical_framework.concerns import \
+            positive_ac_re_apex_derivation as m
+
+        # SYSTEM_PROMPT is hard-wrapped, so assert on fragments that sit within a
+        # single line rather than sentences that cross the wrap.
+        p = m.SYSTEM_PROMPT
+        assert "run on DIFFERENT Perspectives" in p
+        assert "Derive each apex from the Perspective its path" in p
+        # the collapse is named as the special case it is, not the general rule
+        assert "Only when the wheel holds a single Polarity" in p
+        assert "the Reflection Perspective's T- → A+" in p
+
+
 class TestGreimasFiveCriteria:
     """Theory Greimas criteria (P1 p.22): all FIVE must be in the apex-derivation
     Validation block. Criterion 3 (pre-affordability — valid BEFORE A+/T+ are

@@ -4,6 +4,12 @@ AcReApexDerivation: Concern for deriving Re+ and Ac+ apex statements for a wheel
 The apex statements represent the reference transformation paths for this specific
 edge context, against which other transformations are measured (via HS).
 
+The two apexes are derived from DIFFERENT Perspectives: Ac+ from this edge, Re+
+from the opposite edge, matching where each path actually runs and where
+`TransformationGeneration` generates each position from. An apex read off the
+wrong frame makes its HS number a comparison against a path through the wrong
+nodes — silently, and only on wheels with more than one Polarity.
+
 Apexes are generated within sweet-spot coordinate ranges derived from the
 taxonomy apex targets (RE_PLUS_APEX_TARGET / AC_PLUS_APEX_TARGET) ± SWEET_SPOT_MARGIN.
 See RE_PLUS_SWEET_SPOT / AC_PLUS_SWEET_SPOT for the resolved bounds.
@@ -70,9 +76,16 @@ The two poles:
 
 {ASPECT_DEFINITIONS}
 
-Transformations navigate this tension through Action and Reflection:
-- Ac+ (Positive Action): T- → A+ path (escaping T's problems toward A's benefits)
-- Re+ (Positive Reflection): A- → T+ path (escaping A's problems toward T's benefits)
+Transformations navigate this tension through Action and Reflection, and the two
+paths run on DIFFERENT Perspectives:
+- Ac+ (Positive Action): the Action Perspective's T- → A+ (escaping your problems toward their benefits)
+- Re+ (Positive Reflection): the Reflection Perspective's T- → A+ (how their action grounds you toward growth)
+
+The Reflection Perspective is the opposite side of this edge — the other side of
+each of its two Polarities. Derive each apex from the Perspective its path
+actually runs on. Only when the wheel holds a single Polarity do the two frames
+coincide, and Re+ can then also be read as the Action Perspective's A- → T+;
+with more Polarities on the wheel those are different aspects entirely.
 
 ## Y-Axis: Insight (0.0 → 1.0)
 
@@ -100,7 +113,7 @@ APEX
 
 ## X-Axis: Proactiveness (0.0 → 1.0)
 
-**Reflections (Re+ = A- → T+, Re- = A+ → T-) — Apex zone: ~{RE_PLUS_APEX_TARGET["proactiveness"]}**
+**Reflections (Re+ = the Reflection Perspective's T- → A+, Re- = its T+ → A-) — Apex zone: ~{RE_PLUS_APEX_TARGET["proactiveness"]}**
 
 | Value | Label | Description |
 |-------|-------|-------------|
@@ -110,7 +123,7 @@ APEX
 | 0.3   | Framing | Placing in broader context |
 | 0.4   | Evaluation | Assessing value/significance ← MIDPOINT |
 
-**Actions (Ac+ = T- → A+, Ac- = T+ → A-) — Apex zone: ~{AC_PLUS_APEX_TARGET["proactiveness"]}**
+**Actions (Ac+ = the Action Perspective's T- → A+, Ac- = its T+ → A-) — Apex zone: ~{AC_PLUS_APEX_TARGET["proactiveness"]}**
 
 | Value | Label | Description |
 |-------|-------|-------------|
@@ -136,15 +149,19 @@ APEX
 
 ```
 Ac+ Apex (Not-A)
-├── Meaning: Affinity with A without instantiating A
-├── Function: Enables non-coercive lean toward A+
-└── Example (T=Love): "Decoupling by Default" → path to Autonomy
+├── Meaning: Affinity with the Action Perspective's A without instantiating it
+├── Function: Enables non-coercive lean toward that A+
+└── Example (1-PP, T=Love, A=Indifference): "Decoupling by Default" → path to Autonomy
 
-Re+ Apex (Not-T)
-├── Meaning: Affinity with T without instantiating T
-├── Function: Enables non-coercive lean toward T+
-└── Example (T=Love): "Relational Value Relocation" → path to Bonding
+Re+ Apex (Not-A of the Reflection Perspective)
+├── Meaning: Affinity with the Reflection Perspective's A without instantiating it
+├── Function: Enables non-coercive lean toward that A+
+└── Example (1-PP, T=Love, A=Indifference): "Relational Value Relocation" → path to Bonding
 ```
+
+Each apex is "Not-(its own destination pole)". The Re+ apex is classically called
+"Not-T" because in a single-Polarity wheel the Reflection Perspective's A IS the
+Action Perspective's T — the same construct, named from the frame that collapses.
 
 ## Sweet Spot Ranges (IMPORTANT)
 
@@ -164,13 +181,18 @@ You MUST generate apexes within these coordinate ranges:
 
 1. Each apex should be concise and actionable, longer than a headline
 2. They should be complementary (Re+ and Ac+ work together)
-3. They should NOT simply restate T+/A+ but describe the PATH to them
+3. They should NOT simply restate their destination aspect but describe the PATH to it
+   (Ac+ apex → the Action Perspective's A+, Re+ apex → the Reflection Perspective's A+)
 4. They should be generative (enabling discovery) not prescriptive
 5. Choose labels that fall WITHIN the sweet spot ranges specified above
 
 ## Validation
 
 Ac+/Re+ must: (1) not restate A+/T+, (2) be generative, (3) be valid BEFORE A+/T+ are affordable — the operation must work while the constructive aspects are still out of reach, since it is the path that makes them affordable, (4) explain subtlety/non-force, (5) generalize beyond T/A.
+
+Here "A+/T+" names each apex's OWN destination: the Ac+ apex leads to the Action
+Perspective's A+, the Re+ apex to the Reflection Perspective's A+. Those coincide
+only in a single-Polarity wheel, where the latter IS the Action Perspective's T+.
 """
 
 
@@ -195,8 +217,8 @@ class ApexPairDto(BaseModel):
     """
 
     re_plus_statement: str = Field(
-        description=f"Re+ apex statement: A- → T+ reflection path, concise but longer "
-        f"than a headline "
+        description=f"Re+ apex statement: the reflection_perspective's T- → A+ path, "
+        f"concise but longer than a headline "
         f"(proactiveness {RE_PLUS_SWEET_SPOT['proactiveness_min']}-{RE_PLUS_SWEET_SPOT['proactiveness_max']}, "
         f"insight {RE_PLUS_SWEET_SPOT['insight_min']}-{RE_PLUS_SWEET_SPOT['insight_max']})"
     )
@@ -210,8 +232,8 @@ class ApexPairDto(BaseModel):
         description="Why the Re+ statement represents the reflection path and fits its sweet spot"
     )
     ac_plus_statement: str = Field(
-        description=f"Ac+ apex statement: T- → A+ action path, concise but longer "
-        f"than a headline "
+        description=f"Ac+ apex statement: the action_perspective's T- → A+ path, "
+        f"concise but longer than a headline "
         f"(proactiveness {AC_PLUS_SWEET_SPOT['proactiveness_min']}-{AC_PLUS_SWEET_SPOT['proactiveness_max']}, "
         f"insight {AC_PLUS_SWEET_SPOT['insight_min']}-{AC_PLUS_SWEET_SPOT['insight_max']})"
     )
@@ -264,8 +286,11 @@ class AcReApexDerivation(
         """
         Derive Re+ and Ac+ apex statements for a wheel edge.
 
-        The edge's source segment becomes the T-side context and
-        the edge's target segment becomes the A-side context.
+        The edge's source segment becomes the T-side context and the edge's target
+        segment becomes the A-side context — that is the Action Perspective, and the
+        Ac+ apex is derived from it. The Re+ apex is derived from the Reflection
+        Perspective (both segments' opposites), because that is where the Re+ path
+        runs and where `TransformationGeneration` generates Re+ from.
 
         Args:
             edge: The wheel edge (Transition between main statements)
@@ -283,11 +308,37 @@ class AcReApexDerivation(
         if not source_segment.is_complete() or not target_segment.is_complete():
             raise ValueError("Both segments must be complete to derive apexes")
 
+        # `is_complete()` is per-side, and the Re+ apex is read off the opposite side
+        # (below), where `build_edge_context` would silently omit whatever is missing
+        # and yield an apex derived from half a Perspective. `explore_transformations`
+        # already makes buildability a property of the antipodal PAIR, so this cannot
+        # fire from that path — it is here so the invariant is stated where it is
+        # relied on rather than assumed of every caller.
+        if (
+            not source_segment.opposite.is_complete()
+            or not target_segment.opposite.is_complete()
+        ):
+            raise ValueError(
+                "Both opposite segments must be complete to derive the Re+ apex"
+            )
+
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
 
-        context = build_edge_context(source_segment, target_segment)
+        # BOTH frames, because the two apexes do not live on the same one. Ac+ runs
+        # on this edge; Re+ runs on the opposite edge (`explore_transformations`:
+        # "A tetrad pairs an edge's Ac+ with the opposite edge's Ac+ — that Ac+
+        # becomes its Re+"), and `transformation_generation` generates Re+ from
+        # exactly this `opposite_edge_context`. Deriving the Re+ apex from this
+        # edge's aspects made the HS score for Re+ a comparison against a path
+        # through the wrong nodes on any wheel with more than one Polarity.
+        action_context = build_edge_context(source_segment, target_segment)
+        reflection_context = build_edge_context(
+            source_segment.opposite, target_segment.opposite
+        )
 
-        apex_pair = await self._generate_apex_pair(context, input_text)
+        apex_pair = await self._generate_apex_pair(
+            action_context, reflection_context, input_text
+        )
 
         re_plus_apex = self._to_apex_dto(
             apex_pair.re_plus_statement,
@@ -320,31 +371,39 @@ class AcReApexDerivation(
 
     async def _generate_apex_pair(
         self,
-        edge_context: str,
+        action_context: str,
+        reflection_context: str,
         input_text: str,
     ) -> ApexPairDto:
-        """Generate Re+ and Ac+ apex candidates."""
+        """Generate Re+ and Ac+ apex candidates, each from the Perspective its path runs on."""
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
 
-        prompt = f"""{context_section}Given this Perspective:
+        prompt = f"""{context_section}Given these two Perspectives:
 
-<perspective>
-{edge_context}
-</perspective>
+<action_perspective>
+{action_context}
+</action_perspective>
 
-Generate apex statements for both transformation paths within the specified sweet spots:
+<reflection_perspective>
+{reflection_context}
+</reflection_perspective>
 
-1. **Re+ apex** (A- → T+ reflection path):
-   - A way of thinking/understanding that naturally guides from A's problems toward T's benefits
-   - Embodies "affinity with T without instantiating T"
+Generate apex statements for both transformation paths within the specified sweet spots.
+Read each path off ITS OWN Perspective — the two use different aspects:
+
+1. **Re+ apex** — the REFLECTION Perspective's T- → A+ path:
+   - A way of thinking/understanding that naturally guides from the reflection_perspective's T- toward its A+
+   - Embodies "affinity with the reflection_perspective's A without instantiating it"
+   - Derive it ONLY from the reflection_perspective block; the action_perspective's aspects are not on this path
    - MUST use proactiveness in range {RE_PLUS_SWEET_SPOT["proactiveness_min"]} - {RE_PLUS_SWEET_SPOT["proactiveness_max"]}
    - MUST use insight in range {RE_PLUS_SWEET_SPOT["insight_min"]} - {RE_PLUS_SWEET_SPOT["insight_max"]}
 
-2. **Ac+ apex** (T- → A+ action path):
-   - A way of acting/behaving that naturally guides from T's problems toward A's benefits
-   - Embodies "affinity with A without instantiating A"
+2. **Ac+ apex** — the ACTION Perspective's T- → A+ path:
+   - A way of acting/behaving that naturally guides from the action_perspective's T- toward its A+
+   - Embodies "affinity with the action_perspective's A without instantiating it"
+   - Derive it ONLY from the action_perspective block
    - MUST use proactiveness in range {AC_PLUS_SWEET_SPOT["proactiveness_min"]} - {AC_PLUS_SWEET_SPOT["proactiveness_max"]}
    - MUST use insight in range {AC_PLUS_SWEET_SPOT["insight_min"]} - {AC_PLUS_SWEET_SPOT["insight_max"]}
 
