@@ -63,14 +63,24 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
     belong to an edge (a Transition in the wheel's causality sequence) and represent
     one alternative way to navigate that edge.
 
-    Each position is a Transition (source → target):
+    Each position is a Transition (source → target). The Ac side runs on this
+    edge; the Re side runs on the OPPOSITE edge — each segment's `opposite`, the
+    other side of the same Polarity. One Transformation therefore spans two edges
+    of the wheel, this one and its antipode (`Wheel.edge_pairs`), which is what
+    `explore_transformations._create_transformation` builds:
 
-    - Ac (Action): T → A (transforms Thesis into Antithesis)
-    - Ac+ (Positive Action): T- → A+ (transforms negative Thesis into positive Antithesis)
-    - Ac- (Negative Action): T+ → A- (transforms positive Thesis into negative Antithesis)
-    - Re (Reflection): A → T (transforms Antithesis into Thesis)
-    - Re+ (Positive Reflection): A- → T+ (transforms negative Antithesis into positive Thesis)
-    - Re- (Negative Reflection): A+ → T- (transforms positive Antithesis into negative Thesis)
+    - Ac  (Action): source.T → target.A
+    - Ac+ (Positive Action): source.T- → target.A+
+    - Ac- (Negative Action): source.T+ → target.A-
+    - Re  (Reflection): source.opposite.T → target.opposite.A
+    - Re+ (Positive Reflection): source.opposite.T- → target.opposite.A+
+    - Re- (Negative Reflection): source.opposite.T+ → target.opposite.A-
+
+    In a 1-Polarity wheel the edge joins the two sides of one Polarity, so
+    `source.opposite is target` and the Re side collapses to A→T, A-→T+, A+→T-.
+    That collapse is where the classic "Re: A→T" notation comes from. It does NOT
+    generalize: with two or more Polarities on the wheel the opposite edge's
+    aspects are different statements entirely, and Re+ is not this edge reversed.
 
     Diagonal contradictions:
     - Re+ contradicts Ac-
@@ -208,13 +218,13 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
     ac: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=AcRelationship,
-        cardinality=(0, 1)  # Optional: T → A
+        cardinality=(0, 1)  # Optional: source.T → target.A
     )
 
     re: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=ReRelationship,
-        cardinality=(0, 1)  # Optional: A → T
+        cardinality=(0, 1)  # Optional: source.opposite.T → target.opposite.A
     )
 
     # Aspect positions (have complementarity)
@@ -222,25 +232,25 @@ class Transformation(IncrementalBuildMixin, IntentMixin, AssessableEntity, label
     ac_plus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=AcPlusRelationship,
-        cardinality=(1, 1)  # Required: T- → A+
+        cardinality=(1, 1)  # Required: source.T- → target.A+
     )
 
     ac_minus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=AcMinusRelationship,
-        cardinality=(0, 1)  # Optional: T+ → A-
+        cardinality=(0, 1)  # Optional: source.T+ → target.A-
     )
 
     re_plus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=RePlusRelationship,
-        cardinality=(1, 1)  # Required: A- → T+
+        cardinality=(1, 1)  # Required: source.opposite.T- → target.opposite.A+
     )
 
     re_minus: ClassVar[RelationshipManager[Transition]] = RelationshipFrom(
         "Transition",
         model=ReMinusRelationship,
-        cardinality=(0, 1)  # Optional: A+ → T-
+        cardinality=(0, 1)  # Optional: source.opposite.T+ → target.opposite.A-
     )
 
     @property

@@ -151,8 +151,12 @@ anchors.
       described the OTHER position's mechanism, while lines 85/87 of the same prompt stated the rule correctly.
       A swapped subject reads plausibly, so check the subject, not just that a "without" sentence is present.
       `Re+ = A-→T+` is the **1-Polarity collapse only** — true when the edge joins the two sides of one
-      Polarity, so `source.opposite == target`. Several sites still state it unconditionally (see the R2 row
-      in the reference map); treat that shorthand as a defect on any wheel with ≥2 Polarities.
+      Polarity, so `source.opposite == target`. Treat that shorthand as a defect on any wheel with ≥2
+      Polarities. Ground truth is `explore_transformations._create_transformation` (Ac side from the
+      segments, Re side from their `.opposite`); ~10 sites stated the collapse as the general rule until
+      the 2026-09-11 sweep, two of them model-facing (`GRAPH_SCHEMA`, Explorer system prompt). Locked by
+      `TestReSideLivesOnTheOppositeEdge`. The one place it is still written bare is
+      `transformation_generation`'s worked example, which is correct because it declares itself "1-PP".
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
 - [ ] **A plus that only restates its own pole fails R1, and it is the most common measured tetrad defect

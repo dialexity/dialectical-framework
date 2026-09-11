@@ -87,12 +87,16 @@ All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_a
 - `(t:Transition)-[:IS_TARGET_OF]->(s:Statement)` — target component
 
 **Transformation positions** (Transition → Transformation):
-- `(t:Transition)-[:AC]->(tr:Transformation)` — action (T → A)
-- `(t:Transition)-[:AC_PLUS]->(tr:Transformation)` — positive action (T- → A+)
-- `(t:Transition)-[:AC_MINUS]->(tr:Transformation)` — negative action (T+ → A-)
-- `(t:Transition)-[:RE]->(tr:Transformation)` — reflection (A → T)
-- `(t:Transition)-[:RE_PLUS]->(tr:Transformation)` — positive reflection (A- → T+)
-- `(t:Transition)-[:RE_MINUS]->(tr:Transformation)` — negative reflection (A+ → T-)
+- `(t:Transition)-[:AC]->(tr:Transformation)` — action (this edge's T → A)
+- `(t:Transition)-[:AC_PLUS]->(tr:Transformation)` — positive action (this edge's T- → A+)
+- `(t:Transition)-[:AC_MINUS]->(tr:Transformation)` — negative action (this edge's T+ → A-)
+- `(t:Transition)-[:RE]->(tr:Transformation)` — reflection (the OPPOSITE edge's T → A)
+- `(t:Transition)-[:RE_PLUS]->(tr:Transformation)` — positive reflection (the OPPOSITE edge's T- → A+)
+- `(t:Transition)-[:RE_MINUS]->(tr:Transformation)` — negative reflection (the OPPOSITE edge's T+ → A-)
+
+  The Re side lives on the antipodal edge, so one Transformation spans two edges.
+  It reads as A→T / A-→T+ only in a single-Polarity wheel, where the edge joins
+  the two sides of one Polarity.
 - `(tr:Transformation)-[:ACTION_REFLECTION]->(t:Transition)` — which Wheel edge this Transformation belongs to
 - `(tr:Transformation)-[:BELONGS_TO_NEXUS]->(nx:Nexus)` — scoped to Nexus
 

@@ -159,7 +159,11 @@ constraint); `concerns/positive_ac_re_apex_derivation.py`; wheel spiral in
 `skills/explore_transformations.py`.
 **Status:** implemented
 **Notes:** Directionality (Ac+=T−→A+, Re+=A−→T+) is restated in 4+ prompts with no single owner —
-drift risk tracked in df-review-reasoning-layer's map.
+drift risk tracked in df-review-reasoning-layer's map. The paper's `A−→T+` is the **1-Polarity form**:
+on a wheel with N Polarities the loop closes across an edge and its ANTIPODE, so Ac+ is this edge's
+T−→A+ and Re+ is the opposite edge's T−→A+ (`source.opposite`/`target.opposite`). Those coincide only
+when the edge joins the two sides of one Polarity. The implementation generalizes accordingly
+(`explore_transformations._create_transformation` is the ground truth).
 
 ### Rule 5.2: Transition tetrad (Ac±/Re± as a recursive tetrad)
 **Theory:** Ac(T→A), Re(A→T), Ac+(T−→A+), Re+(A−→T+), Ac−(T+→A−), Re−(A+→T−); Ac±/Re± form "a new

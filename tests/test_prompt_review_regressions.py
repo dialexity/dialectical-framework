@@ -472,6 +472,57 @@ class TestApexSweetSpots:
         assert "(proactiveness 0.5-0.7" not in src
 
 
+class TestReSideLivesOnTheOppositeEdge:
+    """`Re: A→T`, `Re+: A-→T+` is the 1-POLARITY COLLAPSE, not the general rule.
+
+    Ground truth is `explore_transformations._create_transformation`: the Ac side is
+    built from `source_segment`/`target_segment`, the Re side from their `.opposite`.
+    Those coincide only when the edge joins the two sides of one Polarity, i.e.
+    `source.opposite is target` — a 2-segment wheel, where the antipodal edge is
+    simply this edge reversed. With N >= 2 Polarities the opposite edge's aspects
+    are different statements entirely.
+
+    Until 2026-09-11 ~10 sites stated the collapse unconditionally, including two
+    that a model reads directly (GRAPH_SCHEMA and the Explorer system prompt)."""
+
+    def test_builder_is_the_ground_truth(self):
+        from dialectical_framework.agents.explorer.skills import \
+            explore_transformations as m
+
+        src = inspect.getsource(m.ExploreTransformations._create_transformation)
+        assert "source_segment.opposite" in src
+        assert "target_segment.opposite" in src
+
+    def test_graph_schema_does_not_teach_the_collapse_as_the_rule(self):
+        from dialectical_framework.agents.orchestrator.tools import get_schema as m
+
+        p = m.GRAPH_SCHEMA
+        assert "positive reflection (the OPPOSITE edge's T- → A+)" in p
+        assert "positive reflection (A- → T+)" not in p
+
+    def test_explorer_prompt_does_not_teach_the_collapse_as_the_rule(self):
+        from dialectical_framework.agents.explorer import system_prompts as m
+
+        src = inspect.getsource(m)
+        assert "the opposite edge's T- -> A+" in src
+        assert "constructive reflection: A- -> T+" not in src
+
+    def test_relationship_docstrings_name_the_opposite_edge(self):
+        from dialectical_framework.graph.relationships import \
+            polarity_relationship as m
+
+        for rel in (m.RePlusRelationship, m.ReMinusRelationship, m.ReRelationship):
+            assert "OPPOSITE edge" in (rel.__doc__ or ""), rel.__name__
+
+    def test_transformation_docstring_spans_two_edges(self):
+        from dialectical_framework.graph.nodes.transformation import Transformation
+
+        d = Transformation.__doc__ or ""
+        assert "source.opposite.T- → target.opposite.A+" in d
+        # and names the collapse as the special case it is
+        assert "1-Polarity wheel" in d
+
+
 class TestApexFramesMatchGenerationFrames:
     """An apex is the reference an HS score is measured against, so it must be
     derived from the SAME aspects the position it scores is generated from.

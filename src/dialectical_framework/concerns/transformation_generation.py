@@ -291,7 +291,7 @@ class CategoryReframingDto(BaseModel):
     ac_insight_label: str = Field(description="Insight level for Ac")
     ac_proactiveness_label: str = Field(description="Proactiveness category for Ac")
 
-    # Re (neutral reflection category: A → T)
+    # Re (neutral reflection category: the opposite edge's T → A)
     re_headline: str = Field(description="Re headline (component length)")
     re_statement: str = Field(description="Re statement (fuller than the headline)")
     re_explanation: str = Field(
@@ -305,10 +305,12 @@ class CategoryReframingDto(BaseModel):
 class TransformationTetradDto(BaseModel):
     """Complete transformation with 6 positions: 2 neutral categories + 4 aspects."""
 
-    # Neutral category transitions (T → A and A → T)
-    ac: TransitionDto = Field(description="Neutral action category transition (T → A)")
+    # Neutral category transitions (this edge's T → A, and the opposite edge's T → A)
+    ac: TransitionDto = Field(
+        description="Neutral action category transition (this edge's T → A)"
+    )
     re: TransitionDto = Field(
-        description="Neutral reflection category transition (A → T)"
+        description="Neutral reflection category transition (the opposite edge's T → A)"
     )
 
     # Aspect transitions
@@ -326,8 +328,8 @@ class TransformationGeneration(
     """
     Concern for generating a complete transformation tetrad from an Ac+ candidate.
 
-    Given an Ac+ (T- → A+ action), generates:
-    - Re+ (A- → T+ reflection) using polar pairs
+    Given an Ac+ (this edge's T- → A+ action), generates:
+    - Re+ (the opposite edge's T- → A+ reflection) using polar pairs
     - Re- and Ac- satisfying the Coherence Constraint
     - HS scores by comparing to derived apexes
     """
@@ -690,12 +692,12 @@ Score each transition by comparing its semantic meaning to the corresponding ape
         """Generate contextualized category reframings for Ac and Re as full transitions."""
         prompt = f"""Now generate the neutral category transitions for this transformation.
 
-## Ac (Action category: T → A): {ac_category}
+## Ac (Action category: this edge's T → A): {ac_category}
 Generate a transition that describes how "{ac_category}" specifically manifests in the Action Perspective's T-A polarity.
 - Example: For Love/Indifference, "Intervention" → "Boundary-setting intervention"
-- This is a NEUTRAL action category (not + or -), describing the general T → A movement
+- This is a NEUTRAL action category (not + or -), describing the general T → A movement on this edge
 
-## Re (Reflection category: A → T): {re_category}
+## Re (Reflection category: the opposite edge's T → A): {re_category}
 The Reflection Perspective (opposite edge):
 
 <reflection_perspective>

@@ -57,13 +57,13 @@ INSIGHT_CATEGORIES = {
 # X-Axis: Proactiveness Scale (0.0 → 1.0)
 # Reflections (Re) occupy 0.0-0.4, Actions (Ac) occupy 0.5-1.0
 PROACTIVENESS_SCALE = {
-    # Reflections (Re+ = A- → T+, Re- = A+ → T-) — Apex zone: ~0.25
+    # Reflections (Re+ = the opposite edge's T- → A+, Re- = its T+ → A-) — Apex zone: ~0.25
     "Observation": 0.0,  # Passive noticing without judgment
     "Detection": 0.1,  # Identifying patterns or anomalies
     "Interpretation": 0.2,  # Making sense of what's detected (APEX Re)
     "Framing": 0.3,  # Placing in broader context
     "Evaluation": 0.4,  # Assessing value/significance (MIDPOINT)
-    # Actions (Ac+ = T- → A+, Ac- = T+ → A-) — Apex zone: ~0.65
+    # Actions (Ac+ = this edge's T- → A+, Ac- = its T+ → A-) — Apex zone: ~0.65
     "Coordination": 0.5,  # Aligning multiple elements
     "Intervention": 0.6,  # Stepping in to change something (APEX Ac)
     "Implementation": 0.7,  # Executing a defined plan

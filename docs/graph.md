@@ -85,21 +85,36 @@ All reasoning nodes inherit from `IntentMixin`, providing a unified `intent: Opt
 
 **Transformations belong to edges (Transitions)**, not Perspectives:
 
+A wheel with N Polarities has 2N segments and 2N edges forming **ONE cycle**
+through all of them. Edges connect main statements (segments), not aspects. For
+N=2, with Polarities T1/A1 and T2/A2:
+
 ```
-Wheel
-├── Edge 1 (T1- → A2+) ── Transformation (Ac+, Re+, ...)
-├── Edge 2 (A2- → T1+) ── Transformation (Ac+, Re+, ...)
-├── Edge 3 (T2- → A1+) ── Transformation (Ac+, Re+, ...)
-└── Edge 4 (A1- → T2+) ── Transformation (Ac+, Re+, ...)
+Wheel (one 4-cycle: T1 → T2 → A1 → A2 → T1)
+├── Edge 1 (T1 → T2) ─┐
+├── Edge 2 (T2 → A1) ─┼─ Edge 1 pairs with Edge 3, Edge 2 with Edge 4:
+├── Edge 3 (A1 → A2) ─┘  edge i pairs with edge (i + N), diametrically opposite
+└── Edge 4 (A2 → T1)     (`Wheel.edge_pairs`)
 ```
 
-**Action-Reflection structure** (6 positions per Transformation):
-- **Ac** (Action): T → A
-- **Ac+** (Positive Action): T- → A+ (REQUIRED)
-- **Ac-** (Negative Action): T+ → A-
-- **Re** (Reflection): A → T
-- **Re+** (Positive Reflection): A- → T+ (REQUIRED)
-- **Re-** (Negative Reflection): A+ → T-
+Each PAIR carries the Transformations: an edge's Ac side and its antipode's Re
+side are the same Transformation, so one Transformation spans two edges. Edge 1's
+opposite is Edge 3 because `T1.opposite is A1` and `T2.opposite is A2`.
+
+**Action-Reflection structure** (6 positions per Transformation). The Ac side runs
+on the edge, the Re side on its antipode:
+- **Ac** (Action): this edge's T → A
+- **Ac+** (Positive Action): this edge's T- → A+ (REQUIRED)
+- **Ac-** (Negative Action): this edge's T+ → A-
+- **Re** (Reflection): the opposite edge's T → A
+- **Re+** (Positive Reflection): the opposite edge's T- → A+ (REQUIRED)
+- **Re-** (Negative Reflection): the opposite edge's T+ → A-
+
+The familiar `Re: A → T`, `Re+: A- → T+` is the **1-Polarity collapse**: with one
+Polarity there are 2 segments and 2 edges, the edge joins the two sides of the
+same Polarity (`source.opposite is target`), and the antipodal edge is simply this
+edge reversed. With N ≥ 2 the opposite edge's aspects are different statements
+entirely, and Re+ is NOT this edge reversed.
 
 **Each edge can have multiple Transformation alternatives** at different insight/proactiveness levels.
 

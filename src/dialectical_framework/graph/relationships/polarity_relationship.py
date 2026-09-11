@@ -119,28 +119,33 @@ class TransitionAspectRelationship(PolarityRelationship):
 
 # Neutral positions (reference points - no insight/proactiveness)
 class AcRelationship(PolarityRelationship, type="AC"):
-    """Action relationship: T → A transition. Reference point, no scoring properties."""
+    """Action relationship: the edge's T → A transition. Reference point, no scoring properties."""
 
 
 class ReRelationship(PolarityRelationship, type="RE"):
-    """Reflection relationship: A → T transition. Reference point, no scoring properties."""
+    """Reflection relationship: the OPPOSITE edge's T → A transition (source.opposite →
+    target.opposite). Reference point, no scoring properties."""
 
 
 # Ac/Re aspect positions (have insight/proactiveness)
 class AcPlusRelationship(TransitionAspectRelationship, type="AC_PLUS"):
-    """Positive action relationship: T- → A+ transition."""
+    """Positive action relationship: the edge's T- → A+ transition."""
 
 
 class AcMinusRelationship(TransitionAspectRelationship, type="AC_MINUS"):
-    """Negative action relationship: T+ → A- transition."""
+    """Negative action relationship: the edge's T+ → A- transition."""
 
 
 class RePlusRelationship(TransitionAspectRelationship, type="RE_PLUS"):
-    """Positive reflection relationship: A- → T+ transition."""
+    """Positive reflection relationship: the OPPOSITE edge's T- → A+ transition.
+
+    NOT this edge reversed. It reads as A- → T+ only in a 1-Polarity wheel, where
+    the edge joins the two sides of one Polarity so `source.opposite is target`.
+    See `Transformation` for the full six-position geometry."""
 
 
 class ReMinusRelationship(TransitionAspectRelationship, type="RE_MINUS"):
-    """Negative reflection relationship: A+ → T- transition."""
+    """Negative reflection relationship: the OPPOSITE edge's T+ → A- transition."""
 
 
 # Structural relationships for Polarity node

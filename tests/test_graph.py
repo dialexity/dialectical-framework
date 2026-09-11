@@ -1448,7 +1448,11 @@ def test_wheel_multiple_transformations():
 
         # Helper to create required transitions (Ac+ and Re+) for a transformation
         def add_required_transitions(trans: Transformation) -> None:
-            """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required."""
+            """Add Ac+ (T- → A+) and Re+ (A- → T+) transitions - the minimum required.
+
+            1-PP fixture, so the Re side is this edge reversed. On a wheel with
+            more Polarities Re+ runs on the antipodal edge instead.
+            """
             # Ac+: T- → A+
             ac_plus_trans = Transition()
             ac_plus_trans.set_source(components[2])  # T-
@@ -1887,6 +1891,7 @@ def test_transformation_six_positions():
         transformation.save()
 
         # Define transitions: position -> (source_pos, target_pos)
+        # 1-PP fixture, where the Re side collapses to this edge reversed:
         # Ac: T → A, Ac+: T- → A+, Ac-: T+ → A-
         # Re: A → T, Re+: A- → T+, Re-: A+ → T-
         transition_specs = [

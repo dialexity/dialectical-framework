@@ -54,7 +54,9 @@ When the user wants synthesis:
 - Do NOT generate synthesis for all wheels automatically.
 
 When presenting transformations:
-- Focus on the Ac+ (constructive action: T- -> A+) and Re+ (constructive reflection: A- -> T+).
+- Focus on the Ac+ (constructive action: this edge's T- -> A+) and Re+ (constructive
+  reflection: the opposite edge's T- -> A+, which is A- -> T+ only when the wheel holds
+  a single polarity).
 - These are the circular causality paths — the non-obvious synthetic wisdom.
 - Explain what they mean practically for the user's situation.
 - Use the haiku and headline to make it memorable.
