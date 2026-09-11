@@ -6,22 +6,71 @@ replicate), so this reads whatever stems you name and prints them as columns
 rather than pooling them. Pooling stems of different shapes is exactly the
 confound `rounds.md` flags on the session-wall row.
 
-**It does pool ARMS within a stem, and that is a live limit, not a bug you are
-seeing for the first time.** A stem holding two arms reports one median over
-both, so a field that only one arm can populate reads as if the whole stem were
-lukewarm on it: `r26-latency-price` prints `median context_render 0.00` over 128
-turns — all 128 record the field, so this is NOT the empty-sample defect the
-`not recorded` marker below covers — because 64 of them are A1.7, which renders
-no dialectical context and truthfully spent 0.0s on it, and the median lands on
-the boundary between the arms. Read a mixed-arm stem's medians as a mixture, or
-name a single-arm stem. Splitting the columns by arm would be the real fix and
-would change every figure this file has published, so it has not been made.
+**It pools ARMS within a stem unless you ask it not to.** A stem holding two arms
+reports one median over both, so a field only one arm can populate reads as if
+the whole stem were lukewarm on it: `r26-latency-price` prints `median
+context_render 0.00` over 128 turns — all 128 record the field, so this is NOT
+the empty-sample defect the `not recorded` marker below covers — because 64 of
+them are A1.7, which renders no dialectical context and truthfully spent 0.0s on
+it, and the median lands on the boundary between the arms.
+
+`--by-arm` splits the columns, which is what this file used to say was "the real
+fix" and decline to make on the grounds that it "would change every figure this
+file has published". It does not have to: the split is OPT-IN and the pooled
+column is untouched, so every published figure still reproduces from the same
+command that produced it. What DID change is that the pooled column now prints
+an `arms present` row, because the actual defect was never the pooling — it was
+that a mixture did not say it was one, leaving the reader to know which stems are
+mixed from somewhere other than the table.
+
+**Use `--by-arm` for anything comparing what an arm COSTS.** A pooled median over
+two arms whose latencies differ by design answers no question anyone has: the
+whole point of the ladder is that the arms are different, so their mixture
+describes no assistant that exists.
 
     poetry run python tests/e2e/read_turn_timing.py timing-after-audit-gather \
         timing-after-one-round
+    poetry run python tests/e2e/read_turn_timing.py --by-arm r26-latency-price
 
 Medians, not means: every one of these distributions has a tail that a mean
 reports as if it were the ordinary turn.
+
+WHAT THE SPLIT SHOWED, THE FIRST TIME IT WAS RUN (2026-09-11, no new provider spend)
+====================================================================================
+`r26-latency-price`, 64 A1.7 turns beside 64 A2 turns, previously readable only as
+one pooled column:
+
+                            A1.7        A2
+    median turn             6.15s     22.85s     3.7x
+    worst turn             12.30s   1012.40s      82x
+    median reply, tool-free 6.15s     16.80s     2.7x
+    worst reply, tool-free 12.10s    645.70s
+    cell wall             742.30s   7668.70s    10.3x
+    tool calls                  0         25
+
+Pooled, all of that read as `median turn 11.50` — a figure describing neither arm.
+
+**The tail is the UX problem, not the median.** A1.7's worst turn is 12.3s, and a
+bounded worst case is most of what "snappy" means; 22.85s against 6.15s is a real
+but survivable difference, while 1012s is a different product. Two things follow
+that the pooled column could not show. A2 is 2.7x slower even on turns where it
+calls NO tool, so part of its cost is prompt shape rather than work. And its worst
+TOOL-FREE turn is 645.7s — a turn that elected nothing and still took 10.7
+minutes, which `TurnTiming.generation_retry_seconds` attributes in prose to a
+retry ladder but which **this stem cannot confirm, because it predates
+`retry_seconds`** (152 of the archive's 184 timed turns do). Hence the retry rows
+below, and hence their `not recorded`: whether A2's tail is depth or a retry
+pathology is the question the UX arc turns on, and no archived stem can answer it
+yet. A2 stems that DO record retry (`timing-after-one-round`, 16 turns) put 20.0s
+of waste entirely in tools and 0.00s in generation.
+
+`timing-instrumentation-check` agrees in direction at n=4 per arm: A1 4.00s vs A2
+13.10s median turn.
+
+**The ladder rung this cannot speak to is A1.5** — the pre-built graph dumped as
+static text, i.e. the arm that has the framework's structure with no live tool
+call. It is the obvious candidate for "snappy and deep" and NO stem in the archive
+carries timing for it. That is a gap in the data, not a finding about the arm.
 """
 
 from __future__ import annotations
@@ -53,15 +102,57 @@ def _turns(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return turns
 
 
-def _tool_total(turn: dict[str, Any]) -> float:
+#: `arm` is recorded on the RUN, never on the turn, so an arm split has to filter
+#: runs and not turns. Doing it the other way round would need the turn records to
+#: carry something they do not have, and the failure would be silent: every turn
+#: would read as `None` and the split would print one column labelled "unknown".
+_UNKNOWN_ARM = "unknown"
+
+
+def _arm_label(run: dict[str, Any]) -> str:
+    """The arm as the ARCHIVE spells it, whichever way the record reached us.
+
+    `RunRecord.arm` is an `Arm` enum, and the two ways this reader is fed disagree
+    about it: a JSON file on disk carries `"A1.7"`, while `model_dump()` (what the
+    tests pass) carries the enum member, whose `str()` is `"Arm.A1_7"`. Taking
+    `.value` first normalises both. Without it the split still "works" — it just
+    labels its columns with a Python repr and no longer matches the arm names in
+    every report and every row of `rounds.md`.
+    """
+    arm = run.get("arm")
+    return str(getattr(arm, "value", arm) or _UNKNOWN_ARM)
+
+
+def _arms(runs: list[dict[str, Any]]) -> list[str]:
+    """Arms present, in ladder order where recognised.
+
+    Sorted by the ladder rather than alphabetically, because `A1.5` < `A1.7` <
+    `A2` is the order the ablation means and `sorted()` on the raw strings gets
+    that right only by accident of the labels chosen.
+    """
+    present = {_arm_label(r) for r in runs}
+    ladder = ["A0", "A1", "A1.5", "A1.7", "A2"]
+    known = [a for a in ladder if a in present]
+    return known + sorted(present - set(known))
+
+
+def _with_arm(runs: list[dict[str, Any]], arm: str) -> list[dict[str, Any]]:
+    return [r for r in runs if _arm_label(r) == arm]
+
+
+def _tool_total(turn: dict[str, Any], key: str = "tool_seconds") -> float:
     """`tool_seconds` entries look like `anchor:34.5s` — colon, and a unit.
 
     Parsed wrong ("name=seconds"), every entry raises and every turn reads as
     tool-free, which silently turns the tool-free comparison below into a copy
     of the overall median. Validated against `rounds.md`'s published anchors.
+
+    `key` also serves `tool_retry_seconds`, which `format_retry_rounds` writes in
+    the SAME format and in the same order — one parser for both, because two
+    would be two places for the format to drift out from under a reader.
     """
     total = 0.0
-    for entry in turn.get("tool_seconds", []) or []:
+    for entry in turn.get(key, []) or []:
         _, _, seconds = str(entry).rpartition(":")
         try:
             total += float(seconds.rstrip("s"))
@@ -96,6 +187,21 @@ def _median(values: list[float]) -> float | str:
 
 def _worst(values: list[float]) -> float | str:
     return max(values) if values else _NOT_RECORDED
+
+
+def _total(values: list[float], measured: bool = True) -> float | str:
+    """A sum, or `_NOT_RECORDED` when nothing was measured.
+
+    `sum([])` is `0`, and for retry a zero is the exact lie this marker exists to
+    prevent: "this stem ran clean" against a stem that predates the fields. Note
+    the asymmetry with `tool seconds, total`, which prints a real `0` and should —
+    an arm with no tools truthfully spent no time in them, so there the zero is
+    the measurement. `measured` lets a caller keep a genuine zero when the sample
+    is empty for a reason that IS the finding.
+    """
+    if not values and not measured:
+        return _NOT_RECORDED
+    return sum(values)
 
 
 def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
@@ -165,7 +271,27 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
     tool_free = [
         float(t["reply_path_s"]) for t in timed if not t.get("tool_seconds")
     ]
+    # Retry gets its OWN denominator, and it is not pedantry: `TurnRecord` records
+    # that 152 of the archive's 184 timed turns predate these fields, so pooling
+    # them against `timed` would report a stem as retry-free when it simply never
+    # measured retry. `or 0.0` is forbidden here for the same reason — it is the
+    # coercion the record's own comment names as reinstating the bug in the reader.
+    retried = [t for t in timed if t.get("retry_seconds") is not None]
+    retry_waste = [float(t["retry_seconds"]) for t in retried]
+    # Of that waste, how much was the model's own generation rather than a tool
+    # laddering — `TurnTiming.generation_retry_seconds`, recomputed here because
+    # the archive stores the two halves and not the difference. This is the row
+    # that separates "the deep arm is slow because it thinks" from "the deep arm
+    # is slow because it failed and waited", which no other row can distinguish.
+    generation_waste = [
+        max(0.0, float(t["retry_seconds"]) - _tool_total(t, "tool_retry_seconds"))
+        for t in retried
+    ]
     return {
+        # First row on purpose. Every figure below is a median over whatever this
+        # says, and a two-arm entry here means the column describes no assistant
+        # that exists — see the module docstring and `--by-arm`.
+        "arms present": "+".join(_arms(runs)),
         "turns": len(turns),
         "untimed turns (dropped)": untimed,
         "median turn": _median(durations),
@@ -203,25 +329,68 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
         # real state of a cell and NOT a zero-second generation.
         "median reply path, tool-free": _median(tool_free),
         "worst reply path, tool-free": _worst(tool_free),
+        # Its own denominator, like `context_render`: `not recorded` here means the
+        # stem predates the fields, which is a different fact from a stem that ran
+        # clean. Most of the archive is the former.
+        "turns recording retry": len(retried),
+        # Every row below is `not recorded` on a stem older than the fields, never
+        # 0 — see `_total`. Only the denominator above is honestly zero there.
+        "turns that retried": (
+            sum(1 for t in retried if (t.get("retry_count") or 0) > 0)
+            if retried else _NOT_RECORDED
+        ),
+        "retry seconds, total": _total(retry_waste, measured=bool(retried)),
+        "worst retry seconds": _worst(retry_waste),
+        # The split that tells a slow reply from a failed one.
+        "retry seconds in generation": _total(
+            generation_waste, measured=bool(retried)
+        ),
         "arithmetic closes": f"{closes}/{len(checkable)}",
     }
 
 
-def main(stems: list[str]) -> None:
+def main(argv: list[str]) -> None:
+    by_arm = "--by-arm" in argv
+    stems = [a for a in argv if not a.startswith("-")]
+    unknown = [a for a in argv if a.startswith("-") and a != "--by-arm"]
+    if unknown:
+        raise SystemExit(f"unknown option(s): {' '.join(unknown)}\n{__doc__}")
     if not stems:
         raise SystemExit(__doc__)
-    columns = {stem: _stats(_runs(stem)) for stem in stems}
+
+    # `columns` is label -> stats. Pooled mode keeps one column per stem and the
+    # label IS the stem, so the default output is what it always was.
+    columns: dict[str, dict[str, Any]] = {}
+    for stem in stems:
+        runs = _runs(stem)
+        if not by_arm:
+            columns[stem] = _stats(runs)
+            continue
+        arms = _arms(runs)
+        for arm in arms:
+            # The stem prefix stays even when only one arm is present: a reader
+            # comparing two stems needs to know which column came from which, and
+            # a bare `A2` heading over two stems is ambiguous in exactly the way
+            # the pooled column used to be.
+            columns[f"{stem}:{arm}"] = _stats(_with_arm(runs, arm))
+
     keys = list(next(iter(columns.values())).keys())
     width = max(len(k) for k in keys) + 2
-    header = "quantity".ljust(width) + "".join(s.rjust(30) for s in stems)
+    # Was a hard 30. An arm split makes the labels longer than the stems ever
+    # were, and a truncated or overflowing heading over a table of medians is how
+    # a figure gets read against the wrong column.
+    cell_width = max(30, max(len(label) for label in columns) + 2)
+    header = "quantity".ljust(width) + "".join(
+        label.rjust(cell_width) for label in columns
+    )
     print(header)
     print("-" * len(header))
     for key in keys:
         row = key.ljust(width)
-        for stem in stems:
-            value = columns[stem][key]
+        for label in columns:
+            value = columns[label][key]
             cell = f"{value:.2f}" if isinstance(value, float) else str(value)
-            row += cell.rjust(30)
+            row += cell.rjust(cell_width)
         print(row)
 
 

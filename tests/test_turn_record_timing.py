@@ -44,6 +44,7 @@ comparable (see `PromptArm.last_turn_timing`).
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Optional
 
@@ -53,7 +54,7 @@ from dialectical_framework.agents.turn_timing import ToolRound, TurnTiming
 from e2e.driver import E2EDriver
 from e2e.models import Beat, RunRecord, SessionRecord, TurnRecord
 from e2e.probe_reply_path_latency import _is_measured, _report_measured
-from e2e.read_turn_timing import _stats
+from e2e.read_turn_timing import _arms, _stats, _with_arm
 
 
 class _FakeSettings:
@@ -153,9 +154,11 @@ def _turn(**fields) -> TurnRecord:
     return TurnRecord(index=0, user="u", assistant="a", **fields)
 
 
-def _run(turns: list[TurnRecord], *, tier: str = "weak") -> RunRecord:
+def _run(
+    turns: list[TurnRecord], *, tier: str = "weak", arm: str = "A2"
+) -> RunRecord:
     return RunRecord(
-        arm="A2",
+        arm=arm,
         tier=tier,
         model="stub",
         scenario_key="k",
@@ -447,6 +450,224 @@ class TestReadersDropUnmeasuredTurnsAndSaySo:
         # A PREFIX of the reply path, so it is reported as a share of it and
         # never added to it: 3.6 / 18.0.
         assert "20% of the median reply path" in out
+
+
+class TestAPooledMedianOverTwoArmsDescribesNoAssistantThatExists:
+    """The reader used to pool arms and only WARN about it in its docstring.
+
+    `r26-latency-price` is 64 A1.7 turns beside 64 A2 turns. Pooled, it printed a
+    6.15s arm and a 22.85s arm as one 11.50s median — a figure describing neither,
+    in the one output the latency question is answered from. The split is opt-in so
+    every published pooled figure still reproduces, which makes these tests the
+    only thing standing between that and a silent regression to the mixture.
+    """
+
+    def _ladder(self) -> list[dict]:
+        """A fast tool-free arm and a slow tool-using one, as the archive has them."""
+        fast = _run(
+            [_turn(duration_s=6.0, reply_path_s=6.0, off_path_s=0.0)],
+            arm="A1.7",
+        ).model_dump()
+        slow = _run(
+            [
+                _turn(
+                    duration_s=30.0,
+                    reply_path_s=28.0,
+                    off_path_s=2.0,
+                    tool_seconds=["anchor:20.0s"],
+                )
+            ],
+            arm="A2",
+        ).model_dump()
+        return [fast, slow]
+
+    def test_the_pooled_column_declares_itself_a_mixture(self):
+        """The actual defect was never the pooling — it was the silence about it."""
+        stats = _stats(self._ladder())
+
+        assert stats["arms present"] == "A1.7+A2"
+        # And the median it prints is between the arms, belonging to neither.
+        assert stats["median reply path"] == 17.0
+
+    def test_splitting_recovers_each_arms_own_figures(self):
+        runs = self._ladder()
+
+        assert _arms(runs) == ["A1.7", "A2"]
+        fast = _stats(_with_arm(runs, "A1.7"))
+        slow = _stats(_with_arm(runs, "A2"))
+
+        assert fast["arms present"] == "A1.7"
+        assert slow["arms present"] == "A2"
+        assert fast["median reply path"] == 6.0
+        assert slow["median reply path"] == 28.0
+        # The row that motivated the split: a tool-free arm's `cell wall` and tool
+        # totals must not be diluted by the other arm's.
+        assert fast["tool calls"] == 0
+        assert slow["tool calls"] == 1
+
+    def test_the_arms_come_back_in_ladder_order_not_alphabetical(self):
+        """`A1.5` before `A1.7` before `A2` is the order the ablation MEANS.
+
+        Alphabetical sorting happens to agree on these three labels, so a reader
+        checking by eye cannot tell the difference — which is why the order is
+        asserted against a shuffled input rather than trusted.
+        """
+        runs = [
+            _run([_turn(duration_s=1.0, reply_path_s=1.0, off_path_s=0.0)], arm=arm)
+            for arm in ("A2", "A0", "A1.7", "A1", "A1.5")
+        ]
+
+        assert _arms([r.model_dump() for r in runs]) == [
+            "A0", "A1", "A1.5", "A1.7", "A2"
+        ]
+
+    def test_an_unrecognised_arm_is_kept_rather_than_dropped(self):
+        """A new ladder rung must not vanish from the table before anyone names it.
+
+        Built as a raw dict, not through `_run`, and that is the honest shape of
+        this risk: `RunRecord.arm` is a closed enum, so an arm the ladder does not
+        know can only reach the reader from a FILE — an archive written by an older
+        or newer driver, which is exactly what this reader is pointed at. Dropping
+        it would be the worst failure available, because a reader cannot notice a
+        column they were never shown.
+        """
+        known = _run(
+            [_turn(duration_s=2.0, reply_path_s=2.0, off_path_s=0.0)], arm="A2"
+        ).model_dump()
+        stranger = _run(
+            [_turn(duration_s=1.0, reply_path_s=1.0, off_path_s=0.0)], arm="A2"
+        ).model_dump()
+        stranger["arm"] = "A3"
+
+        assert _arms([known, stranger]) == ["A2", "A3"]
+        assert _stats(_with_arm([known, stranger], "A3"))["median reply path"] == 1.0
+
+    def test_a_record_with_no_arm_at_all_is_labelled_rather_than_silently_pooled(self):
+        """An archive predating the field must not be filed under a real arm."""
+        anonymous = _run(
+            [_turn(duration_s=3.0, reply_path_s=3.0, off_path_s=0.0)], arm="A2"
+        ).model_dump()
+        del anonymous["arm"]
+
+        assert _arms([anonymous]) == ["unknown"]
+        assert _stats([anonymous])["arms present"] == "unknown"
+
+    def test_the_split_labels_match_how_the_archive_spells_the_arms(self):
+        """`model_dump()` hands over the ENUM; a JSON file hands over a string.
+
+        Both reach this reader — the tests take the first path and the CLI the
+        second — and `str(Arm.A1_7)` is `"Arm.A1_7"`. A column headed that still
+        splits correctly, so nothing fails; it just stops matching the arm names in
+        every report and every row of `rounds.md`, which is the sort of defect that
+        gets quoted before it gets noticed.
+        """
+        dumped = _run(
+            [_turn(duration_s=6.0, reply_path_s=6.0, off_path_s=0.0)], arm="A1.7"
+        ).model_dump()
+        from_json = json.loads(
+            _run(
+                [_turn(duration_s=6.0, reply_path_s=6.0, off_path_s=0.0)], arm="A1.7"
+            ).model_dump_json()
+        )
+
+        assert _arms([dumped]) == ["A1.7"]
+        assert _arms([from_json]) == ["A1.7"]
+        assert _arms([dumped, from_json]) == ["A1.7"], (
+            "the two vintages must land in ONE column, not two spellings of one arm"
+        )
+
+
+class TestRetryIsReportedOverItsOwnVintage:
+    """A stem older than the retry fields must not read as a stem that ran clean.
+
+    This is `context_render`'s defect on a second field, and it lands harder: the
+    whole reason to look at retry is to tell "the deep arm is slow because it
+    thinks" from "the deep arm is slow because it failed and waited". A `0` where
+    the answer is "nobody measured" settles that question the wrong way, silently.
+    `r26-latency-price` — the stem carrying the 1012s worst turn — is exactly this
+    vintage.
+    """
+
+    def test_a_stem_predating_the_fields_reports_not_recorded_not_zero(self):
+        stats = _stats(
+            [
+                _run(
+                    [_turn(duration_s=20.0, reply_path_s=18.0, off_path_s=2.0,
+                           retry_seconds=None, retry_count=None)]
+                ).model_dump()
+            ]
+        )
+
+        assert stats["turns recording retry"] == 0
+        # The denominator above is honestly zero. Every figure derived from it is
+        # not — `sum([])` being 0 is the trap.
+        assert stats["retry seconds, total"] == "not recorded"
+        assert stats["retry seconds in generation"] == "not recorded"
+        assert stats["worst retry seconds"] == "not recorded"
+        assert stats["turns that retried"] == "not recorded"
+
+    def test_a_clean_turn_reports_a_real_zero(self):
+        """The other half, and the reason `_total` takes a `measured` flag.
+
+        If "measured and clean" printed `not recorded` too, the marker would carry
+        no information at all.
+        """
+        stats = _stats(
+            [
+                _run(
+                    [_turn(duration_s=20.0, reply_path_s=18.0, off_path_s=2.0,
+                           retry_seconds=0.0, retry_count=0)]
+                ).model_dump()
+            ]
+        )
+
+        assert stats["turns recording retry"] == 1
+        assert stats["turns that retried"] == 0
+        assert stats["retry seconds, total"] == 0.0
+        assert stats["retry seconds in generation"] == 0.0
+
+    def test_generation_retry_is_the_waste_no_tool_accounts_for(self):
+        """The split that answers "slow reply, or failed one?".
+
+        A round's retry is parsed from `tool_retry_seconds`, which shares
+        `tool_seconds`' `name:Xs` format — so a parser change on one silently
+        moves this figure, and the assertion is written against a turn where the
+        two halves DIFFER (6.0 total, 4.0 in a tool) rather than a turn where any
+        parse error would still give the right answer.
+        """
+        stats = _stats(
+            [
+                _run(
+                    [_turn(duration_s=40.0, reply_path_s=38.0, off_path_s=2.0,
+                           retry_seconds=6.0, retry_count=3,
+                           tool_seconds=["anchor:20.0s"],
+                           tool_retry_seconds=["anchor:4.0s"])]
+                ).model_dump()
+            ]
+        )
+
+        assert stats["retry seconds, total"] == 6.0
+        assert stats["retry seconds in generation"] == 2.0
+
+    def test_generation_retry_never_goes_negative(self):
+        """Mirrors `TurnTiming.generation_retry_seconds`' own clamp.
+
+        The archive's two halves come from one accumulator and its children, so
+        this needs a hand-written record to reach — but a negative duration in a
+        printed table looks like data, and the reader is where a reader sees it.
+        """
+        stats = _stats(
+            [
+                _run(
+                    [_turn(duration_s=40.0, reply_path_s=38.0, off_path_s=2.0,
+                           retry_seconds=1.0, retry_count=1,
+                           tool_seconds=["anchor:20.0s"],
+                           tool_retry_seconds=["anchor:9.0s"])]
+                ).model_dump()
+            ]
+        )
+
+        assert stats["retry seconds in generation"] == 0.0
 
 
 class TestReadersHandleTheArchivesMIXEDVintages:
