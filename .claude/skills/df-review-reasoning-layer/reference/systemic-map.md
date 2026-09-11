@@ -2063,9 +2063,26 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   instructions, not one, because the two rendered lines are refined by different positions: `REFINE_ACTION` for
   Ac+ (the parents' `Action:` line), `REFINE_REFLECTION` for Re+/Re- (their `Reflection:` line), `REFINE_TETRAD`
   for Ac- (the whole tetrad as a sub-step). Collapsing them is the tempting simplification and it loses the
-  point. **`_score_hs` and `_generate_category_reframings` are deliberately NOT asked**: HS is a judgement that
-  gates (`HS_THRESHOLD`) and renders, so nudging it with "be more concrete than the broader path" is a different
-  class of defect from an unrefined statement, and the reframings derive from positions already refined. **The
+  point. **`_score_hs` and `_generate_category_reframings` are deliberately NOT asked**: HS is a judgement, so
+  nudging it with "be more concrete than the broader path" is a different class of defect from an unrefined
+  statement, and the reframings derive from positions already refined. (Transition-level HS does NOT gate —
+  `HS_THRESHOLD` is polarity-level only, `analyst.py` / `dialectical_context.py`. This entry and CLAUDE.md both
+  said it gates until 2026-09-11; the reason not to refine it never depended on that.) **THE NEGATIVES ARE
+  BOUND BY VALENCE, NOT BY CONCRETENESS, AND THAT IS WHY NO INSTRUCTION POINTS ONE AT A COARSER LINE.** A
+  parent's Ac-/Re- are deliberately NOT rendered, so the only coarser lines available are POSITIVES. Refinement
+  is concreteness at one valence; degradation is valence at one grain ("Ac+ without Re+ yields Ac-"). Telling
+  Ac- to be more concrete than the parent's Ac+ asks it to refine the statement its own position is defined by
+  contradicting — so `REFINE_TETRAD` names no position at all (it points at the whole transition) and
+  `REFINE_REFLECTION` names `Re+` explicitly, because `ReSideCompletionDto` returns Re+ AND Re- from one call
+  and is the only instruction covering two positions. `REFINE_ACTION` needs no such narrowing (`ActionExtraction`
+  generates Ac+ alone). **The live hole this closed is a wording tidy-up, not a logic change**:
+  `test_the_three_instructions_differ` pins only "Reflection line", so generalizing to "your reflections refine
+  it" passed every existing test while silently instructing Re-. Now pinned by
+  `TestTheNegativesAreBoundByValenceNotConcreteness` — `"Re+" in REFINE_REFLECTION`, no `Ac-`/`Re-` in any of
+  the three, no degradation vocabulary in any of the three, and the renderer's omission asserted at the renderer
+  (`ac_minus`/`re_minus` absent from `build_coarser_context`) because that omission is what the wordings rest
+  on. Both locks mutation-verified. Generalizes: **when one call produces two positions, an instruction that
+  names neither is an instruction to both.** **The
   reviewer's trap here is that BEING IN THE CONTEXT WINDOW IS NOT BEING ASKED, and this file's own predecessor
   fell into it.** `TransformationGeneration` holds ONE `ConversationFacilitator`, so before 2026-09-11 Re+/Re-,
   HS and the reframings all read `<broader_journey>` out of the history Ac- had filled — refinement by accident
@@ -2080,8 +2097,9 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   lookup was three identical questions an edge). That field is three-state and the third is load-bearing: a
   rendered hierarchy / `""` = looked up, no ancestry / `None` = nobody looked, which
   `TransformationGeneration.resolve` reads as permission to look it up itself.
-  Locked by `tests/test_refinement_context.py` (the three builders, the wiring through the REAL pipeline against
-  a committed Wheel, one-lookup-per-edge, and HS staying uninstructed) + the probe above, whose exposure table
+  Locked by `tests/test_refinement_context.py` (the three builders, the valence/concreteness boundary, the
+  wiring through the REAL pipeline against a committed Wheel, one-lookup-per-edge, and HS staying
+  uninstructed) + the probe above, whose exposure table
   asserts each generative DTO is asked in its OWN prompt on exactly the edges that have ancestry.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
   empirical inequalities run post-commit on every generated tetrad; verdict persisted on

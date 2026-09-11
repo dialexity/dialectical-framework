@@ -141,9 +141,10 @@ on `_EdgeProcessingData`, which is also a net REDUCTION in queries: Phase 2 runs
 CANDIDATE, so the lookup it used to do itself was three identical questions an edge.
 
 **HS scoring and the category reframings are still deliberately not asked**, and the
-assertion pins that too: HS gates (`HS_THRESHOLD`) and renders, so biasing a
-judgement with "be more concrete than the broader path" is a different class of
-defect, and the reframings derive from positions that are already refined.
+assertion pins that too: HS is rendered to the advisor as evidence (it does NOT
+gate — `HS_THRESHOLD` is polarity-level only), so biasing a judgement with "be more
+concrete than the broader path" is a different class of defect, and the reframings
+derive from positions that are already refined.
 
 Measured after the fix, k=4 climb arm, per response model across the whole run —
 `asked` = the section was in that call's OWN prompt, `history only` = it could see
@@ -680,8 +681,9 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
             f" a conversation someone else filled, which is what the 2026-09-11 fix"
             f" removed the reliance on"
         )
-    # HS scoring and the category reframings are deliberately NOT asked. HS gates
-    # (`HS_THRESHOLD`) and renders, so biasing it with "be more concrete than the
+    # HS scoring and the category reframings are deliberately NOT asked. Transition
+    # HS is rendered as evidence and does NOT gate (`HS_THRESHOLD` is polarity-level
+    # only), but biasing a judgement with "be more concrete than the
     # broader path" is a different class of defect from an unrefined statement; the
     # reframings derive from positions that are already refined. They still have the
     # hierarchy in their window, because they share the tetrad's facilitator — which

@@ -27,6 +27,16 @@ if TYPE_CHECKING:
 #: What Ac- is told to refine. Kept as the whole tetrad rather than one line
 #: because this is the wording the Ac- prompt shipped with, and it is the call
 #: whose history every later call in the tetrad reads.
+#:
+#: It names NO position, and that is the point: there is no coarser Ac- to name.
+#: `build_coarser_context` renders a parent's `Action:` (its Ac+) and
+#: `Reflection:` (its Re+) and nothing else, so an instruction naming Ac- would
+#: point it at the parent's POSITIVE. That crosses two different relations —
+#: REFINEMENT is concreteness at the SAME valence (finer grain, same direction),
+#: DEGRADATION is valence at the SAME grain ("Ac+ without Re+ yields Ac-") — and
+#: asks the model to be a more specific version of a statement its own position
+#: is defined by contradicting. Pointing at the whole transition instead keeps
+#: the relation to concreteness only.
 REFINE_TETRAD = """Your tetrad details one sub-step of the most-indented transition above.
 Be more concrete and specific than the broader path, while staying coherent
 with its overall direction."""
@@ -43,6 +53,15 @@ with its overall direction."""
 #: Transformation encodes both spiral directions, so its Reflection IS the coarser
 #: reflection for this same edge, even though Re is generated from the OPPOSITE
 #: edge's context.
+#:
+#: Naming `Re+` is deliberate, and it is the one instruction that HAS to name its
+#: position: `ReSideCompletionDto` returns Re+ AND Re- from a single call, so a
+#: generalized "your reflections refine it" would instruct Re- to be a more
+#: concrete version of the parent's Re+ — the crossing REFINE_TETRAD's note
+#: describes. The rendered `Reflection:` line IS a parent's Re+, so Re+ is the
+#: only position on this call with a coarser counterpart of its own valence; Re-
+#: is bound by the degradation rule instead. REFINE_ACTION needs no such
+#: narrowing because its call (`ActionExtraction`) generates Ac+ alone.
 REFINE_REFLECTION = """The Reflection line of the most-indented transition above is the broader
 reflection your Re+ refines. Be more concrete and specific than it, while
 staying coherent with its overall direction."""
@@ -97,6 +116,14 @@ def build_coarser_context(parents: list[CoarserTransformation]) -> Optional[str]
     are rendered per parent, because a Transformation encodes both spiral
     directions and the two are refined by different calls (Ac+ reads the first,
     Re+ the second).
+
+    The parents' Ac-/Re- are deliberately NOT rendered, and the three `REFINE_*`
+    wordings depend on that omission. A coarser negative is a failure mode of a
+    coarser tetrad, not a broader version of this one's — the negatives are fixed
+    by the degradation rule ("Ac+ without Re+ yields Ac-"), which is about
+    VALENCE at one grain, where refinement is about CONCRETENESS at one valence.
+    Rendering them would invite exactly the crossing the instructions are worded
+    to avoid; see `REFINE_TETRAD` and `REFINE_REFLECTION` above.
 
     Returns:
         Formatted string for LLM prompt, or None if no parents

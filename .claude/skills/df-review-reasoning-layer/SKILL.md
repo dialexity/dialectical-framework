@@ -157,6 +157,17 @@ anchors.
       the 2026-09-11 sweep, two of them model-facing (`GRAPH_SCHEMA`, Explorer system prompt). Locked by
       `TestReSideLivesOnTheOppositeEdge`. The one place it is still written bare is
       `transformation_generation`'s worked example, which is correct because it declares itself "1-PP".
+- [ ] **Never ask a negative to REFINE.** Refinement is concreteness at one valence; degradation is valence at
+      one grain (the R2 rule above). `build_coarser_context` renders only a parent's `Action:` (its Ac+) and
+      `Reflection:` (its Re+), so the only coarser lines that exist are POSITIVES — telling Ac- to be more
+      concrete than the parent's Ac+ asks it to refine the statement it is defined by contradicting. Hence
+      `REFINE_TETRAD` names no position (it points at the whole transition) and `REFINE_REFLECTION` names `Re+`
+      explicitly, because `ReSideCompletionDto` returns Re+ AND Re- from ONE call. Generalize: **when one call
+      produces two positions, an instruction that names neither is an instruction to both** — and the tidy-up
+      that breaks it ("your reflections refine it") passed every pre-existing test, since
+      `test_the_three_instructions_differ` pinned only "Reflection line". Locked by
+      `TestTheNegativesAreBoundByValenceNotConcreteness`, which asserts the renderer's omission at the renderer
+      because the wordings rest on it.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
 - [ ] **A plus that only restates its own pole fails R1, and it is the most common measured tetrad defect

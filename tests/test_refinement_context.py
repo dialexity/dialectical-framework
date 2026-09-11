@@ -16,6 +16,7 @@ exist to be found at all) is the probe's: `tests/probe_transformation_recursion.
 
 from __future__ import annotations
 
+import inspect
 from typing import NamedTuple
 
 import pytest
@@ -25,7 +26,8 @@ from dialectical_framework.concerns.action_extraction import (
 from dialectical_framework.concerns.transformation_generation import \
     TransformationGeneration
 from dialectical_framework.utils.edge_context import (
-    REFINE_ACTION, REFINE_REFLECTION, REFINE_TETRAD, coarser_journey_section)
+    REFINE_ACTION, REFINE_REFLECTION, REFINE_TETRAD, build_coarser_context,
+    coarser_journey_section)
 
 #: Stands in for a rendered ancestry. Distinctive enough that finding it in a
 #: prompt cannot be an accident.
@@ -110,6 +112,69 @@ class TestTheSectionItself:
         assert "Reflection line" in REFINE_REFLECTION
 
 
+class TestTheNegativesAreBoundByValenceNotConcreteness:
+    """No coarser NEGATIVE is rendered, so no instruction may point a negative at one.
+
+    `build_coarser_context` renders a parent's `Action:` (its Ac+) and
+    `Reflection:` (its Re+) and nothing else. That makes two relations easy to
+    cross and they must not be: REFINEMENT is concreteness at the same valence,
+    DEGRADATION is valence at the same grain ("Ac+ without Re+ yields Ac-"). An
+    instruction telling Ac- to be more concrete than the parent's Ac+ asks it to
+    refine the statement its own position is defined by contradicting.
+
+    This is the reason the queue item that produced this class was closed as
+    comments-and-tests rather than as a prompt change: there is nothing to point
+    the negatives AT.
+    """
+
+    def test_the_reflection_instruction_names_re_plus(self):
+        """The hole `test_the_three_instructions_differ` leaves open.
+
+        That test pins "Reflection line", so tidying the sentence to "your
+        reflections refine it" keeps every existing assertion green — and this is
+        the ONE call that generates two positions (`ReSideCompletionDto` returns
+        Re+ and Re-), so the generalized wording would silently instruct Re-.
+        """
+        assert "Re+" in REFINE_REFLECTION
+
+    def test_no_instruction_asks_a_negative_to_refine(self):
+        for name, instruction in (
+            ("REFINE_TETRAD", REFINE_TETRAD),
+            ("REFINE_ACTION", REFINE_ACTION),
+            ("REFINE_REFLECTION", REFINE_REFLECTION),
+        ):
+            assert "Ac-" not in instruction, name
+            assert "Re-" not in instruction, name
+
+    def test_no_instruction_carries_DEGRADATION_vocabulary(self):
+        """Refinement asks for finer grain; it must never ask for a valence flip.
+
+        Any of these words in a `REFINE_*` sentence means the concreteness
+        relation has picked up the degradation rule's wording.
+        """
+        for name, instruction in (
+            ("REFINE_TETRAD", REFINE_TETRAD),
+            ("REFINE_ACTION", REFINE_ACTION),
+            ("REFINE_REFLECTION", REFINE_REFLECTION),
+        ):
+            lowered = instruction.lower()
+            for word in ("degenerat", "degrad", "without", "yields", "failure",
+                         "overexten", "negative", "wasted", "regress"):
+                assert word not in lowered, f"{name} carries {word!r}"
+
+    def test_the_renderer_omits_the_negatives(self):
+        """What the wordings above rest on, asserted at the renderer.
+
+        Rendering a parent's Ac-/Re- would give every instruction a coarser
+        negative to be pointed at, which is the state all three are worded for
+        the absence of — so this is the assertion that has to fail first.
+        """
+        source = inspect.getsource(build_coarser_context)
+        assert "ac_plus" in source and "re_plus" in source
+        assert "ac_minus" not in source
+        assert "re_minus" not in source
+
+
 @pytest.mark.llm
 class TestEveryGenerativeCallIsAsked:
     """The prompt, not the conversation history — history is not an instruction.
@@ -185,8 +250,10 @@ class TestEveryGenerativeCallIsAsked:
 class TestScoringIsDeliberatelyNotRefined:
     """HS is a judgement against apexes, and refinement context would bias it.
 
-    HS gates (`HS_THRESHOLD`) and renders, so a score nudged by "be more concrete
-    than the broader path" is a different kind of defect from an unrefined
+    Transition-level HS is stored on the relationship and rendered to the advisor
+    as evidence — it does NOT gate (`HS_THRESHOLD` is polarity-level only, see
+    `analyst.py` / `dialectical_context.py`). A score nudged by "be more concrete
+    than the broader path" is still a different kind of defect from an unrefined
     statement. It shares the tetrad's facilitator and therefore has the hierarchy
     in its window regardless — what this pins is that nothing ASKS it to score
     against the ancestry, which is the part a prompt controls.
