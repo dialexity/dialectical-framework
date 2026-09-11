@@ -670,6 +670,147 @@ class TestRetryIsReportedOverItsOwnVintage:
         assert stats["retry seconds in generation"] == 0.0
 
 
+class TestA15sBuildIsReportedBesideItsTurnsNotInsideThem:
+    """A1.5's per-turn latency without its build cost is the same work, unbilled.
+
+    The arm is A1 plus a graph prepared BEFORE the conversation, which is exactly
+    why it is the "snappy and deep" candidate — and exactly why quoting only its
+    turn latency would be the most flattering possible lie about it. The build is a
+    full Advisor run over the base sessions, and until 2026-09-11 it was attributed
+    to no cell at all: `build_static_context` returned a provenance string that the
+    runner printed and dropped.
+    """
+
+    def _a15(
+        self,
+        *,
+        build_s: float,
+        chars: int,
+        scenario: str = "k",
+        tier: str = "weak",
+        replicate: int = 1,
+        branch: str | None = None,
+    ):
+        run = _run(
+            [_turn(duration_s=7.0, reply_path_s=7.0, off_path_s=0.0)],
+            tier=tier,
+            arm="A1.5",
+        )
+        run.scenario_key = scenario
+        run.replicate = replicate
+        run.branch = branch
+        run.static_context_build_s = build_s
+        run.static_context_chars = chars
+        run.static_context_provenance = "perspectives=3 woven=2"
+        return run.model_dump()
+
+    def test_the_build_is_reported_at_all(self):
+        stats = _stats([self._a15(build_s=615.0, chars=4096)])
+        assert stats["static context builds"] == 1
+        assert stats["static context build seconds"] == 615.0
+        assert stats["static context chars"] == 4096
+
+    def test_one_build_shared_by_eight_cells_is_billed_once(self):
+        """The duplication is on purpose and summing it is the trap.
+
+        One build serves every A1.5 cell of a (scenario, tier) — the dump is a
+        static artifact, and rebuilding it per replicate would change the arm's
+        input between replicates — so all eight cells carry the same seconds. Summed
+        naively, 4 replicates x 2 branches would publish an 8x bill for work done
+        once, and it would look like the build, not the turns, is where A1.5's
+        latency lives.
+        """
+        cells = [
+            self._a15(build_s=615.0, chars=4096, replicate=r, branch=b)
+            for r in (1, 2, 3, 4)
+            for b in ("wobble_a", "wobble_b")
+        ]
+        assert len({(c["replicate"], c["branch"]) for c in cells}) == 8
+        stats = _stats(cells)
+        assert stats["static context builds"] == 1
+        assert stats["static context build seconds"] == 615.0
+
+    def test_two_genuinely_different_builds_are_billed_twice(self):
+        """The other half of the same rule: a real second build must show up.
+
+        Keyed on (scenario, tier) rather than deduplicated by value, so two builds
+        of different scenarios that happened to round to the same seconds stay two.
+        """
+        stats = _stats(
+            [
+                self._a15(build_s=615.0, chars=4096, scenario="equity"),
+                self._a15(build_s=615.0, chars=2048, scenario="relocation"),
+            ]
+        )
+        assert stats["static context builds"] == 2
+        assert stats["static context build seconds"] == 1230.0
+        # Max, not sum: chars is the prefill ONE turn pays, and the largest build
+        # is the one that bounds it. Summing would describe a prompt nobody sent.
+        assert stats["static context chars"] == 4096
+
+    def test_the_build_is_not_folded_into_the_cell_wall(self):
+        """`cell wall` is the clock a cell ran on; the build precedes every cell.
+
+        Folding a shared cost into a per-cell figure is how one build gets charged
+        eight times — and it would corrupt the one row that is directly comparable
+        against A2's.
+        """
+        stats = _stats([self._a15(build_s=615.0, chars=4096)])
+        assert stats["cell wall (run duration_s)"] == 7.0
+
+    def test_an_arm_with_no_build_says_not_recorded_rather_than_zero(self):
+        """A1.7 has no build. That is a different fact from a build costing 0s.
+
+        Same rule as the retry rows above, and it matters more here: a `0.00` in
+        this row against A1.7 would read as "the pre-built graph is free", which is
+        the exact claim A1.5 exists to test.
+        """
+        stats = _stats(
+            [
+                _run(
+                    [_turn(duration_s=6.0, reply_path_s=6.0, off_path_s=0.0)],
+                    arm="A1.7",
+                ).model_dump()
+            ]
+        )
+        assert stats["static context builds"] == "not recorded"
+        assert stats["static context build seconds"] == "not recorded"
+        assert stats["static context chars"] == "not recorded"
+
+    def test_a_failed_build_reports_zero_chars_and_keeps_its_reason(self):
+        """0 characters and `failed: ...` are two different findings, both needed.
+
+        A build that raised and a conversation that mapped nothing both leave an
+        empty dump and want opposite fixes, so the size cannot be the only record.
+        The provenance is printed under the table rather than in it — no cell can
+        hold a sentence without truncating the part that matters.
+        """
+        from e2e.read_turn_timing import _builds
+
+        cell = self._a15(build_s=412.0, chars=0)
+        cell["static_context_provenance"] = "failed: RuntimeError: no wheel"
+        stats = _stats([cell])
+        assert stats["static context chars"] == 0
+        assert stats["static context build seconds"] == 412.0
+        build = _builds([cell])[("k", "weak")]
+        assert build["provenance"] == "failed: RuntimeError: no wheel"
+
+    def test_the_split_keeps_the_build_with_the_arm_that_paid_for_it(self):
+        """Pooled, an A1.5 build would be reported against A1.7's turns too."""
+        cells = [
+            self._a15(build_s=615.0, chars=4096),
+            _run(
+                [_turn(duration_s=6.0, reply_path_s=6.0, off_path_s=0.0)], arm="A1.7"
+            ).model_dump(),
+        ]
+        assert _arms(cells) == ["A1.5", "A1.7"]
+        assert _stats(_with_arm(cells, "A1.5"))["static context build seconds"] == 615.0
+        assert (
+            _stats(_with_arm(cells, "A1.7"))["static context build seconds"]
+            == "not recorded"
+        )
+
+
 class TestReadersHandleTheArchivesMIXEDVintages:
     """A turn can publish a split and still be missing later fields.
 

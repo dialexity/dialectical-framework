@@ -623,6 +623,35 @@ class RunRecord(BaseModel):
     #: Wall-clock seconds, for cost/latency reporting.
     duration_s: float = 0.0
     error: Optional[str] = None
+    #: A1.5 only: what its static context actually was, and what it cost to make.
+    #:
+    #: `build_static_context` has always claimed "what was actually built is
+    #: recorded rather than assumed" and then only `print()`ed it, so nothing in
+    #: the archive could distinguish an A1.5 cell handed a real graph dump from one
+    #: handed the empty string — and the empty string makes A1.5 a byte-for-byte
+    #: A1, silently. `carryover_in` holds the dump itself, but a session-level
+    #: field cannot say WHY it is empty: a build that raised and a conversation
+    #: that mapped nothing both leave `""`, and those imply opposite fixes.
+    #:
+    #: The seconds are the arm's whole point, not bookkeeping. A1.5 is the "snappy
+    #: AND deep" candidate precisely because its depth is paid for OFF the
+    #: conversation, so a per-turn latency for this arm quoted without the build
+    #: beside it is not a cheaper A2 — it is the same work with the bill hidden.
+    #:
+    #: SHARED, so NEVER SUM THESE ACROSS CELLS. One build serves every A1.5 cell
+    #: of a (scenario, tier): the dump is a static artifact by definition, and
+    #: rebuilding it per replicate would change the arm's input between
+    #: replicates. Every A1.5 cell of that group therefore carries the SAME three
+    #: values, which is duplication on purpose — a reader holding one cell should
+    #: not have to find a sibling to learn what the cell was given.
+    static_context_provenance: Optional[str] = None
+    static_context_build_s: Optional[float] = None
+    #: Length, not text: `carryover_in` already stores the dump on every session,
+    #: and a second copy per cell would multiply the largest field in the archive
+    #: by the replicate count. Kept as its own field anyway because it is the
+    #: prefill every A1.5 turn pays, which is the one number that predicts this
+    #: arm's per-turn cost.
+    static_context_chars: Optional[int] = None
     #: A2 only: did the decision ceremony fire, and with what grounds.
     decision_hashes: list[str] = Field(default_factory=list)
     accepted_cost_grounds: list[str] = Field(default_factory=list)
@@ -923,6 +952,39 @@ class RunRecord(BaseModel):
         )
 
     @property
+    def collapsed_to_a1_without_context(self) -> bool:
+        """True when an A1.5 run was handed no static context — it IS an A1 run.
+
+        The same defect as `collapsed_to_a1`, at the other end of the ladder and
+        by a different route. A1.5's whole definition is "A1 plus a pre-built
+        graph as text", so an empty dump does not make it a weak A1.5 — it makes
+        it a second A1 cell wearing an A1.5 label, and any A1.5-vs-A1 reading over
+        it compares an arm against itself. `PromptArm` takes `static_context`
+        truthily, so `""` is not merely thin: not one character of it reaches the
+        model, and the two arms' prompts are then byte-identical.
+        Deliberately NOT exempted for `poor_fit` the way `collapsed_to_a1` is:
+        there, an empty graph is the pass condition because A2 CHOOSES what to
+        build during the conversation. Nothing about A1.5 is a choice — the dump is
+        prepared before the arm exists, so on any scenario an absent one is a
+        missing input rather than correct restraint.
+
+        Reads the dump's length rather than `carryover_in`, because a session-level
+        field cannot distinguish "the build raised" from "the build ran and mapped
+        nothing" and the two imply opposite fixes; `static_context_provenance`
+        carries which. `None` (not 0) means the cell predates these fields, and
+        returns False: an unmeasured build must not be reported as a failed one,
+        the same asymmetry `read_turn_timing`'s `not recorded` marker enforces.
+        Every A1.5 record in the archive is `None` here for the honest reason that
+        there are none — across 43 archived stems and 488 cells, A1.5 has never
+        been run.
+        """
+        if self.arm is not Arm.A1_5:
+            return False
+        if self.static_context_chars is None:
+            return False
+        return self.static_context_chars == 0
+
+    @property
     def turn_errors(self) -> list[str]:
         """Per-turn failures. A cell can finish "successfully" with every turn
         broken, because `run_cell` records a turn error and moves on.
@@ -977,8 +1039,22 @@ class RunRecord(BaseModel):
         the cell is truncated, so it is missing data for any endpoint that reads
         across sessions (`score_particulars`, `score_survival`) — which is every
         endpoint the multi-session lane exists for.
+
+        AN A1.5 CELL WITH NO STATIC CONTEXT (added 2026-09-11 with the arm's first run)
+        =============================================================================
+        Included for the same reason `collapsed_to_a1` is, and it is the sharper
+        case of the two: a collapsed A2 at least ran the arm's own prompt, while an
+        A1.5 handed `""` ran A1's prompt exactly. Judged as A1.5 it would answer
+        "does pre-built structure help?" with a cell that had none, and the answer
+        would come out as no rung at all — a null result manufactured by a build
+        failure upstream of the conversation.
         """
-        return bool(self.error) or self.all_turns_errored or self.collapsed_to_a1
+        return (
+            bool(self.error)
+            or self.all_turns_errored
+            or self.collapsed_to_a1
+            or self.collapsed_to_a1_without_context
+        )
 
     def session(self, label: str) -> Optional[SessionRecord]:
         for s in self.sessions:

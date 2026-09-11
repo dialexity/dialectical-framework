@@ -75,7 +75,13 @@ from e2e.report import (
     position_bias,
     render_report,
 )
-from e2e.runner import CELL_TIMEOUT_S, E2ERun, JUDGED_PAIRS, score_machine_over
+from e2e.runner import (
+    CELL_TIMEOUT_S,
+    DEFAULT_ARMS,
+    E2ERun,
+    JUDGED_PAIRS,
+    score_machine_over,
+)
 from e2e.scenarios import ALL_SCENARIOS, scenarios_for
 
 # The bench needs neither the DB nor the mock brain.
@@ -2570,6 +2576,167 @@ class TestAnAbandonedCellIsMissingDataNotAWeakArm:
                 if raw.get("error"):
                     errored += 1
         assert errored == 0
+
+
+class TestA15GetsItsStaticContextOrSaysItDidNot:
+    """A1.5 is A1 plus a pre-built graph as text. With no text it IS A1.
+
+    This whole class postdates the arm's first run, on 2026-09-11, and the reason
+    it did not exist earlier is the finding: across 43 archived stems and 488
+    cells the arms present are A0, A1, A1.7 and A2. **A1.5 had never been run**,
+    so its path had never executed, and nothing tested it.
+    """
+
+    def _a15(self, *, chars: int | None, build_s: float | None = 12.0) -> RunRecord:
+        run = _run(Arm.A1_5, "weak")
+        run.static_context_chars = chars
+        run.static_context_build_s = build_s
+        run.static_context_provenance = "perspectives=3 woven=2"
+        return run
+
+    def test_an_empty_dump_makes_the_arm_invalid_not_weak(self):
+        """The A1.5 analogue of `collapsed_to_a1`, and the sharper of the two.
+
+        A collapsed A2 at least ran A2's own prompt. An A1.5 handed `""` ran A1's
+        prompt exactly — `PromptArm` takes `static_context` truthily, so not one
+        character reaches the model and the two arms' prompts are byte-identical.
+        """
+        run = self._a15(chars=0)
+        assert run.collapsed_to_a1_without_context is True
+        assert run.invalid_as_evidence is True
+
+    def test_a_real_dump_is_valid(self):
+        run = self._a15(chars=4096)
+        assert run.collapsed_to_a1_without_context is False
+        assert run.invalid_as_evidence is False
+
+    def test_a_cell_predating_the_fields_is_not_reported_as_a_failed_build(self):
+        """`None` is "never measured", which is not "measured as empty".
+
+        Same asymmetry `read_turn_timing`'s `not recorded` marker enforces: an
+        unmeasured build reported as a failed one would invalidate cells on the
+        strength of a field they could not have carried.
+        """
+        run = self._a15(chars=None, build_s=None)
+        assert run.collapsed_to_a1_without_context is False
+        assert run.invalid_as_evidence is False
+
+    def test_the_tripwire_belongs_to_a1_5_alone(self):
+        """Every other arm is handed `static_context=None` by design.
+
+        An A1.7 cell reading as "no static context" would flag a missing input the
+        arm was never supposed to have — which is why the driver sets the fields
+        only for A1.5 rather than unconditionally.
+        """
+        for arm in (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2):
+            run = _run(arm, "weak", tool_calls=["anchor"])
+            run.static_context_chars = 0
+            assert run.collapsed_to_a1_without_context is False, arm
+
+    def test_a_poor_fit_scenario_does_not_excuse_a_missing_dump(self):
+        """`collapsed_to_a1` exempts `poor_fit`; this must NOT.
+
+        There, an empty graph is the pass condition, because A2 chooses what to
+        build DURING the conversation and staying out of the way is correct.
+        Nothing about A1.5 is a choice — its dump is prepared before the arm
+        exists, so an absent one is a missing input on every scenario alike.
+        """
+        run = self._a15(chars=0)
+        run.scenario_kind = ScenarioKind.POOR_FIT
+        assert run.collapsed_to_a1_without_context is True
+
+    def test_the_build_is_archived_and_not_merely_printed(self):
+        """`build_static_context` claimed this for months while only printing it.
+
+        Its docstring said "what was actually built is recorded rather than
+        assumed"; the provenance was returned to the runner, `say()`'d, and
+        dropped. So no archived record could distinguish an A1.5 cell handed a
+        real dump from one handed nothing, and the arm's cost was attributed to no
+        cell at all.
+        """
+        import inspect
+
+        source = inspect.getsource(E2EDriver.run_cell)
+        assert "static_context_provenance" in source
+        assert "static_context_build_s" in source
+        assert "static_context_chars" in source
+        # Only for the arm they describe — see the test above.
+        assert "if arm is Arm.A1_5:" in source
+
+    def test_the_build_returns_its_own_seconds(self):
+        """The build is a full Advisor run — the priciest thing in an A1.5 matrix.
+
+        Unattributed, this arm's per-turn latency would be published with its
+        entire cost missing, which is the one way to make A1.5 look free.
+        """
+        import inspect
+
+        source = inspect.getsource(E2EDriver.build_static_context)
+        assert "time.monotonic()" in source
+        # Including on the failure path: a build that ran the whole conversation
+        # and then failed to render must not read as one that never started.
+        assert source.count("time.monotonic() - started") == 2
+
+    def test_an_empty_build_is_loud_in_the_progress_stream_too(self):
+        """The archive says it, and so must the person watching an hour-long run.
+
+        Not an exception: the rest of the matrix is unaffected by an A1.5 build
+        failure and must still run.
+        """
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        assert "if not static_context:" in source
+        assert "collapsed_to_a1_without_context" in source
+
+    def test_the_abandoned_cell_still_says_what_it_was_given(self):
+        """A hang is when the input matters most — a giant dump is a hypothesis.
+
+        A synthesised timeout record that omits it forces the question to be
+        answered from stdout, which is not archived.
+        """
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        timeout_block = source.split("except asyncio.TimeoutError:")[1]
+        assert "static_context_provenance" in timeout_block
+        assert "static_context_build_s" in timeout_block
+
+    def test_a1_5_is_opt_in_and_that_is_why_it_was_never_run(self):
+        """Recorded, not corrected. It is genuinely the most expensive arm per
+        unit of information — a whole Advisor run to produce one static input —
+        so opt-in is the right default. The finding is that nothing ever opted in.
+        """
+        assert Arm.A1_5 not in DEFAULT_ARMS
+
+    def test_no_archived_cell_carries_the_new_fields(self):
+        """The pin that made this change safe: it can revalidate nothing.
+
+        Adding a term to `invalid_as_evidence` is only safe if no archived record
+        can trip it. If a future run archives an A1.5 cell with an empty dump,
+        this failing is the correct alarm — the archive would then hold cells whose
+        validity changed under a code edit.
+        """
+        import json
+        from pathlib import Path
+
+        results = Path(__file__).resolve().parent / "results"
+        stems = sorted(results.glob("*-runs.json"))
+        assert stems, "archive is empty — this pin would pass vacuously"
+        arms: set[str] = set()
+        with_fields = 0
+        for path in stems:
+            payload = json.loads(path.read_text())
+            runs = payload if isinstance(payload, list) else payload.get("runs", [])
+            for raw in runs:
+                arms.add(str(raw.get("arm")))
+                if raw.get("static_context_chars") is not None:
+                    with_fields += 1
+        assert with_fields == 0
+        assert "A1.5" not in arms, (
+            "an A1.5 cell has been archived — re-read this class's premise before "
+            "trusting its docstrings, which all say the arm has never run"
+        )
 
 
 class TestRecords:

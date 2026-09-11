@@ -491,7 +491,7 @@ class E2EDriver:
 
     async def build_static_context(
         self, scenario: Scenario, *, tier_model: str
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, float]:
         """Build a graph with the REAL Advisor, then dump it as static text.
 
         This is the A1.5 arm's context: structure produced by the actual
@@ -503,10 +503,22 @@ class E2EDriver:
         branches: it is a static artifact by definition, and rebuilding it per
         replicate would change the arm's input between replicates.
 
-        Returns (dump, provenance). An empty graph makes A1.5 a duplicate of A1
-        and the report must be able to say so, so what was actually built is
-        recorded rather than assumed.
+        Returns (dump, provenance, seconds). An empty graph makes A1.5 a duplicate
+        of A1 and the report must be able to say so, so what was actually built is
+        recorded rather than assumed — and `recorded` now means ONTO THE RECORD.
+        Until 2026-09-11 the provenance was returned here and only `print()`ed by
+        the runner, so the claim in this docstring was true of stdout and false of
+        the archive.
+
+        The seconds are returned for the same reason. This build is the price of
+        A1.5's snappiness — it is a full Advisor run over the base sessions,
+        i.e. the single most expensive thing in an A1.5 matrix — and it was
+        attributed to no cell, so `read_turn_timing.py` would have reported this
+        arm's per-turn latency with its entire cost missing. Wall clock rather
+        than provider time: what the build charges the product is the wait before
+        the first conversation can start, and that is the clock the person feels.
         """
+        started = time.monotonic()
         case = Case()
         case.commit()
         simulator = UserSimulator(scenario)
@@ -528,8 +540,14 @@ class E2EDriver:
                     dump = await DialecticalContext().resolve()
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Static dump failed")
-                return "", f"failed: {type(exc).__name__}: {exc}"
-        return dump, summary
+                # Seconds are still returned on the failure path, and they are
+                # still real: the build spent them. Reporting 0.0 here would make
+                # a build that ran the whole conversation and then failed to
+                # render read as one that never started.
+                return "", f"failed: {type(exc).__name__}: {exc}", round(
+                    time.monotonic() - started, 1
+                )
+        return dump, summary, round(time.monotonic() - started, 1)
 
     # -- the cell ----------------------------------------------------------
 
@@ -543,6 +561,8 @@ class E2EDriver:
         replicate: int,
         branch: Optional[str] = None,
         static_context: Optional[str] = None,
+        static_context_provenance: Optional[str] = None,
+        static_context_build_s: Optional[float] = None,
     ) -> RunRecord:
         """Run the base sessions, then at most one branch session."""
         started = time.monotonic()
@@ -559,6 +579,18 @@ class E2EDriver:
             replicate=replicate,
             branch=branch,
         )
+        # Set on the record BEFORE the first turn, and only for the arm they
+        # describe. Before the turns because a cell that times out or raises must
+        # still say what it was given — the build is the likeliest explanation for
+        # an A1.5 cell that behaved like A1, and a record that drops the
+        # explanation when the cell fails withholds it exactly when it is wanted.
+        # Only for A1.5 because every other arm gets `static_context=None`, and a
+        # `static_context_chars=0` on an A1.7 cell would trip a tripwire written
+        # about a missing input the arm was never supposed to have.
+        if arm is Arm.A1_5:
+            record.static_context_provenance = static_context_provenance
+            record.static_context_build_s = static_context_build_s
+            record.static_context_chars = len(static_context or "")
         specs = list(scenario.base_sessions)
         if branch:
             spec = scenario.spec(branch)

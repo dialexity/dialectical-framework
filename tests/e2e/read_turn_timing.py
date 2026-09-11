@@ -71,6 +71,21 @@ of waste entirely in tools and 0.00s in generation.
 static text, i.e. the arm that has the framework's structure with no live tool
 call. It is the obvious candidate for "snappy and deep" and NO stem in the archive
 carries timing for it. That is a gap in the data, not a finding about the arm.
+
+Checked before trying to close that gap, and it is wider than "no timing": across
+43 stems and 488 archived cells the arms present are A0 (8), A1 (105), A1.7 (173)
+and A2 (202). **A1.5 has never been run at all.** It is `opt-in` in `DEFAULT_ARMS`
+because it costs a full Advisor run just to make its context, and nothing has ever
+opted in. So its code path had never executed either — which is why the three
+`static context` rows below exist, and why the runner now shouts when a build
+comes back empty: an unexercised path producing `""` would have handed this reader
+64 A1 turns under an A1.5 heading, and every row here would have been perfectly
+accurate about the wrong arm.
+
+A1.5's build is reported SEPARATELY from every other row and never folded into
+`cell wall`, because it is the arm's entire premise: the depth is paid for before
+the conversation starts. A per-turn latency for this arm quoted without the build
+beside it is not a cheaper A2, it is the same work with the bill hidden.
 """
 
 from __future__ import annotations
@@ -140,6 +155,33 @@ def _with_arm(runs: list[dict[str, Any]], arm: str) -> list[dict[str, Any]]:
     return [r for r in runs if _arm_label(r) == arm]
 
 
+def _builds(runs: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    """A1.5's static-context builds, keyed by the (scenario, tier) each serves.
+
+    One build serves every A1.5 cell of a (scenario, tier), and each of those
+    cells carries a COPY of its provenance, seconds and size. Summing the column
+    would therefore multiply one build by the replicate count — 4 replicates x 2
+    branches reporting an 8x bill for work done once. Keying by the build's own
+    identity is what makes the sum honest, and it is keyed on those two fields
+    rather than deduplicated by value because two builds of different scenarios
+    that happened to take the same rounded seconds would collapse into one.
+
+    Empty for every other arm, and for A1.5 cells predating the fields — which,
+    when this was written, was all of them, there being none.
+    """
+    builds: dict[tuple[str, str], dict[str, Any]] = {}
+    for run in runs:
+        if run.get("static_context_build_s") is None:
+            continue
+        key = (str(run.get("scenario_key")), str(run.get("tier")))
+        builds[key] = {
+            "seconds": float(run["static_context_build_s"]),
+            "chars": run.get("static_context_chars"),
+            "provenance": run.get("static_context_provenance"),
+        }
+    return builds
+
+
 def _tool_total(turn: dict[str, Any], key: str = "tool_seconds") -> float:
     """`tool_seconds` entries look like `anchor:34.5s` — colon, and a unit.
 
@@ -206,6 +248,7 @@ def _total(values: list[float], measured: bool = True) -> float | str:
 
 def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
     turns = _turns(runs)
+    builds = _builds(runs)
     # A turn whose split is `None` published no timing at all — it crashed
     # before reporting, or its arm does not time itself. Those turns are DROPPED
     # from every split column below rather than read as zeros, because a zero
@@ -345,6 +388,27 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "retry seconds in generation": _total(
             generation_waste, measured=bool(retried)
         ),
+        # A1.5's bill, which no other row can carry. Every figure above is a
+        # per-TURN cost, and A1.5's whole proposition is that its depth was paid
+        # for before the conversation started — so its turn latency quoted alone
+        # is not a cheap A2, it is an A2 with the invoice torn off. `not recorded`
+        # on every other arm: they have no build, which is a different fact from a
+        # build that cost nothing.
+        #
+        # Deliberately NOT added into `cell wall`. That row is the clock a cell
+        # ran on, the build precedes every cell, and folding a shared cost into a
+        # per-cell figure is how one build gets charged eight times.
+        "static context builds": len(builds) or _NOT_RECORDED,
+        "static context build seconds": (
+            sum(b["seconds"] for b in builds.values()) if builds else _NOT_RECORDED
+        ),
+        "static context chars": (
+            # The prefill every turn of this arm pays. Max, not sum: one build
+            # per (scenario, tier), and the largest is the one that bounds a turn.
+            max((b["chars"] or 0) for b in builds.values())
+            if builds
+            else _NOT_RECORDED
+        ),
         "arithmetic closes": f"{closes}/{len(checkable)}",
     }
 
@@ -392,6 +456,24 @@ def main(argv: list[str]) -> None:
             cell = f"{value:.2f}" if isinstance(value, float) else str(value)
             row += cell.rjust(cell_width)
         print(row)
+
+    # Below the table rather than in it: a provenance is a sentence
+    # (`perspectives=3 woven=2 ...`, or `failed: RuntimeError: ...`) and no cell
+    # can hold one without truncating exactly the part that matters. It is printed
+    # at all because `static context chars` says an A1.5 arm got nothing while
+    # only this says WHY — a build that raised and a conversation that mapped
+    # nothing both leave 0 characters and want opposite fixes.
+    provenances = {}
+    for stem in stems:
+        for (scenario, tier), build in _builds(_runs(stem)).items():
+            provenances[f"{stem} {scenario} {tier}"] = build
+    if provenances:
+        print("\nA1.5 static context builds:")
+        for where, build in provenances.items():
+            print(
+                f"  {where}: {build['chars']}c in {build['seconds']:.1f}s"
+                f" — {build['provenance']}"
+            )
 
 
 if __name__ == "__main__":

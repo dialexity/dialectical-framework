@@ -138,12 +138,32 @@ class E2ERun:
             for scenario in scenarios:
                 cells = self._cells_for(scenario, branches)
                 static_context: Optional[str] = None
+                provenance: Optional[str] = None
+                build_s: Optional[float] = None
                 if Arm.A1_5 in arms:
                     say(f"[{tier}] building A1.5 static context for {scenario.key}")
-                    static_context, provenance = await self._driver.build_static_context(
+                    (
+                        static_context,
+                        provenance,
+                        build_s,
+                    ) = await self._driver.build_static_context(
                         scenario, tier_model=tier_model
                     )
-                    say(f"[{tier}]   static context: {provenance}")
+                    say(
+                        f"[{tier}]   static context: {provenance} "
+                        f"({len(static_context)}c in {build_s}s)"
+                    )
+                    # Loud, and not an exception: the rest of the matrix is
+                    # unaffected by an A1.5 build failure and must still run. The
+                    # cells themselves carry `collapsed_to_a1_without_context`, so
+                    # the archive says it too — this line only makes sure nobody
+                    # watching a run mistakes the A1.5 column for a null result.
+                    if not static_context:
+                        say(
+                            f"[{tier}]   *** A1.5 HAS NO STATIC CONTEXT — its cells "
+                            f"below are A1 cells with an A1.5 label, and are "
+                            f"flagged invalid_as_evidence ***"
+                        )
                 for replicate in range(1, replicates + 1):
                     for branch in cells:
                         for arm in arms:
@@ -162,6 +182,8 @@ class E2ERun:
                                         replicate=replicate,
                                         branch=branch,
                                         static_context=static_context,
+                                        static_context_provenance=provenance,
+                                        static_context_build_s=build_s,
                                     ),
                                     timeout=CELL_TIMEOUT_S,
                                 )
@@ -184,6 +206,23 @@ class E2ERun:
                                         f"(DIALEXITY_E2E_CELL_TIMEOUT_S); abandoned, "
                                         f"matrix continued"
                                     ),
+                                    # Carried onto the abandoned record too. An
+                                    # A1.5 cell that hangs is one of the cases
+                                    # where its input matters MOST — a giant dump
+                                    # is a live hypothesis for the hang — and a
+                                    # synthesised record that omits it forces the
+                                    # question to be answered from stdout.
+                                    **(
+                                        {
+                                            "static_context_provenance": provenance,
+                                            "static_context_build_s": build_s,
+                                            "static_context_chars": len(
+                                                static_context or ""
+                                            ),
+                                        }
+                                        if arm is Arm.A1_5
+                                        else {}
+                                    ),
                                 )
                             self.runs.append(record)
                             note = record.error or f"{record.duration_s}s"
@@ -199,6 +238,8 @@ class E2ERun:
                                 )
                             if record.collapsed_to_a1:
                                 note += " !! NO TOOL CALLS (A2 collapsed)"
+                            if record.collapsed_to_a1_without_context:
+                                note += " !! NO STATIC CONTEXT (A1.5 is A1 here)"
                             say(f"{label} done: {note}")
         return self.runs
 
