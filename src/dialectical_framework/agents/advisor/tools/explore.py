@@ -23,9 +23,11 @@ from dialectical_framework.protocols.has_config import SettingsAware
 
 # The Advisor's explore is LAZY and budgeted: every valid wheel is built and
 # estimated (structural, cheap), but the expensive stage — transformations +
-# synthesis — goes only to the single top-plausibility wheel (fixed policy:
-# lead with the best; the `deepen` tool develops any other arrangement on
-# demand). At most advisor_max_perspectives_per_exploration (default 2) are
+# synthesis — goes only to the single top-plausibility wheel and the coarser
+# ancestry it refines from, one wheel per layer below it (fixed policy: lead with
+# the best, built up from the smaller arrangements inside it; the `deepen` tool
+# develops any other arrangement on demand). At most
+# advisor_max_perspectives_per_exploration (default 2) are
 # woven per call (excess is reported as deferred, never dropped — bounds
 # turn latency, not total work). "Rich vs simple" exploration is this
 # runtime budget, not a schema concept. The Explorer agent path is untouched
@@ -37,6 +39,25 @@ from dialectical_framework.protocols.has_config import SettingsAware
 # pick — contrast works at causality level, deepen covers the picked one.
 EXPLORE_DEEP_WHEELS = 1
 
+# ...but that one wheel is deepened WITH its coarser ancestry underneath it, one
+# wheel per layer below, coarsest first. Also not a setting, because off is not a
+# cheaper version of the same answer — it is the refinement recursion not running.
+# Every Transformation is generated against the coarser Transformations its edge
+# descends from ("be more concrete than this broader path"), and with the top wheel
+# deepened alone there are none: measured at k=4 as 0 of 8 parent lookups finding
+# anything, so the deepest arrangement — the one the theory says carries the most —
+# was the one produced with no refinement context. Deepening the ancestry first
+# turns that into 18 of 20, chained transitively.
+#
+# It costs less than the 2.5x edge count suggests (20 edges against 8): building and
+# estimating all 96 wheels is paid either way, so at k=4 the whole call goes from 177
+# provider calls to 273 — 1.5x — and off-provider wall clock moves ~5%. What buys
+# that back for the person is the ORDER: the coarsest wheel has the fewest edges, so
+# it finishes first and is a complete, usable answer while the deeper rungs are still
+# running. Deepening the top wheel alone is not faster to something readable, it is
+# slower — one long silence instead of an answer that keeps getting sharper.
+EXPLORE_REFINE_FROM_COARSER = True
+
 
 class _ExploreBudget(SettingsAware):
     """Accessor for the silent-explore depth budget (DI settings)."""
@@ -44,6 +65,10 @@ class _ExploreBudget(SettingsAware):
     @property
     def deep_wheels(self) -> int:
         return EXPLORE_DEEP_WHEELS
+
+    @property
+    def refine_from_coarser(self) -> bool:
+        return EXPLORE_REFINE_FROM_COARSER
 
     @property
     def max_perspectives(self) -> int:
@@ -56,9 +81,9 @@ async def run_exploration(
     nexus_hash: str | None,
 ) -> str:
     """
-    Shared explore body: expand (or create) a nexus, build wheels, deepen
-    the top-plausibility wheel with transformations + synthesis, all within
-    the silent-explore depth budget. Returns str(report).
+    Shared explore body: expand (or create) a nexus, build wheels, deepen the
+    top-plausibility wheel and its coarser ancestry with transformations +
+    synthesis, all within the silent-explore depth budget. Returns str(report).
 
     The transformation hashes this built are ALSO published on the report's
     `transformation_hashes` artifact, so a programmatic caller (the Advisor's
@@ -186,6 +211,7 @@ async def _run_exploration(
     exploration = ExplorationPipeline(
         nexus_hash=effective_nexus_hash,
         max_deep_wheels=budget.deep_wheels,
+        refine_from_coarser=budget.refine_from_coarser,
     )
     exp_result = await exploration.resolve()
 

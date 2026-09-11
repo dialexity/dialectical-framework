@@ -45,6 +45,167 @@ class _FakeWheel:
         return self._polarity_count
 
 
+class _FakeCycle:
+    def __init__(self, perspective_hashes: list[str]) -> None:
+        self.perspective_hashes = perspective_hashes
+
+
+def _nexus_of(pairs, monkeypatch):
+    """Point both repositories at a hand-built nexus of (pp set, wheel) pairs.
+
+    `_plan_rungs` reads exactly two things from the graph — that the nexus resolves,
+    and every wheel under it WITH its perspective set — so those are the two seams
+    stubbed here. The chain logic itself is set arithmetic and stays in the open.
+    """
+    from dialectical_framework.graph.repositories.nexus_repository import \
+        NexusRepository
+    from dialectical_framework.graph.repositories.wheel_repository import \
+        WheelRepository
+
+    sentinel = object()
+    monkeypatch.setattr(
+        NexusRepository, "find_by_hash_prefix", lambda self, h: sentinel
+    )
+    monkeypatch.setattr(
+        WheelRepository,
+        "find_by_nexus",
+        lambda self, nexus: [
+            (_FakeCycle(list(pps)), wheel) for pps, wheel in pairs
+        ],
+    )
+
+
+class TestPlanRungs:
+    """The climb: a deepened wheel needs its coarser ancestry deepened FIRST.
+
+    Every Transformation is generated against the coarser Transformations its edge
+    descends from. Those have to already be in the graph when the finer wheel's
+    generation reads for them, so "which wheels" is not the whole policy — the ORDER
+    is half of it, and a rung that runs alongside the wheel it should be refining is
+    a rung that may as well not have run.
+    """
+
+    def _pipeline(self, climb: bool = True) -> ExplorationPipeline:
+        return ExplorationPipeline(
+            nexus_hash="deadbee", max_deep_wheels=1, refine_from_coarser=climb
+        )
+
+    def test_off_is_one_rung(self, monkeypatch):
+        """The single gather the caller used to do, unchanged."""
+        pairs = [(("a", "b"), _FakeWheel("top", 0.9))]
+        _nexus_of(pairs, monkeypatch)
+        assert self._pipeline(climb=False)._plan_rungs(["top"]) == [(0, ["top"])]
+
+    def test_one_ancestor_per_layer_coarsest_first(self, monkeypatch):
+        pairs = [
+            (("a", "b", "c"), _FakeWheel("top", 0.5, polarity_count=3)),
+            (("a", "b"), _FakeWheel("mid", 0.5, polarity_count=2)),
+            (("a",), _FakeWheel("low", 0.5, polarity_count=1)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        assert self._pipeline()._plan_rungs(["top"]) == [
+            (1, ["low"]),
+            (2, ["mid"]),
+            (3, ["top"]),
+        ]
+
+    def test_the_chain_is_nested_not_best_per_layer(self, monkeypatch):
+        """`ab` is the more plausible layer-2 wheel and is still the wrong rung.
+
+        `find_parent_transformations` enumerates combinations of the ASKING wheel's
+        perspectives and keeps coarser wheels whose set is a SUBSET, so the layer-1
+        rung has to sit inside the layer-2 rung. Picking each layer's best
+        independently would put `ab` (P 0.9) under the top wheel and `c` (the only
+        layer-1 wheel) under nothing — a two-rung climb where the bottom rung
+        refines neither wheel above it.
+        """
+        pairs = [
+            (("a", "b", "c"), _FakeWheel("top", 0.5, polarity_count=3)),
+            (("a", "b"), _FakeWheel("ab", 0.9, polarity_count=2)),
+            (("b", "c"), _FakeWheel("bc", 0.1, polarity_count=2)),
+            (("c",), _FakeWheel("c", 0.5, polarity_count=1)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        plan = self._pipeline()._plan_rungs(["top"])
+        assert plan == [(1, ["c"]), (2, ["bc"]), (3, ["top"])], (
+            "the layer-1 wheel `c` is only inside `bc`, so choosing `ab` on"
+            " plausibility strands it — the chain must stay nested"
+        )
+
+    def test_probability_breaks_the_tie_among_true_ancestors(self, monkeypatch):
+        pairs = [
+            (("a", "b", "c"), _FakeWheel("top", 0.5, polarity_count=3)),
+            (("a", "b"), _FakeWheel("dull", 0.1, polarity_count=2)),
+            (("a", "c"), _FakeWheel("likely", 0.8, polarity_count=2)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        plan = self._pipeline()._plan_rungs(["top"])
+        assert plan[0][1] == ["likely"]
+
+    def test_a_gap_in_the_ancestry_stops_the_climb(self, monkeypatch):
+        """No layer-2 wheel exists, so there is nothing to descend THROUGH.
+
+        Reaching past the gap to a layer-1 wheel would deepen a rung the top wheel
+        can reach (any subset of its own PPs) — but the point of stopping is that
+        the walk is transitive: it is built by chaining parent to parent, and a
+        missing middle is a chain that does not connect.
+        """
+        pairs = [
+            (("a", "b", "c"), _FakeWheel("top", 0.5, polarity_count=3)),
+            (("a",), _FakeWheel("low", 0.9, polarity_count=1)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        assert self._pipeline()._plan_rungs(["top"]) == [(3, ["top"])]
+
+    def test_a_shared_ancestor_is_deepened_once(self, monkeypatch):
+        pairs = [
+            (("a", "b"), _FakeWheel("t1", 0.5, polarity_count=2)),
+            (("a", "c"), _FakeWheel("t2", 0.5, polarity_count=2)),
+            (("a",), _FakeWheel("shared", 0.5, polarity_count=1)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        plan = self._pipeline()._plan_rungs(["t1", "t2"])
+        assert plan == [(1, ["shared"]), (2, ["t1", "t2"])]
+
+    def test_a_target_that_is_another_targets_ancestor_runs_first(
+        self, monkeypatch
+    ):
+        """Two targets at different layers cannot share a rung.
+
+        Deepening them together is the same race the barrier exists to remove — the
+        coarser target IS the finer one's ancestry.
+        """
+        pairs = [
+            (("a", "b"), _FakeWheel("fine", 0.5, polarity_count=2)),
+            (("a",), _FakeWheel("coarse", 0.5, polarity_count=1)),
+        ]
+        _nexus_of(pairs, monkeypatch)
+        assert self._pipeline()._plan_rungs(["fine", "coarse"]) == [
+            (1, ["coarse"]),
+            (2, ["fine"]),
+        ]
+
+    def test_a_wheel_with_no_perspective_set_is_still_deepened(self, monkeypatch):
+        """Soft, and LAST: it keeps its transformations, just not a claimed ancestry.
+
+        A wheel the nexus read does not cover has no set to descend from, and
+        dropping it would turn a missing edge into a silently unexplored wheel.
+        """
+        pairs = [(("a", "b"), _FakeWheel("known", 0.5))]
+        _nexus_of(pairs, monkeypatch)
+        plan = self._pipeline()._plan_rungs(["known", "stranger"])
+        assert plan == [(2, ["known"]), (0, ["stranger"])]
+
+    def test_an_unresolvable_nexus_degrades_to_no_climb(self, monkeypatch):
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+
+        monkeypatch.setattr(
+            NexusRepository, "find_by_hash_prefix", lambda self, h: None
+        )
+        assert self._pipeline()._plan_rungs(["top"]) == [(0, ["top"])]
+
+
 class TestSelectDeepWheels:
     def _pipeline(self, cap) -> ExplorationPipeline:
         return ExplorationPipeline(nexus_hash="deadbee", max_deep_wheels=cap)
@@ -190,6 +351,20 @@ class TestAdvisorExploreIsLazy:
         assert EXPLORE_DEEP_WHEELS == 1
         assert _ExploreBudget().deep_wheels == 1
 
+    def test_advisor_policy_climbs_from_the_coarser_wheels(self):
+        """The one deepened wheel is deepened ON TOP of its ancestry.
+
+        Also fixed policy, and not a cheaper/richer dial: off, the refinement
+        recursion has no parent Transformations to find, so the deepest arrangement
+        is the one generated with no coarser context at all (measured at k=4 as 0 of
+        8 parent lookups finding anything, against 18 of 20 with it on).
+        """
+        from dialectical_framework.agents.advisor.tools.explore import (
+            EXPLORE_REFINE_FROM_COARSER, _ExploreBudget)
+
+        assert EXPLORE_REFINE_FROM_COARSER is True
+        assert _ExploreBudget().refine_from_coarser is True
+
     async def test_synthesis_follows_deepened_only(self, monkeypatch):
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration
@@ -199,9 +374,13 @@ class TestAdvisorExploreIsLazy:
         from dialectical_framework.concerns import expand_nexus as en_mod
 
         captured_cap: list = []
+        # The constant test above proves the policy's VALUE; this proves it reaches
+        # the pipeline. A budget property nothing passes on is a policy that is off.
+        captured_climb: list = []
 
         async def stub_pipeline_resolve(self):
             captured_cap.append(self.max_deep_wheels)
+            captured_climb.append(self.refine_from_coarser)
             return ExplorationResult(
                 nexus_hash=self.nexus_hash,
                 wheel_hashes=["top4444", "mid4444", "low4444"],
@@ -230,5 +409,6 @@ class TestAdvisorExploreIsLazy:
         )
 
         assert captured_cap == [1]
+        assert captured_climb == [True]
         assert synthesized == ["top4444"]
         assert "shallow_wheel_hashes" in report_str

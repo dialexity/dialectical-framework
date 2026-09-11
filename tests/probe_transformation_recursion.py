@@ -21,19 +21,26 @@ WHAT IT MEASURES
 Two arms, each on its own Case so nothing is reused between them, both over the
 same `K` tensions:
 
-1. **direct** — build all wheels, then deepen ONLY the top-layer wheel. This is the
-   Advisor's `explore` policy (`EXPLORE_DEEP_WHEELS = 1`, and `_select_deep_wheels`
-   ranks layer-first), and it is what a person gets from one tool call.
-2. **climb** — build all wheels, then deepen one wheel per layer, ascending: layer
-   1, then 2, ... then the top. Each rung is a finished answer in its own right, and
-   each is in the graph before the next one is generated.
+1. **direct** — `ExplorationPipeline(max_deep_wheels=1, refine_from_coarser=False)`:
+   build all wheels, deepen ONLY the top-plausibility one. This was the Advisor's
+   `explore` policy until 2026-09-11, and it is still the headless default.
+2. **climb** — the same pipeline with `refine_from_coarser=True`, which is what the
+   Advisor now passes (`EXPLORE_REFINE_FROM_COARSER`): the top wheel plus one
+   ancestor per layer below it, deepened coarsest-first, each rung committed before
+   the next is generated. Each rung is a finished answer in its own right.
+
+Both arms drive the SHIPPED pipeline rather than picking wheels themselves. The
+thing under measurement IS the wheel-selection policy, so a probe that selected its
+own wheels could not be wrong about it — and the first version of this file did
+exactly that, which is why the numbers below moved when it was rewired.
 
 For every `find_parent_transformations` call in both arms it records the layer of
 the edge that asked, how many parents came back, and which layers they came from.
 The rendered context string is captured verbatim.
 
-It also reports WHICH of the generation calls in a tetrad receive the context, by
-signature — see the third finding, which is the one this probe was not looking for.
+It also reports which of the generation calls in a tetrad receive the context — both
+by signature and by what each one could actually SEE when it ran, which are not the
+same list. See the third finding, the one this probe was not looking for.
 
     poetry run pytest tests/probe_transformation_recursion.py -s
     DIALEXITY_PROBE_TR_K=2 poetry run pytest tests/probe_transformation_recursion.py -s
@@ -56,29 +63,39 @@ cost of either arm is driven by its edge count.
 
 RESULTS
 =======
-2026-09-11, mock brain, k=2 (28s) and k=4 (268s).
+2026-09-11, mock brain, through the shipped pipeline, k=2 (13s) and k=4 (204s).
 
     k=4, wheels built by layer: {1: 4, 2: 12, 3: 32, 4: 48}
 
-                            rungs  edges  transf  lookups  calls
-    direct (Advisor path)       1      8       8        8     64
-    climb (layer 1 -> top)      4     20      20       20    160
+                            rungs  edges  transf  lookups  calls  off-provider
+    direct (Advisor path)       1      8       8        8    177        96.39s
+    climb (layer 1 -> top)      4     20      20       20    273       101.74s
 
-**1. On the Advisor's path the recursion never fires. 0 of 8 lookups found a
-parent, at both k=2 and k=4.** `_build_coarser_context` returned `None` every time,
-so the prompt's `<broader_journey>` section did not exist and the MOST detailed
-pathway in the exploration was generated with no refinement context at all. Nothing
-is wrong with the lookup — `explore` deepens one wheel (`EXPLORE_DEEP_WHEELS = 1`)
-and `_select_deep_wheels` ranks layer-first, so on a fresh nexus no coarser wheel
-has a Transformation to be a parent OF. (A person who has previously used `deepen`
-on coarser wheels is a different case, and gets a different answer.)
+**1. Without the climb the recursion never fires. 0 of 8 lookups found a parent, at
+both k=2 and k=4.** `_build_coarser_context` returned `None` every time, so the
+prompt's `<broader_journey>` section did not exist and the MOST detailed pathway in
+the exploration was generated with no refinement context at all. Nothing was ever
+wrong with the lookup: one wheel deepened on a fresh nexus leaves no coarser wheel
+carrying a Transformation to be a parent OF. This was the Advisor's path until
+2026-09-11 and is what `refine_from_coarser=False` still does, so it is the arm the
+fix is measured against, not a bug report. (A person who had previously used
+`deepen` on coarser wheels was a different case, and got a different answer.)
 
-**2. Under a climb it fires, and the chain is transitive exactly as documented.**
-Parents by asking layer at k=4: layer 2 sees `[1]`, layer 3 sees `[1, 2]`, layer 4
-sees `[1, 2, 3]` — up to 7 parents for one edge, rendered coarsest-first and
-indented per layer. 18 of 20 lookups found a parent (the 2 that did not are the
-layer-1 rung, which has no coarser layer by definition). **So the climb is not a UX
-preference — it is the precondition for the recursion existing at all.**
+**2. With it, the chain is transitive exactly as documented.** Parents by asking
+layer at k=4: layer 2 sees `[1]`, layer 3 sees `[1, 2]`, layer 4 sees `[1, 2, 3]` —
+up to 7 parents for one edge, rendered coarsest-first and indented per layer. 18 of
+20 lookups found a parent (the 2 that did not are the layer-1 rung, which has no
+coarser layer by definition). **So the climb was never a UX preference — it is the
+precondition for the recursion existing at all.**
+
+**2b. It costs less than deepening one wheel three times over would suggest: 1.5x
+the provider calls, not 2.5x.** The edge count does go up 2.5x (20 against 8), but a
+run is not only its deepening — building and estimating all 96 wheels at k=4 is paid
+by both arms, so the marginal cost lands at 273 calls against 177. Off-provider wall
+clock barely moves at all (101.74s against 96.39s, ~5%), which says the same thing
+from the graph side: at k=4 the fixed structural work dominates. And the 96 extra
+calls are ordered smallest-wheel-first, so the first finished pathway arrives EARLIER
+than the single-wheel arm's does, not later.
 
 **3. The finding this probe was not looking for, and the reason it is measured
 rather than read: only ONE call is HANDED the context, but three more can READ it,
@@ -118,11 +135,11 @@ verbatim (`ac_plus_dto` is built field-for-field off it). So "find a friend" ->
 One position, not four — the scope of this finding is much narrower than the
 signature table alone suggests.
 
-**4. The climb costs 2.5x the calls of the direct path (160 against 64 at k=4)** and
-that is the whole price — no transformation is reused between rungs (20 edges, 20
-Transformations), because a `Transition` carries a nonce and belongs to exactly one
-container. What the ratio does not show is that the climb spends it across FOUR
-finished answers instead of one, so the person's first wait is one rung.
+**4. Nothing is reused between rungs: 20 edges produce 20 Transformations.** A
+`Transition` carries a nonce and belongs to exactly one container, so wheels at
+different layers never share one. That is why the edge count is the cost model (see
+2b for what it comes to as a fraction of a whole run), and why a rung cannot be made
+cheaper by hoping the layer below already covered it.
 """
 
 from __future__ import annotations
@@ -135,9 +152,7 @@ from inspect import signature
 import pytest
 
 import mock_brain as mock_brain_module
-from dialectical_framework.agents.explorer.skills.build_wheels import BuildWheels
-from dialectical_framework.agents.explorer.skills.explore_transformations import \
-    ExploreTransformations
+from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
 from dialectical_framework.concerns.action_extraction import ActionExtraction
 from dialectical_framework.concerns.create_nexus import CreateNexus
 from dialectical_framework.concerns.transformation_generation import \
@@ -313,10 +328,6 @@ def _watch_exposure(patch, record: _Exposure) -> None:
     patch.setattr(ConversationFacilitator, "submit", wrapper)
 
 
-async def _build(nexus_hash: str) -> None:
-    await BuildWheels(nexus_hash=nexus_hash).resolve()
-
-
 def _wheels_by_layer(nexus) -> dict[int, list]:
     """Every wheel under the nexus, grouped by its cycle's perspective count."""
     grouped: dict[int, list] = {}
@@ -326,7 +337,15 @@ def _wheels_by_layer(nexus) -> dict[int, list]:
 
 
 async def _run_arm(label: str, climb: bool, monkeypatch) -> dict:
-    """Build once, then deepen either the top wheel or one wheel per layer."""
+    """Run the SHIPPED pipeline with the climb off and on.
+
+    `refine_from_coarser=False` is the Advisor path as it was: one wheel, the
+    top-plausibility one. `True` is the policy the Advisor now passes
+    (`EXPLORE_REFINE_FROM_COARSER`), so both arms measure code that runs in
+    production rather than a hand-rolled stand-in for it — which matters here more
+    than usual, since the thing being measured IS the wheel-selection policy, and a
+    probe that picks its own wheels cannot be wrong about the one under test.
+    """
     case = Case()
     case.commit()
     with scope(case.sid):
@@ -334,44 +353,59 @@ async def _run_arm(label: str, climb: bool, monkeypatch) -> dict:
         created = await CreateNexus().resolve(
             intent=INTENT, perspective_hashes=hashes
         )
-        await _build(created.nexus.hash)
-
-        by_layer = _wheels_by_layer(created.nexus)
-        top = max(by_layer)
-        # First wheel at each layer, which is `find_by_nexus`' own committed_at/id
-        # order. NOT `_select_deep_wheels`' plausibility ranking — under mock brain
-        # every wheel scores identically, so ranking would pick arbitrarily and the
-        # two arms could disagree about which wheel is "the top one".
-        layers = sorted(by_layer) if climb else [top]
-        chosen = [(layer, by_layer[layer][0]) for layer in layers]
 
         record = _Lookups()
         exposure = _Exposure()
         counter = _Counter()
-        deepened: list[dict] = []
         with monkeypatch.context() as patch:
             _count_calls(patch, counter)
             _watch_parent_lookups(patch, record)
             _watch_exposure(patch, exposure)
             started = time.monotonic()
-            for layer, wheel in chosen:
-                before = len(record.rows)
-                result = await ExploreTransformations(
-                    wheel_hash=wheel.hash
-                ).resolve()
+            result = await ExplorationPipeline(
+                nexus_hash=created.nexus.hash,
+                max_deep_wheels=1,
+                refine_from_coarser=climb,
+            ).resolve()
+            wall = time.monotonic() - started
+
+        by_layer = _wheels_by_layer(created.nexus)
+        # The pipeline degrades softly — a build that fails lands in `errors` and
+        # comes back as an empty result, which downstream reads as "no wheels at this
+        # k" instead of "the run broke". Say which it was.
+        assert by_layer, (
+            f"{label}: no wheels under the nexus. Pipeline said:"
+            f" {result.errors or '(no errors reported)'}"
+        )
+        top = max(by_layer)
+        # Rung by rung, in the order the pipeline ran them, resolved back to wheels
+        # so the edge counts below are the real ones. `refinement_rungs` is a list of
+        # rungs, so its INDEX is the running order and its contents the concurrency.
+        wheels_by_hash = {
+            w.hash: (layer, w)
+            for layer, ws in by_layer.items()
+            for w in ws
+            if w.hash
+        }
+        deepened: list[dict] = []
+        for rung in result.refinement_rungs:
+            for wheel_hash in rung:
+                found = wheels_by_hash.get(wheel_hash)
+                if found is None:
+                    continue
+                layer, wheel = found
                 deepened.append({
                     "layer": layer,
                     "wheel": wheel.short_hash,
                     "edges": len(wheel.edges),
-                    "transformations": len(result.all),
-                    "lookups": len(record.rows) - before,
+                    "transformations": len(wheel.transformations),
                 })
-            wall = time.monotonic() - started
 
     return {
         "label": label,
         "wheel_counts": {layer: len(ws) for layer, ws in sorted(by_layer.items())},
         "top": top,
+        "rungs": result.refinement_rungs,
         "deepened": deepened,
         "record": record,
         "exposure": exposure,
@@ -524,15 +558,17 @@ async def test_probe_whether_the_coarser_context_ever_arrives(
         "the direct arm made no parent lookups at all, so it deepened nothing"
         " — the arm is broken, not the recursion"
     )
-    # Only the CLIMB half is asserted. The direct arm finding 0 parents is the
-    # defect this probe exists to show, not a behaviour to pin — asserting it would
-    # make a future fix fail here. The climb half is the opposite: if the recursion
-    # stops firing even when the parents are sitting in the graph, the whole
-    # mechanism is dead and every number above is meaningless.
+    # Only the CLIMB half is asserted. The direct arm finding 0 parents is what
+    # `refine_from_coarser=False` MEANS, and it is still the headless default — but
+    # it is a baseline, not a promise, so pinning it would make a later decision to
+    # climb by default fail here for being an improvement. The climb half is the
+    # opposite: it is the shipped Advisor policy, and if it stops finding parents
+    # that are sitting in the graph the recursion is silently off again with every
+    # test still green.
     assert climb_hits, (
-        "the climb found no parents either, so `find_parent_transformations` is not"
-        " returning coarser Transformations even when they exist — the mechanism is"
-        " broken, and finding (1) above can no longer be read as a policy problem"
+        "the climb found no parents, so the Advisor's deepest wheel is once again"
+        " being generated with no coarser context — either the rungs are no longer"
+        " ordered coarsest-first, or the chain they descend is no longer nested"
     )
     assert max(r["parents"] for r in climb_hits) > 1 or K < 3, (
         "no edge saw more than one parent at k >= 3, so the RECURSION (layer 1 up to"

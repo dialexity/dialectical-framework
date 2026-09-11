@@ -199,6 +199,22 @@ class StepError(BaseModel):
     hash: Optional[str] = None
 
 
+def _causality_probability(wheel) -> float:
+    """Raw causality P for ranking, or -1.0 when the wheel has no estimation.
+
+    Module level because two selections rank on it — which wheels get deepened, and
+    which coarser wheel each of them refines from — and a wheel with no estimation
+    has to lose both, not raise.
+    """
+    from dialectical_framework.graph.nodes.estimation import \
+        CausalityProbabilityEstimation
+
+    for est, _ in wheel.estimations.all():
+        if isinstance(est, CausalityProbabilityEstimation):
+            return est.value if est.value is not None else -1.0
+    return -1.0
+
+
 class ExplorationResult(BaseModel):
     nexus_hash: str
     cycle_hashes: list[str] = []
@@ -214,6 +230,13 @@ class ExplorationResult(BaseModel):
     #: sharing edge pairs with one already deepened reuses every transformation),
     #: which says "no pathway exists" about a wheel that is fully developed.
     transformation_hashes: list[str] = []
+    #: The order the wheels were deepened in, grouped into layer rungs, coarsest
+    #: first — the shape `refine_from_coarser` produces. One rung means no climb
+    #: happened (either it was off, or the target is a 1-PP wheel with nothing
+    #: coarser to refine from). Reported because "which wheels" does not say
+    #: whether the refinement had anything to read: a rung deepened AFTER the
+    #: wheel that should refine from it is a rung that arrived too late.
+    refinement_rungs: list[list[str]] = []
     errors: list[StepError] = []
     reports: list = []
 
@@ -252,6 +275,24 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
     provider time is added. Uncapped is a batch mode; pass a cap for anything a
     person is waiting on.
 
+    `refine_from_coarser` decides whether the capped wheels are deepened ALONE or
+    with their coarser ancestry underneath them, and that is the difference between
+    the framework's refinement recursion running and not running at all.
+    `TransformationGeneration` asks `find_parent_transformations` for the coarser
+    Transformations its edge descends from and renders them into the prompt as the
+    broader journey the current step has to be more concrete than. With the top
+    wheel deepened alone on a fresh nexus that lookup has nothing to find —
+    measured at k=4 in `tests/probe_transformation_recursion.py` as 0 of 8 lookups
+    finding a parent, so the MOST detailed arrangement was generated with no
+    refinement context at all, which is the one place the theory says it matters
+    most. Deepening the ancestry first turns that into 18 of 20, chained
+    transitively (a layer-4 edge sees layers 1, 2 and 3 at once). The edge count
+    goes up 2.5x (20 against 8) but the WHOLE call only 1.5x — 273 provider calls
+    against 177 at k=4, ~5% off-provider wall clock — because building and
+    estimating all 96 wheels is paid either way. And they are ordered
+    coarsest-first, so the smallest arrangement finishes first and the person reads
+    it while the deeper rungs run.
+
     Does not create nexuses — that's the Analyst's job.
     Does not interact with the user — curates the graph and returns results.
     """
@@ -261,10 +302,18 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         nexus_hash: str,
         perspective_hashes: Optional[list[str]] = None,
         max_deep_wheels: Optional[int] = None,
+        refine_from_coarser: bool = False,
     ) -> None:
         self.nexus_hash = nexus_hash
         self.perspective_hashes = perspective_hashes or []
         self.max_deep_wheels = max_deep_wheels
+        # Off by default so headless callers keep the behaviour they have. Worth
+        # knowing before leaving it off: uncapped-and-off deepens every wheel in ONE
+        # gather, which makes refinement a race — whether a layer-3 wheel finds its
+        # layer-2 parents depends on which task happened to commit first. Layering
+        # is what makes an uncapped run reproducible, so a batch caller that wants
+        # the same transformations twice wants this on as well.
+        self.refine_from_coarser = refine_from_coarser
 
     async def resolve(self) -> ExplorationResult:
         """Run the pipeline as ONE progress stream.
@@ -325,7 +374,12 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                 reports=reports,
             )
 
-        deep_wheel_hashes = self._select_deep_wheels(build_result.new_wheels)
+        target_hashes = self._select_deep_wheels(build_result.new_wheels)
+        plan = self._plan_rungs(target_hashes)
+        rungs = [hashes for _, hashes in plan]
+        # Flattened in the order they will actually be deepened, so a caller reading
+        # `deepened_wheel_hashes` sees the chain, not the ranking.
+        deep_wheel_hashes = [wh for rung in rungs for wh in rung]
 
         async def _explore_wheel(
             wheel_hash: str,
@@ -345,9 +399,17 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
                     hash=wheel_hash,
                 )
 
-        wheel_results = await asyncio.gather(
-            *[_explore_wheel(wh) for wh in deep_wheel_hashes]
-        )
+        # One rung at a time, concurrent WITHIN a rung. The barrier between rungs is
+        # the whole point: a wheel refines from Transformations that have to be
+        # committed before its own generation reads for them, so a coarser rung
+        # running alongside a finer one is a coarser rung that may as well not exist.
+        # With `refine_from_coarser` off there is exactly one rung, which is the
+        # single gather this replaced.
+        wheel_results: list = []
+        for rung in rungs:
+            wheel_results.extend(
+                await asyncio.gather(*[_explore_wheel(wh) for wh in rung])
+            )
         transformations: list = []
         for found, error in wheel_results:
             transformations.extend(found)
@@ -360,7 +422,13 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         transformation_hashes = sorted(by_hash)
         transformation_count = len(transformation_hashes)
 
-        shallow_count = len(wheel_hashes) - len(deep_wheel_hashes)
+        # Set difference, not a subtraction of lengths: an ancestry rung can be a
+        # wheel that ALREADY existed (a second explore on an expanded nexus builds
+        # only the new arrangements), so it is deepened without being in
+        # `wheel_hashes` — and the arithmetic would then under-report the shallow
+        # ones, or go negative and report a wheel count that never existed.
+        deepened_set = set(deep_wheel_hashes)
+        shallow_count = sum(1 for wh in wheel_hashes if wh not in deepened_set)
         # Same rule as AnalysisPipeline: degrade, but never silently. Every
         # transformation failing is not "exploration complete" — and the
         # consequence lands squarely on the decision ceremony, since an adopted
@@ -376,8 +444,14 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
             f"{len(wheel_hashes)} wheels, "
             f"{transformation_count} transformations"
             + (
-                f" (deepened top {len(deep_wheel_hashes)} wheel(s) by "
-                f"plausibility; {shallow_count} built but not deepened)"
+                f" (deepened top {len(target_hashes)} wheel(s) by plausibility"
+                + (
+                    f" plus {len(deep_wheel_hashes) - len(target_hashes)} coarser "
+                    f"wheel(s) they refine from"
+                    if len(deep_wheel_hashes) > len(target_hashes)
+                    else ""
+                )
+                + f"; {shallow_count} built but not deepened)"
                 if shallow_count
                 else ""
             )
@@ -386,6 +460,14 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         self._report.artifacts["cycle_hashes"] = cycle_hashes
         self._report.artifacts["wheel_hashes"] = wheel_hashes
         self._report.artifacts["deepened_wheel_hashes"] = deep_wheel_hashes
+        # Only when a climb actually happened. A single rung is the same list again
+        # under a second name, and the report is read by a model.
+        if len(plan) > 1:
+            self._report.artifacts["refinement_rungs"] = [
+                f"{f'layer {layer}' if layer else 'layer unknown'}:"
+                f" {', '.join(hashes)}"
+                for layer, hashes in plan
+            ]
         if errors:
             failed = "; ".join(f"{e.hash or '?'}: {e.message}" for e in errors)
             self._report.summary += (
@@ -419,6 +501,7 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
             deepened_wheel_hashes=deep_wheel_hashes,
             transformation_count=transformation_count,
             transformation_hashes=transformation_hashes,
+            refinement_rungs=rungs,
             errors=errors,
             reports=reports,
         )
@@ -439,15 +522,6 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
         if self.max_deep_wheels <= 0:
             return []
 
-        from dialectical_framework.graph.nodes.estimation import \
-            CausalityProbabilityEstimation
-
-        def _probability(wheel) -> float:
-            for est, _ in wheel.estimations.all():
-                if isinstance(est, CausalityProbabilityEstimation):
-                    return est.value if est.value is not None else -1.0
-            return -1.0
-
         def _layer(wheel) -> int:
             try:
                 return wheel.polarity_count
@@ -456,10 +530,126 @@ class ExplorationPipeline(ReasonableConcern[ExplorationResult]):
 
         ranked = sorted(
             (w for w in wheels if w.hash),
-            key=lambda w: (_layer(w), _probability(w)),
+            key=lambda w: (_layer(w), _causality_probability(w)),
             reverse=True,
         )
         return [w.hash for w in ranked[: self.max_deep_wheels]]
+
+    def _plan_rungs(self, target_hashes: list[str]) -> list[tuple[int, list[str]]]:
+        """Group the wheels to deepen into layer rungs, coarsest first.
+
+        `(layer, hashes)` per rung, in the order they must run. With
+        `refine_from_coarser` off this is one rung holding the targets — the single
+        gather the caller used to do. On, each target gains one coarser ancestor per
+        layer below it, and everything is regrouped by layer so a target that is
+        itself another target's ancestor cannot run alongside it.
+
+        The chain is NESTED, because that is the only shape
+        `find_parent_transformations` can walk: it enumerates `combinations` of the
+        asking wheel's PPs and looks for coarser wheels whose PP set is a SUBSET, so
+        a layer-2 wheel refines a layer-3 wheel only if its perspectives are among
+        that wheel's. Picking the best wheel per layer independently would satisfy
+        that for the top wheel (its PP set contains every coarser set in the nexus)
+        and break it in the middle of the chain, which is where the transitive walk
+        lives.
+
+        Selection ranks the ancestor whose edges match the most of the finer wheel's
+        LAST, by not ranking on it at all — that is what `_find_matching_parent_edge`
+        will actually look for, and it is knowable only once the transformations
+        exist, which is the thing this is choosing an order to build.
+        """
+        if not target_hashes:
+            return []
+        if not self.refine_from_coarser:
+            return [(0, list(target_hashes))]
+
+        from dialectical_framework.graph.repositories.wheel_repository import \
+            WheelRepository
+
+        nexus = NexusRepository().find_by_hash_prefix(self.nexus_hash)
+        if nexus is None:
+            return [(0, list(target_hashes))]
+
+        # ONE query for every wheel under the nexus WITH its cycle, which is where
+        # the perspective sets are. Reading `wheel.cycle` per wheel instead would be
+        # a round-trip each, over a set that is combinatorial in k (96 wheels at
+        # k=4). Pre-existing wheels have to be in here too: a second explore on an
+        # expanded nexus builds only the new arrangements, and the coarser ones a
+        # new wheel refines from are exactly the ones already there.
+        pps_by_hash: dict[str, frozenset[str]] = {}
+        wheels_by_hash: dict[str, object] = {}
+        for cycle, wheel in WheelRepository().find_by_nexus(nexus):
+            if wheel.hash:
+                pps_by_hash[wheel.hash] = frozenset(cycle.perspective_hashes or [])
+                wheels_by_hash[wheel.hash] = wheel
+
+        prob_memo: dict[str, float] = {}
+
+        def probability(wheel_hash: str) -> float:
+            if wheel_hash not in prob_memo:
+                prob_memo[wheel_hash] = _causality_probability(
+                    wheels_by_hash[wheel_hash]
+                )
+            return prob_memo[wheel_hash]
+
+        # Memoised on the perspective set, so a subset two targets share is descended
+        # once. With that, the estimation reads are bounded by the wheels in the
+        # nexus, which is the same order `_select_deep_wheels` already pays over the
+        # wheels built this run.
+        chain_memo: dict[frozenset[str], tuple[int, tuple, list[str]]] = {}
+
+        def descend(current: frozenset[str]) -> tuple[int, tuple, list[str]]:
+            """Best chain strictly inside `current`, coarsest-first.
+
+            LENGTH FIRST, plausibility only to break ties — and that ordering is the
+            whole reason this is a search and not a per-layer pick. A more plausible
+            ancestor that no coarser wheel fits inside ends the climb one rung down;
+            a less plausible one that reaches layer 1 gives the target parents at
+            every layer below it, which is the transitive refinement this exists for.
+            Depth is the thing being bought.
+            """
+            if current in chain_memo:
+                return chain_memo[current]
+            layer = len(current) - 1
+            best: tuple[int, tuple, list[str]] = (0, (), [])
+            if layer >= 1:
+                candidates = sorted(
+                    (
+                        h
+                        for h, other in pps_by_hash.items()
+                        if len(other) == layer and other < current
+                    ),
+                    # Hash after P so two runs pick the same rung out of a tie.
+                    key=lambda h: (-probability(h), h),
+                )
+                for h in candidates:
+                    length, probs, chain = descend(pps_by_hash[h])
+                    candidate = (length + 1, (probability(h),) + probs, chain + [h])
+                    if candidate[:2] > best[:2]:
+                        best = candidate
+            chain_memo[current] = best
+            return best
+
+        by_layer: dict[int, set[str]] = {}
+        unplaced: list[str] = []
+        for target in target_hashes:
+            pps = pps_by_hash.get(target)
+            if not pps:
+                # No perspective set to descend from — deepen it, but last, and
+                # without claiming an ancestry it may not have.
+                unplaced.append(target)
+                continue
+            by_layer.setdefault(len(pps), set()).add(target)
+            _, _, chain = descend(pps)
+            for wheel_hash in chain:
+                by_layer.setdefault(len(pps_by_hash[wheel_hash]), set()).add(
+                    wheel_hash
+                )
+
+        plan = [(layer, sorted(by_layer[layer])) for layer in sorted(by_layer)]
+        if unplaced:
+            plan.append((0, unplaced))
+        return plan
 
 
 # There is deliberately NO `@llm.tool` wrapper around this pipeline here.

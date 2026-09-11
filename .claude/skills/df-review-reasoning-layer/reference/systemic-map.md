@@ -1738,7 +1738,14 @@ nothing; at k=4 it is 112 calls and 1,102.8s of provider time, per
 `_select_deep_wheels`** (`max_deep_wheels` cap: rank by layer desc, then raw causality P desc; None = all,
 which is a HEADLESS batch default and not any agent's path — the Advisor's `run_exploration` pins
 `EXPLORE_DEEP_WHEELS = 1` in `advisor/tools/explore.py` and the Explorer never runs this pipeline at all;
-see the `_select_deep_wheels` bullet under §Gates for what uncapped costs and for the orphan tool deleted 2026-09-10) → **ExploreTransformations ×deepened-wheels**
+see the `_select_deep_wheels` bullet under §Gates for what uncapped costs and for the orphan tool deleted 2026-09-10) → **climb planner
+`_plan_rungs`** (`refine_from_coarser`, ON for the Advisor since 2026-09-11: each capped wheel gains one
+NESTED coarser ancestor per layer below it, and the rungs run coarsest-first with a barrier between them, so a
+wheel's parent Transformations are committed before its own generation reads for them. Depth of the chain
+outranks plausibility when choosing a rung — a more plausible ancestor that nothing coarser fits inside ends
+the climb a rung early, and the transitive walk is what the refinement is. OFF is not a cheaper version of the
+same reasoning: it is `find_parent_transformations` returning nothing, i.e. the deepest wheel generated with no
+`<broader_journey>` at all — see the §Gates bullet) → **ExploreTransformations ×deepened-wheels**
 (Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
 annotation, **opt-in and off by default** in this chain — `settings.audit_transformations`; the same concern is
@@ -2011,6 +2018,31 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   lives at the site and in the probe's fourth-run section.
   Locked by `tests/test_exploration_lazy_depth.py` + `tests/test_advisor_explore_budget.py` +
   `tests/test_advisor_deepen.py`.
+- **`_plan_rungs`** (`explorer/explorer.py`, `refine_from_coarser`): the OTHER half of the depth policy, and
+  the half that decides whether the refinement recursion runs AT ALL. `TransformationGeneration` renders the
+  coarser Transformations its edge descends from into the prompt as the broader journey the current step has to
+  be more concrete than — and with one wheel deepened on a fresh nexus there are none to find. Measured at k=4
+  (`tests/probe_transformation_recursion.py`, LLM mocked, both arms driving the REAL pipeline): **0 of 8 parent
+  lookups found anything with the climb off, 18 of 20 with it on**, chained transitively (layer 4 sees layers 1,
+  2 and 3 at once, up to 7 parents on one edge). So the deepest arrangement — the one the theory says carries
+  the most — was the one produced with no refinement context. ON for the Advisor since 2026-09-11
+  (`EXPLORE_REFINE_FROM_COARSER = True`, fixed policy next to `EXPLORE_DEEP_WHEELS`); default OFF so headless
+  callers keep the behaviour they have. Three mechanics a reviewer has to keep straight, because each has a
+  plausible wrong version: the chain is **NESTED** (a rung must be a PP-SUBSET of the rung above, since
+  `find_parent_transformations` enumerates `combinations` of the ASKING wheel's PPs — picking each layer's best
+  independently satisfies that for the top wheel, whose PP set contains every coarser set in the nexus, and
+  strands the middle of the chain, which is where the transitive walk lives); **depth outranks plausibility**
+  (a more plausible ancestor that nothing coarser fits inside ends the climb a rung early — the greedy version
+  of this was written first and a test caught it); and rungs run coarsest-first with a **BARRIER between
+  layers**, since a coarser rung running alongside the wheel it should be refining may as well not have run.
+  Cost: 1.5× the calls of a whole run (273 vs 177 at k=4) and ~5% off-provider wall clock — the fixed
+  structural work over 96 wheels dominates, so the 2.5× edge count is NOT the 2.5× run it looks like — and the
+  extra calls are ordered smallest-wheel-first, so the first finished pathway arrives EARLIER than the
+  single-wheel arm's, not later. Corollary for the uncapped headless path: with the climb OFF every wheel
+  deepens in one `gather`, so whether a layer-3 wheel finds its layer-2 parents depends on which task committed
+  first — refinement there is a RACE, and layering is what would make an uncapped run reproducible.
+  Locked by `tests/test_exploration_lazy_depth.py::TestPlanRungs` (nesting, depth-over-plausibility, gaps,
+  shared ancestors, soft degradation) + the probe above for the end-to-end claim.
 - **`PerspectiveValidation` flag** (`ExpandPolarity._validate_and_flag`, live since 2026-07): CC +
   empirical inequalities run post-commit on every generated tetrad; verdict persisted on
   `Perspective.validation` ("passed" / "failed: reasons" / None). NOT a blocking gate — prompts
