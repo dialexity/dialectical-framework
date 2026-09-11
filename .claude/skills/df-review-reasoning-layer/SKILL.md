@@ -142,7 +142,13 @@ anchors.
       the hand-typed taxonomy table in `statement_classification.py`'s SYSTEM_PROMPT requires updating BOTH — the
       LLM classifies against the table while `lookup_aspect_apex` scores HS against the dict. Divergence = silent HS corruption.
 - [ ] **Circular-causality directionality (R2).** Keep `Ac+ = T-→A+`, `Re+ = A-→T+`, and "Ac+ without Re+
-      regresses to Re-, Re+ without Ac+ drifts to Ac-". Restated across 4+ prompts with no owner — verify all agree.
+      degenerates into Ac-, Re+ without Ac+ degenerates into Re-". Restated across 4+ prompts with no owner —
+      verify all agree. **The SUBJECT is preserved and its own polarity flips**, exactly as at the aspect level
+      ("T+ without A+ yields T-", `control_statements_check.py`; "What T itself degenerates into when A+ is
+      absent", `scoring_scales.py`). This checklist itself carried the mirrored version until 2026-09-11 and
+      would have enforced the bug: `transformation_generation`'s CC block and the Ac-/Re- prompt bodies each
+      described the OTHER position's mechanism, while lines 85/87 of the same prompt stated the rule correctly.
+      A swapped subject reads plausibly, so check the subject, not just that a "without" sentence is present.
 - [ ] **Diagonal contradiction (R1).** "T+ contradicts A-, A+ contradicts T-, and this is NOT a K defect."
       An edit must not imply lowering K (contradicts `COMPLEMENTARITY_SCALE`) and must match `get_contradiction_pair`.
 - [ ] **A plus that only restates its own pole fails R1, and it is the most common measured tetrad defect

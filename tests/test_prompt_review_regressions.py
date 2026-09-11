@@ -539,6 +539,65 @@ class TestForcefulnessPolarityFlip:
         assert "reverses its polarity from Ac+ to Ac-" in p
 
 
+class TestDegenerationSubjectIsPreserved:
+    """The degeneration rule is `X+ without Y+ yields X-`: the SUBJECT is
+    preserved and its OWN polarity flips. The transition tetrad inherits it from
+    the aspect level (`control_statements_check.py`: "T+ without A+ yields T-")
+    via generative-rules 5.2, which makes the transition tetrad "a new tetrad
+    obedient to rules 3.1-3.3".
+
+    Until 2026-09-11 the transition-level sites stated the MIRROR ("Ac+ without
+    Re+ yields Re-"), so the Ac- and Re- prompt bodies each described the OTHER
+    position's mechanism. Nothing pinned it. The assertions that matter here are
+    the NEGATIVE ones — a swapped subject reads perfectly plausibly, so the
+    presence of a "without" sentence proves nothing."""
+
+    def test_transition_rule_keeps_its_subject(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Ac+ without Re+ yields Ac-" in p
+        assert "Re+ without Ac+ yields Re-" in p
+        # the mirror, which is what shipped
+        assert "Ac+ without Re+ yields Re-" not in p
+        assert "Re+ without Ac+ yields Ac-" not in p
+
+    def test_ac_minus_body_degenerates_the_action_not_the_reflection(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        src = inspect.getsource(m.TransformationGeneration._generate_ac_minus)
+        assert "What Ac+ ITSELF degenerates into when Re+ is absent" in src
+        # Ac- is the action left unreflected, so the prompt must ask about the
+        # action being taken, never about reflection occurring alone
+        assert "reflection occurs WITHOUT" not in src
+
+    def test_re_minus_body_degenerates_the_reflection_not_the_action(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        src = inspect.getsource(m.TransformationGeneration._generate_re_side)
+        assert "What Re+ ITSELF degenerates into when Ac+ is absent" in src
+        # Re- is not the ABSENCE of reflection — it is reflection overextended
+        assert "their action goes unexamined" not in src
+        assert "ignore their action" not in src
+
+    def test_worked_example_demonstrates_the_rule_it_states(self):
+        from dialectical_framework.concerns import transformation_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Ac+ without Re+ yields Ac- — your action left unreflected" in p
+        assert "Re+ without Ac+ yields Re- — your reflection left unacted" in p
+        # the example's own bullets used to name the opposite failure
+        assert "Failure: reflecting (valuing the bond) without acting" not in p
+        assert "Failure: acting (boundaries) without reflecting" not in p
+
+    def test_negative_synthesis_names_which_minus_is_which(self):
+        from dialectical_framework.concerns import synthesis_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "Acting without reflecting yields Ac-" in p
+        assert "reflecting without acting yields Re-" in p
+
+
 # --- S4: transition length is settings-driven --------------------------------
 
 

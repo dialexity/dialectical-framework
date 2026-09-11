@@ -63,17 +63,17 @@ The +/- notation is STRUCTURAL (like electrical charges), not a value judgment:
 
 **Action side** (from Action Perspective):
 - **Ac+**: source.neg → target.pos (escaping your problems toward their benefits)
-- **Ac-**: source.pos → target.neg (your strength wasted — failure when reflection lacks action)
+- **Ac-**: source.pos → target.neg (your strength wasted — what Ac itself degenerates into when Re+ is absent)
 
 **Reflection side** (from Reflection Perspective, responding to opposite Ac+):
 - **Re+**: opp_source.neg → opp_target.pos (how their action grounds you toward growth)
-- **Re-**: opp_source.pos → opp_target.neg (what happens when you ignore their action)
+- **Re-**: opp_source.pos → opp_target.neg (their opening squandered — what Re itself degenerates into when Ac+ is absent)
 
 ## Circular Causality: Why Ac+ and Re+ Must Be Complementary
 
 Positive synthesis (S+) emerges ONLY when Ac+ and Re+ work together:
-- Ac+ alone (action without reflection on the other side) regresses to Re-
-- Re+ alone (reflection without your own action) drifts to Ac-
+- Ac+ alone (action never grounded in reflection on the other side) degenerates into Ac-
+- Re+ alone (reflection never grounded in your own action) degenerates into Re-
 
 Together, they form a closed loop — your action + awareness of the other side's action = self-regulation.
 
@@ -94,9 +94,11 @@ The tetrad has diagonal contradictions that must be preserved:
 
 ## Coherence Constraint (CC)
 
-The "-" aspects describe failure modes when transitions are unbalanced:
-- Re-: "Ac+ without Re+ yields Re-" — acting without reflecting on the other side regresses you
-- Ac-: "Re+ without Ac+ yields Ac-" — reflecting without acting drifts you toward problems
+The "-" aspects describe failure modes when transitions are unbalanced. The
+SUBJECT is preserved and its own polarity flips — the same form as the aspect
+tetrad's "T+ without A+ yields T-":
+- Ac-: "Ac+ without Re+ yields Ac-" — action never grounded in reflection overextends into wasted strength
+- Re-: "Re+ without Ac+ yields Re-" — reflection never grounded in action overextends into regression
 
 ## Y-Axis: Insight (0.0 → 1.0)
 
@@ -189,13 +191,15 @@ APEX
 - COMPLEMENTS your Ac+: boundaries build autonomy, this rekindles bonding — together you hold both poles (S+)
 - Does NOT mirror Ac+ — Ac+ moves toward autonomy, Re+ moves toward bonding
 
-**Ac- (T+ → A-, Bonding → Alienation):** "Cherishing closeness but never tending it lets it curdle into distance"
-- Failure: reflecting (valuing the bond) without acting → drift toward alienation
+**Ac- (T+ → A-, Bonding → Alienation):** "Drawing the line on your own terms, never taking their reaching in, hardens closeness into distance"
+- What Ac+ ITSELF degenerates into when Re+ is absent: the boundaries stay, the emotional availability drops out
+- Ac+ without Re+ yields Ac- — your action left unreflected, overextended into wasted strength
 
-**Re- (A+ → T-, Autonomy → Enmeshment):** "Guarding independence while blind to their reaching snaps back into clinging"
-- Failure: acting (boundaries) without reflecting on their effort → regression to enmeshment
+**Re- (A+ → T-, Autonomy → Enmeshment):** "Dwelling on their reaching with no move of your own lets independence collapse into clinging"
+- What Re+ ITSELF degenerates into when Ac+ is absent: their opening is taken in and then squandered
+- Re+ without Ac+ yields Re- — your reflection left unacted, overextended into regression
 
-Notice: Re+ contradicts Ac- (rekindling closeness vs. letting it curdle), Ac+ contradicts Re- (building boundaries vs. snapping back to clinging).
+Notice: Re+ contradicts Ac- (rekindling closeness vs. hardening it into distance), Ac+ contradicts Re- (boundaries you actually set vs. reaching you only dwell on).
 """
 
 
@@ -222,7 +226,7 @@ class AcMinusCompletionDto(BaseModel):
     ac_minus_headline: str = Field(description="Ac- headline (component length)")
     ac_minus_statement: str = Field(description="Ac- statement (fuller than the headline)")
     ac_minus_explanation: str = Field(
-        description="Why this is the failure mode of ungrounded reflection"
+        description="Why this is what the action itself degenerates into when reflection is absent"
     )
     ac_minus_haiku: str = Field(description="Ac- haiku (3-line poem)")
     ac_minus_insight_label: str = Field(description="Insight level for Ac-")
@@ -248,7 +252,7 @@ class ReSideCompletionDto(BaseModel):
     re_minus_headline: str = Field(description="Re- headline (component length)")
     re_minus_statement: str = Field(description="Re- statement (fuller than the headline)")
     re_minus_explanation: str = Field(
-        description="Why this is the failure mode when the opposite action goes unexamined"
+        description="Why this is what the reflection itself degenerates into when action is absent"
     )
     re_minus_haiku: str = Field(description="Re- haiku (3-line poem)")
     re_minus_insight_label: str = Field(description="Insight level for Re-")
@@ -474,7 +478,9 @@ class TransformationGeneration(
         #
         # NO `parent_context`, and that is deliberate rather than an oversight left
         # over from the two calls above. This is a judgement against the apexes, and
-        # HS both gates (`HS_THRESHOLD`) and renders — a score nudged by "be more
+        # transition-level HS is stored on the relationship and rendered to the
+        # advisor as evidence (it does NOT gate — `HS_THRESHOLD` is polarity-level
+        # only, see `analyst.py` / `dialectical_context.py`). A score nudged by "be more
         # concrete than the broader path" is a different class of defect from an
         # unrefined statement. It shares `self._conversation`, so the hierarchy is in
         # its window regardless; what a prompt controls is whether anything ASKS it
@@ -556,7 +562,7 @@ class TransformationGeneration(
         ac_plus: ActionCandidateResultDto,
         parent_context: Optional[str] = None,
     ) -> AcMinusCompletionDto:
-        """Generate Ac- (failure mode when reflection lacks grounding action)."""
+        """Generate Ac- (what the action degenerates into when grounding reflection is absent)."""
         context_section = (
             f"<context>\n{input_text}\n</context>\n\n" if input_text else ""
         )
@@ -578,8 +584,8 @@ Generate Ac- (the action failure mode: T+ → A-).
 
 ## Ac- (action targeting A-)
 
-What happens when reflection occurs WITHOUT grounding action?
-- Describes drift toward A- when reflection lacks the grounding of Ac+
+What happens when the action is taken WITHOUT the reflection that grounds it?
+- What Ac+ ITSELF degenerates into when Re+ is absent — an overextension of the action, not merely a bad action
 - The path from T+ (strength) toward A- (problem) — strength wasted
 - Usually lower insight than Ac+
 
@@ -629,11 +635,12 @@ Given their action, what reflection does it trigger that leads to growth?
 - Insight should be similar to Ac+ (~{own_ac_plus.insight_label})
 - Re+ must CONTRADICT Ac- (the positive reflection opposes drift)
 
-## 2. Re- (negative reflection: what if you ignore their action?)
+## 2. Re- (negative reflection: reflection without the action that grounds it)
 
-What happens when their action goes unexamined — how does it pull you back?
+What happens when their action IS taken in, but nothing you do grounds that reflection?
+- What Re+ ITSELF degenerates into when Ac+ is absent — an overextension of the reflection, not the absence of one
 - Path: the Reflection Perspective's positive regresses you toward your negative
-- Describes regression when you act (Ac+) without reflecting on the other side
+- NOT the same failure as Ac-: Ac- is your action left unreflected, Re- is your reflection left unacted
 - Your Ac+ must CONTRADICT Re- (your positive action opposes this regression)
 - Usually lower insight than Re+
 

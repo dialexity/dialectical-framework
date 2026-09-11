@@ -57,7 +57,7 @@ S+ produces new qualitative dimensions — it increases a system's capacity for 
 ## S- (Negative Synthesis): Collapse Pattern (1+1<2)
 
 S- emerges when the failure modes (Ac- and Re-) reinforce each other:
-- Acting without reflecting yields regression; reflecting without acting yields drift
+- Acting without reflecting yields Ac- (the action's own drift); reflecting without acting yields Re- (the reflection's own regression)
 - Together these create downward spirals — dominance of one pole, or unstable oscillation between them
 - Diversity is reduced and qualitative growth is replaced by quantitative amplification
 
