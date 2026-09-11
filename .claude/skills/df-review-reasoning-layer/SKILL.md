@@ -122,6 +122,21 @@ co-occurrence hotspots. Then:
       tokens written / 0 read per 120 KB ingest (`tests/e2e/probe_ingest_cost.py`). If your fan-out copies a long
       history, the cost question is how much history it copies, not whether caching will absorb it; see the
       caching CORRECTION in [reference/systemic-map.md](reference/systemic-map.md).
+- [ ] **Trimming a fan-out's copied history is a REASONING change, and "the prompt already contains the item"
+      does not make it safe.** Dropping the source from `ThesisExtraction`'s step-2 branches is worth 8.5x at
+      `CHUNK_SIZE` and was still rejected: with both self-consistency floors at 0.0%, the arms disagreed on 5.6%
+      of items and every disagreement was `is_substantive` flipping the same way — the gate ADMITS what it would
+      otherwise reject, because "substantive" means "adds something to THIS document" and no item states that
+      about itself. Generalize: **ask which of a call's judgements are properties of the item and which are
+      properties of the item's place in the source**; only the first survive losing the history
+      (`tests/e2e/probe_step2_isolate_ab.py`).
+- [ ] **An A/B over LLM judgements needs a self-consistency floor per arm, a decision metric restricted to fields
+      code actually READS, and a positional control on any judge.** All three changed the verdict of the probe
+      above. `is_atomic` is on `CandidateCheckDto` and read nowhere, and counting it invented an instability in
+      the candidate arm (6.7% against 0.0%) that cannot reach a candidate list. The judge put 62% of its decided
+      calls on whichever set was shown first, so alternating labels without REPORTING the raw split would have
+      laundered a positional bias into a fake 50/50 between arms — an apparent 7-2 lean died under both fixes.
+      A cross-arm rate with no within-arm floor beside it is not a finding.
 
 ---
 

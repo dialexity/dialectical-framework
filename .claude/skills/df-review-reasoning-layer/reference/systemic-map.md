@@ -2870,8 +2870,24 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   driven by extraction YIELD, which is stochastic; quote the per-window figure, never a single total. This is
   also why the first extrapolation was wrong by ~3x: it scaled the grand total instead of the size-driven
   stages. (2) **The `isolate()` A/B above is now priced: step 2 is 207,047 tokens, 75% of everything the
-  document's SIZE costs**, so dropping it cuts size-driven ingestion cost roughly 4x. Still not taken — still a
-  reasoning change. (3) **It also pays a cache write surcharge nobody reads** (~46,110 token-equivalents; see
+  document's SIZE costs**, so dropping it cuts size-driven ingestion cost roughly 4x. **The A/B has now been RUN
+  (2026-09-11, `tests/e2e/probe_step2_isolate_ab.py`) and the answer is DON'T TAKE the straight swap.** The
+  saving is confirmed — 8.5x projected at `CHUNK_SIZE`, identical across three documents — but the gate's
+  keep/drop decision moves: with both self-consistency floors at **0.0% (0/180)**, arm A and arm B disagree on
+  **5.6% (5/90)** of items, and all five are the SAME field moving the SAME way (`is_substantive`: A false, B
+  true; zero the other way). Without the source, step 2 ADMITS items that with the source it rejects, because
+  "substantive" is not a property of a sentence in isolation — an item restating what the document established
+  earlier is not substantive and nothing in the item says so. The effect concentrates exactly where that reading
+  predicts (per-document flips: technical 43.3%, self-contained 16.7%, narrative 0.0%; the technical document is
+  the one defining terms once and referencing them later). **What stays open is a THIRD arm nobody has measured:
+  feed step 2 the other step-1 content items, or a short digest, instead of the whole source** — the gate needs
+  what the document established, not the document. Two methodological lessons from the same run, both of which
+  changed its verdict: (a) the metric must read `is_assertable`/`is_substantive` ONLY, because `is_atomic` is on
+  the DTO and read by no code — including it invented an instability in arm B (6.7% vs A's 0.0%) that cannot
+  reach a candidate list; (b) a blinded judge needs its raw first-vs-second split REPORTED, not just its labels
+  alternated — this one put 62% of decided calls on whichever set came first, and alternating alone would have
+  laundered that into a fake 50/50 between the arms. An apparent 7-2 faithfulness lean toward arm A at REPS=2
+  vanished under both corrections. (3) **It also pays a cache write surcharge nobody reads** (~46,110 token-equivalents; see
   the caching CORRECTION near the top of this file), which the same change removes for free. **And a null worth
   keeping: latency is not the problem on this path** — 85-98s for 120 KB at 5-11x parallelism with only 1.3-3.9s
   of wall clock outside any provider call, so there is no orchestration gap to close in ingestion. The probe's
