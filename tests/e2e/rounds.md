@@ -5189,3 +5189,88 @@ not.
 Suites: **640** in `tests/e2e/test_e2e.py` (626 at the previous entry), **35** in
 `tests/test_turn_record_timing.py` (28), and every published `r26` figure still reproduces
 byte-for-byte from the archive.
+
+---
+
+### a15-latency: A1.5's first run — 5.85s against A2's 23.40s, and the graph being LIVE is the whole difference (2026-09-11)
+
+**The arm's first appearance in the archive** (see `a15-precheck` above: 43 stems, 488 cells, zero
+A1.5). `cofounder_equity`, weak tier, both branches, 2 replicates, judge OFF, arms A1.5 / A1.7 / A2 in
+one stem, 38m50s. 32 turns per arm, 0 untimed, arithmetic closes 32/32 on all three.
+
+**A2 was run alongside rather than read off `r26`, and that was the point of including it.**
+`r26-latency-price` is dated Aug 26; the ParseError-ladder flattening landed Aug 27. Quoting r26's
+1012.40s worst A2 turn against a fresh A1.5 would have overstated A2 by ~8x. Measured here on the
+same afternoon as A1.5:
+
+| | A1.5 | A1.7 | A2 |
+|---|---|---|---|
+| median turn | **5.85s** | 6.00s | **23.40s** |
+| worst turn | 11.40s | 8.10s | **131.90s** |
+| median reply path, TOOL-FREE turns | 5.85s | 6.00s | 17.20s |
+| cell wall, 4 cells | 309.1s | 487.1s | 1327.3s |
+| tool calls / turns electing one | 0 / 0 | 0 / 0 | 20 / 13 |
+| tool seconds | 0.00 | 0.00 | 545.6s |
+| turns that retried / retry seconds | 0 / 0.00 | 0 / 0.00 | 4 / 59.0s |
+| static context build | **201.8s, 5346c** | n/a | n/a |
+
+**A1.5's WORST turn is faster than A2's MEDIAN**, and that is the headline for the UX question this
+lane exists to answer. Its `off path` and `context_render` are 0.00 by construction — a static string
+is not re-rendered — so its median turn IS its median reply path, with nothing behind the reply to
+account for.
+
+**Where A2's 4x goes, decomposed here rather than assumed.** `retry seconds in generation` is
+**0.00** and only 4 of 32 turns retried at all (59.0s total, worst 25.5s), so the 131.90s worst turn is
+NOT the old pathology — it is 545.6s of tool work spread over the 13 turns that elected one, ~42s each.
+**And the tool-free median is still 17.20s against 5.85s**, so roughly three-quarters of the gap on a
+quiet turn is prompt size and context render, before the model touches the graph at all. A2's tail is
+DEPTH now. The stale figure to stop quoting is 1012.40s; the current one is 131.90s.
+
+**What the 201.8s build is, and why it is billed beside the turns and never inside them.** One
+`AdvisorArm` run with live tools over the scenario's base sessions, rendered once per (scenario, tier)
+and reused across all replicates and branches — a static artifact by definition. So it is ONE charge
+for 4 cells and 32 turns (~50s a cell, ~6.3s a turn if anyone wants it amortised), and the reader
+prints it as its own row rather than folding it into `cell wall`. Quoting A1.5's 5.85s without it would
+be the most flattering possible lie about the arm. Even carrying it in full, the arm's total provider
+wall is 510.9s against A2's 1327.3s.
+
+**The snapshot was THIN, and this is the caveat that bounds every quality reading below.**
+`perspectives=1 woven=0 transformations=0 decisions=2`. A2 on this same scenario ranges perspectives
+1-7 and woven 0-3, so this is an n=1 draw from the bottom of that distribution: one tension, no
+pathway arranged. It passed the tripwire correctly (thin but real — `perspectives=1` is structure), and
+the latency figures are unaffected, but do not read A1.5's *content* off this build.
+
+**What A1.5 cannot do, which is the other half of "snappy AND deep".** It has no tools, so:
+`asked 3, record 0, typed 1, silent 2` on the promised-records probe against A2's `asked 4, record 2`.
+A prompt arm's zero there is a capability bound, not a failure — but the person asking for the decision
+in writing gets nothing written. **No phantom claims from any arm this round**, which is the comparable
+column and the one that would have been damning. Carried particulars are the surprise and cut the other
+way: A1.5 `used` **0.12** (2/16) against A1.7's 0.06 and **A2's 0.00**, on `memory` 0.75 against 1.00
+for both — the static dump held one fewer fact and spoke two more of them. Every arm is near the floor;
+the one fact no reply in any cell referenced was "the messy sales notes", held in memory in 12 of 12
+cells. That is the standing prompt finding, unmoved.
+
+Everything else is inside its interval and must not be read as an arm difference: question-ending
+change A1.5 +0.04 [-0.55,+0.63], A1.7 +0.00, A2 -0.25 [-0.80,+0.30], all three overlapping and the
+cell count overstating independent n by ~2x. Verbosity is flat (2278 / 2305 / 2209 words). Machinery
+leaks 2 / 1 / 3 — and A1.5's are the method text it was HANDED, so only A2's count against the silent
+contract. **Judged quality is ABSENT from this round by construction, not by omission:** `JUDGED_PAIRS`
+contains no A1.5 pair, so no judge could have scored it even with the judge on. The transcripts are
+archived, so `test_e2e_rejudge` can answer it later for minutes and cents once a pair is added.
+
+**One number this round cannot explain.** A1.7's four cell walls are 224.7 / 86.3 / 85.3 / 90.8s, and
+its 6.00s median turn accounts for ~48s of the first one. The 176s residual is outside the turn loop
+(the journal maintenance call is not a turn, so no turn-level column can see it) and appears in the
+arm's FIRST cell only. Recorded as unexplained; do not quote A1.7 cell wall as a per-turn cost.
+
+**Validity flags, all on A2 and all pre-existing:** 1 of 4 runs mapped 7 perspectives and wove no
+pathway; 2 runs closed a decision in prose with no record on disk (the framework's own
+"writing the record out is not recording it" rule failing to bind); 1 closed without electing
+`record_decision` and the repair seam wrote it; 0 of 4 records are COMPLETE (risk-grounded cost AND
+pathway) because a decision closed without `explore` cannot have a pathway. Single tier, so no delta
+here can be classified depreciating or durable.
+
+Suites unchanged from the previous entry: 640 in `tests/e2e/test_e2e.py`, 35 in
+`tests/test_turn_record_timing.py`. This round added no tests — it is a measurement round, and the
+reader rows it exercises (`static context builds` / `build seconds` / `chars`) were pinned in `72c55b5`
+and `50ddd1a` before it ran.
