@@ -435,6 +435,24 @@ class AdvisorArm:
     async def reply(self, user_text: str) -> str:
         return await self._advisor.chat(user_text)
 
+    async def finish(self) -> None:
+        """Await the work the Advisor deliberately did not put on a turn.
+
+        The Advisor defers pathway construction off the turn
+        (`_schedule_pathway_construction`) and documents draining it as a host
+        obligation; the bench is a host. This MUST run before the cell reads
+        decisions or renders a graph summary, or every measurement lands on the
+        pre-weave graph and the deferral would score as having done nothing —
+        the reverse of the r-round mistake where the bench measured a seam the
+        product did not have.
+
+        It also means A2's `duration_s` includes the weave. That is the honest
+        number for a batch harness: the wall clock the framework spends. It is
+        NOT the person's wait, and per-turn timing (`last_turn_timing`) remains
+        the number to read for that.
+        """
+        await self._advisor.wait_for_deferred_work()
+
     @property
     def last_tool_calls(self) -> list[str]:
         return list(self._advisor._conversation.last_tool_calls)

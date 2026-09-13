@@ -2333,6 +2333,10 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   decision-repair lesson says belongs in code. The seam fires only inside `_repair_unrecorded_decision` AFTER the
   confirmation verdict passes (never a background weaver: mid-exploration weaving would burn latency on
   arrangements the conversation may never reach and make `explore`'s per-call perspective cap meaningless).
+  That parenthesis is about MID-exploration weaving and it still holds; it is NOT a bar on weaving at a CLOSING
+  off the turn, which is what "The construction came back, off the turn" below now does — a closing has a
+  Decision in hand, so the arrangements are by construction ones the conversation DID reach, and each deferred
+  call still passes through the same per-call cap.
   **As of 2026-08-26 that seam READS pathways and no longer builds them** (`_ensure_pathways_before_closing`):
   per-turn timing on a real provider caught it billing construction to the person's wait — two turns making
   ZERO tool calls cost 141.9s and 402.0s, of which **127.7s and 387.7s were the weave**, both landing on the
@@ -2342,6 +2346,8 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   priced debt, not a clean win:** the −0.69-unwoven / −0.25-woven gap below is exactly what the removed
   construction used to close, so an unwoven closing is now logged at WARNING (deliberately a log, not a queue
   — an undrained queue is this archive's signature defect) and the construction is owed a place OFF the turn.
+  **That debt was paid 2026-09-13** — see "The construction came back, off the turn" below. The WARNING log
+  stays even now that the seam covers for it, because "the model skipped the pathways" is still the finding.
   Inverted guards: `tests/test_pathways_seam_real_llm.py` (seeded — the closing wove 0 while explicit
   exploration wove 2 and the read found 12 transformations) and
   `tests/test_pathways_before_closing_weak_tier.py` (conversational — asserts a weave only when the MODEL
@@ -2439,6 +2445,45 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   the tool report's `decision_hash` rather than "newest Decision", and a grounding fault never breaks the turn) —
   revert-verified 4/45 failing on the three call sites alone. Still NOT verified at the behaviour layer: whether
   grounding the pathway moves `paired_recipe` (-0.58) or `decision_closure` (-0.75) needs r17.
+  **The construction came back, off the turn** (built 2026-09-13, `Advisor._schedule_pathway_construction`) —
+  the last chapter of this lineage and the one that closes the debt the 2026-08-26 removal opened. Between the two
+  entries above, a latency pass removed the weave because it was billing 127.7s and 387.7s to the person's wait;
+  the removal was right about the PLACE and wrong to leave the reasoning out, because the −0.69-unwoven /
+  −0.25-woven gap is what the weave was buying. **The general rule, and the one worth carrying past this instance:
+  a latency fix that removes work removes REASONING, and "the prompt still requires it" does not make it happen.
+  Price the removal in judged quality or move the work — deleting it is a quality change made in a performance
+  commit, invisible to prompt review because no prompt surface changed.** Four such trades were audited after the
+  fact; this fixes two of them. What made relocation legal is the r16 correction above, applied a second time:
+  GROUNDED_IN is ANALYTICAL, so a Decision committed on the turn can be grounded on a pathway built minutes later
+  — the deferral attaches by the decision's HASH (`_ground_recorded_decision` → `NodeRepository.find_by_hash`),
+  never by `_decision_recorded_this_turn`, which reads `last_tool_results` and has moved on by then. Both closing
+  branches schedule (50 saved cells vs 48 — a deferral wired into one would miss half the closings), and both
+  still ground on what exists FIRST: the person who never returns keeps a recipe on the record, and the weave
+  upgrades it if they do. Three properties that are not obvious and are each mutation-verified: **single flight**
+  (a second closing mid-weave re-enters the queue the running task re-reads, rather than starting a concurrent
+  exploration against the same nexus), **no-progress stop** (a weave that weaves nothing breaks instead of
+  repeating the same call), and **the loop drains the per-call perspective cap** — `advisor_max_perspectives_per_exploration`
+  bounds a CALL and exists to bound TURN latency, so off the turn the loop keeps calling, each call still obeying
+  the cap, until nothing is unwoven. That is the cap honoured, not bypassed, and it is the other audited trade:
+  the cap's own "weave the rest next turn" follow-up was elected **0 times in 6 A2 cells**, so the remainder was
+  simply lost. (Election rates in the same cells, which is why none of this is a prompt problem: `anchor` 6/6,
+  `explore` 2/6, `record_decision` 4/6, `deepen` 0/6.) **The mechanism is only not-a-queue-nothing-drains because
+  it starts its own consumer in the same call**, and the residual host obligation is documented as one:
+  `await advisor.wait_for_deferred_work()` before shutdown, same shape as the `aclosing` contract (docs/agents.md
+  obligation 5; `tests/e2e/arms.py::AdvisorArm.finish`, which the driver calls before every decision read and
+  graph render — omit it and the bench measures the pre-weave graph and scores the deferral as having done
+  nothing, the mirror of the r-round mistake where the bench measured a seam the product did not have). One
+  hazard found while building and fixed in code rather than documented away: **the deferred task is a WRITER, and
+  one-writer-per-sid is a hard contract that nothing enforces** — so `chat`/`chat_stream` await the previous
+  turn's weave before starting (`_settle_deferred_work`, before `_refresh_context`, which also means the turn's
+  prompt shows the wheel the weave just built). Its cost is recorded rather than hidden, as a COMPONENT of
+  `reply_path_s` (`TurnTiming.deferred_wait_s`, subtracted in `generation_s` so the
+  `duration_s == reply_path_s + off_path_s` invariant is untouched); normally 0.0 because think-time absorbs it,
+  and a run where it is large on many turns means the weave does not fit in the gaps and belongs behind a setting.
+  Locked by `TestDeferredPathwayConstruction` + `TestBothClosingBranchesDefer`
+  (`tests/test_decision_confirmation_repair.py`) and `TestTheDeferredWaitIsOnTheReplyPath`
+  (`tests/test_turn_timing.py`). Still NOT verified at the behaviour layer — same gap as the entry above, now with
+  a second question: whether an off-turn weave lands in time to move `paired_recipe` / `decision_closure` at all.
   **The decision was not decidable yet and got recorded anyway, 12 of 12** (measured 2026-08-19,
   `r23-controls`; UNFIXED, and deliberately so — **the product owner's call, made 2026-08-20: leave it.** A
   premature record is the cheaper of the two errors, per (3) below. Do not reopen this as a prompt patch without

@@ -490,6 +490,10 @@ class _StubAdvisor:
 
     def __init__(self, facilitator: ConversationFacilitator) -> None:
         self.last_turn_timing = None
+        # No deferred weave was ever scheduled on this stub, so the settle at the
+        # top of `chat_stream` returns immediately. Present because the real method
+        # reads it — see `TestDeferredPathwayConstruction` for what it holds.
+        self._deferred_pathway_task = None
         self._conversation = facilitator
 
     async def _refresh_context(self) -> float:
@@ -500,6 +504,8 @@ class _StubAdvisor:
 
     chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
+    _settle_deferred_work = Advisor._settle_deferred_work
+    wait_for_deferred_work = Advisor.wait_for_deferred_work
 
 
 @pytest.mark.llm

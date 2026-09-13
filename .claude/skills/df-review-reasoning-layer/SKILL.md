@@ -375,6 +375,16 @@ anchors.
 - [ ] **Preserve "refer to concepts by actual statement wording, never T/A notation"** in transition/synthesis edits — stored text is re-read later without wheel-relative aliases.
 - [ ] **Diversity chains.** `not_like_these` (ExpandPolarity, SurfaceTheses retries) — don't weaken "generate
       something different," or alternatives collapse into near-dupes that dedup silently removes.
+- [ ] **A latency fix that removes work removes REASONING — and no prompt surface changes, so this review would
+      never see it.** The prompt still requiring the artefact does not make it appear: `_DECISION_READINESS`
+      requires pathways at a closing, the seam stopped building them (correctly — it was billing 127.7s and 387.7s
+      to the person's wait), and the judged cost of an unwoven closing is **−0.69 vs −0.25 woven**. Two rules.
+      (1) When reviewing a chain, ask what the code actually still produces, not what the prompt asks for. (2) When
+      *making* such a change, price the removal in judged quality or move the work off the turn — a caps/skips/
+      early-returns diff is a quality change hiding in a performance commit. Corollary: **a cap whose stated
+      purpose is bounding TURN latency has no authority off the turn** — drain it there
+      (`_schedule_pathway_construction`; the cap's own "next turn" follow-up was elected 0/6). See "The
+      construction came back, off the turn" under Decision lifecycle in reference §4.
 
 ### Cross-agent parity (see the §5 matrix)
 - [ ] **Grep the other two agents when editing a shared concept.** HS disambiguation, HS bands, nexus grouping

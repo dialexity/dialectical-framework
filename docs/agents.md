@@ -96,7 +96,7 @@ continuity rule below is then automatic.
 `agents/apps.py`): `app_preamble` replaces the AppSpec-derived composition entirely,
 `app_tools` are `@llm.tool` functions appended to the built-in set
 (`agents/toolsets.py`; shadowing a built-in name raises). Mixing `app=` with either
-manual param raises. `messages` resumes a saved conversation. The **host application** owns four things the framework does not:
+manual param raises. `messages` resumes a saved conversation. The **host application** owns five things the framework does not:
 
 1. **DI setup** — `DialecticalReasoning.setup(Settings.from_env())` once at startup.
 2. **Scope** — wrap every `chat()` in `with scope(sid):` (all graph writes are `sid`-scoped).
@@ -114,6 +114,27 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
 3. **Message persistence** — save/load `agent.messages` per conversation thread.
 4. **Phase handoff & live updates** — see [Handoffs](#handoffs-the-ux-glue) and the
    `GraphEventBus` (effects publish per `sid` for reactive canvas updates).
+5. **Draining deferred work** — `await advisor.wait_for_deferred_work()` before the
+   conversation's scope goes away (once, after the last turn). The Advisor starts one
+   thing the turn does not wait for: when a decision closes over tensions nothing has
+   arranged into a pathway, it weaves them **off the turn** and grounds the record on
+   the result afterwards. Building that inline was measured at 127.7s and 387.7s on
+   two turns of `timing-check-building`, both landing on the turn immediately before
+   the closing; leaving it undone cost quality (judged mean −0.25 with a woven graph
+   at closing against −0.69 without, 36 scores each). So it happens, just not while
+   the person waits.
+
+   Only the host knows when there is no next turn, which is what makes this the
+   host's call and not the framework's — the same shape as the `aclosing` obligation
+   above. **Skipping it loses nothing but the pathway**: every deferred write is
+   fail-soft and idempotent, and the decision keeps the grounds it was recorded with.
+   Safe to call any number of times, including when nothing was deferred.
+
+   The *next turn* needs no help: `chat()`/`chat_stream()` wait for any in-flight
+   weave before they start, because of the one-writer-per-sid contract in (2). That
+   wait is normally zero — the person's think-time absorbs it — and when it is not,
+   it is recorded as `TurnTiming.deferred_wait_s` rather than hidden inside
+   `generation_s`.
 
 ```python
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning

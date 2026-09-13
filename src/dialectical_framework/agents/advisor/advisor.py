@@ -12,6 +12,7 @@ Two use cases:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from contextlib import aclosing
@@ -115,6 +116,13 @@ class Advisor:
 
     AGENT_NAME = "advisor"
 
+    # How many times the off-turn weave may re-call exploration before giving
+    # up. Each round weaves at most `advisor_max_perspectives_per_exploration`
+    # (2), so 4 rounds covers the 4-perspective ceiling applications actually
+    # use with one round of slack. Not a latency budget — there is no turn
+    # waiting on this — but a spin guard: see `_weave_unwoven_perspectives`.
+    _MAX_WEAVE_ROUNDS = 4
+
     def __init__(
         self,
         app_preamble: Optional[str] = None,
@@ -171,6 +179,15 @@ class Advisor:
         # Where the last turn's seconds went, split at the point the reply was
         # handed to the person. None until the first turn completes.
         self.last_turn_timing: Optional[TurnTiming] = None
+        # Pathway construction moved OFF the turn — see
+        # `_schedule_pathway_construction`. The task reference is held to keep
+        # the task from being garbage-collected mid-flight (asyncio only holds a
+        # weak reference), and it is the single-flight guard: one weave at a
+        # time, so this seam can never race itself. Decisions closed while a
+        # weave is in flight queue here and the running task drains them, which
+        # is why the queue is a field and not a local.
+        self._deferred_pathway_task: Optional[asyncio.Task] = None
+        self._decisions_awaiting_pathway: list[str] = []
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
@@ -218,17 +235,28 @@ class Advisor:
             # this one's. A reader cannot tell a stale figure from a fresh one;
             # they can tell None.
             self.last_turn_timing = None
+            # Before everything: the previous turn may have left a weave running,
+            # and ONE WRITER PER SID is a hard contract (docs/agents.md) — two
+            # concurrent writers on one sid produce duplicate nodes and
+            # half-built containers. Usually free, because the person's
+            # think-time already absorbed it.
+            deferred_wait_s = await self._settle_deferred_work()
             # Before submit, so this turn's prompt reflects what the LAST turn
             # wrote. The person waits for it, so it counts against the reply path.
             context_render_s = await self._refresh_context()
             result = await self._conversation.submit(ChatResponse, user_message)
-            reply_path_s = context_render_s + self._conversation.last_submit_seconds
+            reply_path_s = (
+                deferred_wait_s
+                + context_render_s
+                + self._conversation.last_submit_seconds
+            )
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, result.message)
             self._record_turn_timing(
                 reply_path_s,
                 time.monotonic() - repair_started,
                 context_render_s=context_render_s,
+                deferred_wait_s=deferred_wait_s,
             )
             return result.message
 
@@ -256,6 +284,8 @@ class Advisor:
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
             self.last_turn_timing = None  # see `chat` — a crashed turn reports nothing
+            # See `chat`: the one-writer-per-sid contract, not an optimisation.
+            deferred_wait_s = await self._settle_deferred_work()
             # Before the stream, for the same reason as in `chat`: this turn's
             # prompt must reflect what the last turn wrote.
             context_render_s = await self._refresh_context()
@@ -285,7 +315,11 @@ class Advisor:
                     if isinstance(event, ResponseComplete):
                         reply = event.message
                     yield event
-            reply_path_s = context_render_s + self._conversation.last_submit_seconds
+            reply_path_s = (
+                deferred_wait_s
+                + context_render_s
+                + self._conversation.last_submit_seconds
+            )
             # After the stream, so the text is on screen before the repair runs.
             # NOT the same as being free: this generator cannot finish until the
             # repair does, and `chat` is worse still — it holds its return value
@@ -301,12 +335,13 @@ class Advisor:
                 reply_path_s,
                 time.monotonic() - repair_started,
                 context_render_s=context_render_s,
+                deferred_wait_s=deferred_wait_s,
                 # Same construction as `reply_path_s` above and for the same
-                # reason: the person's wait starts before the submit does, so the
-                # re-render they waited through belongs inside the figure. None
+                # reason: the person's wait starts before the submit does, so
+                # everything they waited through belongs inside the figure. None
                 # when nothing streamed, which is not the same as zero.
                 first_delta_s=(
-                    context_render_s + first_delta
+                    deferred_wait_s + context_render_s + first_delta
                     if first_delta is not None
                     else None
                 ),
@@ -318,6 +353,7 @@ class Advisor:
         off_path_s: float,
         *,
         context_render_s: float = 0.0,
+        deferred_wait_s: float = 0.0,
         first_delta_s: Optional[float] = None,
     ) -> None:
         """Publish where this turn's seconds went.
@@ -341,6 +377,7 @@ class Advisor:
             off_path_s=off_path_s,
             tool_rounds=tuple(self._conversation.last_tool_rounds),
             context_render_s=context_render_s,
+            deferred_wait_s=deferred_wait_s,
             retry_seconds=retries.wasted_s,
             retry_count=retries.count,
             first_delta_s=first_delta_s,
@@ -424,7 +461,15 @@ class Advisor:
             # `Decision`'s own docstring shows the order — `decision.commit()`
             # THEN `decision.grounds.connect(...)`. Grounding a committed
             # decision is the designed path, not a workaround.
-            self._attach_adopted_pathway(pathways)
+            # ...and what the graph does NOT hold yet is built off the turn and
+            # attached when it lands. Both, not either: the existing pathway is
+            # grounded NOW so a person who never returns still has a recipe on
+            # the record, and the weave upgrades what it can afterwards. The
+            # hash comes back from the attach so the decision is resolved once,
+            # inside its own fail-soft guard.
+            self._schedule_pathway_construction(
+                self._attach_adopted_pathway(pathways)
+            )
             return
         try:
             from dialectical_framework.concerns.decision_confirmation_check import \
@@ -473,6 +518,10 @@ class Advisor:
                     "left unrecorded: [[%s]]",
                     decision_hash[:7],
                 )
+                # Scheduled only with a hash in hand: this branch's record is
+                # the thing the deferred weave grounds, and a weave with nothing
+                # to attach to is work spent on no one's behalf.
+                self._schedule_pathway_construction(str(decision_hash))
         except Exception:
             logger.exception("Decision confirmation repair failed (fail-soft)")
 
@@ -514,13 +563,23 @@ class Advisor:
         that: GROUNDED_IN is analytical, so a Decision committed now can be
         grounded on a pathway built later (`_attach_adopted_pathway`; and
         `Decision`'s own docstring shows `commit()` preceding
-        `grounds.connect(...)`). Until that deferral exists, an unwoven closing
-        is LOGGED rather than quietly accepted. Deliberately a log and not a
-        queue: a queue nothing drains is this archive's signature defect, so
-        there is a visible gap instead of a fake mechanism.
+        `grounds.connect(...)`).
 
-        Still `async` though it now awaits nothing — the deferral restores awaits
-        here, and churning both call sites twice would obscure that.
+        THAT DEFERRAL NOW EXISTS — see `_schedule_pathway_construction`, which
+        the two callers invoke after this returns. This method's job is
+        therefore only the READ, and an unwoven closing is no longer a logged
+        gap: it grounds on what is there now and is grounded again when the
+        off-turn weave lands. The log below stays, because "the model skipped
+        the pathways" remains the finding even once the seam covers for it.
+
+        The queue that drains is not a contradiction of the older note here
+        ("a queue nothing drains is this archive's signature defect"): the
+        deferral starts its own consumer in the same call, and
+        `wait_for_deferred_work` is a documented host obligation, so there is no
+        state waiting on a drain that might never be written.
+
+        Still `async` though it awaits nothing: both callers are async, the
+        signature is stable, and the alternative churns them for no gain.
 
         Fail-soft throughout: a closing that cannot see a pathway is recorded
         without one, exactly as before this method existed.
@@ -555,6 +614,235 @@ class Advisor:
                 len(pathways),
             )
         return pathways
+
+    async def _settle_deferred_work(self) -> float:
+        """Let the previous turn's off-turn work finish, and say what it cost.
+
+        Called at the TOP of every turn, and the reason is the one-writer-per-sid
+        contract rather than tidiness: the deferred weave writes to the graph, so
+        a turn that starts while it runs is a second concurrent writer on one
+        sid, which `docs/agents.md` records as producing duplicate nodes,
+        duplicated directed edges and half-built containers. That contract is not
+        enforced in code, so the framework must not be the one to break it.
+
+        Runs BEFORE `_refresh_context`, which is a second benefit for free: the
+        turn's prompt then shows the wheel the weave just built, so the model
+        sees its own pathways instead of the graph as it was mid-closing.
+
+        Returns the seconds waited — normally 0.0, because the person's
+        think-time absorbed the weave. When it is not zero the deferral has
+        genuinely charged the person, and `TurnTiming.deferred_wait_s` is where
+        that shows up rather than being buried in `generation_s`.
+        """
+        if self._deferred_pathway_task is None:
+            return 0.0
+        started = time.monotonic()
+        await self.wait_for_deferred_work()
+        return time.monotonic() - started
+
+    async def wait_for_deferred_work(self) -> None:
+        """Await anything this Advisor started off-turn. A HOST OBLIGATION.
+
+        Call this before the process (or the session's scope) goes away —
+        typically once, after the last turn. It is the same shape of contract as
+        `aclosing(...)` around `chat_stream`: the framework starts work the turn
+        does not wait for, and only the host knows when there is no more turn
+        coming.
+
+        Skipping it does not corrupt anything — every deferred write is
+        fail-soft and idempotent — but the weave is cancelled with the loop, so
+        the decision keeps whatever grounds it was recorded with. That is the
+        pre-deferral behaviour, not a new failure mode.
+
+        Safe to call any number of times, including when nothing was deferred.
+        """
+        # Loops on the FIELD rather than awaiting one captured task: a turn that
+        # lands while this is waiting replaces it, and awaiting the stale
+        # reference would return with work still in flight.
+        while True:
+            task = self._deferred_pathway_task
+            if task is None or task.done():
+                return
+            try:
+                await task
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                # The task logs its own failures; this guard only stops a
+                # deferred failure from surfacing at an unrelated shutdown seam.
+                logger.exception("Deferred Advisor work ended in an error")
+                return
+
+    def _schedule_pathway_construction(self, decision_hash: str | None) -> None:
+        """Queue the weave this closing is entitled to, to run OFF the turn.
+
+        This is the deferral `_ensure_pathways_before_closing` was written
+        against ("the construction is not unnecessary — it is in the wrong
+        PLACE. It belongs off the turn entirely, and the architecture already
+        permits that"). Nothing here awaits: the person's turn ends when their
+        reply is delivered, and the pathway lands afterwards.
+
+        WHY THIS IS NOT OPTIONAL
+        =======================
+        Every other repair the latency work left behind is delegated to a tool
+        the model must elect, and measured across the six A2 cells of
+        `a15-floor` the model does not elect them: `explore` fired in 2/6,
+        `audit_feasibility` in 1/6, `deepen` in 0/6, and the perspective cap's
+        own "weave the deferred ones in a follow-up call" in 0. `anchor` fired
+        6/6 — the cheap first step is reliable and every deepening step is not.
+        So the weave is STARTED here rather than advertised to the model, and
+        the only thing left to a caller is draining it at shutdown
+        (`wait_for_deferred_work`).
+
+        SCOPE TRAVELS, BECAUSE THE TASK IS CREATED INSIDE IT
+        ===================================================
+        `asyncio.create_task` snapshots the current context, so the `sid`
+        ContextVar this turn is running under is inherited by the task. That is
+        the whole reason this is scheduled from the turn rather than handed to a
+        host to run later: outside the scope every write would land under a
+        different root, or refuse (`require_for_current_scope`).
+
+        Fail-soft and silent: the reply is already delivered, and a pathway the
+        person never asked about must not surface to them as an error.
+        """
+        if decision_hash and decision_hash not in self._decisions_awaiting_pathway:
+            self._decisions_awaiting_pathway.append(decision_hash)
+        if not self._decisions_awaiting_pathway:
+            # Nothing to ground. The graph may still be unwoven, and weaving it
+            # would leave a better graph behind — but no record would point at
+            # the result, and an exploration run on no one's behalf is the kind
+            # of unattributed cost this seam was moved to stop paying.
+            return
+
+        task = self._deferred_pathway_task
+        if task is not None and not task.done():
+            # Single flight. The running task re-reads the queue after every
+            # weave, so a decision closed while it works is picked up without a
+            # second exploration running concurrently against the same nexus.
+            return
+
+        try:
+            self._deferred_pathway_task = asyncio.create_task(
+                self._run_deferred_pathway_construction()
+            )
+        except RuntimeError:
+            # No running loop (a synchronous caller driving `chat` through
+            # `asyncio.run` has one; something more exotic may not). Nothing to
+            # defer onto, so the closing keeps exactly the behaviour it had
+            # before this existed.
+            logger.exception("Could not schedule deferred pathway construction")
+
+    async def _run_deferred_pathway_construction(self) -> None:
+        """Weave, then ground every decision waiting on a pathway.
+
+        Ordering matters and is the reason this is a loop rather than one pass:
+        a decision recorded while the weave was running has to be grounded too,
+        and it arrives in `_decisions_awaiting_pathway` after this task has
+        already read it once.
+
+        Bounded three ways, because an unbounded drain against a graph that
+        refuses to weave is the failure this replaces, not an improvement on it:
+        the round cap, the no-progress check, and the fact that each round's
+        work is `run_exploration_detailed`'s own budgeted call.
+        """
+        rounds = 0
+        while self._decisions_awaiting_pathway and rounds < self._MAX_WEAVE_ROUNDS:
+            rounds += 1
+            pending = list(self._decisions_awaiting_pathway)
+            self._decisions_awaiting_pathway.clear()
+            try:
+                pathways = await self._weave_unwoven_perspectives()
+            except Exception:
+                logger.exception(
+                    "Deferred pathway construction failed (fail-soft); the "
+                    "decisions it would have grounded keep the grounds they "
+                    "were recorded with"
+                )
+                return
+            for decision_hash in pending:
+                self._ground_recorded_decision(decision_hash, pathways)
+
+    async def _weave_unwoven_perspectives(self) -> list[str]:
+        """Build pathways for every perspective the model left unwoven.
+
+        This is the body `_ensure_pathways_before_closing` used to run ON the
+        turn, restored verbatim in reasoning and moved off it. The measured
+        reason it exists: split by whether the graph was woven at closing, the
+        judged mean was -0.25 woven against -0.69 unwoven over 36 scores each
+        (`claim2-weak-r15-voice`) — independently reproduced in `a15-floor`,
+        where A2's structural delta against A1 was +0.74 in the cells that wove
+        and -0.32 in the cells that did not.
+
+        ONE tension is enough to weave. `PerspectiveCombination` treats a single
+        PP as the circular-causality base case (W(1)=1: one Cycle, one Wheel, 2
+        edges, 1 pair), and a 1-PP exploration measurably yields 6
+        transformations and a synthesis
+        (`tests/test_single_perspective_explore_real_llm.py`).
+
+        THE LOOP DRAINS THE PERSPECTIVE CAP, WHICH NOTHING ELSE DID
+        =========================================================
+        `run_exploration_detailed` weaves at most
+        `advisor_max_perspectives_per_exploration` (default 2) and reports the
+        rest as `deferred_perspective_hashes` for the model to weave in a
+        follow-up call. That follow-up fired 0 times in `a15-floor`. The cap's
+        stated purpose is to bound TURN latency ("not total work") and there is
+        no turn here, so this keeps calling until nothing is unwoven — which is
+        the cap honoured rather than bypassed: each individual call still obeys
+        it, and no single call gets wider.
+
+        Stops on no progress, so a perspective the pipeline cannot weave costs
+        one wasted round instead of spinning.
+        """
+        from dialectical_framework.agents.advisor.tools.explore import \
+            run_exploration_detailed
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        built: list[str] = []
+        for _ in range(self._MAX_WEAVE_ROUNDS):
+            repo = PerspectiveRepository()
+            unwoven = [
+                p
+                for p in repo.find_all_active()
+                if p.hash and not repo.is_in_use_by_cycle(p)
+            ]
+            if not unwoven:
+                break
+            logger.info(
+                "Weaving %d unwoven perspective(s) off the turn — the engine "
+                "prompt requires pathways at a closing and the model skipped "
+                "them",
+                len(unwoven),
+            )
+            _report, round_built = await run_exploration_detailed(
+                perspective_hashes=[p.hash for p in unwoven],
+                intent=(
+                    "The person is closing a decision on these tensions. Build "
+                    "the causal arrangements so the decision rests on a pathway."
+                ),
+                nexus_hash=self._nexus_hash,
+            )
+            built += [h for h in (round_built or []) if h not in built]
+            still_unwoven = [
+                p
+                for p in PerspectiveRepository().find_all_active()
+                if p.hash and not PerspectiveRepository().is_in_use_by_cycle(p)
+            ]
+            if len(still_unwoven) >= len(unwoven):
+                # No progress. Either the cap is 0-with-nothing-woven or the
+                # pipeline declined these perspectives; either way another
+                # identical call is not going to do better.
+                logger.warning(
+                    "Deferred weave made no progress on %d perspective(s); "
+                    "stopping rather than repeating the same call",
+                    len(unwoven),
+                )
+                break
+
+        # A wheel that reuses every transformation reports them as existing
+        # rather than new, so an empty `built` over a graph that already holds
+        # pathways is a successful weave with nothing NEW to report.
+        return built or self._existing_pathway_hashes()
 
     def _existing_pathway_hashes(self) -> list[str]:
         """Transformation hashes already on this session's graph, if any.
@@ -615,7 +903,7 @@ class Advisor:
             logger.exception("Adopted-pathway ground construction failed")
             return []
 
-    def _attach_adopted_pathway(self, pathway_hashes: list[str]) -> None:
+    def _attach_adopted_pathway(self, pathway_hashes: list[str]) -> str | None:
         """Ground an ALREADY-recorded decision on a pathway built after it.
 
         The record is committed by the time this runs, which the seam long
@@ -628,8 +916,55 @@ class Advisor:
         these pathways. Fail-soft and silent: the person's reply is already
         delivered, and a decision grounded on a cost but not a recipe is still
         a decision.
+
+        Returns that decision's HASH, which the caller hands to the deferral so
+        the same record can be re-grounded once the off-turn weave lands. The
+        hash is returned even when there was nothing to ground on — an unwoven
+        closing is precisely the case the deferral exists for, so "no pathway
+        yet" must not lose the identity of the record waiting for one.
         """
-        if not pathway_hashes:
+        try:
+            decision = self._decision_recorded_this_turn()
+        except Exception:
+            logger.exception(
+                "Could not resolve this turn's recorded decision (fail-soft)"
+            )
+            return None
+        self._connect_adopted_pathway(decision, pathway_hashes)
+        return getattr(decision, "hash", None)
+
+    def _ground_recorded_decision(
+        self, decision_hash: str, pathway_hashes: list[str]
+    ) -> None:
+        """Same attachment, for a decision resolved by HASH rather than by turn.
+
+        The off-turn weave cannot use `_decision_recorded_this_turn`: that reads
+        `last_tool_results`, which is per-turn state and has moved on by the time
+        a deferred weave finishes (that is the whole point of deferring). So the
+        hash is captured when the closing is scheduled and the node re-resolved
+        here — which also means a weave outliving its session still grounds the
+        right decision rather than the newest one.
+        """
+        from dialectical_framework.graph.nodes.decision import Decision
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
+        try:
+            decision = NodeRepository().find_by_hash(
+                decision_hash, node_type=Decision
+            )
+        except Exception:
+            logger.exception(
+                "Could not resolve decision [[%s]] to ground it on a deferred "
+                "pathway (fail-soft)",
+                decision_hash[:7],
+            )
+            return
+        self._connect_adopted_pathway(decision, pathway_hashes)
+
+    def _connect_adopted_pathway(self, decision, pathway_hashes: list[str]) -> None:
+        """The GROUNDED_IN write both attachment paths share."""
+        if not pathway_hashes or decision is None:
             return
         try:
             from dialectical_framework.graph.nodes.transformation import \
@@ -639,9 +974,6 @@ class Advisor:
             from dialectical_framework.graph.repositories.node_repository import \
                 NodeRepository
 
-            decision = self._decision_recorded_this_turn()
-            if decision is None:
-                return
             # `connect` deduplicates only direction="any" edges, so a repeated
             # closing in one session would otherwise add a second identical
             # GROUNDED_IN. Check first (CLAUDE.md, Idempotent connect).

@@ -534,6 +534,10 @@ class E2EDriver:
                     start_index=index,
                 )
                 index += len(turns)
+            # Before the dump is read: the static context this builds is the
+            # A1.5 arm's whole input, and a graph read mid-weave would hand that
+            # arm a wheel-less snapshot of a graph that is about to have one.
+            await advisor_arm.finish()
             summary = self._graph_summary()
             try:
                 with using_model(self._container, tier_model):
@@ -685,6 +689,11 @@ class E2EDriver:
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model
                 )
+                # Before `_read_decisions` and `_graph_summary`: the deferred
+                # weave is what puts an `adopted_pathway` on a closing that
+                # closed without one, and reading first would report 0/N for a
+                # ground that lands a second later.
+                await advisor_arm.finish()
                 read = self._read_decisions()
                 record.decision_hashes = sorted(
                     set(record.decision_hashes) | set(read.hashes)

@@ -102,6 +102,21 @@ class TurnTiming:
     retry_seconds: float = 0.0
     #: Attempts retried under the submit (0 = the turn ran clean).
     retry_count: int = 0
+    #: Reply-path seconds spent waiting for the PREVIOUS turn's off-path work to
+    #: finish before this turn could start. A COMPONENT of `reply_path_s`, not an
+    #: addend.
+    #:
+    #: Usually 0.0, and that is the design rather than luck: the Advisor defers
+    #: pathway construction off the turn and the person's own think-time absorbs
+    #: it. This field is what the deferral costs when it does NOT — the person
+    #: replied before the weave finished, and the one-writer-per-sid contract
+    #: makes waiting the only correct answer (two concurrent writers on one sid
+    #: produce duplicate nodes and half-built containers).
+    #:
+    #: Read it as the honest price of the deferral. A run where this is large on
+    #: many turns means the weave is not fitting in the gaps and belongs behind a
+    #: setting, not that the timing is wrong.
+    deferred_wait_s: float = 0.0
     #: Reply-path seconds spent re-reading the graph into the system prompt. A
     #: COMPONENT of `reply_path_s`, not an addition to it. Recorded separately
     #: because it is the one reply-path cost the framework imposes on every turn
@@ -176,14 +191,24 @@ class TurnTiming:
 
     @property
     def generation_s(self) -> float:
-        """Reply-path seconds that were neither tool rounds nor the re-render.
+        """Reply-path seconds that were none of the accounted-for components.
+
+        Subtracts the tool rounds, the re-render and the deferred-work wait, so
+        this stays "the model thinking" rather than quietly absorbing whatever
+        component was added last.
 
         Clamped at zero: these intervals are measured by separate clocks around
         nested awaits, so a pathological scheduler could in principle make the
         subtraction negative, and a negative duration in a record is worse than a
         zero because it looks like data.
         """
-        return max(0.0, self.reply_path_s - self.tool_seconds - self.context_render_s)
+        return max(
+            0.0,
+            self.reply_path_s
+            - self.tool_seconds
+            - self.context_render_s
+            - self.deferred_wait_s,
+        )
 
     def format_rounds(self) -> list[str]:
         """Rounds as `"anchor:229.4s"` / `"anchor+explore:301.2s"` strings.

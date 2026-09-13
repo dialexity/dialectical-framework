@@ -256,6 +256,10 @@ class _StubAdvisor:
         self.last_turn_timing = None
         self.repaired = False
         self.context_render_s = context_render_s
+        # Nothing deferred, so `_settle_deferred_work` returns 0.0 immediately and
+        # this module's sums stay exactly as they were. The deferral's own cost is
+        # pinned in `TestTheDeferredWaitIsOnTheReplyPath` below.
+        self._deferred_pathway_task = None
 
         class _Conv:
             last_submit_seconds = _REPLY_PATH_S
@@ -300,6 +304,8 @@ class _StubAdvisor:
     chat = Advisor.chat
     chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
+    _settle_deferred_work = Advisor._settle_deferred_work
+    wait_for_deferred_work = Advisor.wait_for_deferred_work
 
 
 @pytest.mark.llm
@@ -459,3 +465,113 @@ class TestACrashedTurnPublishesNothingRatherThanTheLastTurns:
                     pass
 
         assert advisor.last_turn_timing is None
+
+
+@pytest.mark.llm
+class TestTheDeferredWaitIsOnTheReplyPath:
+    """A weave the person waited for is a wait, whatever it was deferred for.
+
+    The Advisor moves pathway construction off the turn
+    (`Advisor._schedule_pathway_construction`) because building it inline cost
+    127.7s and 387.7s on two turns of `timing-check-building`. What it must not do
+    is move the cost out of the RECORD too: the weave writes to the graph, and
+    one-writer-per-sid is a hard contract, so a person who replies before the
+    weave finishes genuinely waits at the top of the next turn.
+
+    Zero on a normal turn, and that is the claim being pinned — a deferral whose
+    wait shows up on every turn is not a deferral.
+    """
+
+    async def test_a_normal_turn_reports_no_deferred_wait(self):
+        advisor = _StubAdvisor()
+
+        with scope("sid-test"):
+            await advisor.chat("nothing was deferred")
+
+        assert advisor.last_turn_timing.deferred_wait_s == 0.0
+        assert advisor.last_turn_timing.reply_path_s == pytest.approx(_REPLY_PATH_S)
+
+    async def test_a_turn_that_waits_for_a_weave_says_so(self):
+        """The wait is a COMPONENT of `reply_path_s`, never a third addend.
+
+        `TurnRecord.duration_s == reply_path_s + off_path_s` held to 0%
+        unexplained overhead across all 16 turns of `timing-check-building`, and a
+        new addend would silently start reporting itself as harness overhead.
+        """
+        advisor = _StubAdvisor()
+        weave_s = 0.08
+
+        async def slow_weave():
+            await asyncio.sleep(weave_s)
+
+        with scope("sid-test"):
+            advisor._deferred_pathway_task = asyncio.create_task(slow_weave())
+            await advisor.chat("back before the weave finished")
+
+        timing = advisor.last_turn_timing
+        assert timing.deferred_wait_s >= weave_s
+        # Inside the reply path, not added to it.
+        assert timing.reply_path_s == pytest.approx(
+            _REPLY_PATH_S + timing.deferred_wait_s
+        )
+        # And it does not land in `generation_s`, where it would read as the model
+        # thinking for eighty milliseconds longer than it did.
+        assert timing.generation_s == pytest.approx(_REPLY_PATH_S)
+
+    async def test_the_turn_does_not_start_while_a_weave_is_writing(self):
+        """The reason this wait exists at all: two writers on one sid.
+
+        `docs/agents.md` records what concurrent same-sid writers produce —
+        duplicate nodes, duplicated directed edges, half-built containers — and
+        that the contract is not enforced in code. So the ordering is asserted
+        here rather than trusted.
+        """
+        advisor = _StubAdvisor()
+        order: list[str] = []
+
+        async def weave():
+            await asyncio.sleep(0.05)
+            order.append("weave finished")
+
+        original_refresh = advisor._refresh_context
+
+        async def note_refresh():
+            order.append("turn started")
+            return await original_refresh()
+
+        advisor._refresh_context = note_refresh
+
+        with scope("sid-test"):
+            advisor._deferred_pathway_task = asyncio.create_task(weave())
+            await advisor.chat("the person came straight back")
+
+        assert order == ["weave finished", "turn started"]
+
+    async def test_a_streamed_turn_waits_too(self):
+        """Written twice in the source, so asserted twice here — the same reason
+        `test_a_crashed_streamed_turn_does_the_same` exists."""
+        advisor = _StubAdvisor()
+
+        async def slow_weave():
+            await asyncio.sleep(0.05)
+
+        with scope("sid-test"):
+            advisor._deferred_pathway_task = asyncio.create_task(slow_weave())
+            async for _ in advisor.chat_stream("back early"):
+                pass
+
+        assert advisor.last_turn_timing.deferred_wait_s >= 0.05
+
+    async def test_a_failed_weave_does_not_break_the_next_turn(self):
+        """The person's next message is not the place to learn the weave failed."""
+        advisor = _StubAdvisor()
+
+        async def doomed_weave():
+            raise RuntimeError("provider went away mid-weave")
+
+        with scope("sid-test"):
+            advisor._deferred_pathway_task = asyncio.create_task(doomed_weave())
+            reply = await advisor.chat("hello again")
+
+        assert reply == "counsel"
+        assert advisor.last_turn_timing is not None

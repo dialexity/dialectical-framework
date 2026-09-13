@@ -60,20 +60,37 @@ class _StubAdvisor:
     ) -> None:
         self._principal = principal
         self._nexus_hash = nexus_hash
+        # Per-instance, matching the real `__init__`: a class-level list would
+        # leak one test's pending decisions into the next.
+        self._deferred_pathway_task = None
+        self._decisions_awaiting_pathway: list[str] = []
 
         class _Conv:
             last_tool_results = list(tool_results or [])
 
         self._conversation = _Conv()
 
+    _MAX_WEAVE_ROUNDS = Advisor._MAX_WEAVE_ROUNDS
     _repair_unrecorded_decision = Advisor._repair_unrecorded_decision
     _recorded_decision_this_turn = Advisor._recorded_decision_this_turn
     _ensure_pathways_before_closing = Advisor._ensure_pathways_before_closing
     _existing_pathway_hashes = Advisor._existing_pathway_hashes
     _adopted_pathway_grounds = Advisor._adopted_pathway_grounds
     _attach_adopted_pathway = Advisor._attach_adopted_pathway
+    _connect_adopted_pathway = Advisor._connect_adopted_pathway
+    _ground_recorded_decision = Advisor._ground_recorded_decision
     _decision_recorded_this_turn = Advisor._decision_recorded_this_turn
     _accepted_cost_ground = Advisor.__dict__["_accepted_cost_ground"]
+    # The deferral. Bound like everything else so the seam tests exercise the
+    # real scheduling decision rather than a stand-in — but note that a bound
+    # `_schedule_pathway_construction` starts a REAL asyncio task, so a test
+    # that lets it fire must await `wait_for_deferred_work`
+    # (`TestDeferredPathwayConstruction`) or neutralise it
+    # (`_SeamFixtures._capture_scheduling`, which every weaving test gets).
+    _schedule_pathway_construction = Advisor._schedule_pathway_construction
+    _run_deferred_pathway_construction = Advisor._run_deferred_pathway_construction
+    _weave_unwoven_perspectives = Advisor._weave_unwoven_perspectives
+    wait_for_deferred_work = Advisor.wait_for_deferred_work
 
 
 def _ok_report() -> ExecutionReport:
@@ -520,7 +537,33 @@ class _SeamFixtures:
         monkeypatch.setattr(
             _StubAdvisor, "_existing_pathway_hashes", lambda self: []
         )
+        # The other half of the same tripwire: a closing may REQUEST an off-turn
+        # weave and must not perform one here either. Left on `self` rather than
+        # returned so the existing call sites keep their signature.
+        self._scheduled = self._capture_scheduling(monkeypatch)
         return calls
+
+    def _capture_scheduling(self, monkeypatch) -> list:
+        """Record the OFF-turn weave requests instead of starting them.
+
+        Two reasons, and the first is correctness rather than tidiness: the real
+        `_schedule_pathway_construction` starts an asyncio task, and a task that
+        outlives its test would run its weave after monkeypatch has restored the
+        real `run_exploration_detailed` — i.e. against a DB this file does not
+        have. Second, it makes "the closing asked for a weave" assertable
+        separately from "the weave happened", which is the whole boundary this
+        change draws.
+
+        `TestDeferredPathwayConstruction` deliberately does NOT use this: it
+        tests the scheduler itself and awaits what it starts.
+        """
+        scheduled: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_schedule_pathway_construction",
+            lambda self, decision_hash: scheduled.append(decision_hash),
+        )
+        return scheduled
 
     def _graph_pathways(self, monkeypatch, hashes: list[str]):
         """Pathways ALREADY on the graph — the only source a closing now has.
@@ -1113,3 +1156,350 @@ class _StubDecision:
                 outer.connected.append((target, relationship))
 
         self.grounds = _Grounds()
+
+
+class TestDeferredPathwayConstruction(_SeamFixtures):
+    """The weave the closing is entitled to, moved off the person's wait.
+
+    THE GAP THIS CLOSES
+    ===================
+    `_ensure_pathways_before_closing` stopped building because building cost
+    127.7s and 387.7s on two turns of `timing-check-building`, both on the turn
+    immediately before the closing. Removing it was right about the PLACE and
+    wrong to leave the work undone: split by whether the graph was woven at
+    closing, the judged mean was -0.25 woven against -0.69 unwoven over 36
+    scores each (`claim2-weak-r15-voice`), and `a15-floor` reproduced it
+    independently — A2's structural delta against A1 was +0.74 in the cells that
+    wove and -0.32 in the cells that did not.
+
+    Everything else the latency work left behind was delegated to a tool the
+    model has to elect, and measured over the six A2 cells of `a15-floor` the
+    model does not elect the deepening ones: `anchor` 6/6, `explore` 2/6,
+    `audit_feasibility` 1/6, `deepen` 0/6, and the perspective cap's own
+    "weave the deferred ones in a follow-up call" 0. So this seam STARTS the
+    weave rather than advertising it.
+
+    These tests are DB-free: `run_exploration_detailed` and the perspective
+    repository are both patched, so what is pinned is the scheduling, the
+    single-flight guard, the drain, and the bounds — not the exploration.
+    """
+
+    def _weave(self, monkeypatch, *, rounds_before_woven: int = 1, built=None):
+        """A fake weave that actually WEAVES, so progress can be observed.
+
+        The stub perspectives carry their own `in_cycle` flag and the fake flips
+        them after `rounds_before_woven` calls. Without that the no-progress
+        guard would stop every test after one round and nothing about the drain
+        loop would be exercised.
+        """
+        state = {"calls": [], "perspectives": None}
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            state["calls"].append(list(perspective_hashes))
+            if len(state["calls"]) >= rounds_before_woven:
+                for pp in state["perspectives"]:
+                    pp.in_cycle = True
+            return "{}", list(built or [])
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        return state
+
+    def _with_perspectives(self, monkeypatch, state, count, woven=0):
+        perspectives = self._perspectives(count, woven=woven)
+        state["perspectives"] = perspectives
+        self._patch_repo(monkeypatch, perspectives)
+        return perspectives
+
+    @pytest.mark.asyncio
+    async def test_an_unwoven_closing_weaves_off_the_turn(self, monkeypatch):
+        """The r7 shape — five anchored tensions, no explore — now gets its weave."""
+        state = self._weave(monkeypatch, built=["tr0100"])
+        self._with_perspectives(monkeypatch, state, 5)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert state["calls"] == [["h0000", "h0001", "h0002", "h0003", "h0004"]], (
+            "the closing left five tensions unwoven and nothing built them"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_decision_is_grounded_on_what_the_weave_built(
+        self, monkeypatch
+    ):
+        """The point of the weave is the ground, not the wheel.
+
+        `a15-floor` measured 0/4 `adopted_pathway` grounds with pathways on the
+        graph, so a weave that lands and grounds nothing reproduces the defect
+        it was built to fix.
+        """
+        state = self._weave(monkeypatch, built=["tr0100", "tr0101"])
+        self._with_perspectives(monkeypatch, state, 2)
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append((h, list(p))),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert grounded == [("dec00001", ["tr0100", "tr0101"])]
+
+    @pytest.mark.asyncio
+    async def test_a_second_closing_mid_weave_is_drained_not_dropped(
+        self, monkeypatch
+    ):
+        """Single flight, and the queue is what makes single flight safe.
+
+        Two concurrent explorations against one nexus is the race this seam must
+        not have; silently dropping the second decision would be the cure being
+        worse. So the running task re-reads the queue, which is why the queue is
+        a field.
+        """
+        state = self._weave(monkeypatch)
+        self._with_perspectives(monkeypatch, state, 4)
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        # Same tick, before the task has had a chance to run: the second closing
+        # must join the first weave rather than start its own.
+        advisor._schedule_pathway_construction("dec00002")
+        first_task = advisor._deferred_pathway_task
+        advisor._schedule_pathway_construction("dec00002")
+        assert advisor._deferred_pathway_task is first_task, (
+            "a second closing started a second concurrent weave"
+        )
+        await advisor.wait_for_deferred_work()
+
+        assert sorted(grounded) == ["dec00001", "dec00002"]
+
+    @pytest.mark.asyncio
+    async def test_the_same_decision_is_queued_once(self, monkeypatch):
+        """A turn can reach the seam twice; the record still takes one ground."""
+        state = self._weave(monkeypatch)
+        self._with_perspectives(monkeypatch, state, 2)
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert grounded == ["dec00001"]
+
+    @pytest.mark.asyncio
+    async def test_nothing_unwoven_means_no_exploration(self, monkeypatch):
+        """A model that DID explore must not pay for it again off the turn."""
+        state = self._weave(monkeypatch)
+        self._with_perspectives(monkeypatch, state, 3, woven=3)
+        monkeypatch.setattr(
+            _StubAdvisor, "_existing_pathway_hashes", lambda self: ["tr0009"]
+        )
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append((h, list(p))),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert state["calls"] == [], "re-wove a graph that was already woven"
+        # Nothing to weave is still something to ground — the r16 rep2-wobble_b
+        # cell, which had 30 pathways and no `adopted_pathway`.
+        assert grounded == [("dec00001", ["tr0009"])]
+
+    @pytest.mark.asyncio
+    async def test_the_loop_drains_the_perspective_cap(self, monkeypatch):
+        """`advisor_max_perspectives_per_exploration` bounds a CALL, not the work.
+
+        The cap weaves 2 and reports the rest as `deferred_perspective_hashes`
+        for the model to pick up in a follow-up call, which fired 0 times in
+        `a15-floor`. There is no turn here, so the loop keeps calling until
+        nothing is unwoven — each call still obeying the cap.
+        """
+        state = self._weave(monkeypatch, rounds_before_woven=3)
+        perspectives = self._with_perspectives(monkeypatch, state, 6)
+
+        # Weave two per call, exactly as the real cap does.
+        real_run = state["calls"]
+
+        async def capped_run(*, perspective_hashes, intent, nexus_hash):
+            real_run.append(list(perspective_hashes))
+            for pp in perspectives:
+                if pp.hash in list(perspective_hashes)[:2]:
+                    pp.in_cycle = True
+            return "{}", []
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", capped_run)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert [len(c) for c in state["calls"]] == [6, 4, 2], (
+            "the cap's leftovers were never woven — the deferral the model "
+            "never followed up on"
+        )
+        assert all(pp.in_cycle for pp in perspectives)
+
+    @pytest.mark.asyncio
+    async def test_a_weave_that_makes_no_progress_stops(self, monkeypatch):
+        """The spin guard. A perspective the pipeline declines costs ONE round.
+
+        Without this, a graph that cannot be woven turns the deferral into an
+        unbounded loop against a provider — strictly worse than the logged gap
+        it replaces.
+        """
+        state = self._weave(monkeypatch, rounds_before_woven=99)
+        self._with_perspectives(monkeypatch, state, 3)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert len(state["calls"]) == 1, (
+            f"a weave that wove nothing was repeated {len(state['calls'])} times"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_failed_weave_leaves_the_record_as_it_was(self, monkeypatch):
+        """Fail-soft: the reply is delivered and the record already stands.
+
+        The decision keeps the grounds it was recorded with — the pre-deferral
+        behaviour, not a new failure mode.
+        """
+        async def boom(*, perspective_hashes, intent, nexus_hash):
+            raise RuntimeError("provider went away")
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", boom)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert grounded == []
+
+    @pytest.mark.asyncio
+    async def test_waiting_is_safe_when_nothing_was_deferred(self):
+        """The host obligation must not require the host to know whether to."""
+        await _StubAdvisor([]).wait_for_deferred_work()
+
+    @pytest.mark.asyncio
+    async def test_no_decision_hash_schedules_nothing(self, monkeypatch):
+        """A weave with nothing to attach to is work spent on no one's behalf."""
+        state = self._weave(monkeypatch)
+        self._with_perspectives(monkeypatch, state, 3)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction(None)
+        await advisor.wait_for_deferred_work()
+
+        assert state["calls"] == []
+        assert advisor._deferred_pathway_task is None
+
+
+class TestBothClosingBranchesDefer(_SeamFixtures):
+    """Neither branch may close over an unwoven graph in silence.
+
+    The two branches split 50/48 across every saved A2 cell (`record_decision`
+    without `explore` against both), so a deferral wired into one of them would
+    miss about half the closings.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_model_recorded_branch_defers(self, monkeypatch):
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+        decision = _StubDecision()
+        monkeypatch.setattr(
+            _StubAdvisor, "_decision_recorded_this_turn", lambda self: decision
+        )
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert self._scheduled == ["dec00001"]
+
+    @pytest.mark.asyncio
+    async def test_the_repair_branch_defers_on_the_hash_it_wrote(self, monkeypatch):
+        TestTheClosingGroundsOnThePathwayItBuilt._confirming(monkeypatch)
+        TestTheClosingGroundsOnThePathwayItBuilt._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        assert self._scheduled == ["dec00001"], (
+            "the repair wrote a record over an unwoven graph and queued no weave"
+        )
+
+    @pytest.mark.asyncio
+    async def test_an_unconfirmed_turn_defers_nothing(self, monkeypatch):
+        """No closing, no entitlement. The weave is a closing's due, not upkeep."""
+
+        async def not_confirmed(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(confirmed=False)
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", not_confirmed)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+
+        await _StubAdvisor([])._repair_unrecorded_decision("hm", "maybe")
+
+        assert self._scheduled == []
+
+    @pytest.mark.asyncio
+    async def test_a_recorded_decision_that_cannot_be_resolved_defers_nothing(
+        self, monkeypatch
+    ):
+        """No hash, nothing to ground: the deferral needs a target, not a hope."""
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+        monkeypatch.setattr(
+            _StubAdvisor, "_decision_recorded_this_turn", lambda self: None
+        )
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert self._scheduled == [None]
