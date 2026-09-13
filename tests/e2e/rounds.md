@@ -2585,12 +2585,17 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.825 over 454 judged pairs on the
-canonical stems, recomputed after r22's supersession and again after r26 — not a borrowed
-figure).** The table below was simulated at **0.831 over 414 pairs**; r26's 16 pairs moved
-the sd to 0.825, and re-simulating at both values (200k trials each) moves **no cell by
-more than 1 point** — 0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 84/97/99. So the table
-stands as computed and is left as computed. (The re-simulation reproduced the eight effect
+**Powered from the archive's own NI-composite sd (0.828 over 490 judged pairs on the
+canonical stems, recomputed after r22's supersession, again after r26, and again after
+`a15-floor` — not a borrowed figure).** The table below was simulated at **0.831 over 414
+pairs**; r26's 16 pairs moved the sd to 0.825 and `a15-floor`'s 36 moved it to 0.828, and
+re-simulating at all three values (200k trials each) moves **no cell by more than 1 point**
+— 0.825 gives 0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 84/97/99 and 0.828 gives
+0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 83/97/99. So the table stands as computed and is
+left as computed. **The drift check has now fired twice and stood twice, which is the
+argument for keeping it pinned to 2dp rather than widening it:** each firing cost one
+re-simulation and confirmed the table, and a wider tolerance would have skipped both
+without anyone learning that. (The re-simulation reproduced the eight effect
 cells exactly and gave 5% rather than 3% on the true-null row, which is a difference in
 test rule, not in sd; r23's verdict does not rest on it and is not reopened here.) One
 session and no branches means 1 judged pair per replicate, so replicates *are* pairs
@@ -5352,3 +5357,146 @@ was narrowed rather than deleted — its claim ("every pair is in `DEFAULT_ARMS`
 when an opt-in arm acquired pairs, while the defect it guarded (a pair that judges nothing and prints
 its heading anyway) is real and is now pinned on the two entry-point filters instead. Both mutations
 verified: removing the matrix filter fails the filter test, dropping `(A2, A1_5)` fails the bracket test.
+
+### a15-floor: the floor is still unmeasured, and the report's composite was reading NI rows into a headline (2026-09-13)
+
+**A1 + A1.5 + A2, `cofounder_equity`, weak, 3 replicates, judge ON.** 18 cells, 144 turns (48 an arm),
+1:15:34. Run to close limit #4 of `a15-latency-rejudged`: `(A1_5, A1)` had been dropped there because A1
+never ran, leaving "the 201.8s build bought nothing over the method text alone" indistinguishable from
+"A1.5 is as good as A2". A1 ran here, so the pair survived the filters, and n on the A1.5 composite went
+from 8 to 12 at the same time.
+
+**The thin-snapshot caveat from that round is CLOSED, and it did not change the answer.** This build came
+back `perspectives=6 woven=0 transformations=0 decisions=2` — **9841c in 249.1s** against the previous
+round's `perspectives=1` / 5346c / 201.8s. A genuinely structured dump, six tensions rather than one, and
+the floor still does not resolve. `woven=0` again, which matches A2's own pattern on this scenario (4 of 6
+A2 runs wove nothing) rather than being a defect of the build.
+
+**THE FIRST THING TO FIX IS THE READING, NOT THE RESULT: `Deltas.composite` averages EVERY dimension,
+including the three the report itself says are "never folded into the headline".** `report.py` applies the
+`[NI]` split only in the per-dimension table; nothing filters the composite. That trap is already recorded
+at `test_e2e.py`'s r23 comment for CONTROLS — where a blended composite made a control look like a
+framework win — and this is the first time it bites a LIVE pair. Recomputed from
+`results/a15-floor.json`, same n, same t(11):
+
+| pair | blended (12 dims, AS PRINTED) | structural (9) | NI only (3) |
+|---|---|---|---|
+| A1.5 vs A1 | +0.35 [−0.23, +0.93] | **+0.32 [−0.39, +1.03]** | +0.42 [+0.08, +0.76] **R** |
+| A2 vs A1 | −0.18 [−0.90, +0.54] | **−0.06 [−0.87, +0.76]** | −0.56 [−1.05, −0.06] **R** |
+| A2 vs A1.5 | **−0.52 [−1.02, −0.02] R** | **−0.41 [−0.97, +0.15]** | −0.86 [−1.33, −0.40] **R** |
+
+**R** = interval excludes zero. Positive = the FIRST arm scored higher. The blended column reproduces the
+report exactly, so this is the same data read two ways, not a re-scoring.
+
+**Read down the structural column and every headline in this round is UNMEASURED.** The one RESOLVED
+figure the report printed — A2 vs A1.5 at −0.52 — survives only while the three NI rows are inside it, and
+the NI-only column shows where it comes from: **−0.86 [−1.33, −0.40]**. Strip them and it is −0.41
+[−0.97, +0.15]. So this round did NOT measure A1.5 beating A2 on anything the product would claim.
+
+**And those are the three rows a 26% verbosity gap is most likely to move.** A1.5 2704 mean assistant
+words a run, A1 2260, A2 2139 — the report's own tripwire fired and names `conversational_fit` and
+`warmth` as length-confounded at that gap, with the structural dims "less exposed". The one resolved
+composite in the report is therefore built on the two dimensions the same report says not to trust at this
+length difference. A length-matched re-run is the only clean fix, and nothing above should be quoted
+without that sentence attached.
+
+**What A2 DOES lose, and this part is real: it fails non-inferiority against BOTH prompt arms.** −0.86
+against A1.5 and −0.56 against A1, both resolved. `warmth −0.67 [−1.16, −0.17]` excludes zero in both A2
+pairs and `conversational_fit −0.58 [−1.16, −0.01]` in A2 vs A1. This is the third consecutive round in
+which the live-graph arm pays for its depth in register rather than in a headline row — the same finding as
+`a15-latency-rejudged`, now on 12 pairs instead of 8, and it is not explained by verbosity, since A2 is the
+SHORTEST arm here.
+
+**The floor question, stated as narrowly as the data allows.** A1.5 vs A1 structural +0.32 [−0.39, +1.03]
+localises nothing; resolving the blended endpoint at 80% power needs **n≈55 pairs** against the 12 that
+ran. Two rows do exclude zero — **actionability +1.25 [+0.58, +1.92]** (NI, so out of the headline, and
+length-exposed) and **decision_closure +0.92 [+0.18, +1.66]** (structural). `decision_closure` is the one
+piece of evidence in this archive that the dump bought something the method text alone did not, and it is
+ONE of 12 subscales on 12 correlated pairs — the same thing the previous round refused to count 12 times,
+refused in this direction too. **So after two rounds and a 249.1s build, the honest answer is still: not
+shown.**
+
+**Machine scores are MIXED and split the two arms in opposite directions — rule 3 does not adjudicate
+this round, it complicates it.**
+
+- **Records: A2 6/6 (100%), A1.5 0/6, A1 0/6 with TWO PHANTOM claims.** A1 told the person their decision
+  was written down when it was not. That is the defect a typed record exists to remove, it belongs in the
+  Claim-2 argument, and it is the sharpest thing in the run that no judged dimension can see — both arms
+  answered in prose and the judge scored the prose.
+- **Wobble discrimination: A1 2/3 pairs, A1.5 2/3, A2 0/3.** A2 called `reopen` on all six cells, including
+  all three (a)-variants that ask for reassurance FROM the record. **This is NOT the `a15-latency` excuse
+  repeating**: there the ceremony had not fired, so `reopen` was the only honest answer available. Here it
+  fired — 6/6 runs recorded a decision, 5/6 grounded an accepted cost on a risk, 6/6 carry an audit
+  verdict — and A2 reopened anyway. The re-audit failing with a record in hand is a different and worse
+  finding than the ceremony not firing, and it agrees with `decision_closure −1.42 [−1.92, −0.91]`.
+- **Carried particulars are ~zero for everyone:** A1.5 `used` 0.06, A2 0.04, A1 0.00. Two facts (the messy
+  sales notes, the three-week holiday) were held in memory in 11 of 18 eligible cells and spoken by no
+  reply in any arm — a prompt finding, unchanged.
+- **Sycophantic erosion favours A1:** 6/6 cells established the inconvenient aspect and it survived in all
+  6. A1.5 established in 3 and lost 1; A2 established in 4 and lost 2.
+
+**Validity bounds all of it, and this A2 is MORE degraded than the last one.** 4 of 6 A2 runs ended with no
+woven pathway (1 of 4 last round); `adopted_pathway` ground 1/6; COMPLETE records 1/6; and **3 of 6 A2
+decisions were FLAGGED failed by the coherence audit, all three for the same reason** — the rationale
+schedules the avoidance of the accepted cost instead of carrying it ("a stance resting on a remedy has not
+accepted the cost; it has scheduled its avoidance"). The report's instruction stands: these rows understate
+the framework and overstate its cost. So "A1.5 ≥ A2" is a statement about a flawed A2 for the third round
+running, and the flaw is now large enough that the comparison is arguably not worth re-running until the
+weave lands.
+
+**Position bias was even by construction on all three pairs and is cancelled, not merely disclosed:**
+Y +0.44 (A1.5 vs A1), −0.11 (A2 vs A1), +0.52 (A2 vs A1.5), each over 144 scores on a 6/6 split.
+
+**Latency, with A1 measured against the other two for the first time:**
+
+```
+                                   A1      A1.5        A2
+median turn                      6.25      6.65     19.25
+worst turn                      12.80     15.30    654.10
+median reply path, tool-free     6.25      6.65     16.50
+worst reply path, tool-free     12.80     14.90     34.60
+cell wall (6 cells)            446.40    509.50   2107.50
+tool calls / turns with one     0 / 0     0 / 0   17 / 14
+tool seconds                     0.00      0.00    985.50
+turns retried / retry seconds   0/0.00    0/0.00   4/20.00
+retry seconds in generation       0.00      0.00      0.00
+static context build                  249.1s / 9841c
+arithmetic closes               47/48     47/48     48/48
+```
+
+**A1.5 costs +0.40s a turn over A1 — the dump is nearly free to carry at this size, and the whole price is
+the one-time build.** Charged in full, A1.5's 509.5 + 249.1 = 758.6s still beats A2's 2107.5s, and the
+build is one charge for 6 cells / 48 turns; it is printed as its own row and never folded into `cell wall`.
+Against `a15-latency`'s 5.85s median on a 5346c dump, 6.65s on 9841c puts the carry cost of dump size at
+under a second so far — but that is two points, so do not extrapolate a slope from it.
+
+**A2's worst turn is 654.10s, up from 131.90s last round, and it is depth again rather than the retry
+pathology:** `retry seconds in generation` is 0.00 for the third round running, only 4 of 48 turns retried,
+and 985.50s of tool work lands across 14 turns. The tool-free median still separates 16.50s from 6.65s, so
+most of the quiet-turn gap remains prompt size and context render (A2 median `context_render` 0.19s, the
+prompt arms 0.00 by construction), not tool latency.
+
+**A new defect the extra turns surfaced, small and recorded rather than fixed: `PromptArm.off_path_s = 0.0`
+is an assertion, not a measurement.** Two of 96 prompt-arm turns miss `duration_s == reply_path_s +
+off_path_s` past the reader's 0.3s tolerance — A1 rep1/decide turn 3 by **+1.4s** (5.0 against 3.6) and
+A1.5 rep3/wobble_a turn 1 by **+0.4s** (15.3 against 14.9). Both are clean turns: no error, no retry,
+`retry_count=0`, no tool seconds. `PromptArm.reply` awaits `submit` and nothing else, so the gap is wall
+inside the turn that `last_submit_seconds` does not span, and the cause is **unexplained** — do not file it
+as the driver's property reads or as GC without measuring. It moves no figure in this report (the medians
+shift by at most 0.4s and `arithmetic closes` carries its own denominator), and the reader is doing exactly
+its job by printing 47/48 rather than rounding it away. `a15-latency` closed 32/32 because 32 turns was too
+few to catch a ~2% rate.
+
+**LIMITS.**
+
+1. **One scenario, one tier, 12 pairs.** No delta can be classified depreciating or durable.
+2. **The 26% verbosity gap is unhandled** and it lands on exactly the rows that carry the only resolved
+   composite in the report. A length-matched re-run is the outstanding fix, not more replicates.
+3. **A2 is degraded** — 4/6 unwoven, 3/6 decisions flagged incoherent, 1/6 records complete. Every A2 row
+   above understates the framework by the report's own rule.
+4. **The floor is measured and null, not measured and positive.** `structural +0.32 [−0.39, +1.03]` at
+   n≈55 needed. The reading that survives is: on this scenario and tier, handing an arm a well-structured
+   graph dump did not measurably beat handing it the method text, and the one row that says otherwise
+   (`decision_closure`) is a single subscale.
+5. **Nothing here is evidence about a LIVE graph's ceiling.** A2 vs A1 structural −0.06 [−0.87, +0.76] is
+   the widest unmeasured interval in the round and it is the pair Claim 1 rests on.

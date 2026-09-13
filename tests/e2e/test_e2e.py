@@ -7229,16 +7229,49 @@ class TestTheOpponentChangesWhichDimensionsLose:
             assert rung < 0 and journal < 0, f"{dimension} should lose to both"
             assert abs(rung - journal) < 0.5, f"{dimension} gap should be small"
 
-    def test_closure_beats_a_bare_prompt_and_loses_to_the_journal(self):
+    def test_closure_is_a_deficit_against_the_journal_and_not_against_a_prompt(self):
         """The asymmetry the fixes target: A2's closure deficit is not general
-        incapacity. Against A0/A1 it is POSITIVE; the loss appears only against
-        the prose journal, which is Claim 2's territory (verbatim retention and
-        amend-in-prose against ~7-word headlines and discard)."""
+        incapacity, it is specific to the prose journal — Claim 2's territory
+        (verbatim retention and amend-in-prose against ~7-word headlines and
+        discard).
+
+        This asserted `rung > 0` until 2026-09-13, and that was the right claim
+        while the rung column stood at +0.25: `a15-floor` added 12 weak A2-vs-A1
+        pairs at `decision_closure` -0.25 and took the pooled column to -0.16.
+        The class contract above is that a new run may move a mean but may not
+        silently invert the reading, so this test FIRED as designed and the
+        question was which half of the reading it was protecting.
+
+        The GAP is that half, and it held: ~+0.5 here against ~+0.1 for the
+        uniform-tax pair next door, the same two families in the same order. The
+        rung column's own sign was never load-bearing — it is a mean with no
+        interval, pooled across builds (`rung_rows` states the confound), and the
+        run that flipped it is one whose A2 wove no pathway in 4 of 6 runs and had
+        3 of 6 decisions flagged incoherent, which is precisely the direction that
+        lowers a closure mean without saying anything about the rung.
+
+        So the assertion is now on the ordering, and it is STRICTER than a sign
+        test: an A2 that genuinely could not close would lose to both opponents by
+        similar margins and collapse the gap into the tax family, which fails here
+        and would have passed a `journal < 0` check alone.
+        """
         rows = rung_rows("weak")
+        tax = max(
+            abs(rows[d][0] - rows[d][2])
+            for d in ("conversational_fit", "warmth")
+        )
         for dimension in ("decision_closure", "convergence"):
             rung, _n, journal, _m = rows[dimension]
-            assert rung > 0, f"{dimension} vs a bare prompt should be a win"
             assert journal < 0, f"{dimension} vs the journal should be a loss"
+            gap = rung - journal
+            assert gap > 0.3, (
+                f"{dimension} gap is {gap:+.2f} — the closure deficit has stopped "
+                "being opponent-specific and now looks like a uniform tax"
+            )
+            assert gap > tax + 0.2, (
+                f"{dimension} gap {gap:+.2f} is no longer clear of the "
+                f"uniform-tax gap {tax:+.2f}; the two families have merged"
+            )
 
     def test_only_dimensions_with_both_opponents_are_reported(self):
         """A dimension judged against only one rung would render as a gap of
@@ -9764,17 +9797,20 @@ class TestR23ControlPreRegistration:
         ]
         assert len(values) > 200, f"too few NI pairs to size a control: {len(values)}"
         # Pinned to 2dp, so this fires on a real drift and not on every round
-        # that adds a handful of pairs. It has fired once for real: r26's 16
-        # pairs took 0.831/414 to 0.825/454. That was the DESIGN working —
-        # re-simulation at both sds moved no cell of the table by more than a
-        # point, so the table stood and only its provenance line changed. Widen
-        # the tolerance and the next drift that DOES matter goes unnoticed.
-        assert round(st.stdev(values), 2) == 0.82, (
+        # that adds a handful of pairs. It has now fired TWICE for real and the
+        # table stood both times: r26's 16 pairs took 0.831/414 to 0.825/454,
+        # and `a15-floor`'s 36 took it to 0.828/490. That is the DESIGN working —
+        # re-simulation at all three sds moved no cell of the table by more than
+        # a point, so the table stood and only its provenance line changed. Two
+        # cheap firings that each confirmed the table is the ARGUMENT for the 2dp
+        # pin, not against it: widen the tolerance and both would have been
+        # skipped silently, along with the next drift that DOES matter.
+        assert round(st.stdev(values), 2) == 0.83, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
-            "table was simulated at 0.831 and re-verified at 0.825, and must be "
-            "re-simulated before its percentages are quoted again"
+            "table was simulated at 0.831 and re-verified at 0.825 and 0.828, "
+            "and must be re-simulated before its percentages are quoted again"
         )
-        assert "0.825 over 454 judged pairs" in self._block()
+        assert "0.828 over 490 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:

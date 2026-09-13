@@ -574,21 +574,47 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
     Which arm A2 faces changes WHICH dimensions it loses, and that is the second
     half of `dimension_shape`'s two-kinds-of-loss reading. Archive-wide at the
     weak tier the gap between facing a bare prompt (A0/A1) and facing the prose
-    journal (A1.7) is:
+    journal (A1.7) is (2026-09-13, after `a15-floor`):
 
-        conversational_fit  -0.31    warmth  +0.11    tension_coverage  +0.11
-        decision_closure    +0.93    convergence +0.95
-        paired_recipe       +1.14    actionability   +1.38
+        conversational_fit  +0.03    warmth  +0.13
+        tension_coverage    +0.50    decision_closure  +0.51
+        convergence         +0.56    non_triviality    +0.59
+        paired_recipe       +0.71    actionability     +0.74
 
     Read it as two families. Where the gap is ~0 the opponent does not matter, so
     the cause is in every reply A2 writes — those are exactly `conversational_fit`
-    and `warmth`, the uniform tax. Where the gap is ~+1 the deficit only exists
-    against the journal: A2 beats a bare prompt on closure (+0.25) and loses to
-    the journal (-0.68). The candidate reading — a LEAD, not a result — is that
-    the closure loss is not "the framework cannot close" but "the prose journal
-    closes better than the typed graph", which is Claim 2's exact territory: the
-    journal retains the person's verbatim phrasing and amends in prose, while the
-    graph stores ~7-word headlines and DISCARDS rather than amends.
+    and `warmth`, the uniform tax. Everywhere else the gap is +0.4 to +0.75, i.e.
+    the deficit exists mainly against the journal. The candidate reading — a LEAD,
+    not a result — is that the closure loss is not "the framework cannot close"
+    but "the prose journal closes better than the typed graph", which is Claim 2's
+    exact territory: the journal retains the person's verbatim phrasing and amends
+    in prose, while the graph stores ~7-word headlines and DISCARDS rather than
+    amends.
+
+    THE RUNG COLUMN'S SIGN DRIFTED TO ~0 AND THE GAP IS WHAT SURVIVED
+    ================================================================
+    This docstring used to read "A2 beats a bare prompt on closure (+0.25) and
+    loses to the journal (-0.68)", and the sign half of that is no longer true:
+    `a15-floor` added 12 weak A2-vs-A1 pairs whose `decision_closure` is -0.25,
+    taking the pooled rung column to **-0.16 (n=64)** for closure and **-0.08**
+    for convergence. Two things follow, and the second is why nothing above was
+    rewritten further.
+
+    The GAP — the actual load-bearing quantity, since it is what separates a
+    uniform tax from an opponent-specific deficit — moved but did not invert: the
+    tax pair is still ~+0.1 while every other dimension is +0.4 or more, the same
+    two families in the same order. What inverted is a near-zero rung mean, which
+    was +0.25 on fewer pairs and is -0.16 on more; neither figure carries a CI
+    here and the whole column is confounded with build date (below).
+
+    And the run that flipped it is one whose A2 the report's own validity section
+    says understates the framework: 4 of 6 A2 runs wove no pathway, 3 of 6
+    decisions were flagged incoherent by the coherence audit, and 1 of 6 records
+    was COMPLETE. That is exactly the direction that pushes a closure mean down,
+    so the flip is at least partly an artifact of a degraded A2 rather than a
+    finding about the rung. Do NOT re-quote "+0.25" from anywhere, and do not
+    read "-0.16" as A2 losing closure to a bare prompt either — read it as
+    unmeasured, and see `a15-floor` in `rounds.md`.
 
     THE CONFOUND, STATED PLAINLY
     ============================
