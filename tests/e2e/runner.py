@@ -67,13 +67,38 @@ logger = logging.getLogger(__name__)
 DEFAULT_ARMS: tuple[Arm, ...] = (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2)
 
 #: Pairs the report is built around. Each isolates ONE rung of the ladder:
-#:   A1  vs A0   does the method text alone help?           (Claim 1 floor)
-#:   A2  vs A1   does enforcement beat self-application?    (Claim 1)
-#:   A2  vs A1_7 does a typed record beat a prose journal?  (Claim 2)
-#:   A2  vs A0   the headline the product would claim.
+#:   A1   vs A0   does the method text alone help?           (Claim 1 floor)
+#:   A1_5 vs A1   does the graph's OUTPUT help, unrun?       (the latency question)
+#:   A2   vs A1   does enforcement beat self-application?    (Claim 1)
+#:   A2   vs A1_5 does a LIVE graph beat a static snapshot?  (the latency question)
+#:   A2   vs A1_7 does a typed record beat a prose journal?  (Claim 2)
+#:   A2   vs A0   the headline the product would claim.
+#:
+#: THE TWO A1_5 PAIRS ARE THE ONLY WAY TO PRICE LATENCY AGAINST QUALITY
+#: ===================================================================
+#: Added 2026-09-13, after `a15-latency` measured A1.5 at a 5.85s median turn
+#: against A2's 23.40s and could say nothing at all about whether the arm is any
+#: GOOD — no pair named it, so the judge had nothing to score even with judging
+#: on. A latency figure with no quality figure beside it is an argument for
+#: shipping the fastest arm, which is A0.
+#:
+#: `(A2, A1_5)` is the load-bearing one and it reads in an unusual direction: a
+#: SMALL delta is the interesting result, because it would mean a static snapshot
+#: buys most of the live graph's counsel at a quarter of the wait. `(A1_5, A1)`
+#: is its floor — if the dump adds nothing over the method text, the 201.8s that
+#: built it bought nothing and the comparison above is between two prompt arms.
+#:
+#: A1_5 IS NOT IN `DEFAULT_ARMS`, AND THAT IS SAFE HERE BUT ONLY BECAUSE OF THE
+#: FILTERS. Both entry points intersect these pairs with the arms actually
+#: present (`test_e2e_run.py`, matrix and rejudge), so a run without A1.5 drops
+#: both pairs rather than judging nothing under their heading. Do NOT add a pair
+#: naming an arm no configuration can produce — that IS the silent-nothing bug,
+#: and it is what the narrowed `TestRunnerWiring` test now pins.
 JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A1, Arm.A0),
+    (Arm.A1_5, Arm.A1),
     (Arm.A2, Arm.A1),
+    (Arm.A2, Arm.A1_5),
     (Arm.A2, Arm.A1_7),
     (Arm.A2, Arm.A0),
 )

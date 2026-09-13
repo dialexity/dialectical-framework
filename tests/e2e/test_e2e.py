@@ -3681,12 +3681,65 @@ class TestRunnerWiring:
         for arm_a, arm_b in JUDGED_PAIRS:
             assert arm_a is not arm_b
 
-    def test_judged_pairs_only_reference_default_arms(self):
-        """A pair naming an arm the matrix never runs would silently judge nothing."""
+    def test_judged_pairs_name_only_arms_the_bench_can_actually_run(self):
+        """The original claim was "every pair is in `DEFAULT_ARMS`", and it stopped
+        being the right claim on 2026-09-13 when the two A1.5 pairs were added.
+
+        The DEFECT it was written against is real and unchanged: a pair naming an
+        arm no run produces judges nothing and prints its heading anyway, so a
+        reader meets an empty rung and cannot tell it from a null result. But
+        `DEFAULT_ARMS` is not the set of runnable arms — it is the set the matrix
+        runs when `DIALEXITY_E2E_ARMS` is unset, and A1.5 is deliberately outside
+        it because it is the most expensive arm per unit of information.
+
+        So the property is now stated in the two halves that are actually load-
+        bearing: the arm must EXIST on the ladder (so some configuration can
+        produce it), and every entry point must intersect the pairs with the arms
+        in hand (so a run without it drops the pair instead of judging nothing).
+        The second half is checked by
+        `test_a_pair_naming_an_absent_arm_is_dropped_not_judged_empty` below,
+        which is the assertion that would have caught the original defect and
+        which the `DEFAULT_ARMS` version never made.
+        """
+        for arm_a, arm_b in JUDGED_PAIRS:
+            assert arm_a in tuple(Arm) and arm_b in tuple(Arm)
+
+    def test_a_pair_naming_an_absent_arm_is_dropped_not_judged_empty(self):
+        """Pinned on the SOURCE of both entry points, because the filter is the
+        whole reason an opt-in arm may appear in `JUDGED_PAIRS` at all.
+
+        A source check rather than a behavioural one: exercising it needs a judge
+        call, and what must not regress is textual — someone passing
+        `JUDGED_PAIRS` straight through would reintroduce the silent-nothing bug
+        for every non-default arm at once.
+        """
+        import inspect
+
+        from e2e import test_e2e_run
+
+        source = inspect.getsource(test_e2e_run)
+        assert "if p[0] in arms and p[1] in arms" in source, "matrix filter gone"
+        assert "if p[0] in present and p[1] in present" in source, "rejudge filter gone"
+        # And no site may hand the constant over unfiltered.
+        assert "pairs=JUDGED_PAIRS" not in source
+
+    def test_the_two_a1_5_pairs_exist_and_bracket_the_static_snapshot(self):
+        """Added with them (2026-09-13). `a15-latency` measured A1.5's turn latency
+        and could say NOTHING about its quality, because no pair named the arm —
+        so the run published "4x faster" with no counterweight, which is an
+        argument for shipping A0.
+
+        Both directions are needed and neither alone answers it: `(A2, A1_5)` asks
+        what the LIVE graph adds over a snapshot of it, and `(A1_5, A1)` is its
+        floor — a null there means the 201.8s build bought nothing and the pair
+        above is comparing two prompt arms.
+        """
+        assert (Arm.A2, Arm.A1_5) in JUDGED_PAIRS
+        assert (Arm.A1_5, Arm.A1) in JUDGED_PAIRS
+        # A1.5 stays opt-in; the pairs are what made that need the filter test.
         from e2e.runner import DEFAULT_ARMS
 
-        for arm_a, arm_b in JUDGED_PAIRS:
-            assert arm_a in DEFAULT_ARMS and arm_b in DEFAULT_ARMS
+        assert Arm.A1_5 not in DEFAULT_ARMS
 
     def test_wobble_judge_sees_both_halves_of_the_record(self):
         """The judge is asked what the assistant DID with what it HAD.

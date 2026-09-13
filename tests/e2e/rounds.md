@@ -5274,3 +5274,81 @@ Suites unchanged from the previous entry: 640 in `tests/e2e/test_e2e.py`, 35 in
 `tests/test_turn_record_timing.py`. This round added no tests — it is a measurement round, and the
 reader rows it exercises (`static context builds` / `build seconds` / `chars`) were pinned in `72c55b5`
 and `50ddd1a` before it ran.
+
+---
+
+### a15-latency-rejudged: A1.5's quality is not distinguishable from A2's, and A2 LOSES warmth (2026-09-13)
+
+**No new conversations.** `test_e2e_rejudge` over the 12 archived `a15-latency` runs, 9m35s, after
+adding `(A2, A1_5)` and `(A1_5, A1)` to `JUDGED_PAIRS` — pairs that did not exist when the round ran,
+which is why it published a 4x latency win with no counterweight. A latency figure with no quality
+figure beside it is an argument for shipping A0.
+
+**Primary endpoints, negative = the SECOND arm scored higher:**
+
+| pair | composite | n pairs | 95% CI |
+|---|---|---|---|
+| A2 vs **A1.5** | **−0.49** | 8 | [−1.30, +0.32] |
+| A2 vs A1.7 | −0.25 | 8 | [−0.96, +0.46] |
+
+**Both intervals cover zero, so both are UNMEASURED, and that is the whole result: A1.5 is 4x faster
+and its quality is not distinguishable from A2's here.** Resolving the A1.5 composite at 80% power
+needs **n≈31 pairs** against the 8 that ran, so this is a lead to power, never a measured parity —
+"compatible with no effect AND with an effect either way" applies in both directions and the point
+estimate favouring A1.5 must not be read as A1.5 winning.
+
+**Do NOT strengthen this by counting dimensions.** All 12 A1.5 subscales are negative or zero, which
+looks like 12 agreeing signals and is not: they are 12 repeated measures on the SAME 8 pairs, and the
+report says so above the table. A sign test over them would manufacture evidence out of one correlated
+sample.
+
+**Three rows do exclude zero, and all three are dimensions A2 is required not to LOSE:**
+
+- A2 vs A1.5 — **warmth −0.62 [−1.25, −0.00]** [NI], passing the bound by 0.00.
+- A2 vs A1.7 — **conversational_fit −0.75 [−1.14, −0.36]** [NI] and **warmth −0.62 [−1.06, −0.19]** [NI].
+
+Non-inferiority dimensions are never folded into the headline, which is exactly why they matter here:
+the live-graph arm is not paying for its depth with a headline loss, it is paying in how it talks. That
+is consistent with the machinery leaks the same round recorded (A2 3, A1.5 2, A1.7 1) and with A2's
+2209 words against A1.5's 2278 — not verbosity, then, but register.
+
+**The ONE resolved endpoint in the whole report is not about A1.5.** A2 vs A1.7 under pressure: opening
+−1.58, follow-up +0.19, **change +1.77 [+0.98, +2.57], RESOLVED**. A2 loses the opening session to a
+prose journal and pulls level on the return — which is where it has something no prompt arm can have.
+The A1.5 equivalent is +0.67 [−3.04, +4.37] and localises nothing.
+
+**Position bias was handled by construction, and this is the row to check before reading any other.**
+Y scored +0.26 (A1.5 pair) and +0.44 (A1.7 pair) over 96 scores each, on an even 4/4 split — so the
+bias is cancelled rather than merely disclosed. An uneven split here would have invalidated the tables.
+
+**FOUR limits, and the last one is the reason this round cannot close the question it was run for.**
+
+1. **n=8 pairs, one scenario, one tier.** No delta can be classified depreciating or durable.
+2. **The A1.5 snapshot was THIN** — `perspectives=1 woven=0 transformations=0`, an n=1 draw from the
+   bottom of the 1-7 range A2 shows on this scenario. A thin snapshot holding its own against the live
+   graph is the striking part of this round, and it is also the reading with the least support.
+3. **This comparison UNDERSTATES A2, by its own validity section.** 1 of 4 A2 runs mapped 7 perspectives
+   and wove no pathway; 2 closed a decision in prose with no record on disk; 0 of 4 records are
+   COMPLETE. Those are prompt/steering defects, so the arm being judged is a flawed A2 — the report
+   says these rows "understate the framework and overstate its cost", and that qualification travels
+   with every number above.
+4. **`(A1_5, A1)` WAS DROPPED, so the floor is unmeasured.** A1 did not run in this stem, and both
+   entry points intersect `JUDGED_PAIRS` with the arms present — correctly, that is what stops an
+   opt-in arm judging nothing under its own heading. But it means **nothing here shows the 201.8s
+   build bought anything over the method text alone.** If `(A1_5, A1)` is null, the A1.5 column above
+   is a prompt arm and the graph's output added nothing; the two readings are indistinguishable on this
+   archive. A1 is a prompt arm at ~6s a turn, so closing it costs ~5 minutes of cells rather than
+   another 39.
+
+**What the machine scores say about rule 3 ("a delta only counts if the machine scores agree"), which
+is MIXED and must be quoted as mixed.** They agree on carried particulars — A1.5 `used` 0.12 against
+A2's 0.00 — and they contradict flatly on records: A2 2 of 4 promised records written, A1.5 0 of 4,
+because it has no tools. So "A1.5 is as good" holds only for what counsel SAYS and not for what gets
+written down, and the judged composite cannot see that difference because both arms answered the
+person in prose.
+
+Tests: 642 in `tests/e2e/test_e2e.py` (640 before). `test_judged_pairs_only_reference_default_arms`
+was narrowed rather than deleted — its claim ("every pair is in `DEFAULT_ARMS`") stopped being right
+when an opt-in arm acquired pairs, while the defect it guarded (a pair that judges nothing and prints
+its heading anyway) is real and is now pinned on the two entry-point filters instead. Both mutations
+verified: removing the matrix filter fails the filter test, dropping `(A2, A1_5)` fails the bracket test.
