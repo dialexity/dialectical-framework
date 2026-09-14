@@ -2456,7 +2456,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   a latency fix that removes work removes REASONING, and "the prompt still requires it" does not make it happen.
   Price the removal in judged quality or move the work — deleting it is a quality change made in a performance
   commit, invisible to prompt review because no prompt surface changed.** Four such trades were audited after the
-  fact; this fixes two of them. What made relocation legal is the r16 correction above, applied a second time:
+  fact; this fixes two of them, and the feasibility audit at the end of this entry is the third. What made relocation legal is the r16 correction above, applied a second time:
   GROUNDED_IN is ANALYTICAL, so a Decision committed on the turn can be grounded on a pathway built minutes later
   — the deferral attaches by the decision's HASH (`_ground_recorded_decision` → `NodeRepository.find_by_hash`),
   never by `_decision_recorded_this_turn`, which reads `last_tool_results` and has moved on by then. Both closing
@@ -2503,6 +2503,34 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   pre-registered bar on the person's actual wait read `not recorded` on all 48 turns — a value computed and never
   rendered, the same shape as `62244f0`, `2c158bc` and r10's unconstructible hash. Wiring a field into the
   framework is half of measuring it.**
+  **The THIRD trade was repaid at the same seam, 2026-09-14 (`Advisor._audit_adopted_pathways`), and the honest
+  difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
+  `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s
+  entire spend for an annotation, and the repair was delegated to `audit_feasibility` — elected in **1 of 6** A2
+  cells (`a15-floor`, 1/5 in `weave-offturn`), the same rate as `explore` 2/6 and `deepen` 0/6 and the same
+  conclusion. So the drain now asks for it, and moving it off the turn removes the WAIT but not the SPEND — which
+  is precisely why the scope is ONE pathway (2 calls per closing, not 2 × 6N) rather than the eager pass switched
+  back on. The scope is chosen by where the band is READ: `audit_feasibility` renders the score plus the
+  resource/resistance/timeline factors and the success conditions, and the moment those matter is the RETURNING
+  session, which `weave-offturn` measured as A2's weakest seam (wobble discrimination 1/3). Four design points,
+  each mutation-verified (`TestTheAdoptedRecipeIsScored`, `TestTheAdoptedPathwayIsReadFromTheEdge`): the pathway is
+  read from the GROUNDS edge by `role == "adopted_pathway"`, never from what the weave returned, **because those
+  are two different questions** — the weave knows what it built and the edge knows what the record rests on, and
+  the model may have picked a pathway with the conversation in view; the audit runs after the WHOLE drain rather
+  than inside the loop, so the weave never queues behind an annotation and a shutdown cancellation loses the
+  cheaper half; a failing weave therefore `break`s instead of returning, since a decision grounded in an earlier
+  round still has a recipe worth scoring; and it goes through the TOOL body rather than `TransformationAudit`
+  directly, which is what buys the idempotent skip (re-auditing accumulates critique Rationales that disagree
+  while `upsert_estimation` keeps one score), the per-call cap and one wording for one check.
+  **`settings.audit_transformations` is not overridden by this and never covered it**: that flag's own description
+  is about the EAGER pass and names the on-demand tool as the alternative, so the tool's standing is inherited, not
+  bypassed — but a deployment wanting no feasibility scoring at all has no switch, which is worth knowing and is
+  not new here. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
+  band existed and `DecisionCoherenceCheck` will not re-run, so a low score arrives against a ground the record
+  never weighed. That is additive information about an existing ground, and a recipe the person cannot execute is
+  worth knowing late. **Unmeasured at the behaviour layer** — no round has run with it, and the weave's own result
+  says what to expect: the machine record will move (bands present on the adopted pathway at closing, currently
+  1 in 6) and a 12-pair judged composite will not resolve either way.
   **The decision was not decidable yet and got recorded anyway, 12 of 12** (measured 2026-08-19,
   `r23-controls`; UNFIXED, and deliberately so — **the product owner's call, made 2026-08-20: leave it.** A
   premature record is the cheaper of the two errors, per (3) below. Do not reopen this as a prompt patch without

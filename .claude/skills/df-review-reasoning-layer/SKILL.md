@@ -388,8 +388,12 @@ anchors.
       decisively (pathway ground 1/6 → 5/6, full weave coverage) while the judged composite moved only in
       direction (A2 vs A1 −0.06 → +0.19, every interval overlapping). So "price it in judged quality" is a bar a
       12-pair round cannot clear in either direction — which is exactly why the machine-score half must be
-      stated: it is the part of such a change that is reviewable at all.** See "The construction came back, off
-      the turn" under Decision lifecycle in reference §4.
+      stated: it is the part of such a change that is reviewable at all.** **And ask which KIND of trade it was
+      before reaching for the same fix: the weave was a LATENCY trade, so moving it off the turn repaid it in
+      full, while the feasibility audit (2026-09-14) was a COST trade — 40% of `explore`'s provider spend — where
+      deferral removes the wait and not the spend. There the repair has to be SCOPED instead, and the scope comes
+      from asking where the artifact is actually READ (one adopted pathway, 2 calls, not the eager 2 × 6N).** See
+      "The construction came back, off the turn" under Decision lifecycle in reference §4.
 
 ### Cross-agent parity (see the §5 matrix)
 - [ ] **Grep the other two agents when editing a shared concept.** HS disambiguation, HS bands, nexus grouping

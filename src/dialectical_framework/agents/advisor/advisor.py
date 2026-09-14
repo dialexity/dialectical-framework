@@ -733,7 +733,7 @@ class Advisor:
             logger.exception("Could not schedule deferred pathway construction")
 
     async def _run_deferred_pathway_construction(self) -> None:
-        """Weave, then ground every decision waiting on a pathway.
+        """Weave, ground every decision waiting on a pathway, then audit the recipe.
 
         Ordering matters and is the reason this is a loop rather than one pass:
         a decision recorded while the weave was running has to be grounded too,
@@ -744,8 +744,14 @@ class Advisor:
         refuses to weave is the failure this replaces, not an improvement on it:
         the round cap, the no-progress check, and the fact that each round's
         work is `run_exploration_detailed`'s own budgeted call.
+
+        The feasibility pass runs AFTER the whole drain rather than inside it, on
+        two grounds: the weave is the larger reasoning restoration, so it should
+        not queue behind an annotation; and a task cancelled at shutdown then
+        loses the cheaper half rather than the dearer one.
         """
         rounds = 0
+        grounded: list[str] = []
         while self._decisions_awaiting_pathway and rounds < self._MAX_WEAVE_ROUNDS:
             rounds += 1
             pending = list(self._decisions_awaiting_pathway)
@@ -758,9 +764,125 @@ class Advisor:
                     "decisions it would have grounded keep the grounds they "
                     "were recorded with"
                 )
-                return
+                # BREAK, not return: a decision grounded in an earlier round
+                # still has a recipe worth scoring, and this round's failure is
+                # about the weave rather than about that record.
+                break
             for decision_hash in pending:
                 self._ground_recorded_decision(decision_hash, pathways)
+                grounded.append(decision_hash)
+        await self._audit_adopted_pathways(grounded)
+
+    async def _audit_adopted_pathways(self, decision_hashes: list[str]) -> None:
+        """Score the recipe each closing actually adopted, off the turn.
+
+        THE THIRD AUDITED TRADE, PAID AT ONE PLACE ONLY
+        ==============================================
+        `settings.audit_transformations` was turned off because auditing all 6N
+        Transformations of an exploration was 40% of `explore`'s provider spend
+        for an annotation, and the repair was delegated to a tool the model must
+        elect. It elects it in **1 of 6** A2 cells (`a15-floor`, reproduced as
+        1/5 in `weave-offturn`) — the same finding as `explore` 2/6 and `deepen`
+        0/6, and the same conclusion: a repair the model has to ask for is a
+        repair that does not happen.
+
+        So this asks for it, at exactly one place: the pathway a recorded
+        decision is GROUNDED on. Two provider calls per closing, not 2 x 6N —
+        the eager pass is still off and this is not it. What makes that scope
+        the right one is where the band is read: `audit_feasibility` renders the
+        score plus the resource/resistance/timeline factors and the success
+        conditions, and the moment those matter most is the RETURNING session,
+        where the person comes back shaky and the record's `adopted_pathway` is
+        what the re-audit reassures from. `weave-offturn` measured that seam as
+        the weakest one A2 has (wobble discrimination 1/3), so the recipe
+        arriving with a feasibility band is aimed there.
+
+        NOT GATED ON `audit_transformations`, AND THAT IS NOT AN OVERRIDE
+        ===============================================================
+        That flag's own description is about the EAGER pass ("EAGERLY audit
+        every new Transformation ... agents reach the same concern on demand via
+        the audit_feasibility tool"), and the tool has always ignored it. This
+        goes through that tool's body, so it inherits the same standing — plus
+        its idempotence, its cap and its resolve-before-spending order. A
+        deployment that wants no feasibility scoring at all has no switch for
+        that today, which is worth knowing but is not new here.
+
+        HONEST ASYMMETRY, RECORDED RATHER THAN HIDDEN
+        ============================================
+        The record's rationale was written before this band existed, so a low
+        score arrives against a ground the decision never weighed, and
+        `DecisionCoherenceCheck` has already run and will not re-run. That is
+        additive information about an existing ground rather than a change to
+        it — and a recipe the person cannot actually execute is worth knowing
+        late, since the alternative is not knowing.
+
+        Fail-soft and silent throughout: the reply was delivered turns ago.
+        """
+        if not decision_hashes:
+            return
+        pathways: list[str] = []
+        for decision_hash in decision_hashes:
+            pathway = self._adopted_pathway_hash(decision_hash)
+            if pathway and pathway not in pathways:
+                pathways.append(pathway)
+        if not pathways:
+            return
+        try:
+            from dialectical_framework.agents.orchestrator.tools import \
+                audit_feasibility as audit_tool
+
+            # Through the tool body, never `TransformationAudit` directly: that
+            # is what buys the skip on an already-scored pathway (asking twice
+            # costs twice AND leaves two critiques whose prose disagrees), the
+            # per-call cap, and one wording for one check.
+            logger.info(
+                "Scoring the feasibility of %d adopted pathway(s) off the turn "
+                "— the engine prompt ranks pathways on achievability and the "
+                "model elects the audit about 1 closing in 6",
+                len(pathways),
+            )
+            await audit_tool.run_audit_feasibility(pathways)
+        except Exception:
+            logger.exception(
+                "Deferred feasibility audit of the adopted pathway failed "
+                "(fail-soft); the decision keeps its recipe unscored"
+            )
+
+    def _adopted_pathway_hash(self, decision_hash: str) -> str | None:
+        """The Transformation a decision names as its recipe, read from the edge.
+
+        Read from `grounds` rather than from whatever the weave returned,
+        because those are two different questions: the weave knows what it
+        built, and the edge knows what the record actually rests on — which may
+        be a pathway the model itself chose with the conversation in view
+        (`_adopted_pathway_grounds` calls its own pick "the floor, not the
+        ceiling"). Scoring anything else would score a recipe nobody adopted.
+        """
+        try:
+            from dialectical_framework.graph.nodes.decision import Decision
+            from dialectical_framework.graph.nodes.transformation import \
+                Transformation
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            decision = NodeRepository().find_by_hash(
+                decision_hash, node_type=Decision
+            )
+            if decision is None:
+                return None
+            for node, rel in decision.grounds.all():
+                if getattr(rel, "role", None) != "adopted_pathway":
+                    continue
+                if isinstance(node, Transformation) and node.hash:
+                    return node.hash
+            return None
+        except Exception:
+            logger.exception(
+                "Could not read the adopted pathway of decision [[%s]] "
+                "(fail-soft)",
+                decision_hash[:7],
+            )
+            return None
 
     async def _weave_unwoven_perspectives(self) -> list[str]:
         """Build pathways for every perspective the model left unwoven.

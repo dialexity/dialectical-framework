@@ -90,6 +90,13 @@ class _StubAdvisor:
     _schedule_pathway_construction = Advisor._schedule_pathway_construction
     _run_deferred_pathway_construction = Advisor._run_deferred_pathway_construction
     _weave_unwoven_perspectives = Advisor._weave_unwoven_perspectives
+    # The tail of the drain. Bound for a reason worth stating: an UNbound method
+    # here fails inside the task, after the grounding, where
+    # `wait_for_deferred_work` catches it and logs — so every assertion in
+    # `TestDeferredPathwayConstruction` would still pass while the audit half of
+    # the drain silently never ran.
+    _audit_adopted_pathways = Advisor._audit_adopted_pathways
+    _adopted_pathway_hash = Advisor._adopted_pathway_hash
     wait_for_deferred_work = Advisor.wait_for_deferred_work
 
 
@@ -1436,6 +1443,372 @@ class TestDeferredPathwayConstruction(_SeamFixtures):
 
         assert state["calls"] == []
         assert advisor._deferred_pathway_task is None
+
+
+class TestTheAdoptedRecipeIsScored(_SeamFixtures):
+    """The third audited latency-for-reasoning trade, paid at the closing.
+
+    `settings.audit_transformations` went off because the eager pass was 40% of
+    `explore`'s provider spend for an annotation, and the repair was left to a
+    tool the model elects in **1 of 6** A2 cells (`a15-floor`; 1/5 in
+    `weave-offturn`) — the same shape as `explore` 2/6 and `deepen` 0/6. So the
+    drain asks for it, on ONE pathway: the recipe the record is grounded on.
+
+    These tests are DB-free, so `_adopted_pathway_hash` is stubbed everywhere
+    except in the class below it, which tests that method against a fake graph.
+    What is pinned here is scope, ordering, dedup and fail-softness — never the
+    audit itself, which is `test_audit_feasibility_tool.py`'s subject.
+    """
+
+    def _capture_audit(self, monkeypatch, *, boom: bool = False) -> list:
+        calls: list = []
+
+        async def fake_audit(hashes):
+            calls.append(list(hashes))
+            if boom:
+                raise RuntimeError("provider went away")
+            return "{}"
+
+        import dialectical_framework.agents.orchestrator.tools.audit_feasibility \
+            as audit_mod
+
+        monkeypatch.setattr(audit_mod, "run_audit_feasibility", fake_audit)
+        return calls
+
+    def _adopted(self, monkeypatch, mapping: dict[str, str | None]):
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_adopted_pathway_hash",
+            lambda self, decision_hash: mapping.get(decision_hash),
+        )
+
+    def _weave(self, monkeypatch, *, rounds_before_woven: int = 1, built=None):
+        """Same fake weave as the class above, with its own state dict."""
+        state = {"calls": [], "perspectives": None}
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            state["calls"].append(list(perspective_hashes))
+            if len(state["calls"]) >= rounds_before_woven:
+                for pp in state["perspectives"]:
+                    pp.in_cycle = True
+            return "{}", list(built or [])
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        return state
+
+    def _with_perspectives(self, monkeypatch, state, count, woven=0):
+        perspectives = self._perspectives(count, woven=woven)
+        state["perspectives"] = perspectives
+        self._patch_repo(monkeypatch, perspectives)
+        return perspectives
+
+    @pytest.mark.asyncio
+    async def test_the_recipe_the_record_adopted_gets_a_feasibility_band(
+        self, monkeypatch
+    ):
+        """One closing, one pathway, two provider calls — not 2 x 6N."""
+        state = self._weave(monkeypatch, built=["tr0100", "tr0101"])
+        self._with_perspectives(monkeypatch, state, 2)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        self._adopted(monkeypatch, {"dec00001": "tr0100"})
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [["tr0100"]]
+
+    @pytest.mark.asyncio
+    async def test_the_edge_is_read_not_what_the_weave_built(self, monkeypatch):
+        """Two different questions, and only one of them is the person's recipe.
+
+        The weave knows what it BUILT; the edge knows what the record RESTS on,
+        which may be a pathway the model chose with the conversation in view
+        (`_adopted_pathway_grounds` calls its own pick "the floor, not the
+        ceiling"). Scoring the weave's first hash would score a recipe nobody
+        adopted.
+        """
+        state = self._weave(monkeypatch, built=["tr0100", "tr0101"])
+        self._with_perspectives(monkeypatch, state, 2)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        self._adopted(monkeypatch, {"dec00001": "tr9999"})
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [["tr9999"]], (
+            "the audit followed the weave instead of the record's own ground"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_closing_with_no_recipe_spends_nothing(self, monkeypatch):
+        """No ground, no call. Same rule as the weave's own early return: work
+        no record will point at is unattributed cost."""
+        state = self._weave(monkeypatch, built=[])
+        self._with_perspectives(monkeypatch, state, 2)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        self._adopted(monkeypatch, {"dec00001": None})
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == []
+
+    @pytest.mark.asyncio
+    async def test_the_audit_waits_for_the_whole_drain(self, monkeypatch):
+        """Ordering, and it is a priority statement rather than a preference.
+
+        The weave is the larger restoration and the audit is an annotation, so
+        the annotation must not queue in front of it — and a task cancelled at
+        shutdown should lose the cheaper half.
+        """
+        order: list[str] = []
+        state = {"calls": [], "perspectives": None}
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            order.append("weave")
+            state["calls"].append(list(perspective_hashes))
+            # Weave one perspective a round, so the drain runs twice.
+            for pp in state["perspectives"]:
+                if not pp.in_cycle:
+                    pp.in_cycle = True
+                    break
+            return "{}", ["tr0100"]
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        perspectives = self._perspectives(2)
+        state["perspectives"] = perspectives
+        self._patch_repo(monkeypatch, perspectives)
+
+        def ground(self, decision_hash, pathways):
+            order.append("ground")
+            # A second closing lands mid-drain, so the loop runs another round.
+            if len(order) == 2:
+                self._decisions_awaiting_pathway.append("dec00002")
+
+        monkeypatch.setattr(_StubAdvisor, "_ground_recorded_decision", ground)
+        self._adopted(monkeypatch, {"dec00001": "tr0100", "dec00002": "tr0100"})
+
+        async def fake_audit(hashes):
+            order.append("audit")
+            return "{}"
+
+        import dialectical_framework.agents.orchestrator.tools.audit_feasibility \
+            as audit_mod
+
+        monkeypatch.setattr(audit_mod, "run_audit_feasibility", fake_audit)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert order.count("weave") >= 2, "the drain did not run more than once"
+        assert order.count("audit") == 1, "the audit ran per round, not per drain"
+        assert order[-1] == "audit", "the annotation ran before the weave finished"
+
+    @pytest.mark.asyncio
+    async def test_two_decisions_on_one_recipe_score_it_once(self, monkeypatch):
+        """Dedup here, idempotence in the tool — belt and braces, cheaply.
+
+        The tool skips an already-scored pathway, so a duplicate would cost
+        nothing in provider calls; it would still write a second critique
+        Rationale whose prose disagrees with the surviving score, which is the
+        defect that skip exists to prevent.
+        """
+        state = self._weave(monkeypatch, built=["tr0100"])
+        self._with_perspectives(monkeypatch, state, 2)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        self._adopted(
+            monkeypatch, {"dec00001": "tr0100", "dec00002": "tr0100"}
+        )
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._decisions_awaiting_pathway.append("dec00002")
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [["tr0100"]]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_weave_still_scores_what_was_already_grounded(
+        self, monkeypatch
+    ):
+        """Why the weave failure BREAKS instead of returning.
+
+        A decision grounded in an earlier round has a recipe on the record, and
+        this round's failure is about the weave rather than about that record.
+
+        Stubs the WEAVE and not `run_exploration_detailed`, and that is the
+        point of failure worth recording: the guarantee is about the drain's
+        rounds, but the weave runs a loop of its OWN over the perspective cap,
+        so a provider that fails on its second call fails inside drain round
+        one — where nothing has been grounded yet and there is correctly
+        nothing to score. Written that way first, this test asserted the break
+        while exercising the return.
+        """
+        calls = {"n": 0}
+
+        async def weave(self):
+            calls["n"] += 1
+            if calls["n"] > 1:
+                raise RuntimeError("provider went away")
+            return ["tr0100"]
+
+        monkeypatch.setattr(_StubAdvisor, "_weave_unwoven_perspectives", weave)
+
+        def ground(self, decision_hash, pathways):
+            if decision_hash == "dec00001":
+                self._decisions_awaiting_pathway.append("dec00002")
+
+        monkeypatch.setattr(_StubAdvisor, "_ground_recorded_decision", ground)
+        self._adopted(monkeypatch, {"dec00001": "tr0100", "dec00002": None})
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert calls["n"] == 2, "the drain did not reach a second round"
+        assert audited == [["tr0100"]]
+
+    @pytest.mark.asyncio
+    async def test_an_audit_failure_costs_the_band_and_nothing_else(
+        self, monkeypatch
+    ):
+        """Fail-soft, and the grounding must survive it.
+
+        This runs turns after the reply was delivered, so a provider error here
+        may not surface to the person and must not take the recipe off the
+        record with it.
+        """
+        state = self._weave(monkeypatch, built=["tr0100"])
+        self._with_perspectives(monkeypatch, state, 2)
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+        self._adopted(monkeypatch, {"dec00001": "tr0100"})
+        audited = self._capture_audit(monkeypatch, boom=True)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [["tr0100"]]
+        assert grounded == ["dec00001"], "an annotation failure lost the ground"
+
+    @pytest.mark.asyncio
+    async def test_nothing_grounded_means_nothing_audited(self, monkeypatch):
+        """A drain that grounds nothing (no decision queued) audits nothing."""
+        state = self._weave(monkeypatch)
+        self._with_perspectives(monkeypatch, state, 2)
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction(None)
+        await advisor.wait_for_deferred_work()
+
+        assert audited == []
+
+
+class TestTheAdoptedPathwayIsReadFromTheEdge:
+    """`_adopted_pathway_hash` against a fake graph.
+
+    Separate from the class above because that one stubs this method out: a test
+    that both stubs the read and asserts on it would pin nothing.
+    """
+
+    class _Rel:
+        def __init__(self, role: str) -> None:
+            self.role = role
+
+    class _Grounds:
+        def __init__(self, pairs) -> None:
+            self._pairs = pairs
+
+        def all(self):
+            return list(self._pairs)
+
+    def _decision(self, pairs):
+        class _Decision:
+            grounds = self._Grounds(pairs)
+
+        return _Decision()
+
+    def _patch_lookup(self, monkeypatch, decision):
+        from dialectical_framework.graph.repositories import node_repository
+
+        class _Repo:
+            def find_by_hash(self, needle, node_type=None):
+                return decision
+
+        monkeypatch.setattr(node_repository, "NodeRepository", _Repo)
+
+    def _transformation(self, hash_value: str):
+        from dialectical_framework.graph.nodes.transformation import \
+            Transformation
+
+        tr = Transformation.__new__(Transformation)
+        object.__setattr__(tr, "hash", hash_value)
+        return tr
+
+    def test_the_adopted_pathway_role_is_the_one_read(self, monkeypatch):
+        """A decision carries several grounds and only one is the recipe."""
+        risk = self._transformation("tr0001")
+        recipe = self._transformation("tr0002")
+        decision = self._decision(
+            [
+                (risk, self._Rel("accepted_cost")),
+                (recipe, self._Rel("adopted_pathway")),
+            ]
+        )
+        self._patch_lookup(monkeypatch, decision)
+
+        assert _StubAdvisor([])._adopted_pathway_hash("dec00001") == "tr0002"
+
+    def test_a_decision_with_no_recipe_reads_none(self, monkeypatch):
+        cost = self._transformation("tr0001")
+        decision = self._decision([(cost, self._Rel("accepted_cost"))])
+        self._patch_lookup(monkeypatch, decision)
+
+        assert _StubAdvisor([])._adopted_pathway_hash("dec00001") is None
+
+    def test_a_missing_decision_reads_none(self, monkeypatch):
+        self._patch_lookup(monkeypatch, None)
+
+        assert _StubAdvisor([])._adopted_pathway_hash("dec00001") is None
+
+    def test_a_lookup_failure_reads_none(self, monkeypatch):
+        """Fail-soft: the reply was delivered turns ago."""
+        from dialectical_framework.graph.repositories import node_repository
+
+        class _Repo:
+            def find_by_hash(self, needle, node_type=None):
+                raise RuntimeError("graph went away")
+
+        monkeypatch.setattr(node_repository, "NodeRepository", _Repo)
+
+        assert _StubAdvisor([])._adopted_pathway_hash("dec00001") is None
 
 
 class TestBothClosingBranchesDefer(_SeamFixtures):
