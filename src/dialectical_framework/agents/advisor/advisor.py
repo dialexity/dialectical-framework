@@ -29,7 +29,9 @@ from dialectical_framework.agents.conversation_facilitator import \
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import ResponseComplete, StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
-from dialectical_framework.agents.turn_timing import TurnTiming
+from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                       DeferralOutcome,
+                                                       TurnTiming)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 logger = logging.getLogger(__name__)
@@ -189,6 +191,16 @@ class Advisor(SettingsAware):
         # is why the queue is a field and not a local.
         self._deferred_pathway_task: Optional[asyncio.Task] = None
         self._decisions_awaiting_pathway: list[str] = []
+        # What the seam concluded, and whether it left work in flight — set by
+        # `_repair_unrecorded_decision` and read by `_record_turn_timing` on the
+        # very next statement of the same turn. Fields rather than a return
+        # value because the scheduler is three frames down from the seam and two
+        # of its three declining paths are invisible from here; and the pattern
+        # already exists (`last_tool_rounds` reaches this class the same way).
+        # `None` between turns is load-bearing: it is what a turn that died
+        # before the seam reports, and it must never read as `NO_CLOSING`.
+        self._last_closing: Optional[ClosingOutcome] = None
+        self._last_deferral: Optional[DeferralOutcome] = None
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
@@ -382,6 +394,11 @@ class Advisor(SettingsAware):
             retry_seconds=retries.wasted_s,
             retry_count=retries.count,
             first_delta_s=first_delta_s,
+            # Read off the instance, not passed in: both callers invoke the seam
+            # and then this, with nothing between, so a parameter would only give
+            # the two turn loops a chance to disagree about the same turn.
+            closing=self._last_closing,
+            deferral=self._last_deferral,
         )
 
     async def _repair_unrecorded_decision(
@@ -437,6 +454,11 @@ class Advisor(SettingsAware):
         Fail-soft in every direction: no exception here may affect the reply
         the person already received.
         """
+        # Reset first, on both fields: this method runs exactly once per turn on
+        # both paths, and every `return` below is a conclusion worth naming. A
+        # field left over from the last turn would be read as this turn's.
+        self._last_closing = None
+        self._last_deferral = None
         if self._recorded_decision_this_turn():
             # The record is written, so there is nothing to repair — but a
             # decision closing IS the trigger for pathways, and the model
@@ -445,9 +467,11 @@ class Advisor(SettingsAware):
             # ran WITHOUT `explore` in 50 of them (against 48 with both): gating
             # pathways on the repair firing would have skipped the single
             # largest population of decisions closed on tensions alone.
+            self._last_closing = ClosingOutcome.MODEL_RECORDED
             try:
                 pathways = await self._ensure_pathways_before_closing()
             except Exception:
+                self._last_closing = ClosingOutcome.FAILED
                 logger.exception(
                     "Pathway construction after a recorded decision failed "
                     "(fail-soft)"
@@ -483,7 +507,26 @@ class Advisor(SettingsAware):
                 user_message=user_message,
                 assistant_message=assistant_message,
             )
-            if verdict is None or not verdict.is_recordable:
+            if verdict is None:
+                # The classifier gave nothing back. Not the same as answering
+                # "no closing here": one is the seam concluding, the other is
+                # the seam failing to, and the rate of the second is how you
+                # find out the concern is broken.
+                self._last_closing = ClosingOutcome.FAILED
+                return
+            if not verdict.is_recordable:
+                # Two different turns arrive here and they are not pooled. A
+                # verdict that says the person was not closing is the ordinary
+                # outcome. A verdict that says they WERE and carries no question
+                # or stance to write is the seam seeing a closing it cannot
+                # state — the shape of the one unexplained loss in the archive
+                # (`claim2-weak-r8-pathways`/wobble_b), and worth a rate of its
+                # own rather than being filed as a quiet non-event.
+                self._last_closing = (
+                    ClosingOutcome.FAILED
+                    if verdict.confirmed
+                    else ClosingOutcome.NO_CLOSING
+                )
                 return
 
             # The person is closing. Build the pathways their decision is
@@ -522,8 +565,15 @@ class Advisor(SettingsAware):
                 # Scheduled only with a hash in hand: this branch's record is
                 # the thing the deferred weave grounds, and a weave with nothing
                 # to attach to is work spent on no one's behalf.
+                self._last_closing = ClosingOutcome.REPAIRED
                 self._schedule_pathway_construction(str(decision_hash))
+            else:
+                # The person was closing and nothing was written — the exact
+                # failure this method exists to prevent, so it is recorded as a
+                # failure and not as a quiet no-op.
+                self._last_closing = ClosingOutcome.FAILED
         except Exception:
+            self._last_closing = ClosingOutcome.FAILED
             logger.exception("Decision confirmation repair failed (fail-soft)")
 
     async def _ensure_pathways_before_closing(self) -> list[str]:
@@ -713,6 +763,7 @@ class Advisor(SettingsAware):
             # would leave a better graph behind — but no record would point at
             # the result, and an exploration run on no one's behalf is the kind
             # of unattributed cost this seam was moved to stop paying.
+            self._last_deferral = DeferralOutcome.NOTHING_TO_DEFER
             return
 
         task = self._deferred_pathway_task
@@ -720,17 +771,28 @@ class Advisor(SettingsAware):
             # Single flight. The running task re-reads the queue after every
             # weave, so a decision closed while it works is picked up without a
             # second exploration running concurrently against the same nexus.
+            self._last_deferral = DeferralOutcome.JOINED
             return
 
+        # Named, because the coroutine exists before the task does: without a
+        # loop, `create_task` raises and leaves it un-awaited, which surfaces as
+        # a RuntimeWarning pointing at this line — nothing worse than noise, and
+        # noise that reads like a dropped weave. Closed in the handler instead.
+        weave = self._run_deferred_pathway_construction()
         try:
-            self._deferred_pathway_task = asyncio.create_task(
-                self._run_deferred_pathway_construction()
-            )
+            self._deferred_pathway_task = asyncio.create_task(weave)
+            # After the create, never before: the seconds a later turn waits on
+            # `deferred_wait_s` begin at this line, so a turn that claimed to
+            # have started work the loop refused would send that wait looking
+            # for a task that never existed.
+            self._last_deferral = DeferralOutcome.STARTED
         except RuntimeError:
             # No running loop (a synchronous caller driving `chat` through
             # `asyncio.run` has one; something more exotic may not). Nothing to
             # defer onto, so the closing keeps exactly the behaviour it had
             # before this existed.
+            weave.close()
+            self._last_deferral = DeferralOutcome.UNAVAILABLE
             logger.exception("Could not schedule deferred pathway construction")
 
     async def _run_deferred_pathway_construction(self) -> None:

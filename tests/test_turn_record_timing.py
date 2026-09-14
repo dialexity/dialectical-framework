@@ -50,11 +50,13 @@ from typing import Optional
 
 import pytest
 
-from dialectical_framework.agents.turn_timing import ToolRound, TurnTiming
+from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                      DeferralOutcome,
+                                                      ToolRound, TurnTiming)
 from e2e.driver import E2EDriver
 from e2e.models import Beat, RunRecord, SessionRecord, TurnRecord
 from e2e.probe_reply_path_latency import _is_measured, _report_measured
-from e2e.read_turn_timing import _arms, _stats, _with_arm
+from e2e.read_turn_timing import _NOT_RECORDED, _arms, _stats, _with_arm
 
 
 class _FakeSettings:
@@ -191,6 +193,11 @@ class TestTheDriverArchivesAGapAsAGap:
         assert record.retry_seconds is None
         assert record.retry_count is None
         assert record.first_delta_s is None
+        # A crashed turn's seam did not conclude either — and these must not
+        # arrive as `"no_closing"`/`"nothing_to_defer"`, which would claim the
+        # seam ran and found nothing to do on a turn that never reached it.
+        assert record.closing is None
+        assert record.deferral is None
         # Lists, not None, and the model says why: an empty list already reads
         # as "nothing recorded" and every consumer iterates them.
         assert record.tool_seconds == []
@@ -217,6 +224,8 @@ class TestTheDriverArchivesAGapAsAGap:
             retry_seconds=2.5,
             retry_count=3,
             first_delta_s=4.44,
+            closing=ClosingOutcome.REPAIRED,
+            deferral=DeferralOutcome.STARTED,
         )
         record = await _run_one(_Arm(timing=timing))
 
@@ -228,6 +237,27 @@ class TestTheDriverArchivesAGapAsAGap:
         assert record.retry_count == 3
         assert record.first_delta_s == 4.4
         assert record.tool_seconds == ["anchor:8.5s"]
+        # Enum VALUES, not `repr`s: the archive is JSON a later reader parses,
+        # and `"ClosingOutcome.REPAIRED"` would tie every stem to the name the
+        # class happened to carry when the run went out.
+        assert record.closing == "repaired"
+        assert record.deferral == "started"
+
+    @pytest.mark.asyncio
+    async def test_a_seam_that_did_not_conclude_is_not_written_as_a_conclusion(self):
+        """Two `None` layers reach this field and they mean different things: no
+        `timing` at all is a turn that never reported, a `timing` whose `closing`
+        is `None` is a turn whose seam did not conclude. Both archive as `None`
+        because neither IS a conclusion — the distinction that must survive is
+        against `no_closing`, which is the seam concluding there was nothing to
+        close, and is the row a reader compares repair rates against."""
+        record = await _run_one(
+            _Arm(timing=TurnTiming(reply_path_s=1.0, off_path_s=0.5))
+        )
+
+        assert record.reply_path_s == 1.0  # the turn DID report
+        assert record.closing is None
+        assert record.deferral is None
 
     @pytest.mark.asyncio
     async def test_an_awaited_turns_first_delta_stays_absent(self):
@@ -450,6 +480,115 @@ class TestReadersDropUnmeasuredTurnsAndSaySo:
         # A PREFIX of the reply path, so it is reported as a share of it and
         # never added to it: 3.6 / 18.0.
         assert "20% of the median reply path" in out
+
+
+class TestTheReaderSaysWhoseClosingThePersonWaitedFor:
+    """The row the seam fields were added for.
+
+    `feasibility-offturn` measured a turn where the person waited 284.5s — 95% of
+    their reply path — on `deferred_wait_s`, and could only name the cause from a
+    log line the run never captured. `deferred_wait_s` is charged to the turn that
+    WAITS, so the answer always lived on the turn BEFORE it, and now that turn
+    says so itself.
+    """
+
+    def _pair(self, *, prev_deferral: Optional[str], wait_s: float) -> list[TurnRecord]:
+        return [
+            _turn(duration_s=10.0, reply_path_s=8.0, off_path_s=2.0,
+                  deferral=prev_deferral, closing="repaired"),
+            _turn(duration_s=wait_s + 5.0, reply_path_s=wait_s + 4.0,
+                  off_path_s=1.0, deferred_wait_s=wait_s),
+        ]
+
+    def test_a_wait_is_attributed_to_the_closing_that_started_the_weave(self):
+        stats = _stats([_run(self._pair(prev_deferral="started", wait_s=284.5)).model_dump()])
+
+        assert stats["real waits attributable"] == 1
+        assert stats["real waits attributed to the previous closing"] == "1/1"
+        assert stats["worst unattributed wait"] == _NOT_RECORDED
+
+    def test_a_wait_nobody_scheduled_is_printed_rather_than_subtracted(self):
+        """The predecessor says it left nothing in flight and the person waited
+        anyway. That is the finding, so it gets its own row instead of quietly
+        leaving the numerator."""
+        stats = _stats([_run(self._pair(prev_deferral="nothing_to_defer", wait_s=120.0)).model_dump()])
+
+        assert stats["real waits attributable"] == 1
+        assert stats["real waits attributed to the previous closing"] == "0/1"
+        assert stats["worst unattributed wait"] == 120.0
+
+    def test_a_predecessor_that_predates_the_field_is_unmeasured_not_unattributed(self):
+        """The archive is older than these fields, and a wait whose predecessor
+        cannot answer is not a defect. Pooling the two would invent one out of the
+        archive's age — the same mistake as reading `not recorded` as a zero."""
+        stats = _stats([_run(self._pair(prev_deferral=None, wait_s=284.5)).model_dump()])
+
+        assert stats["real waits attributable"] == 0
+        assert stats["real waits attributed to the previous closing"] == _NOT_RECORDED
+        assert stats["worst unattributed wait"] == _NOT_RECORDED
+
+    def test_think_time_absorbing_the_weave_is_not_somebody_waiting(self):
+        """The ordinary case: the deferral is free when the person was still
+        typing. A 0.0 wait is a measurement and must not enter the denominator as
+        an attribution question."""
+        stats = _stats([_run(self._pair(prev_deferral="started", wait_s=0.0)).model_dump()])
+
+        assert stats["real waits attributable"] == 0
+
+    def test_a_wait_is_never_charged_to_the_previous_SESSION(self):
+        """`_turns` flattens every session of every cell, which is right for a
+        median and wrong here: the first turn of a session runs against a fresh
+        scope, so its wait cannot have come from the last turn of the one before.
+        A flat read would pair them — and would do it precisely at the boundary
+        where the pairing is guaranteed false."""
+        first = _turn(duration_s=10.0, reply_path_s=8.0, off_path_s=2.0,
+                      deferral="started", closing="repaired")
+        second = _turn(duration_s=300.0, reply_path_s=290.0, off_path_s=1.0,
+                       deferred_wait_s=284.5)
+        run = RunRecord(
+            arm="A2", tier="weak", model="stub", scenario_key="k", replicate=1,
+            duration_s=310.0,
+            sessions=[
+                SessionRecord(label="s1", turns=[first]),
+                SessionRecord(label="s2", turns=[second]),
+            ],
+        )
+
+        stats = _stats([run.model_dump()])
+
+        assert stats["turns"] == 2
+        assert stats["real waits attributable"] == 0, (
+            "a fresh session's wait was charged to the previous session's closing"
+        )
+
+    def test_the_outcome_distributions_carry_their_own_denominators(self):
+        """`not recorded` on a stem that predates the fields, never a zero count —
+        and counts rather than a single "seam fired %", because `repaired` (the
+        seam doing its job) and `model_recorded` (the model doing it) are not
+        degrees of one thing. The archive splits 50/48 between them."""
+        turns = [
+            _turn(duration_s=10.0, reply_path_s=9.0, off_path_s=1.0,
+                  closing="repaired", deferral="started"),
+            _turn(duration_s=10.0, reply_path_s=9.0, off_path_s=1.0,
+                  closing="model_recorded", deferral="started"),
+            _turn(duration_s=10.0, reply_path_s=9.0, off_path_s=1.0,
+                  closing="no_closing"),
+            _turn(duration_s=10.0, reply_path_s=9.0, off_path_s=1.0),  # older build
+        ]
+        stats = _stats([_run(turns).model_dump()])
+
+        assert stats["turns recording closing"] == 3
+        assert "repaired 1" in stats["closing outcomes"]
+        assert "model_recorded 1" in stats["closing outcomes"]
+        assert "no_closing 1" in stats["closing outcomes"]
+        # Its OWN denominator, and lower than closing's: a turn can conclude a
+        # closing without ever reaching the scheduler.
+        assert stats["turns recording deferral"] == 2
+
+        empty = _stats([_run([_turn(duration_s=10.0, reply_path_s=9.0,
+                                    off_path_s=1.0)]).model_dump()])
+        assert empty["turns recording closing"] == 0
+        assert empty["closing outcomes"] == _NOT_RECORDED
 
 
 class TestAPooledMedianOverTwoArmsDescribesNoAssistantThatExists:

@@ -21,6 +21,7 @@ when it must not, and what it records), not the classifier's judgement.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from types import SimpleNamespace
@@ -75,6 +76,12 @@ class _StubAdvisor:
         # leak one test's pending decisions into the next.
         self._deferred_pathway_task = None
         self._decisions_awaiting_pathway: list[str] = []
+        # Mirrors the real `__init__`. The seam resets both on entry, so a stub
+        # without them would still work — declared anyway, because a test that
+        # asserts `is None` before the seam runs is asserting the constructor's
+        # promise and not an AttributeError.
+        self._last_closing = None
+        self._last_deferral = None
 
         class _Conv:
             last_tool_results = list(tool_results or [])
@@ -2040,3 +2047,289 @@ class TestBothClosingBranchesDefer(_SeamFixtures):
         await advisor._repair_unrecorded_decision("write it down", "done")
 
         assert self._scheduled == [None]
+
+
+class TestTheSeamSaysWhatItDid(_SeamFixtures):
+    """`off_path_s` said how long the seam took. This says what it did.
+
+    Written because a round was decided without it. `feasibility-offturn`
+    measured a turn where the person waited 284.5s — 95% of their reply path —
+    on `deferred_wait_s`, and the account of WHOSE closing they were waiting for
+    rested on a log line the run never captured (`grep -c "left unrecorded"`
+    over the whole archive returns 0). The round before it ruled the same tail
+    out of being the deferral by reading `tool_calls`, which cannot see the
+    framework's own writes — and this seam exists precisely to write records the
+    model did not, so an absence there is evidence about the MODEL and never
+    about the framework.
+
+    Every assertion below is on a field, not a log line, for that reason.
+    """
+
+    @staticmethod
+    def _timing_fields():
+        from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                              DeferralOutcome)
+
+        return ClosingOutcome, DeferralOutcome
+
+    @pytest.mark.asyncio
+    async def test_a_model_recorded_closing_is_not_reported_as_a_repair(
+        self, monkeypatch
+    ):
+        """The larger population, and the one an unsplit "the seam fired" would
+        inflate: `record_decision` ran WITHOUT `explore` in 50 saved A2 cells
+        against 48 with both, so pooling the two branches would overstate the
+        repair's reach several times over."""
+        ClosingOutcome, _ = self._timing_fields()
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+        monkeypatch.setattr(
+            _StubAdvisor, "_decision_recorded_this_turn", lambda self: _StubDecision()
+        )
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.MODEL_RECORDED
+
+    @pytest.mark.asyncio
+    async def test_a_repair_is_reported_as_a_repair(self, monkeypatch):
+        ClosingOutcome, _ = self._timing_fields()
+        TestTheClosingGroundsOnThePathwayItBuilt._confirming(monkeypatch)
+        TestTheClosingGroundsOnThePathwayItBuilt._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.REPAIRED
+
+    @pytest.mark.asyncio
+    async def test_an_ordinary_turn_says_so_rather_than_saying_nothing(
+        self, monkeypatch
+    ):
+        """`NO_CLOSING`, not `None`. The seam running and finding nothing to close
+        is a positive result with its own rate; `None` is reserved for the turn
+        that died before the seam concluded, and the two must never pool."""
+        ClosingOutcome, DeferralOutcome = self._timing_fields()
+
+        async def not_confirmed(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(confirmed=False)
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", not_confirmed)
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("hm", "maybe")
+
+        assert advisor._last_closing is ClosingOutcome.NO_CLOSING
+        # And nothing about the deferral: the seam never reached the scheduler,
+        # which is not the same claim as "it scheduled nothing".
+        assert advisor._last_deferral is None
+
+    @pytest.mark.asyncio
+    async def test_a_confirmation_with_nothing_to_write_is_a_failure(
+        self, monkeypatch
+    ):
+        """The shape of the archive's one unexplained loss.
+
+        `claim2-weak-r8-pathways`/wobble_b closed on an unambiguous confirmation
+        and recorded NOTHING, and the cause is still unknown because nothing
+        captured what its `except` blocks saw. A verdict that says the person
+        confirmed and then carries no question or stance is that case from the
+        inside — so it is counted as a failure, not filed beside the ordinary
+        turns that had nothing to close.
+        """
+        ClosingOutcome, _ = self._timing_fields()
+
+        async def confirmed_but_empty(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="   ", rationale="r"
+            )
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", confirmed_but_empty)
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("go ahead", "ok")
+
+        assert advisor._last_closing is ClosingOutcome.FAILED, (
+            "a confirmed closing the seam could not state was filed as an "
+            "ordinary turn with nothing to close"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_classifier_that_answers_nothing_is_a_failure(self, monkeypatch):
+        ClosingOutcome, _ = self._timing_fields()
+
+        async def no_verdict(self, **kwargs):
+            return None
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", no_verdict)
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.FAILED
+
+    @pytest.mark.asyncio
+    async def test_a_swallowed_exception_is_reported_as_a_failure(self, monkeypatch):
+        """Every fail-soft block in `src/` logs and continues by design, which is
+        why a turn can lose a decision and still look healthy in the archive:
+        reply present, `error` None, tools ok. This is the field that shows it."""
+        ClosingOutcome, _ = self._timing_fields()
+
+        async def boom(self, **kwargs):
+            raise RuntimeError("bedrock throttled")
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", boom)
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.FAILED
+
+    @pytest.mark.asyncio
+    async def test_a_record_that_writes_no_hash_is_a_failure(self, monkeypatch):
+        """The person was closing and nothing was written — the exact failure the
+        seam exists to prevent, so it may not archive as a quiet no-op."""
+        ClosingOutcome, _ = self._timing_fields()
+        TestTheClosingGroundsOnThePathwayItBuilt._confirming(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+        self._capture_exploration(monkeypatch)
+
+        async def writes_nothing(self, **kwargs):
+            return None
+
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", writes_nothing)
+
+        advisor = _StubAdvisor([])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.FAILED
+        assert advisor._last_deferral is None, (
+            "nothing was written, so nothing was scheduled — and the field must "
+            "not claim a deferral the scheduler never saw"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_model_recorded_branch_that_raises_is_a_failure(self, monkeypatch):
+        """`FAILED` wins over the branch label. The record exists — the model
+        wrote it — but the seam's own work bought nothing, and what these fields
+        answer is what `off_path_s` was spent on."""
+        ClosingOutcome, _ = self._timing_fields()
+
+        def boom(self):
+            raise RuntimeError("graph down")
+
+        monkeypatch.setattr(_StubAdvisor, "_existing_pathway_hashes", boom)
+        self._patch_repo(monkeypatch, self._perspectives(3))
+
+        advisor = _StubAdvisor([_tool_result("record_decision", _ok_report())])
+        await advisor._repair_unrecorded_decision("write it down", "done")
+
+        assert advisor._last_closing is ClosingOutcome.FAILED
+
+    @pytest.mark.asyncio
+    async def test_both_fields_are_reset_before_the_seam_runs(self, monkeypatch):
+        """The whole instrument rests on this. `_record_turn_timing` reads these
+        fields on the statement after the seam, so a value left over from the
+        last turn would be published as this turn's — and it would be published
+        as a MEASUREMENT, which is worse than the gap it replaced."""
+        ClosingOutcome, DeferralOutcome = self._timing_fields()
+
+        async def not_confirmed(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(confirmed=False)
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", not_confirmed)
+
+        advisor = _StubAdvisor([])
+        advisor._last_closing = ClosingOutcome.REPAIRED
+        advisor._last_deferral = DeferralOutcome.STARTED
+        await advisor._repair_unrecorded_decision("hm", "maybe")
+
+        assert advisor._last_closing is ClosingOutcome.NO_CLOSING
+        assert advisor._last_deferral is None, (
+            "last turn's deferral survived into a turn that never scheduled"
+        )
+
+
+class TestTheDeferralSaysWhoStartedIt:
+    """Which turn's closing a later `deferred_wait_s` is paying for.
+
+    `deferred_wait_s` is charged to the turn that WAITS, so a large one is a
+    fact about some earlier turn and the archive could not say which. These are
+    the scheduler's four exits, and `STARTED` vs `JOINED` is the load-bearing
+    pair: the seam is single flight, so a closing arriving while the weave runs
+    queues onto the existing task. An instrument that recorded only "work is in
+    flight" would charge the wait to the wrong turn.
+    """
+
+    @staticmethod
+    def _outcomes():
+        from dialectical_framework.agents.turn_timing import DeferralOutcome
+
+        return DeferralOutcome
+
+    def test_nothing_to_ground_is_recorded_rather_than_left_blank(self):
+        """No record points anywhere, so no weave is due — and the seam says so.
+        `None` here would read as "the scheduler was never reached"."""
+        DeferralOutcome = self._outcomes()
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction(None)
+
+        assert advisor._deferred_pathway_task is None
+        assert advisor._last_deferral is DeferralOutcome.NOTHING_TO_DEFER
+
+    @pytest.mark.asyncio
+    async def test_the_turn_that_creates_the_task_says_started(self, monkeypatch):
+        DeferralOutcome = self._outcomes()
+
+        async def noop(self):
+            return None
+
+        monkeypatch.setattr(_StubAdvisor, "_run_deferred_pathway_construction", noop)
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+
+        assert advisor._last_deferral is DeferralOutcome.STARTED
+        await advisor.wait_for_deferred_work()
+
+    @pytest.mark.asyncio
+    async def test_a_closing_that_queues_onto_a_running_weave_says_joined(
+        self, monkeypatch
+    ):
+        """Should be unreachable from a turn — both turn loops settle deferred
+        work before submitting — so this exercises the branch directly. Seeing
+        `joined` in an archive is evidence about the HOST (two turns overlapping
+        on one sid, which the one-writer contract forbids), which is only a
+        readable signal if the value is distinct from `started`."""
+        DeferralOutcome = self._outcomes()
+        release = asyncio.Event()
+
+        async def blocks(self):
+            await release.wait()
+
+        monkeypatch.setattr(_StubAdvisor, "_run_deferred_pathway_construction", blocks)
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        assert advisor._last_deferral is DeferralOutcome.STARTED
+        # Let the task actually start, so the second call meets a running one.
+        await asyncio.sleep(0)
+
+        advisor._schedule_pathway_construction("dec00002")
+        assert advisor._last_deferral is DeferralOutcome.JOINED
+        # And the second closing is genuinely queued, not dropped — the value
+        # would be a lie about the graph otherwise.
+        assert "dec00002" in advisor._decisions_awaiting_pathway
+
+        release.set()
+        await advisor.wait_for_deferred_work()
+
+    def test_no_loop_to_defer_onto_is_not_reported_as_nothing_to_defer(self):
+        """A synchronous caller has no running loop, so there is nowhere to put
+        the weave. The closing keeps its pre-deferral behaviour — but the record
+        must not say there was nothing to do, because there was."""
+        DeferralOutcome = self._outcomes()
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+
+        assert advisor._deferred_pathway_task is None
+        assert advisor._last_deferral is DeferralOutcome.UNAVAILABLE

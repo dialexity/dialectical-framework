@@ -2520,6 +2520,17 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   pre-registered bar on the person's actual wait read `not recorded` on all 48 turns — a value computed and never
   rendered, the same shape as `62244f0`, `2c158bc` and r10's unconstructible hash. Wiring a field into the
   framework is half of measuring it.**
+  **The seam stopped being invisible on 2026-09-14: `TurnTiming.closing` / `TurnTiming.deferral` (and the same two
+  on `TurnRecord`) record what the seam concluded and whether the turn left work in flight, and
+  `read_turn_timing.py` reads them DOWN the session as `real waits attributed to the previous closing`.** Two
+  fields rather than one, because the MODEL-recorded branch also schedules — so knowing only that a turn repaired
+  would leave the wait an inference — and because the scheduler declines three ways (empty queue, single flight,
+  no loop), which makes `started` and `joined` a load-bearing distinction: a closing that JOINED means the work a
+  later turn waits on was started by an earlier one. The lesson the fields encode is the one above: the previous
+  round's ordering argument, and this round's log-line explanation, were both attempts to read the framework's own
+  writes off the MODEL's tool list. Neither is possible; a field is. Note what did NOT get closed — the fields
+  postdate `feasibility-offturn`, so its 284.5s turn stays a leading explanation and every one of its 144 turns
+  reads `not recorded`.
   **The THIRD trade was repaid at the same seam, 2026-09-14 (`Advisor._audit_adopted_pathways`), and the honest
   difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
   `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s

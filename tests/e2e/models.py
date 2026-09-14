@@ -556,6 +556,33 @@ class TurnRecord(BaseModel):
     #: `reply_path_s`. A crashed turn retrying nine times before it died would
     #: otherwise be archived as the cleanest turn in the run.
     retry_count: Optional[int] = None
+    #: What the decision seam concluded off the reply path, and whether this turn
+    #: left the weave in flight — the `ClosingOutcome` / `DeferralOutcome` values
+    #: (`"repaired"`, `"started"`, ...), stored as plain strings so a record
+    #: written by a future build with new members still loads here.
+    #:
+    #: Added 2026-09-14 because `off_path_s` said HOW LONG the seam took and
+    #: nothing said WHAT IT DID. `feasibility-offturn` measured a turn where the
+    #: person waited 284.5s — 95% of their reply path — on `deferred_wait_s`, and
+    #: the account of which turn's closing they were waiting for rested on a log
+    #: line the run did not capture (`grep -c "left unrecorded"` over the archive
+    #: returns 0). The round before it ruled the same tail out of being the
+    #: deferral by reading `tool_calls`, which cannot see the framework's own
+    #: writes — and this seam writes decisions the model did not, so an absence
+    #: there is evidence about the MODEL and never about the framework.
+    #:
+    #: Read `deferral` on turn N together with `deferred_wait_s` on turn N+1:
+    #: that field says a person waited, this one says whose closing they waited
+    #: for. `"joined"` means the work in flight was not that turn's alone.
+    #:
+    #: `None` on every turn before this date, and on any turn that died before the
+    #: seam concluded. **Not `"no_closing"`** — the seam finding nothing to close
+    #: is a positive result with its own rate, and the whole point of the field is
+    #: lost if a reader pools it with turns that never got there. A reader owes
+    #: these their own denominator (`recorded on N of M turns`), like every
+    #: field above.
+    closing: Optional[str] = None
+    deferral: Optional[str] = None
     error: Optional[str] = None
     #: Framework exceptions the turn SWALLOWED. Every fail-soft block in `src/`
     #: logs and continues by design (a graph fault must not break a live

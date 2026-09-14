@@ -327,6 +327,22 @@ class E2EDriver:
                     ),
                     retry_seconds=round(timing.retry_seconds, 1) if timing else None,
                     retry_count=timing.retry_count if timing else None,
+                    # `.value`, so the archive holds `"repaired"` and not
+                    # `"ClosingOutcome.REPAIRED"`. Two `None` layers, and they
+                    # mean different things: no `timing` is a turn that never
+                    # reported, a `timing` whose field is `None` is a turn whose
+                    # seam did not conclude. Both record as `None` because
+                    # neither is a conclusion — see TurnRecord.closing.
+                    closing=(
+                        timing.closing.value
+                        if timing and timing.closing is not None
+                        else None
+                    ),
+                    deferral=(
+                        timing.deferral.value
+                        if timing and timing.deferral is not None
+                        else None
+                    ),
                     error=error,
                     swallowed_errors=list(swallowed),
                 )

@@ -260,6 +260,14 @@ class _StubAdvisor:
         # this module's sums stay exactly as they were. The deferral's own cost is
         # pinned in `TestTheDeferredWaitIsOnTheReplyPath` below.
         self._deferred_pathway_task = None
+        # This stub REPLACES the seam (see `_repair_unrecorded_decision` below),
+        # so there is no closing to report and `None` is the honest value rather
+        # than a default standing in for one. Declared rather than left to
+        # `getattr` in the real `_record_turn_timing`: a tolerant read there
+        # would let a future build that never sets these publish `None` on every
+        # turn and look exactly like this stub.
+        self._last_closing = None
+        self._last_deferral = None
 
         class _Conv:
             last_submit_seconds = _REPLY_PATH_S
@@ -420,6 +428,82 @@ class TestTheReplyPathBoundaryIsWhereTheAdvisorSaysItIs:
             await advisor.chat("no scope set")
 
         assert advisor.last_turn_timing is None
+
+
+@pytest.mark.llm
+class TestWhatTheSeamConcludedReachesTheTurnsTiming:
+    """`off_path_s` says how long the seam took; these say what it did.
+
+    The handoff is by instance field rather than return value, because the
+    scheduler is three frames below the seam and two of its three declining paths
+    are invisible from the turn loop. That makes the wiring worth pinning
+    directly: both turn loops call the seam and then `_record_turn_timing` with
+    nothing in between, and a break in that pair would publish `None` on every
+    turn — which reads as "no seam ran" and is exactly the gap the fields were
+    added to close (`grep -c "left unrecorded"` over the archive returns 0).
+
+    Both loops, separately, for the same reason the crash tests below are written
+    twice: the two methods share no body.
+    """
+
+    class _Closing(_StubAdvisor):
+        """A seam that concludes, instead of one that is skipped."""
+
+        async def _repair_unrecorded_decision(self, _user, _assistant) -> None:
+            from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                                  DeferralOutcome)
+
+            await asyncio.sleep(_REPAIR_SLEEP)
+            self.repaired = True
+            self._last_closing = ClosingOutcome.REPAIRED
+            self._last_deferral = DeferralOutcome.STARTED
+
+    async def test_an_awaited_turn_publishes_what_the_seam_concluded(self):
+        from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                              DeferralOutcome)
+
+        advisor = self._Closing()
+
+        with scope("sid-test"):
+            await advisor.chat("I have decided.")
+
+        timing = advisor.last_turn_timing
+        assert timing is not None
+        assert timing.closing is ClosingOutcome.REPAIRED
+        assert timing.deferral is DeferralOutcome.STARTED
+        # The invariant the fields must not disturb: they annotate `off_path_s`,
+        # they are not a third addend to it.
+        assert timing.total_s == timing.reply_path_s + timing.off_path_s
+
+    async def test_a_streamed_turn_publishes_it_too(self):
+        from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                              DeferralOutcome)
+
+        advisor = self._Closing()
+
+        with scope("sid-test"):
+            async for _ in advisor.chat_stream("I have decided."):
+                pass
+
+        timing = advisor.last_turn_timing
+        assert timing is not None
+        assert timing.closing is ClosingOutcome.REPAIRED
+        assert timing.deferral is DeferralOutcome.STARTED
+
+    async def test_a_turn_whose_seam_did_not_conclude_reports_none(self):
+        """`None`, never `NO_CLOSING`. The base stub replaces the seam entirely,
+        so there is nothing to report — and a reader pooling that with the turns
+        where the seam ran and found nothing to close would lose the distinction
+        the whole instrument is for."""
+        advisor = _StubAdvisor()
+
+        with scope("sid-test"):
+            await advisor.chat("hello")
+
+        timing = advisor.last_turn_timing
+        assert timing is not None
+        assert timing.closing is None
+        assert timing.deferral is None
 
 
 @pytest.mark.llm

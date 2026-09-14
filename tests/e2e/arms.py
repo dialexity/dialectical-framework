@@ -390,6 +390,16 @@ class PromptArm:
         its `submit` the same way (`ConversationFacilitator.submit`), so the figure
         was one attribute away the whole time. `tool_rounds` stays empty because it
         genuinely is.
+
+        `closing` and `deferral` are the opposite call, and the difference is
+        worth stating because it looks like the same one: they stay `None`
+        deliberately and must NOT become `NO_CLOSING`/`NOTHING_TO_DEFER`. Those
+        members say a seam ran and concluded there was nothing to do; this arm has
+        no seam to run, which is why it cannot record a decision the model skips
+        and why the repair rate is an A2-only quantity. `None` here reads as
+        "nothing to report", which is the truth. A reader comparing repair rates
+        across arms therefore has no A1 baseline to difference against — by
+        construction, not by omission.
         """
         retries = self._conversation.last_submit_retries
         return TurnTiming(

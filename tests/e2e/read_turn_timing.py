@@ -93,6 +93,7 @@ from __future__ import annotations
 import json
 import statistics
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +116,34 @@ def _turns(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
             turns.extend(session.get("turns", []) or [])
         turns.extend(run.get("turns", []) or [])
     return turns
+
+
+def _sequences(runs: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Every session's turns, IN ORDER, as separate lists.
+
+    `_turns` flattens, which is right for every median above and wrong for the one
+    question that spans turns: `deferred_wait_s` is charged to the turn that
+    waits, and the work it waited for was scheduled by the turn BEFORE it. Reading
+    that off the flat list would pair the last turn of one session with the first
+    turn of the next — two different graphs, two different weaves, and the false
+    pair would land disproportionately on session boundaries, which is exactly
+    where a fresh scope means the wait cannot have come from the previous turn.
+    """
+    out: list[list[dict[str, Any]]] = []
+    for run in runs:
+        for session in run.get("sessions", []) or []:
+            turns = session.get("turns", []) or []
+            if turns:
+                out.append(list(turns))
+        turns = run.get("turns", []) or []
+        if turns:
+            out.append(list(turns))
+    return out
+
+
+#: A `deferred_wait_s` under this is think-time absorbing the weave, or a settle
+#: that found nothing — not a person waiting. Above it, somebody sat there.
+_REAL_WAIT_S = 1.0
 
 
 #: `arm` is recorded on the RUN, never on the turn, so an arm split has to filter
@@ -246,6 +275,19 @@ def _total(values: list[float], measured: bool = True) -> float | str:
     return sum(values)
 
 
+def _distribution(values: list[str]) -> str:
+    """`"repaired 3, no_closing 13"`, or `not recorded` for an empty sample.
+
+    Counts rather than percentages, and every observed member named: a rate needs
+    a reader to already know the denominator, and these fields exist because a
+    figure was once quoted without one.
+    """
+    if not values:
+        return _NOT_RECORDED
+    counts = Counter(values)
+    return ", ".join(f"{name} {n}" for name, n in counts.most_common())
+
+
 def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
     turns = _turns(runs)
     builds = _builds(runs)
@@ -331,6 +373,41 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
         max(0.0, float(t["retry_seconds"]) - _tool_total(t, "tool_retry_seconds"))
         for t in retried
     ]
+    # Their own denominators, and not shared with `timed`: both fields are
+    # younger than the archive, so `not recorded` here means the stem predates
+    # them. A turn that reported a split but no `closing` is a turn whose seam
+    # did not conclude, which is why these count `is not None` on the field
+    # itself rather than trusting `timed`.
+    closings = [t["closing"] for t in timed if t.get("closing") is not None]
+    deferrals = [t["deferral"] for t in timed if t.get("deferral") is not None]
+    # The row the fields were added for. `deferred_wait_s` says a person waited;
+    # it never said WHOSE closing they waited for, and the round that measured a
+    # 284.5s wait had to name the cause from a log line it had not captured. Here
+    # the previous turn says so itself.
+    #
+    # Counted over the pairs where BOTH halves are present, and reported with
+    # that denominator: a wait whose predecessor predates `deferral` is not an
+    # unattributed wait, it is an unmeasured one, and pooling the two would
+    # invent a defect out of the archive's age.
+    attributable = 0
+    attributed = 0
+    orphan_waits: list[float] = []
+    for seq in _sequences(runs):
+        for prev, cur in zip(seq, seq[1:]):
+            wait = cur.get("deferred_wait_s")
+            if wait is None or float(wait) < _REAL_WAIT_S:
+                continue
+            if prev.get("deferral") is None:
+                continue
+            attributable += 1
+            if prev["deferral"] in {"started", "joined"}:
+                attributed += 1
+            else:
+                # The predecessor says it left nothing in flight, and the person
+                # waited anyway. NOT a rounding artefact at this threshold, and
+                # not something the seam explains — so it is printed rather than
+                # subtracted, because an unexplained wait is the finding.
+                orphan_waits.append(float(wait))
     return {
         # First row on purpose. Every figure below is a median over whatever this
         # says, and a two-arm entry here means the column describes no assistant
@@ -422,6 +499,25 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
             else _NOT_RECORDED
         ),
         "arithmetic closes": f"{closes}/{len(checkable)}",
+        # What the off-path seconds above were SPENT ON. Printed as a
+        # distribution rather than a rate, because the four outcomes are not
+        # degrees of one thing: `repaired` is the seam doing its job,
+        # `model_recorded` is the model doing it, `no_closing` is an ordinary
+        # turn, and `failed` is a swallowed break. A single "seam fired %" would
+        # average the first two together and hide the last.
+        "turns recording closing": len(closings),
+        "closing outcomes": _distribution(closings),
+        "turns recording deferral": len(deferrals),
+        "deferral outcomes": _distribution(deferrals),
+        # Reads DOWN the session: of the turns where somebody actually waited on
+        # the weave, how many were waiting for a closing the previous turn admits
+        # scheduling. Anything short of all of them is a wait this seam does not
+        # account for.
+        "real waits attributable": attributable,
+        "real waits attributed to the previous closing": (
+            f"{attributed}/{attributable}" if attributable else _NOT_RECORDED
+        ),
+        "worst unattributed wait": _worst(orphan_waits),
     }
 
 

@@ -5860,3 +5860,16 @@ and it broke it by design.
    3 replicates.
 5. **The repair seam is still invisible to the archive**, so the F3 diagnosis is a leading explanation and not
    a measurement.
+
+**CLOSED 2026-09-14 (limit 5), for the next round and not this one.** The seam now reports two facts per turn,
+on `TurnTiming`/`TurnRecord`: `closing` — what it concluded (`no_closing` / `model_recorded` / `repaired` /
+`failed`) — and `deferral` — whether the turn left work in flight and whether it STARTED it (`nothing_to_defer` /
+`started` / `joined` / `unavailable`). Two fields rather than one because the branch where the MODEL recorded
+also schedules, so `repaired` alone would still leave the 284.5s an inference; and because the scheduler declines
+three different ways, so "the seam concluded a closing" and "this turn left work in flight" are different facts.
+`read_turn_timing.py` reads them DOWN the session — `real waits attributed to the previous closing`, over the
+pairs where both halves exist — because `deferred_wait_s` is charged to the turn that WAITS and the answer always
+lived on the turn before it. `feasibility-offturn`'s own numbers are unaffected and stay a leading explanation:
+the fields postdate the run, so every one of its 144 turns reads `not recorded` here, which is the honest state
+and the reason the row prints its own denominator. **This closes the instrument, not the finding** — the 284.5s
+turn is re-checkable on the next run and not on this one.
