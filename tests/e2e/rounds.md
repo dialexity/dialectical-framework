@@ -5725,6 +5725,21 @@ seconds to the same off-turn budget the weave already spends, so F3 is the endpo
 us — and the bench simulator replies as fast as the provider generates, which is close to the worst case for
 any deferral.
 
+**Design.** Identical to `weave-offturn` and `a15-floor`, which keeps the series a single-variable A/B:
+`cofounder_equity`, weak tier, arms **A1 + A1.5 + A2**, **3 replicates**, judge ON, three sessions per
+replicate = **18 cells, ~144 turns, ~12 pairs a pair-type**. Stem `feasibility-offturn`. `11948d2` is the only
+framework commit since `weave-offturn` (`a61e7af` is bench-side only).
+
+**Why the judged arms run at all, when nothing judged is registered.** Because the band is not write-only:
+`DialecticalContext` renders `feasibility=X.XX` onto every covered Transition it dumps
+(`concerns/dialectical_context.py:940`), and `_refresh_context` re-reads that dump into the system prompt
+every turn. So the audit changes what every A2 turn AFTER the closing can see — the same mechanism the weave
+had, one layer further in. It cannot improve the closing reply (the audit runs after it is delivered) and it
+is not expected to resolve at 12 pairs, but a change that alters the prompt later turns read cannot be landed
+with no quality read at all. The judged lane is registered as a GUARDRAIL, not an endpoint: the bar is that no
+structural dimension falls by a resolved margin against `weave-offturn`, and `warmth` — resolved against A1
+for four consecutive rounds — must not get worse.
+
 **What this round CANNOT settle, stated in advance.** The audit is a **cost** trade, not a latency trade:
 deferring it removes the wait, not the provider spend, and the audit was ~40% of `explore`'s spend when it
 ran. So a clean F1/F2/F3 sweep still leaves "is it worth paying on every adopted pathway" open, and that
