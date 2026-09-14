@@ -863,19 +863,32 @@ def election_rows() -> list[tuple[str, str, float, float, str]]:
     composite, model).
 
     `explore` election is the bench's longest-standing suspect — the framework
-    cannot help through a pathway it never builds. The correlation is real
-    (+0.36) and CONFOUNDED beyond use: every set where the share clears 0.5 ran
-    on the STRONG MODEL, so "elected explore" and "ran on the better model" are
-    the same column. Printed with that stated, because the confound is the
-    finding — testing it needs a haiku run where election is forced, not more
-    pooling.
+    cannot help through a pathway it never builds. The POOLED correlation is
+    real and large (+0.56 over n=25) and it is entirely BETWEEN models: split by
+    model it is -0.02 over haiku's 18 sets and -0.26 over Sonnet's 7. So the
+    pooled figure says the stronger model both elects more and scores better,
+    which nobody disputed; it says nothing about what electing buys. Read
+    `election_within_model()`, never the pooled number.
 
-    The confound is stated against the MODEL, not the tier label, because
+    Until 2026-09-14 this was filed as a confound rather than a decomposition —
+    "every set where the share clears 0.5 ran the strong model", so election and
+    model strength are one column — and `feasibility-offturn` FALSIFIED that
+    sentence: haiku, share 0.667 (4 of 6 cells electing `explore` once each),
+    composite -0.167. Two things worth keeping from how it broke. The absolute
+    form was fragile by construction, because 0.5 of six cells is four cells and
+    the identical prior design ran 2 of 6 (4-vs-2, p=0.57 — indistinguishable),
+    so a threshold-keyed claim about the whole archive was always going to be
+    decided by ordinary variance in a single round; state such a claim as the
+    quantity it rests on, not as a property of every set. And the conclusion it
+    supported got STRONGER rather than weaker: the first weak-model run to elect
+    in most of its cells landed at -0.167, inside the weak band (-0.07 to -0.85)
+    and no better than the 0.333-share round beside it (`weave-offturn`, -0.222).
+
+    Both figures are keyed on the MODEL and never on the tier label, because
     `ladder-return-r18` separates them: it is labelled `weak`, ran Sonnet, and
-    elected in 12 of 12 cells. Read by label it looks like the first weak-tier
-    run to clear 0.5 — i.e. like the confound breaking. Read by model it is one
-    more Sonnet run at share 1.00, which is the confound holding exactly. The
-    row carries its model so the verdict cannot be computed the flattering way.
+    elected in 12 of 12 cells. Read by label it is the first weak-tier set to
+    clear 0.5; read by model it is one more Sonnet run at share 1.00. The row
+    carries its model so neither figure can be computed the flattering way.
     """
     rows: list[tuple[str, str, float, float, str]] = []
     for stem in _stems():
@@ -913,6 +926,35 @@ def election_rows() -> list[tuple[str, str, float, float, str]]:
                     )
                 )
     return rows
+
+
+def election_within_model() -> list[tuple[str, int, Optional[float], float, float]]:
+    """Per model: (model, n, corr of share against composite, min share, max share).
+
+    The only readable form of this correlation. The pooled one mixes two models
+    whose composite ranges barely overlap, so it measures model strength and
+    reports it as an election effect — splitting is not a robustness check on
+    the pooled number, it replaces it.
+
+    A model whose sets all sit at one share yields `None`: no spread to
+    correlate against, which is a different statement from a correlation of
+    zero and must not be rendered as one.
+    """
+    rows = election_rows()
+    out: list[tuple[str, int, Optional[float], float, float]] = []
+    for model in sorted({r[4] for r in rows}):
+        mine = [r for r in rows if r[4] == model]
+        shares = [r[2] for r in mine]
+        out.append(
+            (
+                model,
+                len(mine),
+                _corr(shares, [r[3] for r in mine]),
+                min(shares),
+                max(shares),
+            )
+        )
+    return out
 
 
 def _corr(xs: list[float], ys: list[float]) -> Optional[float]:
@@ -1723,22 +1765,20 @@ def _explanations() -> None:
             f"    share <0.5: n={len(low)} mean {st.mean(low):+.3f} "
             f"{_fmt_ci(_ci95(low))}"
         )
-    # Keyed on the MODEL, never the tier label: `ladder-return-r18` is a `weak`-
-    # labelled Sonnet run at share 1.00, so by label the high group stops being
-    # all-strong and this verdict would flip to "composition changed" while the
-    # confound was in fact perfectly intact. See `election_rows`.
-    weakest = pooled_model("weak")
-    models_high = {e[4] for e in elections if e[2] >= 0.5}
-    print(
-        "    -> UNUSABLE as evidence: "
-        + (
-            "every set above 0.5 ran "
-            f"{'/'.join(sorted(m.split('/')[-1] for m in models_high))}, so\n"
-            "       election and model strength are one column. To test it, force\n"
-            "       election on a run of the weakest model."
-            if weakest is not None and weakest not in models_high
-            else "check the MODEL composition before reading this."
+    # Split by MODEL, never by the tier label: `ladder-return-r18` is a `weak`-
+    # labelled Sonnet run at share 1.00, so a label-keyed split files a Sonnet
+    # set under the weakest model and hands back the pooled number wearing a
+    # per-model heading. See `election_rows`.
+    for model, n, within, lo, hi in election_within_model():
+        shown = f"{within:+.3f}" if within is not None else "n/a (no spread)"
+        print(
+            f"    within {model.split('/')[-1][:28]:28} n={n:2} corr {shown}"
+            f"  share {lo:.2f}-{hi:.2f}"
         )
+    print(
+        "    -> the pooled correlation and the >=0.5 / <0.5 means above are\n"
+        "       BETWEEN-MODEL and say nothing about what electing buys: both\n"
+        "       collapse to about zero inside each model. Quote the within rows."
     )
 
 

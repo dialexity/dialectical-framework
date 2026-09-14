@@ -8106,20 +8106,66 @@ class TestATierLabelIsNotAModel:
         )
         assert correlation < 0, f"correlation is {correlation:+.3f}, was -0.34"
 
-    def test_the_election_confound_is_keyed_on_the_model(self):
-        """r18 elected in 12/12 cells under a `weak` label, so a label-keyed
-        verdict reads "the confound broke" where the truth is "one more Sonnet
-        run at share 1.00" — the confound holding exactly."""
-        from e2e.across_runs import election_rows, pooled_model
+    def test_the_election_correlation_is_read_within_a_model(self):
+        """The pooled election correlation is between-model, and the archive is
+        no longer able to hide that behind a threshold.
 
-        high = [row for row in election_rows() if row[2] >= 0.5]
-        assert high, "no set clears the 0.5 election share"
-        assert pooled_model("weak") not in {row[4] for row in high}, (
-            "a run of the weakest model now clears 0.5 — the confound is "
-            "genuinely broken and the verdict text must be rewritten"
+        This test used to assert the ABSOLUTE form — no set of the weakest model
+        clears 0.5 share, so election and model strength are one column — and
+        `feasibility-offturn` falsified it (haiku, 4 of 6 cells, share 0.667).
+        The absolute form was fragile by construction: 0.5 of six cells is four
+        cells, and the identical prior design ran 2 of 6, so one round of ordinary
+        variance was always going to decide it.
+
+        What replaced it is the quantity the confound was standing in for, which
+        no single round can flip: pooled the correlation is strongly positive,
+        and inside each model it is not. If that ever stops being true the
+        verdict text in `election_rows` is wrong and this should fail.
+        """
+        from e2e.across_runs import (
+            _corr,
+            election_rows,
+            election_within_model,
         )
-        assert ("ladder-return-r18", "weak") in {(r[0], r[1]) for r in high}, (
-            "r18 should still be in the high-election group, by model not label"
+
+        rows = election_rows()
+        pooled = _corr([r[2] for r in rows], [r[3] for r in rows])
+        assert pooled is not None and pooled > 0.3, (
+            f"pooled election correlation is {pooled} — the between-model "
+            "artifact this block exists to decompose is gone; re-read it"
+        )
+
+        within = [w for w in election_within_model() if w[2] is not None]
+        assert len(within) >= 2, "fewer than two models carry a share spread"
+        for model, n, corr, lo, hi in within:
+            assert corr < 0.3, (
+                f"{model} correlates {corr:+.3f} over n={n} (share {lo:.2f}-"
+                f"{hi:.2f}) — election may now buy something WITHIN a model, "
+                "which is a finding, not a test failure to silence"
+            )
+
+    def test_the_election_share_is_keyed_on_the_model_not_the_tier_label(self):
+        """r18 elected in 12/12 cells under a `weak` LABEL while running Sonnet.
+
+        Splitting on the label files it under the weakest model, which hands back
+        the pooled correlation wearing a per-model heading — the one way the
+        decomposition above can be computed the flattering way.
+        """
+        from e2e.across_runs import election_rows, election_within_model, pooled_model
+
+        r18 = [r for r in election_rows() if r[0] == "ladder-return-r18"]
+        assert r18, "r18 has left the election table"
+        assert {r[1] for r in r18} == {"weak"}, "r18 is no longer weak-LABELLED"
+        assert pooled_model("weak") not in {r[4] for r in r18}, (
+            "r18 is being read as the weakest model — the label/model split "
+            "this table exists to keep apart has collapsed"
+        )
+
+        # And the split itself must group on that column, not the label.
+        models = {w[0] for w in election_within_model()}
+        assert {r[4] for r in r18} <= models, (
+            "r18's model is absent from the within-model split, so its 12/12 "
+            "cells are being pooled under some other key"
         )
 
 

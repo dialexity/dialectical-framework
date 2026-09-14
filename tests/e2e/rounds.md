@@ -2290,6 +2290,25 @@ properly, and both now print with their own refutation attached:
    and **unusable**: every set where election clears 50% is a *strong-tier* run, so
    "elected `explore`" and "ran on the better model" are one column. Testing it needs
    a weak-tier run with election forced, not more pooling.
+   **CORRECTED 2026-09-14, and the correction went the way the original did not
+   expect.** Two things were wrong with that sentence and one was right. Keyed on the
+   TIER LABEL it was already false when written — `ladder-return-r18` is a `weak`-
+   labelled Sonnet run at share 1.00 — which is why the reader now carries each row's
+   MODEL. And the absolute form ("every set above 50%") was falsified outright by
+   `feasibility-offturn`: haiku, 4 of 6 cells, share 0.667, composite −0.167. It was
+   fragile by construction, since 50% of six cells is four cells and the identical
+   prior design ran 2 of 6 (4-vs-2, p=0.57), so one round of ordinary variance was
+   always going to decide it — **state a claim like this as the quantity it rests on,
+   never as a property of every set in the archive.** What was right is the reading,
+   and it is now measured rather than argued: pooled the correlation is +0.556 over
+   n=25, and split by model it is **−0.017 over haiku's 18 sets (share 0.00–0.67) and
+   −0.256 over Sonnet's 7 (share 0.67–1.00)**. So the pooled figure was never about
+   election; the two models' share ranges barely touch, and the first weak-model run
+   to elect in most of its cells landed inside the weak band and no better than the
+   0.333-share round beside it (`weave-offturn`, −0.222). `election_within_model()`
+   is the readable form; `TestATierLabelIsNotAModel` pins the decomposition, and
+   deliberately pins the pooled figure as positive too, so the split cannot quietly
+   stop being a decomposition of anything.
 
 #### What the judge's own rationales said, and the five fixes that came out
 
@@ -5814,6 +5833,20 @@ barely excludes zero — a lead, not a result, and explicitly not a rescue of th
 
 **Machinery leaks went 9 in 7 runs → 12 in 8 runs.** Not registered, not resolved, and the arms that are HANDED
 the method text leak for a different reason than A2 does. Recorded so it is not discovered later as new.
+
+**Unregistered, and it falsified a standing archive claim: this is the first weak-MODEL run to elect `explore`
+in most of its cells — 4 of 6, share 0.667.** The archive had filed the election/composite correlation as
+confounded beyond use on the grounds that *every* set above 0.5 share ran the strong model, and this run broke
+that sentence. **It did not break the reading, it replaced the argument with a measurement**: pooled the
+correlation is +0.556 over n=25, and split by model it is −0.017 over haiku's 18 sets against −0.256 over
+Sonnet's 7 — two share ranges (0.00–0.67 and 0.67–1.00) that barely touch, so the pooled number was always
+model strength wearing an election label. This run's cell landed at −0.167, inside the weak band and no better
+than the 0.333-share round beside it. Do NOT read 4/6 against `weave-offturn`'s 2/6 as the audit raising
+election (p=0.57). Two carries: the correlation is now read by `election_within_model()` and never pooled, and
+**a threshold-keyed claim about a whole archive is decided by ordinary variance in one round** — 0.5 of six
+cells is four cells — so state such a claim as the quantity it rests on. `TestATierLabelIsNotAModel` was
+rewritten around the quantity and mutation-verified; it was the one test in the suite this round's data broke,
+and it broke it by design.
 
 **LIMITS.**
 

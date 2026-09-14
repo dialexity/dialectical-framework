@@ -848,9 +848,19 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   unpaired, clean A2 cells read -0.36 against leaky -0.66, but the groups differ by BUILD DATE (the cleanest cells
   are the newest builds, which fixed everything else too); paired inside each run the effect is **+0.25, CI
   [-0.04,+0.54], 8 of 14 sets, p=0.79**. Fix leaks because they are defects, not for the score. (b) *`explore`
-  non-election* — correlation with the composite is real (+0.36) and **unusable**: every set above 50% election is a
-  strong-tier run, so election and model strength are one column; testing it needs a weak-tier run with election
-  forced. What stays open is the tier the product claim actually needs: **-0.06 at n=4 is a shrug**, consistent both
+  non-election* — the POOLED correlation with the composite is real (**+0.556 over n=25**) and it is entirely
+  BETWEEN-MODEL: split by model it is **-0.017 over haiku's 18 sets (share 0.00-0.67) and -0.256 over Sonnet's 7
+  (share 0.67-1.00)**, whose share ranges barely touch. So the pooled figure says the stronger model both elects
+  more and scores better, and says nothing about what electing buys; read `election_within_model()`, never the
+  pooled number. This was filed until 2026-09-14 as a confound in absolute form ("every set above 50% election is a
+  strong-tier run") and BOTH halves of that were wrong while the reading was right: keyed on the tier LABEL it was
+  already false when written (`ladder-return-r18` is a `weak`-labelled Sonnet run at share 1.00, which is why every
+  row carries its model), and the absolute itself was falsified by `feasibility-offturn` (haiku, 4 of 6 cells, share
+  0.667, composite -0.167, inside the weak band). **The transferable lesson is about the FORM: 50% of six cells is
+  four cells and the identical prior design ran 2 of 6 (4-vs-2, p=0.57), so a threshold-keyed claim about a whole
+  archive was always going to be decided by ordinary variance in one round — state such a claim as the quantity it
+  rests on.** Pinned by `TestATierLabelIsNotAModel`, which also pins the pooled figure as positive, so the split
+  cannot quietly stop decomposing anything. What stays open is the tier the product claim actually needs: **-0.06 at n=4 is a shrug**, consistent both
   with "the deficit closes as base models improve" and with noise, and a powered strong-tier run is the only
   remaining measurement that could support the claim. Powering the weak tier further buys a more precise loss.
   Printed by `tests/e2e/across_runs.py` (free, no LLM); pooling helpers locked by
