@@ -383,8 +383,13 @@ anchors.
       *making* such a change, price the removal in judged quality or move the work off the turn — a caps/skips/
       early-returns diff is a quality change hiding in a performance commit. Corollary: **a cap whose stated
       purpose is bounding TURN latency has no authority off the turn** — drain it there
-      (`_schedule_pathway_construction`; the cap's own "next turn" follow-up was elected 0/6). See "The
-      construction came back, off the turn" under Decision lifecycle in reference §4.
+      (`_schedule_pathway_construction`; the cap's own "next turn" follow-up was elected 0/6). **Rule (2) has a
+      measured limit, from the A/B that put the work back (`weave-offturn`, 2026-09-14): the MACHINE record moved
+      decisively (pathway ground 1/6 → 5/6, full weave coverage) while the judged composite moved only in
+      direction (A2 vs A1 −0.06 → +0.19, every interval overlapping). So "price it in judged quality" is a bar a
+      12-pair round cannot clear in either direction — which is exactly why the machine-score half must be
+      stated: it is the part of such a change that is reviewable at all.** See "The construction came back, off
+      the turn" under Decision lifecycle in reference §4.
 
 ### Cross-agent parity (see the §5 matrix)
 - [ ] **Grep the other two agents when editing a shared concept.** HS disambiguation, HS bands, nexus grouping

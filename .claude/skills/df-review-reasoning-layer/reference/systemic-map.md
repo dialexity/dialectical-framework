@@ -2443,8 +2443,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   (`tests/test_decision_confirmation_repair.py`: the repair branch grounds, only one is adopted, no pathway → no
   role, an already-recorded decision gets its edge, a second closing does not double-ground, the target comes from
   the tool report's `decision_hash` rather than "newest Decision", and a grounding fault never breaks the turn) —
-  revert-verified 4/45 failing on the three call sites alone. Still NOT verified at the behaviour layer: whether
-  grounding the pathway moves `paired_recipe` (-0.58) or `decision_closure` (-0.75) needs r17.
+  revert-verified 4/45 failing on the three call sites alone. **Asked 2026-09-14 (`weave-offturn`) and answered
+  only in direction:** both dimensions moved up against A1 — `paired_recipe` -0.58 → **+0.42** [-0.54,+1.37] and
+  `decision_closure` -0.75 → **-0.25** [-1.11,+0.61] — and both intervals are wider than the movement, so at 12
+  pairs neither is measured. A round that grounds pathways in 5 of 6 closings (below) is the closest this bench
+  has come to the question, and it still cannot resolve a 0.7-step gap.
   **The construction came back, off the turn** (built 2026-09-13, `Advisor._schedule_pathway_construction`) —
   the last chapter of this lineage and the one that closes the debt the 2026-08-26 removal opened. Between the two
   entries above, a latency pass removed the weave because it was billing 127.7s and 387.7s to the person's wait;
@@ -2482,8 +2485,24 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   and a run where it is large on many turns means the weave does not fit in the gaps and belongs behind a setting.
   Locked by `TestDeferredPathwayConstruction` + `TestBothClosingBranchesDefer`
   (`tests/test_decision_confirmation_repair.py`) and `TestTheDeferredWaitIsOnTheReplyPath`
-  (`tests/test_turn_timing.py`). Still NOT verified at the behaviour layer — same gap as the entry above, now with
-  a second question: whether an off-turn weave lands in time to move `paired_recipe` / `decision_closure` at all.
+  (`tests/test_turn_timing.py`). **Measured 2026-09-14 (`weave-offturn`), and the two halves came back with
+  opposite verdicts.** The MECHANISM is verified at the behaviour layer: A2 closings with a woven pathway 2/6 →
+  5/6, `adopted_pathway` ground 1/6 → 5/6, COMPLETE records 1/6 → 5/6, and `woven == perspectives` in all five —
+  full coverage on 5- and 6-perspective graphs, which one cap-bounded call cannot reach, so the drain loop is
+  doing the thing it was built for (transformations 0 → 42 on the static build). The sixth run never recorded a
+  decision, so the early return correctly declined to weave for it; the 6/6 bar was mis-specified against that
+  design, and the endpoint that turned out to matter (`woven == perspectives`) was not registered at all. The
+  JUDGED half resolves nothing: every A2 figure moved up (structural A2 vs A1 −0.06 → +0.19, vs A1.5 −0.41 →
+  −0.19, and the two composites `a15-floor` reported as resolved losses now cover zero) and every interval
+  overlaps its predecessor at 12 pairs, so that is a consistent DIRECTION across six figures and not an effect.
+  Wobble discrimination went 0/3 → 1/3, with the moved cell the first `reassure` in the archive to CITE the
+  record. Two costs to quote with it: cell wall +36% (the weave's seconds moved off the reply path, not out of
+  existence, and a bench whose simulator never pauses is the worst case for a deferral), and a 300s tool-free
+  tail that is NOT the deferral — ruled out by causal ordering, cause unexplained. **And the round's own defect is
+  the one this map keeps recording: `deferred_wait_s` reached `TurnTiming` and never reached `TurnRecord`, so a
+  pre-registered bar on the person's actual wait read `not recorded` on all 48 turns — a value computed and never
+  rendered, the same shape as `62244f0`, `2c158bc` and r10's unconstructible hash. Wiring a field into the
+  framework is half of measuring it.**
   **The decision was not decidable yet and got recorded anyway, 12 of 12** (measured 2026-08-19,
   `r23-controls`; UNFIXED, and deliberately so — **the product owner's call, made 2026-08-20: leave it.** A
   premature record is the cheaper of the two errors, per (3) below. Do not reopen this as a prompt patch without
