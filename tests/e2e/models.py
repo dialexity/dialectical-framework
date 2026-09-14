@@ -507,6 +507,24 @@ class TurnRecord(BaseModel):
     #: sessions built 390 transformations against `EMPTY_UNDERSTANDING`). If turns
     #: get slower for no visible reason, look here first.
     context_render_s: Optional[float] = None
+    #: Reply-path seconds this turn spent waiting for the PREVIOUS turn's off-turn
+    #: weave to finish. Also a COMPONENT of `reply_path_s`, for the same reason as
+    #: the field above.
+    #:
+    #: The Advisor builds pathways off the turn and one-writer-per-sid is a hard
+    #: contract, so a person who replies before the weave lands makes the next turn
+    #: wait. This is the honest price of that deferral and it is `0.0` when
+    #: think-time absorbed it.
+    #:
+    #: Added AFTER `weave-offturn` ran, which is why that stem has it `None` on
+    #: every turn: the field existed on `TurnTiming` and nothing carried it here, so
+    #: the round pre-registered `deferred_wait_s` as endpoint P3 and then could not
+    #: read it. That is this archive's signature defect committed by the same person
+    #: who wrote the entry warning about it — a value computed and never rendered.
+    #: **`None` on a post-2026-09-14 A2 stem means the driver did not populate it;
+    #: `None` on an earlier one means the field did not exist.** Do not read either
+    #: as a zero wait.
+    deferred_wait_s: Optional[float] = None
     #: Per tool ROUND: `"anchor:229.4s"`, or `"anchor+explore:301.2s"` when the
     #: round ran several tools concurrently. Same `list[str]` idiom as
     #: `tool_outcomes` and `grounding_args`, and the `+` is load-bearing — a

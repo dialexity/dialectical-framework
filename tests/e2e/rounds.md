@@ -2585,17 +2585,21 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.828 over 490 judged pairs on the
-canonical stems, recomputed after r22's supersession, again after r26, and again after
-`a15-floor` — not a borrowed figure).** The table below was simulated at **0.831 over 414
-pairs**; r26's 16 pairs moved the sd to 0.825 and `a15-floor`'s 36 moved it to 0.828, and
-re-simulating at all three values (200k trials each) moves **no cell by more than 1 point**
-— 0.825 gives 0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 84/97/99 and 0.828 gives
-0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 83/97/99. So the table stands as computed and is
-left as computed. **The drift check has now fired twice and stood twice, which is the
-argument for keeping it pinned to 2dp rather than widening it:** each firing cost one
-re-simulation and confirmed the table, and a wider tolerance would have skipped both
-without anyone learning that. (The re-simulation reproduced the eight effect
+**Powered from the archive's own NI-composite sd (0.824 over 526 judged pairs on the
+canonical stems, recomputed after r22's supersession, again after r26, again after
+`a15-floor`, and again after `weave-offturn` — not a borrowed figure).** The table below was
+simulated at **0.831 over 414 pairs**; r26's 16 pairs moved the sd to 0.825, `a15-floor`'s 36
+moved it to 0.828 and `weave-offturn`'s 36 moved it to 0.824, and re-simulating at all four
+values moves **no cell by more than 1 point** — 0.825 gives 0.50 → 32/48/62, 0.75 →
+60/82/92, 1.00 → 84/97/99; 0.828 gives 0.50 → 32/48/62, 0.75 → 60/82/92, 1.00 → 83/97/99;
+and 0.824 gives 0.50 → 32/48/62, 0.75 → 60/82/93, 1.00 → 84/97/99. So the table stands as
+computed and is left as computed. **The drift check has now fired three times and stood
+three times, which is the argument for keeping it pinned to 2dp rather than widening it:**
+each firing cost one re-simulation and confirmed the table, and a wider tolerance would have
+skipped all three without anyone learning that. The re-simulation is `resim_r23_ni.py`,
+kept as a script after the first two firings were each answered with code that did not
+survive to answer the third; it carries the test rule, which is the part easy to get wrong
+(two-sided 95%, fires on the POSITIVE side only — hence a 3% null row, not 5%). (The re-simulation reproduced the eight effect
 cells exactly and gave 5% rather than 3% on the true-null row, which is a difference in
 test rule, not in sd; r23's verdict does not rest on it and is not reopened here.) One
 session and no branches means 1 judged pair per replicate, so replicates *are* pairs
@@ -5564,3 +5568,122 @@ mean the mechanism reached the reply.
 4. **A2 may still be degraded for reasons this fix does not touch** — `a15-floor` had 3/6 decisions flagged
    incoherent for scheduling the avoidance of the accepted cost. That is a rationale defect, not a weave
    defect, and if it repeats, every judged A2 row still understates the framework.
+
+### weave-offturn: the mechanism landed, the judged half moved the right way and resolves nothing (2026-09-14)
+
+**A1 + A1.5 + A2, `cofounder_equity`, weak, 3 replicates, judge ON.** 18 cells, 144 turns (48 an arm),
+1:31:12 against `a15-floor`'s 1:15:34 on the same cells. Pre-registered above. `abe386d` was the only commit
+between the two rounds, so this is the closest thing to a single-variable A/B this bench has run.
+
+**Verdict on the five pre-registered endpoints: P2 and P4 met, P1 met on every eligible run but MISSED as
+written, P5 missed, P3 UNMEASURABLE because the field was never wired to `TurnRecord`.**
+
+| # | endpoint | bar | `a15-floor` | this round | |
+|---|---|---|---|---|---|
+| P1 | A2 closings with a woven pathway | 6/6 | **2/6** | **5/6** | see below |
+| P2 | `adopted_pathway` ground | >=5/6 | **1/6** | **5/6** | MET |
+| P3 | `deferred_wait_s` | median 0.0, none >60s | n/a | **not recorded** | UNMEASURABLE |
+| P4 | per-turn arithmetic | 100% | 48/48 | **48/48 on all three arms** | MET |
+| P5 | A2 wobble discrimination | >=2/3 | **0/3** | **1/3** | MISSED |
+
+**P1 is 5/6 and the sixth run is the one the mechanism deliberately skips, which makes the BAR wrong rather
+than the mechanism.** `_schedule_pathway_construction` returns early when no decision hash is in hand — an
+exploration run on no one's behalf is unattributed cost — so a run that never records cannot weave. rep1
+wobble_a never recorded (`decision_hashes=[]`, no verdict), and it is the only run under 100%. Of the five
+runs where the deferral was eligible it fired **5/5**, and I wrote a 6/6 bar without accounting for my own
+early return. **The far more informative number is that `woven == perspectives` in all five: 5/5, 5/5, 5/5,
+6/6, 1/1.** A single cap-bounded call can weave at most `advisor_max_perspectives_per_exploration` (2), so
+full coverage on a 5- and a 6-perspective graph is the drain loop doing exactly what it was built for, and
+it is not reachable by the old code path at all. Transformations went **0 → 42** on the A1.5 build and
+18–54 across A2.
+
+**The completeness of the record is where the round is strongest, and it is a machine score, not a judged
+one.** COMPLETE records (risk-grounded cost + adopted pathway) **1/6 → 5/6**. `accepted_cost` grounded on a
+risk 5/5 of the runs that had one. FLAGGED decisions 3/6 → 2/5, both for the same rationale defect
+`a15-floor` named (the rationale schedules the avoidance of the accepted cost instead of carrying it) —
+**unchanged by this fix and correctly so: that is a rationale defect, not a weave defect.**
+
+**P5 missed, and the one cell that moved is worth more than the count.** A2 called `reassure` on one (a)-
+variant and **CITED the record while doing it (`cited: yes`) — the first time in this archive.** Of the
+other two (a)-variants, one had no record at all (so `reopen` was the only honest answer and the row
+measures the ceremony, per the validity note) and one had a complete record and reopened anyway. So the
+eligible read is 1/2, on n=2. Both prompt arms scored **0/3**, and they cannot do otherwise: there is no
+record to reassure from. Read P5 as "not shown, and no longer flatly absent".
+
+**P3 is the round's own defect and it is this archive's signature one, committed by the author of the entry
+that warns about it.** `TurnTiming.deferred_wait_s` was added to the framework and never carried into
+`TurnRecord`, so a round that pre-registered a bar on it read `not recorded` on all 48 A2 turns. Wired now
+(`models.py`, `driver.py`, and a `turns recording deferred_wait` count row in `read_turn_timing.py` so an
+absent field can never print as a zero wait). **A value computed and never rendered — the same shape as
+`62244f0`, `2c158bc` and r10's unconstructible hash.**
+
+**What can still be said about the person's wait, from the fields that WERE recorded.**
+
+```
+                                   A1      A1.5        A2      A2 in a15-floor
+median turn                      6.10      6.45     20.35     19.25
+worst turn                      15.20      9.00    329.30    654.10
+median reply path, tool-free     6.10      6.45     16.40     16.50
+worst reply path, tool-free     15.20      9.00    327.70     34.60
+median context_render            0.00      0.00      0.36      0.20
+cell wall (6 cells)            453.60    470.90   2874.40   2107.50
+tool calls / turns with one     0 / 0     0 / 0    15 / 13   17 / 14
+arithmetic closes               48/48     48/48     48/48     47/48
+static context build                  463.6s / 26312c        249.1s / 9841c
+```
+
+**The median turn did not move (16.40 vs 16.50 tool-free) and the TAIL did: the worst tool-free reply path
+went 34.6s → 327.7s.** Two turns account for it — 305.9s and 327.7s, both zero-tool, both `retry_seconds=0`,
+both with the round's largest context renders (4.64s, 4.28s). **The deferral is ruled out as the cause by
+ordering, not by argument:** the 329.3s turn is `ask_advice` at t4 and its run's only `record_decision` fires
+at t5, and the 308.7s turn is itself the `commit` whose repair seam wrote the record — so in both cases no
+decision hash existed when the turn began, nothing had been scheduled, and `_settle_deferred_work` returned
+immediately. **The cause is UNEXPLAINED and must not be filed as the weave.** The live suspicion is prompt
+size: a woven graph renders 4.3–4.6s of context against a 0.36s median, and generation on a much larger
+prompt is the only remaining unaccounted term. It is a suspicion — 7 of the 9 turns with `context_render_s`
+> 2s finished in 14.8–32.0s, so context size alone does not produce a 300s turn.
+
+**Cell wall grew 36% (2107.5s → 2874.4s) and that is the deferral, honestly placed.** The weave costs real
+seconds; they moved off the reply path, not out of existence. A bench whose simulator replies as fast as the
+provider can generate is close to the worst case for a deferral — there is no think-time to absorb it — so
+this figure is the ceiling on the cost, not the expected one. **The corollary is that this round cannot
+support a "free" claim, only a "not on the reply path" one.**
+
+**Judged deltas, recomputed over the 9 structural dimensions as `a15-floor` requires** (`Deltas.composite`
+still blends all 12; the recomputation reproduces `a15-floor`'s published table to the cent, which is how the
+method was validated):
+
+| pair | blended (12) | structural (9) | NI (3) |
+|---|---|---|---|
+| A1.5 vs A1 | +0.48 [−0.07,+1.03] | **+0.56 [−0.05,+1.18]** | +0.22 [−0.23,+0.68] |
+| A2 vs A1 | +0.07 [−0.45,+0.59] | **+0.19 [−0.38,+0.76]** | −0.31 [−0.76,+0.15] |
+| A2 vs A1.5 | −0.22 [−0.77,+0.33] | **−0.19 [−0.81,+0.42]** | −0.31 [−0.82,+0.21] |
+
+**Every A2 figure moved up, and `a15-floor`'s two RESOLVED A2 losses stopped being resolved.** A2 vs A1.5
+blended was **−0.52 [−1.02,−0.02]** and is now −0.22 [−0.77,+0.33]; the NI composites were **−0.56
+[−1.05,−0.06]** and **−0.86 [−1.33,−0.40]** and are now −0.31 covering zero in both pairs. A2 vs A1
+structural went −0.06 → +0.19, the first non-negative structural reading for that pair on this scenario.
+**And by this file's own rule 2 none of that is a measured improvement:** every interval overlaps its
+predecessor, 12 pairs resolves 0.7 steps and not 0.25, and the secondary bar was only "must not fall 0.65
+below". It cleared a floor. It measured nothing. **The consistent DIRECTION across six independent figures
+is the most that can be claimed, and direction is not an effect.**
+
+**`warmth −0.67 [−0.98,−0.35]` against A1 is still resolved and still the framework's standing cost** — the
+fourth consecutive round. The NI *composite* covering zero does not rescue the individual row.
+
+**Two things improved that this fix cannot take credit for.** The verbosity gap that undercut `a15-floor`'s
+headline collapsed on its own — A1 2158, A1.5 2371, A2 2180 words a run, a 9.9% spread against 26%, with A2
+now the middle arm. And A1's `arithmetic closes` went 47/48 → 48/48, so the unexplained ~2% gap did not
+reproduce; it stays open, not closed.
+
+**LIMITS.**
+
+1. **P3 was not measured at all**, so the single most important UX question about this fix — does the person
+   ever wait for the weave — is still unanswered. The wiring exists now; the answer needs a round.
+2. **The 300s tail is unexplained.** Ruled out for the deferral by ordering; not attributed to anything else.
+   Do not quote the "median did not move" row without this sentence.
+3. **12 pairs.** Nothing judged here resolves, in either direction, and the round was registered saying so.
+4. **One scenario, one tier, and A2's rationale defect persists** (2/5 flagged). Every judged A2 row still
+   understates the framework by the report's own rule.
+5. **P1's bar was mis-specified by its author** — 6/6 was unreachable for a run that records nothing. The
+   endpoint that mattered turned out to be `woven == perspectives`, which was not registered at all.

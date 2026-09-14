@@ -274,6 +274,7 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
     replies = col("reply_path_s")
     offs = col("off_path_s")
     renders = col("context_render_s")
+    waits = col("deferred_wait_s")
     # Sparser than its neighbours even among timed turns — an awaited turn has
     # no first delta — so it gets its own count rather than sharing `timed`.
     deltas = col("first_delta_s")
@@ -345,6 +346,17 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
         # carrying it is a different fact from a refresh that cost nothing.
         "turns recording context_render": len(renders),
         "median context_render": _median(renders),
+        # Same own-count treatment, and here the count row is the whole point.
+        # `weave-offturn` pre-registered a bar on this field and read `not
+        # recorded` on all 48 A2 turns, because it reached `TurnTiming` and never
+        # reached `TurnRecord`. A median of 0.0 and an absent field are opposite
+        # findings — the first says the deferral is free, the second says nobody
+        # checked — so they must never print alike.
+        "turns recording deferred_wait": len(waits),
+        "median deferred_wait": _median(waits),
+        # The bar is a TAIL bar, not a median one: the deferral is free when
+        # think-time absorbs it and the question is whether it ever did not.
+        "worst deferred_wait": _worst(waits),
         # 0 on every stem published so far: the bench calls `chat()`, which has
         # no first delta to report. Printed regardless — a blank-screen figure
         # that appears only once someone remembers to look for it is a figure

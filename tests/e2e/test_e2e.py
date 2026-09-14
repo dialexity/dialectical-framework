@@ -9797,20 +9797,26 @@ class TestR23ControlPreRegistration:
         ]
         assert len(values) > 200, f"too few NI pairs to size a control: {len(values)}"
         # Pinned to 2dp, so this fires on a real drift and not on every round
-        # that adds a handful of pairs. It has now fired TWICE for real and the
-        # table stood both times: r26's 16 pairs took 0.831/414 to 0.825/454,
-        # and `a15-floor`'s 36 took it to 0.828/490. That is the DESIGN working —
-        # re-simulation at all three sds moved no cell of the table by more than
-        # a point, so the table stood and only its provenance line changed. Two
-        # cheap firings that each confirmed the table is the ARGUMENT for the 2dp
-        # pin, not against it: widen the tolerance and both would have been
-        # skipped silently, along with the next drift that DOES matter.
-        assert round(st.stdev(values), 2) == 0.83, (
+        # that adds a handful of pairs. It has now fired THREE times for real and
+        # the table stood every time: r26's 16 pairs took 0.831/414 to 0.825/454,
+        # `a15-floor`'s 36 took it to 0.828/490, and `weave-offturn`'s 36 took it
+        # to 0.824/526. That is the DESIGN working — re-simulation at all four sds
+        # moved no cell of the table by more than a point, so the table stood and
+        # only its provenance line changed. Three cheap firings that each
+        # confirmed the table is the ARGUMENT for the 2dp pin, not against it:
+        # widen the tolerance and all three would have been skipped silently,
+        # along with the next drift that DOES matter.
+        #
+        # The re-simulation is now a KEPT script (`resim_r23_ni.py`) rather than
+        # an ad-hoc snippet, because the first two firings were each answered
+        # with code that did not survive to answer the third.
+        assert round(st.stdev(values), 2) == 0.82, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
-            "table was simulated at 0.831 and re-verified at 0.825 and 0.828, "
-            "and must be re-simulated before its percentages are quoted again"
+            "table was simulated at 0.831 and re-verified at 0.825, 0.828 and "
+            "0.824, and must be re-simulated before its percentages are quoted "
+            "again — `poetry run python tests/e2e/resim_r23_ni.py --sd <new>`"
         )
-        assert "0.828 over 490 judged pairs" in self._block()
+        assert "0.824 over 526 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:

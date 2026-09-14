@@ -307,6 +307,13 @@ class E2EDriver:
                     context_render_s=(
                         round(timing.context_render_s, 3) if timing else None
                     ),
+                    # Three decimals for the same reason as its neighbour, and
+                    # ALSO because zero is the expected reading: the endpoint is
+                    # "did the person ever wait for the weave", so a wait rounded
+                    # away is the one value that would misreport the answer.
+                    deferred_wait_s=(
+                        round(timing.deferred_wait_s, 3) if timing else None
+                    ),
                     # The two lists stay lists: empty already reads as "nothing
                     # recorded", and every consumer iterates them.
                     tool_seconds=timing.format_rounds() if timing else [],
