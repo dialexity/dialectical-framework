@@ -591,23 +591,42 @@ def _graph_summary_is_populated(summary: Optional[str]) -> bool:
     return found
 
 
+def graph_counts(summary: Optional[str]) -> dict[str, int]:
+    """Every `key=N` in a `_graph_summary()` line, as ints.
+
+    ONE parser for the format, which is what the note below has always asked
+    for. `_graph_summary` emits four counts — `perspectives woven
+    transformations decisions` — and until 2026-09-14 only `perspectives` was
+    ever parsed, so `woven == perspectives` (full weave coverage, the endpoint
+    that turned out to matter in `weave-offturn` and was not registered at all)
+    had to be hand-extracted from the audit-trail string. Keys the line does not
+    carry are simply absent; an unparseable value is dropped rather than
+    defaulted, because a 0 here reads as "the graph is empty" and that is the
+    one thing `_graph_summary`'s own docstring warns cannot be inferred from a
+    failed count.
+    """
+    counts: dict[str, int] = {}
+    for part in (summary or "").split():
+        key, sep, value = part.partition("=")
+        if not sep:
+            continue
+        try:
+            counts[key] = int(value)
+        except ValueError:
+            continue
+    return counts
+
+
 def perspectives_in_summary(summary: Optional[str]) -> Optional[int]:
     """`perspectives=N` out of a `_graph_summary()` line, or None if it does not say.
 
     Module-level rather than a method so the RUNNER can ask the same question of a
     provenance it has just built, before any `RunRecord` exists to hold it. Two
     parsers for one format is how a warning line and an archived flag drift apart
-    and disagree about the same build.
+    and disagree about the same build — hence this delegates to `graph_counts`
+    rather than scanning the line a second time.
     """
-    for part in (summary or "").split():
-        key, _, value = part.partition("=")
-        if key != "perspectives":
-            continue
-        try:
-            return int(value)
-        except ValueError:
-            return None
-    return None
+    return graph_counts(summary).get("perspectives")
 
 
 class SessionRecord(BaseModel):
@@ -719,6 +738,15 @@ class RunRecord(BaseModel):
     #: without `explore` produces, since a recipe IS a pathway and an unexplored
     #: tension has none.
     adopted_pathway_grounds: list[str] = Field(default_factory=list)
+    #: `"<short_hash>\t<Ac+|Re+>=<score>"` per audited position of the adopted
+    #: recipe, or `"<short_hash>\tunscored"`. The endpoint for the deferred
+    #: feasibility audit (`Advisor._audit_adopted_pathways`, 2026-09-14): the
+    #: band is what both engine prompts tell the agent to rank pathways on, and
+    #: `audit_feasibility` was elected 1/6 in `a15-floor` and 0/6 in
+    #: `weave-offturn`, so no archived closing carries one. Empty on every run
+    #: archived before 2026-09-14 — check presence before any fraction, per the
+    #: `or 0.0` rule in the timing fields below.
+    adopted_pathway_bands: list[str] = Field(default_factory=list)
     #: The rationale text that actually landed on each Decision, prefixed with
     #: the decision's short hash. Full text, not a length flag: it is a few
     #: sentences and it IS the thing under test. Added because the "a risk
@@ -745,6 +773,26 @@ class RunRecord(BaseModel):
             for v in self.decision_verdicts
             if v.split(":", 1)[-1].startswith("failed")
         ]
+
+    @property
+    def adopted_pathway_scored(self) -> bool:
+        """True when the adopted recipe carries a feasibility band.
+
+        The pre-registered bar is >=4 of 6 A2 cells, or 5/5 of the cells that
+        ground a pathway at all — never 6/6, because a cell that records no
+        decision correctly gets no deferred weave and so no audit, and reading
+        6/6 as the bar is the mis-specification `weave-offturn` already made
+        once. Baseline is 0/6 (`audit_feasibility` elected 0/6 there), so
+        0/6 -> 5/6 is Fisher p=0.0152 at n=6.
+
+        Reads the ROWS rather than `bool(...)`, because an unscored recipe
+        still emits a row: that is what distinguishes "audited and unscored"
+        from "no pathway to audit", and a truthiness check would pool them.
+        """
+        return any(
+            not row.split("\t", 1)[-1].startswith(("unscored", "read-failed", "import-failed"))
+            for row in self.adopted_pathway_bands
+        )
 
     @property
     def decision_record_complete(self) -> bool:

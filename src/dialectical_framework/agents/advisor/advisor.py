@@ -781,10 +781,14 @@ class Advisor:
         `settings.audit_transformations` was turned off because auditing all 6N
         Transformations of an exploration was 40% of `explore`'s provider spend
         for an annotation, and the repair was delegated to a tool the model must
-        elect. It elects it in **1 of 6** A2 cells (`a15-floor`, reproduced as
-        1/5 in `weave-offturn`) — the same finding as `explore` 2/6 and `deepen`
-        0/6, and the same conclusion: a repair the model has to ask for is a
-        repair that does not happen.
+        elect. It elects it in **1 of 6** A2 cells (`a15-floor`) and **0 of 6**
+        in `weave-offturn` — the same finding as `explore` 2/6 and `deepen` 0/6,
+        and the same conclusion: a repair the model has to ask for is a repair
+        that does not happen. (This docstring said "1/5 in `weave-offturn`" when
+        first written; the archive holds no `audit_feasibility` call in any of
+        that round's six A2 cells. Counted from `tool_calls` in the run JSON —
+        the rendered `.txt` never names an unelected tool, so a count read off
+        the report reads 0 whether the tool was skipped or never wired.)
 
         So this asks for it, at exactly one place: the pathway a recorded
         decision is GROUNDED on. Two provider calls per closing, not 2 x 6N —

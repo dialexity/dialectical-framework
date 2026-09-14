@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import math
+import statistics
 from collections import defaultdict
 from pathlib import Path
 from typing import Iterable, Optional
@@ -30,6 +31,7 @@ from .models import (
     PUBLISHED_BASELINES,
     PhantomRecordScore,
     RunRecord,
+    graph_counts,
 )
 from .scoring import score_internal_prompt_echo, score_machinery_leak
 
@@ -1046,6 +1048,116 @@ def render_report(
         )
         add("    particulars reached the graph). If `# The Person's Case` is still")
         add("    empty below, the defect is in the grounding lane, not the prompt.")
+    # The graph the A2 arm actually built, as a TABLE and unconditionally.
+    # `graph_summary` existed since the first round and was printed only inside
+    # two conditional failure warnings, so a healthy round rendered it nowhere:
+    # `weave-offturn.txt` contains no `perspectives=` at all, and the endpoint
+    # that turned out to decide that round — `woven == perspectives`, i.e. FULL
+    # weave coverage rather than one cap-bounded call's worth — was hand-extracted
+    # from the JSON afterwards. It was also never pre-registered, which is the
+    # more expensive half of the same mistake.
+    #
+    # ONE ROW PER CELL, not per session. A wobble cell runs two sessions against
+    # ONE graph, so a per-session listing prints every cell twice and doubles the
+    # denominator -- and n is what the Fisher exact on this endpoint is computed
+    # from (n=6 A2 cells; 0/6 -> 5/6 is p=0.0152, while 0/12 -> 10/12 is a
+    # different and unearned number). The LAST session with a summary is the
+    # cell's final state; an earlier session that disagrees is flagged rather
+    # than dropped, because a graph that changed between sessions is a finding.
+    a2_runs = [r for r in runs if r.arm is Arm.A2]
+    a2_cells = []
+    for r in a2_runs:
+        summaries = [s_.graph_summary for s_ in r.sessions if s_.graph_summary]
+        if summaries:
+            a2_cells.append((r, summaries[-1], len(set(summaries)) > 1))
+    if a2_runs and not a2_cells:
+        # Say so rather than vanishing. Dropping the whole block when the field
+        # is absent is the same defect as printing 0.00 for it: a reader cannot
+        # tell an unrecorded graph from a round with no A2 arm, and every round
+        # archived before `graph_summary` was wired reads exactly like the
+        # latter. The denominator is what makes the difference legible.
+        add(
+            f"A2 graph built: not recorded (0 of {len(a2_runs)} A2 run(s) carry "
+            "`_graph_summary`; wired later than these runs)"
+        )
+    if a2_cells:
+        add("A2 graph built (from `_graph_summary`, read off the graph at session end):")
+        full, partial, unknown = 0, 0, 0
+        for r, summary, changed in a2_cells:
+            counts = graph_counts(summary)
+            pp, woven = counts.get("perspectives"), counts.get("woven")
+            if pp is None or woven is None:
+                coverage, unknown = "?", unknown + 1
+            elif pp == 0:
+                # Not "full coverage". `_graph_summary`'s own docstring warns a
+                # read fault returns [] and reports an empty graph over a
+                # populated one, so 0 == 0 is the one comparison to refuse.
+                coverage, unknown = "none built", unknown + 1
+            elif woven == pp:
+                coverage, full = "FULL", full + 1
+            else:
+                coverage, partial = f"{woven}/{pp}", partial + 1
+            add(
+                f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} "
+                f"b={r.branch}: {summary}  weave={coverage}"
+                + ("  (changed between sessions)" if changed else "")
+            )
+        add(
+            f"   coverage: {full} FULL, {partial} partial, {unknown} unreadable "
+            f"of {len(a2_cells)} A2 cell(s)"
+        )
+        add(
+            "   (FULL means every perspective sits in a Cycle — what the deferred "
+            "weave's drain loop buys over one call, which is capped at "
+            "`advisor_max_perspectives_per_exploration`. `none built` is NOT "
+            "coverage: a fail-soft read fault reports an empty graph over a "
+            "populated one, so 0==0 is refused rather than counted.)"
+        )
+    # The deferral's own price, and the reason it is rendered HERE rather than
+    # left to `read_turn_timing.py`: `weave-offturn` pre-registered this field as
+    # endpoint P3, computed it in the framework, and read `not recorded` on all
+    # 48 A2 turns because it never reached `TurnRecord`. It reaches it now — but
+    # a number whose only reader is a side script somebody has to remember to
+    # run is one step from the same failure. Three rows, because the bar is a
+    # TAIL bar: the deferral is free whenever think-time absorbs it, and the
+    # question is whether it ever did not.
+    waits = [
+        t.deferred_wait_s
+        for r in runs
+        for s in r.sessions
+        for t in s.turns
+        if t.deferred_wait_s is not None
+    ]
+    timed_turns = sum(
+        1 for r in runs for s in r.sessions for t in s.turns
+        if t.reply_path_s is not None
+    )
+    if not waits and not timed_turns:
+        # Nothing timed at all: say that, don't print "0 of 0". A denominator of
+        # zero is not a measurement of the deferral, it is the absence of the
+        # timing lane this field lives in, and reporting the two identically
+        # invites reading an untimed round as a round where the wait was absent.
+        add("deferred weave wait: n/a (no turn in this round carries timing)")
+    elif not waits:
+        # `not recorded`, never 0.00 — an absent field says nobody checked and a
+        # zero says the deferral is free, and those are opposite findings.
+        add(
+            "deferred weave wait: not recorded "
+            f"(0 of {timed_turns} timed turn(s) carry the field)"
+        )
+    else:
+        add(
+            f"deferred weave wait: median {statistics.median(waits):.2f}s, "
+            f"worst {max(waits):.2f}s "
+            f"({len(waits)} of {timed_turns} timed turn(s) recorded it)"
+        )
+        add(
+            "   (a COMPONENT of reply_path_s, not a third addend: the next turn "
+            "waiting on the previous turn's off-turn weave, because one writer "
+            "per sid is a hard contract nothing enforces. Normally 0.00 — a "
+            "large worst-case on many turns means the weave does not fit in the "
+            "gaps and belongs behind a setting.)"
+        )
     # A fail-soft `except` in `src/` logs and continues by design, so a turn can
     # lose a decision record, a pathway, or a whole exploration and still look
     # perfect here: reply present, no turn error, every tool ok. That is the
@@ -1180,6 +1292,29 @@ def render_report(
             "below both lines above means the two halves are landing in "
             "different runs, not that either is rare.)"
         )
+        # The feasibility band on that recipe. Its own denominator, and a
+        # `not recorded` when the field is absent: every run archived before
+        # 2026-09-14 has none, and printing 0/6 for those would publish "the
+        # audit never fired" over "the bench could not ask".
+        banded = [r for r in a2_all if r.adopted_pathway_bands]
+        if not banded:
+            add("adopted pathway carries a feasibility band: not recorded "
+                f"(0 of {len(a2_all)} runs recorded the field)")
+        else:
+            scored = [r for r in banded if r.adopted_pathway_scored]
+            add(
+                "adopted pathway carries a feasibility band: "
+                f"{len(scored)}/{len(with_pathway)} of runs with a pathway "
+                f"({len(banded)} of {len(a2_all)} runs recorded the field)"
+            )
+            add(
+                "   (the band is what BOTH engine prompts tell the agent to "
+                "rank pathways on, and `audit_feasibility` was elected 1/6 in "
+                "`a15-floor` and 0/6 in `weave-offturn` — so the deferred audit "
+                "is what puts one here. Bar: >=4/6, or 5/5 of the cells that "
+                "ground a pathway; NOT 6/6, since a cell that records no "
+                "decision gets no weave and so no audit.)"
+            )
         # The audit's own verdict, read off the graph rather than off the reply.
         # Whether a risk was written down as REFUTED is a property of the stored
         # rationale, so counting it over assistant text was always a proxy — and

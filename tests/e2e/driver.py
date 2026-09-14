@@ -97,6 +97,11 @@ class DecisionReadout:
     positions: list[str]
     cost_pairs: list[str]
     pathways: list[str]
+    #: `"<short_hash>\t<Ac+|Re+>=<score>"` per audited position of the adopted
+    #: pathway, or `"<short_hash>\tunscored"` when the recipe carries no band.
+    #: The unscored row is the point: an absent row cannot be told apart from a
+    #: closing that had no pathway at all, and those are different findings.
+    pathway_bands: list[str]
     rationales: list[str]
     verdicts: list[str]
 
@@ -340,6 +345,57 @@ class E2EDriver:
         "A": "A",
     }
 
+    @staticmethod
+    def _feasibility_rows(decision_hash: str, node) -> list[str]:
+        """Whether the adopted recipe carries a feasibility band, per position.
+
+        THE ENDPOINT THIS EXISTS FOR
+        ===========================
+        `audit_feasibility` was elected in 1 of 6 A2 cells in `a15-floor` and
+        **0 of 6** in `weave-offturn`, so the band the engine prompt tells both
+        agents to rank pathways on was absent from every closing the archive
+        holds. `Advisor._audit_adopted_pathways` now scores it off the turn, on
+        the one pathway a record is grounded on. Baseline 0/6 to an expected
+        5/6 is Fisher p=0.0152 at n=6 — a powered machine-record endpoint,
+        which the judged lane cannot offer at 12 pairs.
+
+        Registered as **>=4/6, or 5/5 of the cells that ground a pathway at
+        all**, never 6/6: the denominator inherits the deferral's own ceiling
+        (a cell that records no decision correctly gets no weave and no audit),
+        and 6/6 is the exact mis-specification `weave-offturn`'s P1 made.
+
+        THE TOOL'S OWN HELPERS ARE REUSED, DELIBERATELY
+        =============================================
+        `_covered_transitions` and `_feasibility_of` are private to
+        `audit_feasibility`, and importing them anyway is the point: the band
+        lives on the Ac+/Re+ TRANSITIONS rather than on the Transformation, and
+        which positions count is that tool's decision (`_COVERED_POSITIONS`).
+        A second copy here would measure the bench's idea of coverage, so a
+        change to the audit would desync the endpoint silently — the failure
+        this file's `decision_ground_line` comment already warns about one
+        layer up.
+
+        An `unscored` row rather than no row, for the reason every other
+        "none" in this file exists: absent is indistinguishable from a closing
+        that had no pathway, and those are different findings.
+        """
+        try:
+            from dialectical_framework.agents.orchestrator.tools.audit_feasibility import (
+                _covered_transitions, _feasibility_of)
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not import the feasibility helpers")
+            return [f"{decision_hash}\timport-failed"]
+        rows: list[str] = []
+        try:
+            for label, transition in _covered_transitions(node):
+                score, _why = _feasibility_of(transition)
+                if score is not None:
+                    rows.append(f"{decision_hash}\t{label}={score}")
+        except Exception:  # noqa: BLE001
+            logger.exception("Feasibility read failed for %s", decision_hash)
+            return [f"{decision_hash}\tread-failed"]
+        return rows or [f"{decision_hash}\tunscored"]
+
     @classmethod
     def _ground_position(cls, node) -> str:
         """Which dialectical position an accepted_cost ground occupies.
@@ -394,6 +450,7 @@ class E2EDriver:
         positions: list[str] = []
         cost_pairs: list[str] = []
         pathways: list[str] = []
+        pathway_bands: list[str] = []
         rationales: list[str] = []
         verdicts: list[str] = []
         try:
@@ -438,6 +495,9 @@ class E2EDriver:
                             pathways.append(
                                 decision_ground_line(node, "adopted_pathway")
                             )
+                            pathway_bands += cls._feasibility_rows(
+                                decision.short_hash, node
+                            )
                 except Exception:  # noqa: BLE001
                     logger.exception("Reading grounds failed for %s", decision.hash)
         except Exception:  # noqa: BLE001
@@ -448,6 +508,7 @@ class E2EDriver:
             positions=positions,
             cost_pairs=cost_pairs,
             pathways=pathways,
+            pathway_bands=pathway_bands,
             rationales=rationales,
             verdicts=verdicts,
         )
@@ -720,6 +781,9 @@ class E2EDriver:
                 )
                 record.adopted_pathway_grounds = sorted(
                     set(record.adopted_pathway_grounds) | set(read.pathways)
+                )
+                record.adopted_pathway_bands = sorted(
+                    set(record.adopted_pathway_bands) | set(read.pathway_bands)
                 )
                 record.decision_rationales = sorted(
                     set(record.decision_rationales) | set(read.rationales)

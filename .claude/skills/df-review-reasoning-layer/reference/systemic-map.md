@@ -2507,7 +2507,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
   `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s
   entire spend for an annotation, and the repair was delegated to `audit_feasibility` — elected in **1 of 6** A2
-  cells (`a15-floor`, 1/5 in `weave-offturn`), the same rate as `explore` 2/6 and `deepen` 0/6 and the same
+  cells (`a15-floor`) and **0 of 6** in `weave-offturn`, the same rate as `explore` 2/6 and `deepen` 0/6 and the same
   conclusion. So the drain now asks for it, and moving it off the turn removes the WAIT but not the SPEND — which
   is precisely why the scope is ONE pathway (2 calls per closing, not 2 × 6N) rather than the eager pass switched
   back on. The scope is chosen by where the band is READ: `audit_feasibility` renders the score plus the

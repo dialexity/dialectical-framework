@@ -5687,3 +5687,47 @@ reproduce; it stays open, not closed.
    understates the framework by the report's own rule.
 5. **P1's bar was mis-specified by its author** — 6/6 was unreachable for a run that records nothing. The
    endpoint that mattered turned out to be `woven == perspectives`, which was not registered at all.
+
+---
+
+## Round `feasibility-offturn` (PRE-REGISTERED 2026-09-14, NOT YET RUN)
+
+Registered BEFORE the round because the previous entry's limit 5 is the reason this section exists: the
+endpoint that decided `weave-offturn` was extracted from the JSON after the fact, and an endpoint chosen
+after seeing the data is not an endpoint. All three below are machine-record reads, and all three are now
+rendered by `report.py` — the point of writing the reader first is that the round cannot end with a number
+that only exists in a side script somebody has to remember to run.
+
+**What changed under test.** `11948d2` moved the feasibility audit off the turn: the deferred drain now scores
+the recipe it just grounded, instead of waiting for the model to elect `audit_feasibility`. Election was
+**1/6** in `a15-floor` and **0/6** in `weave-offturn` — counted from `tool_calls` in the run JSONs, because
+the rendered `.txt` never names an unelected tool and so reads 0 whether the tool was skipped or never wired.
+
+**F1 — the adopted recipe carries a feasibility band.** `RunRecord.adopted_pathway_scored`, read off the
+Ac+/Re+ Transitions of the Transformation that the `adopted_pathway` ground points at. Baseline **0/6**.
+Bar: **≥4 of 6 A2 cells, or 5 of 5 of the cells that ground a pathway at all** — and explicitly NOT 6/6,
+which is `weave-offturn` P1's exact mis-specification repeated: a cell that records no decision correctly
+gets no weave and therefore no audit. 0/6 → 5/6 is Fisher **p=0.0152** at n=6, so this endpoint can resolve
+at this round's size, which is the reason it is the primary.
+
+**F2 — full weave coverage holds.** `woven == perspectives` per cell, from `_graph_summary`. Registered this
+time rather than extracted: `weave-offturn` read 5 FULL and 1 partial of 6 cells, and the partial cell is the
+one with `decisions=0`, so it is the same cell F1 excludes. Bar: **no regression** — ≥5 of 6 FULL, and the
+non-FULL cell must be a cell that recorded no decision. `0 == 0` does not count as coverage and the report
+refuses it; `graph_summary` is fail-soft and reports an empty graph over a populated one.
+
+**F3 — the deferral's price, finally.** `deferred_wait_s`, the next turn waiting on the previous turn's
+off-turn work. This is `weave-offturn`'s unanswered P3, and the field now reaches `TurnRecord`. Bar is a TAIL
+bar, not a median: the deferral is free whenever think-time absorbs it and the question is whether it ever
+did not. **Worst case ≤ 5s, and > 1s on no more than 10% of A2 turns.** A large worst case on many turns means
+the weave plus the audit do not fit in the gaps and belong behind a setting. Note this round adds the audit's
+seconds to the same off-turn budget the weave already spends, so F3 is the endpoint most likely to move against
+us — and the bench simulator replies as fast as the provider generates, which is close to the worst case for
+any deferral.
+
+**What this round CANNOT settle, stated in advance.** The audit is a **cost** trade, not a latency trade:
+deferring it removes the wait, not the provider spend, and the audit was ~40% of `explore`'s spend when it
+ran. So a clean F1/F2/F3 sweep still leaves "is it worth paying on every adopted pathway" open, and that
+question needs a read of where the band is actually consumed, not another latency round. Nothing judged is
+registered here: at 12 pairs a judged composite resolves 0.7 rubric steps and this change is not expected to
+move one.
