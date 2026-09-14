@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import logging
 
+from types import SimpleNamespace
+
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import Advisor
@@ -57,9 +59,18 @@ class _StubAdvisor:
         tool_results=None,
         principal: str = "human",
         nexus_hash: str | None = None,
+        automatic_feasibility_audit: bool = True,
     ) -> None:
         self._principal = principal
         self._nexus_hash = nexus_hash
+        # Settings reach the real class through DI (`SettingsAware`), which wants
+        # a live container these DB-free tests do not build. A per-instance
+        # stand-in keeps the audit MODE switchable per test — and it defaults to
+        # automatic on purpose: default it the other way and every audit
+        # assertion in this file would pass by never running the audit.
+        self.settings = SimpleNamespace(
+            automatic_feasibility_audit=automatic_feasibility_audit
+        )
         # Per-instance, matching the real `__init__`: a class-level list would
         # leak one test's pending decisions into the next.
         self._deferred_pathway_task = None
@@ -1450,8 +1461,8 @@ class TestTheAdoptedRecipeIsScored(_SeamFixtures):
 
     `settings.audit_transformations` went off because the eager pass was 40% of
     `explore`'s provider spend for an annotation, and the repair was left to a
-    tool the model elects in **1 of 6** A2 cells (`a15-floor`; 1/5 in
-    `weave-offturn`) — the same shape as `explore` 2/6 and `deepen` 0/6. So the
+    tool the model elects in **1 of 6** A2 cells (`a15-floor`) and **0 of 6**
+    in `weave-offturn` — the same shape as `explore` 2/6 and `deepen` 0/6. So the
     drain asks for it, on ONE pathway: the recipe the record is grounded on.
 
     These tests are DB-free, so `_adopted_pathway_hash` is stubbed everywhere
@@ -1729,6 +1740,159 @@ class TestTheAdoptedRecipeIsScored(_SeamFixtures):
         await advisor.wait_for_deferred_work()
 
         assert audited == []
+
+
+class TestTheFeasibilityAuditIsAMode(_SeamFixtures):
+    """`automatic_feasibility_audit` chooses WHO initiates, not whether it exists.
+
+    The distinction is the reason the setting is worth having, and it is easy to
+    implement as the wrong thing. Turning this off must not remove feasibility
+    scoring from the framework — `audit_feasibility` is a tool and stays a tool,
+    so the band remains reachable by asking. What the flag switches off is the
+    ELECTIVE-free route: automatic scoring at the closing, which is what makes
+    the band measurable at all, since the model elected the tool in 1 of 6 A2
+    cells (`a15-floor`) and 0 of 6 (`weave-offturn`).
+
+    The cost of automatic is measured rather than assumed. `feasibility-offturn`:
+    the band reached 5 of 5 records that ground a pathway against a 0/6 baseline,
+    at **+46% A2 cell wall** (701.0s vs 479.1s) and one turn in 48 where the
+    person waited **284.5s** for off-turn work to settle. The seam it was aimed
+    at did not move — wobble discrimination 1/3 pairs before and after. Hence a
+    switch, and hence these tests: a mode whose off state quietly disabled the
+    tool would be a regression disguised as a configuration option.
+    """
+
+    # The weave/audit/adopted helpers live on the class above rather than on
+    # `_SeamFixtures`, and aliasing them is preferable to moving them: this class
+    # varies ONE thing against that class's setup, and a copy of the setup would
+    # be free to drift away from the tests it is supposed to be comparable to.
+    _capture_audit = TestTheAdoptedRecipeIsScored._capture_audit
+    _adopted = TestTheAdoptedRecipeIsScored._adopted
+    _weave = TestTheAdoptedRecipeIsScored._weave
+
+    def _drain_ready(self, monkeypatch, adopted="tr0100"):
+        """A weave that succeeds, so the audit is the only thing left to vary."""
+        state = self._weave(monkeypatch, built=[adopted])
+        perspectives = self._perspectives(2, woven=0)
+        state["perspectives"] = perspectives
+        self._patch_repo(monkeypatch, perspectives)
+        grounded: list[str] = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+        self._adopted(monkeypatch, {"dec00001": adopted})
+        return grounded
+
+    @pytest.mark.asyncio
+    async def test_automatic_mode_scores_the_adopted_pathway(self, monkeypatch):
+        self._drain_ready(monkeypatch)
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([], automatic_feasibility_audit=True)
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [["tr0100"]]
+
+    @pytest.mark.asyncio
+    async def test_manual_mode_scores_nothing_at_the_closing(self, monkeypatch):
+        self._drain_ready(monkeypatch)
+        audited = self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([], automatic_feasibility_audit=False)
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert audited == [], "manual mode still spent provider calls"
+
+    @pytest.mark.asyncio
+    async def test_manual_mode_still_weaves_and_still_grounds(self, monkeypatch):
+        """The switch is about the AUDIT, and about nothing else in the drain.
+
+        Gating too much is the likelier mistake here than gating too little: the
+        audit is the last thing the drain does, so a return placed one line too
+        early takes the weave and the grounding with it — and both of those are
+        the previous trade, already paid and not up for renegotiation.
+        """
+        grounded = self._drain_ready(monkeypatch)
+        self._capture_audit(monkeypatch)
+
+        advisor = _StubAdvisor([], automatic_feasibility_audit=False)
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert grounded == ["dec00001"], "manual mode also skipped the grounding"
+
+    @pytest.mark.asyncio
+    async def test_manual_mode_costs_no_graph_read_either(self, monkeypatch):
+        """Return BEFORE resolving the pathway, not after.
+
+        `_adopted_pathway_hash` is a graph read per decision. Skipping the
+        provider call but still paying the read would make manual mode quietly
+        non-free, which is the sort of thing that is never noticed because
+        nothing it produces is visible.
+        """
+        self._drain_ready(monkeypatch)
+        self._capture_audit(monkeypatch)
+        reads: list[str] = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_adopted_pathway_hash",
+            lambda self, h: reads.append(h) or "tr0100",
+        )
+
+        advisor = _StubAdvisor([], automatic_feasibility_audit=False)
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert reads == [], "manual mode resolved the pathway it never scores"
+
+    def test_the_tool_is_not_gated_by_the_mode(self):
+        """Off is not "no feasibility scoring", so the flag may gate ONE place.
+
+        Checked against the sources rather than by wiring a container: the name
+        must appear in the advisor's drain and nowhere in the tool or in the
+        toolsets that publish it. A gate added inside `audit_feasibility` would
+        make the off state mean "nobody can ever ask", which is exactly what
+        this setting is documented not to do.
+        """
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent / "src" / "dialectical_framework"
+        flag = "automatic_feasibility_audit"
+
+        advisor_src = (root / "agents" / "advisor" / "advisor.py").read_text()
+        assert advisor_src.count(f"self.settings.{flag}") == 1
+
+        tool_src = (
+            root / "agents" / "orchestrator" / "tools" / "audit_feasibility.py"
+        ).read_text()
+        assert flag not in tool_src, "the tool itself is gated; off would mean off"
+
+        toolsets_src = (root / "agents" / "toolsets.py").read_text()
+        assert flag not in toolsets_src, "the tool is unwired in manual mode"
+
+    def test_the_default_is_automatic_and_the_env_can_flip_it(self, monkeypatch):
+        """Default automatic, because flipping it would un-measure the round.
+
+        `feasibility-offturn` priced the automatic mode. A default of manual
+        would leave every figure in that entry describing a configuration
+        nothing runs, which is a worse failure than the +46% it records.
+        """
+        from dialectical_framework.settings import Settings
+
+        # The FIELD default, not a constructed instance: `Settings` requires
+        # `ai_model`, so constructing one here would test the fixture.
+        assert (
+            Settings.model_fields["automatic_feasibility_audit"].default is True
+        )
+
+        monkeypatch.setenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "false")
+        assert Settings.from_env().automatic_feasibility_audit is False
+        monkeypatch.setenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "true")
+        assert Settings.from_env().automatic_feasibility_audit is True
 
 
 class TestTheAdoptedPathwayIsReadFromTheEdge:

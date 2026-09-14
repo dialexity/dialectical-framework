@@ -73,6 +73,36 @@ class Settings(BaseModel):
     # ever ask and the band is worth the latency on everything.
     audit_transformations: bool = Field(default=False, description="EAGERLY audit every new Transformation's Ac+/Re+ transitions for practical feasibility. Adds 2 provider calls per Transformation and writes FeasibilityEstimations plus critique Rationales; nothing in the framework depends on them. Off by default — agents reach the same concern on demand via the audit_feasibility tool.")
 
+    # A MODE, not an on/off for feasibility scoring. That distinction is the whole
+    # point of the setting: turning this off does not remove the band, it removes
+    # the AUTOMATIC route to it and leaves the manual one, because
+    # `audit_feasibility` is a tool and stays a tool in both modes. There is no
+    # state of this flag in which a person cannot ask what a recipe costs.
+    #
+    #   automatic (True)  — the deferred drain scores the pathway a recorded
+    #                       decision is grounded on, off the turn, without being
+    #                       asked. This is what makes the band MEASURABLE: the
+    #                       model elected `audit_feasibility` in 1 of 6 A2 cells
+    #                       (`a15-floor`) and 0 of 6 (`weave-offturn`), so under
+    #                       election alone the band effectively does not exist and
+    #                       no round can say what it is worth.
+    #   manual (False)    — nothing is scored unless the model or the person asks
+    #                       for it. The elective rate above is then the rate.
+    #
+    # Priced, not assumed. `feasibility-offturn` ran the automatic mode across 18
+    # cells: the band reached 5 of 5 records that ground a pathway (against a 0/6
+    # baseline), and it cost **+46% A2 cell wall** (701.0s vs 479.1s mean) plus one
+    # turn where the person waited **284.5s** — 95% of that turn's reply path — for
+    # off-turn work to settle. On the same round the seam the band was aimed at,
+    # wobble discrimination, did NOT move (1/3 pairs, both rounds), and the one
+    # correct reassure did not cite the record. So automatic mode is currently
+    # PAYING for a band nothing has been shown to use, which is an argument about
+    # the default and not about the switch.
+    #
+    # Startup switch, like `audit_transformations` — settings resolve process-wide
+    # through the DI container, so this cannot be flipped mid-conversation.
+    automatic_feasibility_audit: bool = Field(default=True, description="Score the pathway a recorded decision is grounded on automatically, off the turn, instead of waiting for the model to elect the audit_feasibility tool. A MODE, not a feature switch: the tool stays available when this is off, so feasibility is always reachable manually. Adds ~2 provider calls per closing (not 2 per Transformation — that is audit_transformations) and measured +46% A2 cell wall.")
+
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -173,6 +203,7 @@ class Settings(BaseModel):
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
             audit_transformations=os.getenv("DIALEXITY_AUDIT_TRANSFORMATIONS", "false").lower() == "true",
+            automatic_feasibility_audit=os.getenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "true").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

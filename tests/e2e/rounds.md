@@ -5746,3 +5746,84 @@ ran. So a clean F1/F2/F3 sweep still leaves "is it worth paying on every adopted
 question needs a read of where the band is actually consumed, not another latency round. Nothing judged is
 registered here: at 12 pairs a judged composite resolves 0.7 rubric steps and this change is not expected to
 move one.
+
+### feasibility-offturn: the band arrives, the seam does not move, and the price is real (2026-09-14)
+
+18 cells, 144 turns, 2h03 wall, zero errors. **F1 passed, F2 held, F3 failed its bar** — and the interesting
+result is none of those three.
+
+**F1 — PASSED, and decisively. 5 of 5 runs that ground a pathway carry a feasibility band** (5 of 6 runs
+recorded the field; the sixth is the cell that records no decision, which is why the bar was written as 5/5-of-
+grounding rather than 6/6). Baseline was 0/6, so Fisher gives **p=0.0152**. `audit_feasibility` needed no
+election: 5/5 of the records that have a recipe now have a rating on it, against a measured elective rate of
+1/6 and 0/6. The mechanism works exactly as designed.
+
+**F2 — HELD. 5 FULL, 1 partial of 6 A2 cells**, identical to `weave-offturn`, and the partial is again the
+`decisions=0` cell (2/6 woven, so the drain correctly never ran). No regression, and this time the number was
+registered in advance and printed by the report rather than extracted by hand afterwards.
+
+**F3 — FAILED, and it failed in the shape a tail bar exists to catch.** Bar was worst ≤5s and >1s on ≤10% of
+A2 turns. Actual: **median 0.00s, >1s on 1 of 48 A2 turns (2%), worst 284.46s**. The frequency half passed
+comfortably; the magnitude half failed by a factor of 57. So the deferral is free 47 times out of 48 and once
+costs a person **4 minutes 44 seconds** — 284.5s of a 298.1s reply path, i.e. **95% of that turn was waiting
+for off-turn work**. An average would have hidden this completely, which is the argument for tail bars in one
+figure.
+
+**THE 300-SECOND TAIL IS NO LONGER UNEXPLAINED, AND `weave-offturn`'s LIMIT 2 WAS WRONG.** That round recorded
+a ~300s tool-free tail and ruled the deferral out *by ordering*: "the 329.3s turn is `ask_advice` at t4 and its
+run's only `record_decision` fires at t5, so no decision hash existed when the turn began". This round's 284.5s
+turn has the **same signature — t4, `ask_advice`, zero tool calls, ~300s** — and now carries the instrumented
+`deferred_wait_s` proving it was waiting on the drain. The ordering argument was invalid, and the reason is
+worth more than the finding: **it read `tool_calls`, and `tool_calls` cannot see the repair seam.**
+`_repair_unrecorded_decision` records a decision the model failed to record and schedules the weave itself
+(`advisor.py:470,524`), so a decision can exist — and off-turn work can be in flight — with no
+`record_decision` anywhere in the turn's tool list. An absence in `tool_calls` is evidence about the MODEL's
+elections, never about the framework's own writes.
+
+**And the harness still cannot say which turn scheduled it.** The repair seam logs that it fired; nothing
+archives it. So "the weave was scheduled at t3 by the repair seam" remains the leading explanation rather than a
+measured one. That is the next instrument, and it is small: record whether the repair seam fired, per turn.
+
+**THE FINDING THAT MATTERS: the band is present, rendered, and unused.** F1 put a rating on 5 of 5 recipes, and
+`DialecticalContext` renders `feasibility=X.XX` into the system prompt every turn thereafter
+(`dialectical_context.py:940`), so the model reads it. **Wobble discrimination did not move: 1/3 pairs, exactly
+as in `weave-offturn`** — and the one correct reassure **did not cite the record** (it did in `weave-offturn`).
+The returning session is the seam this was aimed at, by the argument written into
+`_audit_adopted_pathways`. It did not respond. Two readings are open at n=6 and the round cannot separate them:
+the band is not decision-relevant to the reply, or 3 pairs cannot see a change of this size. Either way,
+**nothing has yet been shown to USE the number that F1 succeeded in producing** — this archive's oldest defect
+(a value computed and never read) one layer up from where it usually appears.
+
+**PRICE: +46% A2 cell wall, 701.0s vs 479.1s mean** (per cell: 932.5, 654.6, 830.8, 675.0, 375.8, 737.4). The
+A1.5 static-context build went **463.6s → 953.9s on an identical graph** (`perspectives=5 woven=5
+transformations=42 decisions=1` both rounds), which is the cleanest available before/after on the same work.
+Two provider calls per closing do not account for +46%, and the round cannot attribute the rest: candidates are
+the off-turn seconds spilling into the next turn's wait, the larger rendered prompt slowing all 8 turns, and
+provider variance. **Not attributed — do not quote the +46% as "the audit's cost" without this sentence.**
+
+**JUDGED GUARDRAIL — held, and warmth improved.** A2 vs A1 composite **+0.07 [−0.64,+0.78]** (was +0.07
+[−0.45,+0.59]); A2 vs A1.5 **−0.17 [−0.59,+0.26]** (was −0.22 [−0.77,+0.33]). No structural dimension fell by a
+resolved margin. **`warmth` vs A1 went −0.67 [−0.98,−0.35] RESOLVED → −0.42 [−0.84,+0.01], no longer
+resolved** — the first round in five where that standing cost is not a resolved loss. By this file's rule 2
+that is not a measured improvement, and the guardrail only asked that it not get worse.
+
+**One new RESOLVED judged result, and it is an interaction rather than a level:** A2 vs A1 under pressure,
+opening −0.64 vs follow-up +0.56, **change +1.19 [+0.10,+2.29]**. A2 is relatively stronger on returning
+sessions than on openers. It points at the seam F1 aimed for, and it is 3 replicates with an interval that
+barely excludes zero — a lead, not a result, and explicitly not a rescue of the 1/3 wobble row.
+
+**Machinery leaks went 9 in 7 runs → 12 in 8 runs.** Not registered, not resolved, and the arms that are HANDED
+the method text leak for a different reason than A2 does. Recorded so it is not discovered later as new.
+
+**LIMITS.**
+
+1. **F3 failed. The person can wait 4m44s.** One turn in 48, and one is enough: this is a UX round and that is
+   a UX failure. It is now behind `automatic_feasibility_audit` (a MODE — manual leaves the tool wired), but a
+   switch is not a fix and the default is still automatic.
+2. **The +46% is measured and unattributed.** Three candidate causes, none excluded.
+3. **F1 succeeded into a void.** The band exists and nothing observably reads it. That is the open question the
+   next round should be about, and it is not a latency question.
+4. **12 pairs, one scenario, one tier.** Nothing judged here resolves except the pressure interaction, which is
+   3 replicates.
+5. **The repair seam is still invisible to the archive**, so the F3 diagnosis is a leading explanation and not
+   a measurement.

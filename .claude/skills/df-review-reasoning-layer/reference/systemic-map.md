@@ -2498,7 +2498,14 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   Wobble discrimination went 0/3 → 1/3, with the moved cell the first `reassure` in the archive to CITE the
   record. Two costs to quote with it: cell wall +36% (the weave's seconds moved off the reply path, not out of
   existence, and a bench whose simulator never pauses is the worst case for a deferral), and a 300s tool-free
-  tail that is NOT the deferral — ruled out by causal ordering, cause unexplained. **And the round's own defect is
+  tail claimed there to be NOT the deferral — **ruled out by an ordering argument that `feasibility-offturn`
+  then refuted.** That round's 284.5s turn has the same signature (t4, `ask_advice`, zero tool calls) and
+  carries an instrumented `deferred_wait_s` of 284.46s over a 298.1s reply path — 95% of the turn spent waiting
+  on the drain. **The invalid step is worth more than the correction: the argument read `tool_calls`, and
+  `tool_calls` cannot see the framework's own writes.** `_repair_unrecorded_decision` records a decision the
+  model failed to record and schedules the weave itself, so off-turn work can be in flight with no
+  `record_decision` in the turn's tool list. An absence in `tool_calls` is evidence about the MODEL's elections
+  and never about what the framework did on its own. **And the round's own defect is
   the one this map keeps recording: `deferred_wait_s` reached `TurnTiming` and never reached `TurnRecord`, so a
   pre-registered bar on the person's actual wait read `not recorded` on all 48 turns — a value computed and never
   rendered, the same shape as `62244f0`, `2c158bc` and r10's unconstructible hash. Wiring a field into the
@@ -2524,8 +2531,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   while `upsert_estimation` keeps one score), the per-call cap and one wording for one check.
   **`settings.audit_transformations` is not overridden by this and never covered it**: that flag's own description
   is about the EAGER pass and names the on-demand tool as the alternative, so the tool's standing is inherited, not
-  bypassed — but a deployment wanting no feasibility scoring at all has no switch, which is worth knowing and is
-  not new here. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
+  bypassed. **What DOES gate it is `settings.automatic_feasibility_audit`, added 2026-09-14, and it is a MODE and
+  not an off switch** — manual leaves `audit_feasibility` wired, so there is deliberately no configuration in
+  which a person cannot ask what a recipe costs; what the flag chooses is who initiates, because under election
+  alone the band effectively does not exist (1/6, then 0/6). **`feasibility-offturn` then priced the automatic
+  mode and the verdict is split:** the band reached **5 of 5** records that ground a pathway against a 0/6
+  baseline (Fisher p=0.0152) — and **the seam it was aimed at did not move**, wobble discrimination 1/3 pairs
+  before and after, with the one correct `reassure` no longer citing the record. Cost: **+46% A2 cell wall**
+  (701.0s vs 479.1s; the A1.5 static build 463.6s → 953.9s on an identical graph) and **one turn in 48 where the
+  person waited 284.5s**, which failed that round's pre-registered tail bar of ≤5s by a factor of 57. So the band
+  is present, rendered into the prompt every turn (`dialectical_context.py:940`), and **nothing has been shown to
+  read it** — this map's oldest defect, a value computed and never consumed, one layer up from where it usually
+  sits. The default stays automatic only because flipping it would un-measure the round that priced it. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
   band existed and `DecisionCoherenceCheck` will not re-run, so a low score arrives against a ground the record
   never weighed. That is additive information about an existing ground, and a recipe the person cannot execute is
   worth knowing late. **Unmeasured at the behaviour layer** — no round has run with it, and the weave's own result

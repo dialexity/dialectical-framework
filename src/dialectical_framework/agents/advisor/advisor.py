@@ -30,6 +30,7 @@ from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
 from dialectical_framework.agents.stream_events import ResponseComplete, StreamEvent
 from dialectical_framework.agents.toolsets import merge_app_tools
 from dialectical_framework.agents.turn_timing import TurnTiming
+from dialectical_framework.protocols.has_config import SettingsAware
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ChatResponse(BaseModel):
     message: str = Field(description="The assistant's response message")
 
 
-class Advisor:
+class Advisor(SettingsAware):
     """
     Conversational agent for advisory apps.
 
@@ -807,9 +808,28 @@ class Advisor:
         every new Transformation ... agents reach the same concern on demand via
         the audit_feasibility tool"), and the tool has always ignored it. This
         goes through that tool's body, so it inherits the same standing — plus
-        its idempotence, its cap and its resolve-before-spending order. A
-        deployment that wants no feasibility scoring at all has no switch for
-        that today, which is worth knowing but is not new here.
+        its idempotence, its cap and its resolve-before-spending order.
+
+        GATED ON `automatic_feasibility_audit`, WHICH IS A MODE AND NOT AN OFF
+        ====================================================================
+        Off does not mean no feasibility scoring; it means no scoring THIS WAY.
+        `audit_feasibility` is a tool and stays wired in both modes, so the band
+        is always reachable by asking — there is deliberately no flag that takes
+        that away. What the switch chooses is who initiates:
+
+          automatic — this method runs, and the band exists on 5 of 5 records
+                      that ground a pathway (`feasibility-offturn`).
+          manual    — nothing runs here, and the band exists at the rate the
+                      model elects the tool, measured 1/6 and 0/6.
+
+        The cost of automatic is measured and it is not small: +46% A2 cell wall
+        (701.0s vs 479.1s) and one turn in 48 where the person waited 284.5s for
+        off-turn work to settle. On that same round the seam this was aimed at
+        did not move — wobble discrimination 1/3 pairs before and after, and the
+        one correct reassure did not cite the record. Automatic therefore buys a
+        band that is present, rendered into the prompt, and so far unused. That
+        is an argument about the DEFAULT, and the default stays automatic only
+        because flipping it would silently un-measure the round that priced it.
 
         HONEST ASYMMETRY, RECORDED RATHER THAN HIDDEN
         ============================================
@@ -823,6 +843,17 @@ class Advisor:
         Fail-soft and silent throughout: the reply was delivered turns ago.
         """
         if not decision_hashes:
+            return
+        if not self.settings.automatic_feasibility_audit:
+            # Manual mode. Logged rather than silent, because the absence of a
+            # band is otherwise indistinguishable from an audit that failed —
+            # and the bench reads that absence as an endpoint.
+            logger.info(
+                "Manual feasibility mode: %d adopted pathway(s) left unscored. "
+                "The audit_feasibility tool is still wired, so the band remains "
+                "reachable by asking.",
+                len(decision_hashes),
+            )
             return
         pathways: list[str] = []
         for decision_hash in decision_hashes:
