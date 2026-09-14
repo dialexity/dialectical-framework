@@ -5500,3 +5500,67 @@ few to catch a ~2% rate.
    (`decision_closure`) is a single subscale.
 5. **Nothing here is evidence about a LIVE graph's ceiling.** A2 vs A1 structural −0.06 [−0.87, +0.76] is
    the widest unmeasured interval in the round and it is the pair Claim 1 rests on.
+
+### weave-offturn: the round `a15-floor` said to wait for — pre-registered 2026-09-14, before any cell ran
+
+`a15-floor` ended by refusing its own comparison: *"the flaw is now large enough that the comparison is
+arguably not worth re-running until the weave lands."* The weave landed (`abe386d`) and this round is that
+re-run. **`abe386d` is the ONLY commit between `a15-floor` and this round**, so the design is a
+single-variable A/B on the same cells rather than a new lane.
+
+**What changed.** The 2026-08-26 latency pass removed pathway construction from the closing seam because it
+was billing 127.7s and 387.7s to the person's wait. Correct about the place, and it left the reasoning out:
+`claim2-weak-r15-voice` prices an unwoven closing at **−0.69 against −0.25 woven** (36 scores each).
+Construction now runs OFF the turn — `Advisor._schedule_pathway_construction` starts an asyncio task at the
+closing, a drain loop weaves until nothing is unwoven, and the record is grounded by HASH when it lands
+(legal because GROUNDED_IN is analytical). The per-call perspective cap is honoured per call and drained
+across calls, since a cap whose purpose is bounding TURN latency has no authority off the turn.
+
+**Design.** Identical to `a15-floor`: `cofounder_equity`, weak tier, arms **A1 + A1.5 + A2**, **3
+replicates**, judge ON, three sessions per replicate (`decide`, `wobble_a`, `wobble_b`) = **18 cells, ~144
+turns, ~12 pairs a pair-type**. Stem `weave-offturn`.
+
+**Read this before the endpoints, because it decides what the round can mean.** The weave is scheduled AT
+the closing, so it finishes after that turn's reply is already delivered. **It therefore cannot improve the
+closing reply itself.** What it can change is (a) the state of the graph and the record — a ground that was
+not there — and (b) every turn AFTER the closing, because `_refresh_context` then renders a woven wheel into
+the prompt. The wobble branches are the whole judged opportunity, and P5 below is the sharpest prediction
+in the round for exactly that reason.
+
+#### Primary endpoints — the mechanism. Denominators are SMALL and stated as such.
+
+| # | endpoint | bar | pre-fix (`a15-floor`) | why this bar |
+|---|---|---|---|---|
+| P1 | A2 closings with a woven pathway | **6/6** | **2/6** | The deferral's entire purpose. It runs unconditionally at every closing, so anything short of 6/6 is a mechanism failure, not variance. Fisher on 2/6→6/6 is p≈0.06 — tight, and it is the bar because the mechanism admits no partial credit. |
+| P2 | A2 decisions carrying an `adopted_pathway` ground | **>=5/6** | **1/6** | The r16 defect's endpoint. Not 6/6: grounding is fail-soft by design and one lost attach is a logged fault, not a broken seam. |
+| P3 | `deferred_wait_s` on A2 turns | **median 0.0, and no turn above 60s** | field did not exist | The person-facing price of the deferral. Non-zero means the person replied before the weave finished and the one-writer-per-sid contract made the turn wait. A large median means the weave does not fit in think-time and belongs behind a setting. |
+| P4 | per-turn arithmetic | **`duration_s == reply_path_s + off_path_s` on 100% of turns** | 48/48 for A2 | `deferred_wait_s` is a COMPONENT of `reply_path_s`. Wired as a third addend it would surface here as harness overhead — the same guard r26 used for `context_render_s`. |
+| P5 | wobble discrimination, A2 | **>=2/3** | **0/3** | The behavioural payload. `a15-floor` had A2 call `reopen` on all six cells *including the three (a)-variants that ask for reassurance FROM the record* — with a record in hand and no pathway under it. If a grounded, woven record does not change that answer, the deferral bought the graph something and the person nothing. |
+
+P1 and P5 carry the round. P1 is near-deterministic mechanism; P5 is the one endpoint whose movement would
+mean the mechanism reached the reply.
+
+#### Secondary — the quality screen. Declared underpowered BEFORE the run.
+
+`endpoint_power.py`, run today: median composite sd **0.81**, and at 80% power **0.7 steps needs 11 pairs,
+0.5 needs 21, 0.3 needs 58.** This round has ~12.
+
+- **Bar:** A2's structural composite (the 9 dims, NI excluded — `a15-floor`'s first correction) must not
+  fall more than **0.65 steps** below its pre-fix figures: **A2 vs A1 −0.06 [−0.87, +0.76]**, **A2 vs A1.5
+  −0.41 [−0.97, +0.15]**.
+- **What clearing it means:** no collapse. Nothing more.
+- **What a null means:** nothing, and this is stated in advance so it is not argued afterwards.
+- **Compute the composite over the 9 structural dims, never the blended 12.** `Deltas.composite` still
+  blends; `a15-floor` recomputed by hand and every headline it printed changed. Do that again here.
+
+**What this round cannot do.**
+
+1. **It cannot detect the 0.44-step cost the removal is priced at** — that needs 28–58 pairs and this has 12.
+   The pairs are worth buying because they pool toward that n, not because they answer it now.
+2. **The 26% verbosity gap is still unhandled** (A1.5 2704 words a run, A1 2260, A2 2139) and it lands on
+   `warmth` and `conversational_fit`. Those stay out of the composite and out of any headline.
+3. **It cannot separate the deferral from run-to-run variance on any judged row.** P1/P2/P4 are mechanism
+   counts and P5 is a 3-cell behavioural read; the judged half is a screen.
+4. **A2 may still be degraded for reasons this fix does not touch** — `a15-floor` had 3/6 decisions flagged
+   incoherent for scheduling the avoidance of the accepted cost. That is a rationale defect, not a weave
+   defect, and if it repeats, every judged A2 row still understates the framework.
