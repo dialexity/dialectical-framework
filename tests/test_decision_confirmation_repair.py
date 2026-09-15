@@ -67,8 +67,11 @@ class _StubAdvisor:
         # Settings reach the real class through DI (`SettingsAware`), which wants
         # a live container these DB-free tests do not build. A per-instance
         # stand-in keeps the audit MODE switchable per test — and it defaults to
-        # automatic on purpose: default it the other way and every audit
-        # assertion in this file would pass by never running the audit.
+        # automatic on purpose, DELIBERATELY unlike the production default (manual
+        # since 2026-09-15): default it the other way and every audit assertion in
+        # this file would pass by never running the audit. Do not "fix" this to
+        # match `Settings`; the one test that owns the production default asserts
+        # it against `Settings.model_fields` instead of through this stub.
         self.settings = SimpleNamespace(
             automatic_feasibility_audit=automatic_feasibility_audit
         )
@@ -1767,6 +1770,11 @@ class TestTheFeasibilityAuditIsAMode(_SeamFixtures):
     at did not move — wobble discrimination 1/3 pairs before and after. Hence a
     switch, and hence these tests: a mode whose off state quietly disabled the
     tool would be a regression disguised as a configuration option.
+
+    The DEFAULT is manual since 2026-09-15, which makes the elective route the
+    one that runs — so the moments the prompt names for it are now load-bearing
+    rather than advisory, and they are pinned in
+    `test_prompt_review_regressions.TestTheElectiveRouteNamesItsMoments`.
     """
 
     # The weave/audit/adopted helpers live on the class above rather than on
@@ -1881,19 +1889,24 @@ class TestTheFeasibilityAuditIsAMode(_SeamFixtures):
         toolsets_src = (root / "agents" / "toolsets.py").read_text()
         assert flag not in toolsets_src, "the tool is unwired in manual mode"
 
-    def test_the_default_is_automatic_and_the_env_can_flip_it(self, monkeypatch):
-        """Default automatic, because flipping it would un-measure the round.
+    def test_the_default_is_manual_and_the_env_can_flip_it(self, monkeypatch):
+        """Default MANUAL since 2026-09-15, and the flip had a precondition.
 
-        `feasibility-offturn` priced the automatic mode. A default of manual
-        would leave every figure in that entry describing a configuration
-        nothing runs, which is a worse failure than the +46% it records.
+        Automatic was the default only because flipping it would have
+        un-measured `feasibility-offturn`, the round that priced it — a research
+        reason, which expires once the build ships and real conversations are the
+        measurement. What made manual untrustworthy was the 1/6 and 0/6 election
+        rate, so the flip was paired with the prompt repair that names the two
+        moments automatic mode covered (the closing, and a wobble about carrying
+        the recipe out) — see `TestTheElectiveRouteNamesItsMoments`. Manual
+        without those moments named would be this test asserting a regression.
         """
         from dialectical_framework.settings import Settings
 
         # The FIELD default, not a constructed instance: `Settings` requires
         # `ai_model`, so constructing one here would test the fixture.
         assert (
-            Settings.model_fields["automatic_feasibility_audit"].default is True
+            Settings.model_fields["automatic_feasibility_audit"].default is False
         )
 
         monkeypatch.setenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "false")

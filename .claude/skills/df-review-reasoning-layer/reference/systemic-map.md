@@ -599,6 +599,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   the baseline loses method text — inflating every framework-vs-baseline delta. `tests/e2e/test_e2e.py::
   TestMethodPrompt::test_rewrite_table_has_no_stale_keys` fails on that drift (free, no `--real-llm`);
   run it after editing these constants and update `_TOOL_REWRITES` in the same change.
+  **A NEW PLACEHOLDER in one of those constants is the other drift, and `method_prompt` fills them ITSELF** —
+  it does not call `system_prompt()`, so a placeholder added for the engine reaches the baseline model as literal
+  `{braces}` until `arms.py` handles it (caught live by
+  `TestMethodPrompt::test_no_unrendered_placeholders`, on `{feasibility_before_record_note}`, 2026-09-15; that
+  test is the only thing standing between a new placeholder and a handicapped baseline, and it runs free).
+  Decide the arm's branch on what the arm CAN do, not on symmetry with the engine: the record is kept in prose
+  because a model can write one, while both feasibility passages are DROPPED, because a band is a measurement a
+  toolless arm cannot produce and prose about reading one would instruct it to invent one. Dropping also keeps
+  the ablation honest when the passage is new — A1 is then unchanged by the round.
   Rule of thumb for what belongs where: rules about **how to talk** (`_HOW_YOU_SPEAK`) must reach every
   arm; only rules about **operating machinery** are the framework arm's. See `tests/e2e/README.md`.
   **This file is the framework's single "mother prompt"** — the domain-neutral engine every Advisor arm
@@ -2587,12 +2596,46 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   trusting generated text. **And the menu too:** `pathway_line`, the surface rule 3 offers FROM, now
   carries the band via the same `feasibility_suffix`, so a pathway is offered at the number it is later
   remembered at — both of rule 3's surfaces covered with neither prompt touched, since the rule already states
-  what to do with a present band and with an absent one. **STILL OPEN:** the re-audit instruction never names
-  feasibility, so on a wobble turn the number sits beside the record with nothing pointing at it; that one is a
-  prompt change and wants its own round; "nothing reads it" therefore remains a measurement about this build and not a statement about the
-  band's ceiling. **The lesson generalizes past feasibility:** a value can be written, rendered, and genuinely
+  what to do with a present band and with an absent one. **CLOSED 2026-09-15, in the round that flipped the default:** the re-audit
+  instruction never named feasibility, so on a wobble turn the number sat beside the record with nothing pointing
+  at it. `_FEASIBILITY_ON_A_WOBBLE` now sits inside `_DECISION_READINESS` and points the model at the ground
+  line's band FIRST, treating a wobble about DOING it as a third case that is neither the accepted cost
+  resurfacing nor new information that discriminates; the tool doc names the same moment. "Nothing reads it"
+  was therefore a measurement about the build that was priced, not a statement about the band's ceiling. **The lesson generalizes past feasibility:** a value can be written, rendered, and genuinely
   read by a prompt rule and still be dead, if the rule's moment and the write's moment are different turns. Ask
-  WHEN the reader runs, not just whether a reader exists. The default stays automatic only because flipping it would un-measure the round that priced it. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
+  WHEN the reader runs, not just whether a reader exists. **THE DEFAULT IS MANUAL SINCE 2026-09-15**, and the
+  elective route was repaired in the same change rather than left to chance. Automatic had survived only because
+  flipping it would have un-measured the round that priced it — a research reason, which expires when the build
+  ships and real conversations become the measurement. What made manual untrustworthy was the 1/6 and 0/6 election
+  rate, and **that rate had a cause other than model reluctance**: the engine prompt named ONE affirmative moment
+  for `audit_feasibility` (the person asks) against THREE prohibitions written to stop the eager spend — in the
+  tool doc, in Reading the Scores, and in prioritization rule 3 — so suppression won, which is the correct outcome
+  for a prompt that says "don't" three times and "do" once. The prompt now names the two moments automatic mode
+  was silently covering: **the closing**, on the ONE pathway about to be recorded as the recipe, and **the
+  wobble**, when what resurfaced is whether that recipe can still be carried out. Same scope, same ~2 calls, asked
+  for on the turn it is needed instead of drained off every closing. Two guards came with it, and both are the
+  point rather than trimmings. **The closing moment must never become a gate** — "write this down" IS the
+  confirmation and the record obeys it in the same turn, so an audit inserted in front of the record would turn
+  the strongest rule in Decision Readiness into a soft one; the passage says so three times and a test asserts all
+  three. **And the prohibition that was doing real work survives with an object**: rule 3 now bans auditing a
+  MENU, not auditing at all, because a prompt that forbids auditing a menu and a prompt that forbids auditing are
+  one careless sentence apart and the second one silently restores the 0/6. Both new passages are module constants
+  (`_FEASIBILITY_BEFORE_RECORD`, `_FEASIBILITY_ON_A_WOBBLE`) rendered behind placeholders gated on
+  `"audit_feasibility" in names`, because `_DECISION_READINESS` renders on `record_decision` alone and a scoped
+  session can wire one without the other — instructing an agent to run a tool it does not have is a turn spent
+  looking for it. **Rule 3's new pointer took a THIRD gate and caught a live dangling reference:** rule 3 lives in
+  `_SCORE_READING`, which renders in every mode, so "auditing that single pathway is exactly what Decision
+  Readiness asks for" put that section's NAME into a prompt where the section does not render — breaking the
+  older invariant `TestDecisionReadiness::test_section_renders_only_when_tool_wired` asserts by looking for
+  exactly that string. It is now a mid-sentence `{feasibility_menu_note}` on the `_INTERNAL_MODEL` pattern
+  (`_SCORE_READING` is an f-string, so the placeholder is written `{{...}}`), and the BAN keeps its object either
+  way — only the pointer is conditional. The tool doc's own two "(see Decision Readiness)" references are NOT
+  gated, because no toolset wires `audit_feasibility` without `record_decision`; that assumption is pinned
+  against `DEFAULT_TOOL_NAMES` and `build_scoped_tools` rather than guarded by a wording variant. Pinned by
+  `test_prompt_review_regressions.py::TestTheElectiveRouteNamesItsMoments` (12 tests,
+  every assertion run against BOTH assembled renders, plus the render-path test that drops the tool and watches
+  both passages vanish with no orphan placeholder and no blank-line gap). Whether the repair lands is the next
+  round's measurement, not a claim here. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
   band existed and `DecisionCoherenceCheck` will not re-run, so a low score arrives against a ground the record
   never weighed. That is additive information about an existing ground, and a recipe the person cannot execute is
   worth knowing late. **Unmeasured at the behaviour layer** — no round has run with it, and the weave's own result

@@ -263,6 +263,19 @@ def method_prompt(include_decision: bool = True) -> str:
     ]
     if include_decision:
         decision = _DECISION_READINESS
+        # Both feasibility passages ask for `audit_feasibility`, and this arm has
+        # no tools at all — so they collapse the same way they do in the engine
+        # when that tool is unwired, blank line and all. Deliberately dropped
+        # rather than stripped to prose: unlike the record (which the model can
+        # write out in its reply), a feasibility band is a MEASUREMENT this arm
+        # has no way to produce, so prose about reading one would be an
+        # instruction to invent it. That also keeps the ablation honest — A1 is
+        # unchanged by this round, since these passages are new.
+        for placeholder in (
+            "{feasibility_before_record_note}",
+            "{feasibility_wobble_note}",
+        ):
+            decision = decision.replace(f"\n\n{placeholder}", "")
         # The engine's ceremony section is written around a recording tool.
         # Keep the convergence REASONING (readiness, discrimination test,
         # saturation, confronting the cost) and let the model "record" in prose.

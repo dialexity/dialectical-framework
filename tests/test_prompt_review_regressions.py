@@ -3256,6 +3256,269 @@ class TestPathwayLineIsPickable:
         assert "(feasibility=0.62)" in adopted_pathway_summary(tr)
 
 
+class TestTheElectiveRouteNamesItsMoments:
+    """`audit_feasibility` is now the ONLY route by default, so its moments matter.
+
+    `automatic_feasibility_audit` defaulted to True until 2026-09-15, which meant
+    the pathway a recorded decision grounds on got scored whether or not the model
+    ever thought to ask. The default is now manual, so everything the band is
+    worth arrives through election — and election was measured at **1 of 6** A2
+    cells (`a15-floor`) and **0 of 6** (`weave-offturn`).
+
+    That rate had a cause worth pinning, because it was not the model being
+    lazy. The engine prompt named ONE affirmative moment for the tool (the person
+    asks) against THREE prohibitions written to stop the eager 2-calls-per-pathway
+    spend — in the tool doc, in Reading the Scores, and in prioritization rule 3.
+    Suppression won, which is the correct outcome for a prompt that says "don't"
+    three times and "do" once. So the flip was paired with naming the two moments
+    automatic mode was actually covering:
+
+      (b) the closing, on the ONE pathway about to be recorded as their recipe
+      (c) a wobble that is about carrying that recipe out
+
+    These tests assert those moments survive in the ASSEMBLED prompt, in both
+    render modes, and — the part a future edit is likeliest to undo — that the
+    prohibitions stayed scoped to the menu instead of growing back into a blanket
+    "don't call this". A prompt that forbids auditing a menu and a prompt that
+    forbids auditing are one careless sentence apart, and the second one silently
+    restores the 0/6.
+    """
+
+    def _unscoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import (
+            DEFAULT_TOOL_NAMES, system_prompt)
+
+        return " ".join(system_prompt(tool_names=DEFAULT_TOOL_NAMES).split())
+
+    def _scoped(self) -> str:
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        # Counsel mode wires `audit_feasibility` too (`tools/scoped.py`), and it
+        # wires `record_decision` — so both new moments exist there and both must
+        # render. A scoped session is the RETURNING one, where the wobble moment
+        # is not a corner case but the main event.
+        return " ".join(
+            system_prompt(
+                tool_names=[
+                    "anchor", "sync", "inspect_node", "read_digest",
+                    "discard", "explore", "deepen", "record_decision",
+                    "audit_feasibility",
+                ],
+                scoped_nexus_hash="abc1234",
+            ).split()
+        )
+
+    def test_the_tool_doc_names_the_closing_moment(self):
+        for p in (self._unscoped(), self._scoped()):
+            assert "At the closing, on the recipe about to be recorded" in p
+            # The scope is the single adopted pathway, not the menu it came from.
+            assert "audit that ONE pathway before you read the record back" in p
+
+    def test_the_tool_doc_names_the_wobble_moment(self):
+        for p in (self._unscoped(), self._scoped()):
+            assert "On a wobble, when what resurfaced is about doing it" in p
+            # Read the stored band before spending: the drain wrote bands for
+            # months, and a moment that re-audits what it already has is a moment
+            # that pays twice for one answer.
+            assert "audit only if it is absent" in p
+
+    def test_the_closing_moment_is_not_a_gate_in_front_of_the_record(self):
+        """The one way this repair could hurt: holding a confirmed decision.
+
+        "Write this down" IS the confirmation, and the record obeys it in that
+        same turn. An audit inserted before the record would turn the strongest
+        rule in Decision Readiness into a soft one, and the failure mode would be
+        the exact one the record exists to prevent — refusing to write down a
+        decision the person has stated.
+        """
+        for p in (self._unscoped(), self._scoped()):
+            assert "Do not hold the record for it" in p
+            assert "the audit is not a gate in front of it" in p
+            assert "This never delays the record." in p
+
+    def test_decision_readiness_asks_for_the_recipe_to_be_audited(self):
+        for p in (self._unscoped(), self._scoped()):
+            assert "The recipe's practicality, before it becomes the record." in p
+            assert "carries no feasibility band, `audit_feasibility` on that one" in p
+            # Counsel, not a veto: a low band is worth SAYING, not worth blocking.
+            assert "What comes back is counsel, not a verdict" in p
+
+    def test_the_re_audit_finally_mentions_feasibility(self):
+        """The half left open by the 2026-09-15 render fix.
+
+        The band reached the decision's `adopted pathway` line and the pathway
+        menu in `fc421d9`/`e515a15`, both render-only. What stayed open was that
+        the re-audit — the section told to reassure FROM the record — never named
+        feasibility, so on a wobble turn the number sat beside the record with
+        nothing telling the model to use it. Reader and writer met on the line and
+        still did not meet in the instructions.
+        """
+        for p in (self._unscoped(), self._scoped()):
+            assert "A wobble about DOING it is a third case" in p
+            assert "`adopted pathway` line" in p
+            assert "it carries a feasibility band with them" in p
+
+    def test_the_wobble_case_stays_distinct_from_the_two_it_sits_between(self):
+        """Three cases, and the new one must not blur the other two.
+
+        The re-audit's whole discipline is telling the accepted cost resurfacing
+        (reassure) apart from new information that discriminates (reopen). A third
+        case is a chance to smear both — so it says explicitly that it is neither,
+        and it keeps the materialised-risk rule: harder-than-expected is a recipe
+        to revisit, impossible-because-the-world-moved reopens the decision.
+        """
+        for p in (self._unscoped(), self._scoped()):
+            assert (
+                "neither the accepted cost resurfacing nor a new tension that "
+                "discriminates" in p
+            )
+            assert "has become impossible because the world moved" in p
+            assert "reopens the decision" in p
+
+    def test_the_prohibitions_are_scoped_to_the_menu_not_to_the_tool(self):
+        """The regression this class exists for.
+
+        Rule 3 must keep forbidding a pre-offer audit — that ban is what stopped
+        2 calls per offered pathway — while saying which thing it bans. "Do not
+        reach for audit_feasibility" with no object is the sentence that produced
+        0/6.
+        """
+        for p in (self._unscoped(), self._scoped()):
+            assert "the ban is on auditing a MENU, not on auditing at all" in p
+            assert "offering is not one of the three moments that tool is for" in p
+            # Still banned, or the eager spend comes back through the front door,
+            # and it is banned as an EXCEPTION to the three ("Outside those three")
+            # rather than as the tool's headline.
+            assert "Outside those three: do NOT call it" in p
+            assert "on every pathway you offer, or before the subject comes up" in p
+            # The case the object makes room for points at Decision Readiness.
+            assert "exactly what Decision Readiness asks for" in p
+
+    def test_the_menu_ban_keeps_its_object_where_decisions_are_not_wired(self):
+        """Rule 3 renders in EVERY mode; Decision Readiness does not.
+
+        So the pointer to it is conditional (the `_INTERNAL_MODEL` mid-sentence
+        pattern), and the thing that must survive the cut is the OBJECT — "a
+        MENU, not auditing at all" is what stops a future edit collapsing the
+        ban back into the sentence that produced 0/6. A dangling section
+        reference in its place would also break the older guarantee that the
+        section's name appears only when the section does.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            system_prompt
+
+        raw = system_prompt(tool_names=["anchor", "sync", "inspect_node"])
+        p = " ".join(raw.split())
+        assert "the ban is on auditing a MENU, not on auditing at all." in p
+        assert "Decision Readiness" not in p
+        assert "feasibility_menu_note" not in raw
+
+    def test_the_moments_may_name_the_section_because_the_two_tools_travel(self):
+        """The tool doc's closing and wobble moments both point at Decision
+        Readiness, and that section renders on `record_decision` while the doc
+        renders on `audit_feasibility` — two different names.
+
+        No wording variant guards the split, because no toolset builds it: both
+        real ones wire both tools. This pins that assumption instead, so a future
+        toolset that separates them fails HERE, next to the reason, rather than
+        shipping a prompt that points at a section the agent cannot see. (The
+        reverse split IS built — see the render-path test — which is why the two
+        Decision Readiness passages are gated and these two sentences are not.)
+        """
+        from dialectical_framework.agents.advisor.system_prompts import \
+            DEFAULT_TOOL_NAMES
+        from dialectical_framework.agents.advisor.tools.scoped import \
+            build_scoped_tools
+
+        assert "audit_feasibility" in DEFAULT_TOOL_NAMES
+        assert "record_decision" in DEFAULT_TOOL_NAMES
+
+        scoped = {t.__name__ for t in build_scoped_tools("abc1234")}
+        assert "audit_feasibility" in scoped
+        assert "record_decision" in scoped
+
+    def test_absence_is_explained_by_election_rather_than_left_a_mystery(self):
+        """Reading the Scores has to say WHY most lines carry no band.
+
+        "Often ABSENT" without a reason invites the model to treat absence as a
+        gap it should close (audit everything) or as a signal (demote it). Naming
+        election as the cause makes absence mean something precise: none of the
+        three moments happened for that pathway.
+        """
+        for p in (self._unscoped(), self._scoped()):
+            assert "Absence is the default because the audit is elected, not scheduled" in p
+            assert "no band is a sign none did" in p
+            # The older guarantee must survive the addition.
+            assert 'A missing `feasibility=` is "not estimated", never "low".' in p
+
+    def test_nothing_asks_for_the_tool_where_the_tool_is_not_wired(self):
+        """Proves the assertions above read an ASSEMBLED prompt, and guards a real
+        combination.
+
+        Every other test here is a substring check, which would pass just as
+        happily against a module-level string that never reaches a model. Drop
+        `audit_feasibility` and both the tool's moments AND the two Decision
+        Readiness passages must vanish — the section itself renders on
+        `record_decision`, so those two are held out as their own constants and
+        gated separately. That pairing is not hypothetical: the scoped-consent
+        sweep in this file builds `record_decision` WITHOUT `audit_feasibility`,
+        and telling an agent to run a tool it does not have is a turn spent
+        looking for it.
+
+        What must NOT vanish is the band's own reading rules — a dump can carry
+        bands written by a previous session, by the eager pass, or by automatic
+        mode on a bench, so this agent has to read them correctly even where it
+        has no way to add one.
+        """
+        from dialectical_framework.agents.advisor.system_prompts import (
+            DEFAULT_TOOL_NAMES, system_prompt)
+
+        # Raw, not whitespace-collapsed: cutting a paragraph out of a template is
+        # exactly where a stray blank line survives, and every other assertion in
+        # this class is blind to it by construction.
+        raw_with = system_prompt(tool_names=DEFAULT_TOOL_NAMES)
+        raw_without = system_prompt(
+            tool_names=[t for t in DEFAULT_TOOL_NAMES if t != "audit_feasibility"]
+        )
+        for label, raw in (("wired", raw_with), ("unwired", raw_without)):
+            assert "\n\n\n" not in raw, f"{label} render has a blank-line gap"
+
+        without = " ".join(raw_without.split())
+        assert "At the closing, on the recipe about to be recorded" not in without
+        assert "On a wobble, when what resurfaced is about doing it" not in without
+        assert "The recipe's practicality, before it becomes the record." not in without
+        assert "A wobble about DOING it is a third case" not in without
+        # The section it was cut out of still renders, and cleanly — no orphan
+        # placeholder, and the paragraph either side of each cut still reads.
+        assert "Decision Readiness (Convergence)" in without
+        assert "feasibility_before_record_note" not in without
+        assert "feasibility_wobble_note" not in without
+        assert "**Readiness → propose-and-confirm ceremony.**" in without
+        assert "**After recording — the re-audit.**" in without
+        # And the reading rules stay, because bands can arrive from elsewhere.
+        assert 'A missing `feasibility=` is "not estimated", never "low".' in without
+
+    def test_the_explorer_names_its_own_version_of_the_moment(self):
+        """The Explorer has no `record_decision`, so it gets the analogue.
+
+        It cannot audit "the pathway about to be recorded" because it records
+        nothing — but a user settling on one pathway to act on is the same
+        moment wearing different clothes, and the twin blurbs are kept in sync
+        deliberately (see `TestCrossAgentHsBandParity` for the precedent).
+        """
+        from dialectical_framework.agents.explorer.system_prompts import \
+            system_prompt
+
+        p = " ".join(
+            system_prompt(nexus_hash="abc1234", nexus_intent="test intent").split()
+        )
+        assert "when they settle on ONE pathway as the one they'll actually act on" in p
+        assert "that single pathway" in p
+        # And the menu ban survives here too.
+        assert "Not on every pathway you present" in p
+
+
 class TestWhatTheJudgeSaidWasWrong:
     """Five weak-tier prompt gaps, each found by reading the judge's own
     written rationales rather than guessing (`tests/e2e/judge_notes.py`).

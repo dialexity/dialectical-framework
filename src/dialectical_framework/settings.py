@@ -96,13 +96,28 @@ class Settings(BaseModel):
     # turn where the person waited **284.5s** — 95% of that turn's reply path — for
     # off-turn work to settle. On the same round the seam the band was aimed at,
     # wobble discrimination, did NOT move (1/3 pairs, both rounds), and the one
-    # correct reassure did not cite the record. So automatic mode is currently
-    # PAYING for a band nothing has been shown to use, which is an argument about
-    # the default and not about the switch.
+    # correct reassure did not cite the record. So automatic mode was PAYING for a
+    # band nothing had been shown to use.
+    #
+    # DEFAULT FLIPPED TO MANUAL 2026-09-15, and the elective route was repaired in
+    # the same change rather than left to chance. Automatic was the default only
+    # because flipping it would have un-measured the round that priced it — a
+    # research reason, which expires when the build ships and real conversations
+    # become the measurement. What made manual mode untrustworthy was the 1/6 and
+    # 0/6 election rate, and that rate had a cause: the engine prompt named ONE
+    # affirmative moment for the tool (the person asks) against THREE prohibitions
+    # written to stop the eager spend, so suppression won. The prompt now names the
+    # two moments automatic mode was actually covering — the closing, on the one
+    # recipe about to be recorded, and the wobble turn, when what resurfaced is
+    # whether the recipe can still be carried out. Same scope, same ~2 calls,
+    # asked for on the turn it is needed instead of drained off every closing.
+    # Whether that lands is the next round's measurement, not a claim here.
     #
     # Startup switch, like `audit_transformations` — settings resolve process-wide
-    # through the DI container, so this cannot be flipped mid-conversation.
-    automatic_feasibility_audit: bool = Field(default=True, description="Score the pathway a recorded decision is grounded on automatically, off the turn, instead of waiting for the model to elect the audit_feasibility tool. A MODE, not a feature switch: the tool stays available when this is off, so feasibility is always reachable manually. Adds ~2 provider calls per closing (not 2 per Transformation — that is audit_transformations) and measured +46% A2 cell wall.")
+    # through the DI container, so this cannot be flipped mid-conversation. Turn it
+    # ON for benches and programmatic runs where no agent will ever elect anything
+    # and the band must exist on every record for the round to be able to read it.
+    automatic_feasibility_audit: bool = Field(default=False, description="Score the pathway a recorded decision is grounded on automatically, off the turn, instead of leaving it to the model to elect the audit_feasibility tool. A MODE, not a feature switch: the tool stays available when this is off, so feasibility is always reachable by asking. Off by default — it cost +46% A2 cell wall and one 284.5s wait, and the engine prompt now names the closing and the wobble turn as moments to elect the tool. Turn on for benches that need the band on every record.")
 
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
@@ -204,7 +219,7 @@ class Settings(BaseModel):
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
             audit_transformations=os.getenv("DIALEXITY_AUDIT_TRANSFORMATIONS", "false").lower() == "true",
-            automatic_feasibility_audit=os.getenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "true").lower() == "true",
+            automatic_feasibility_audit=os.getenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "false").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

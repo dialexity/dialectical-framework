@@ -453,6 +453,8 @@ tension is enough to explore — a single opposition already has a pathway
 through it, and exploring it names that pathway. There is no minimum to reach;
 waiting for a fuller map means closing without one.
 
+{feasibility_before_record_note}
+
 **Readiness → propose-and-confirm ceremony.** Signals: a leaning is expressed
 and stable, options stopped shifting, recent candidate tensions failed the
 discrimination test. Then — after the ritual above, and only with the
@@ -525,6 +527,8 @@ retire the old per the replacement rule above. If a ground of the decision
 has since been discarded, surface that: the record stands, but one of its
 supports moved.
 
+{feasibility_wobble_note}
+
 **A risk that has MATERIALISED is not that risk resurfacing.** This is the
 re-audit's sharpest distinction and the easiest to get backwards, because a
 well-named cost matches almost any development in its own subject matter.
@@ -540,6 +544,50 @@ was priced. Watch for yourself saying it changes "the shape of the risk, not
 the decision" — that phrasing is where a materialised risk gets filed as a
 familiar one, and the person is then steadied about a world that no longer
 exists."""
+
+# The two Decision Readiness passages that ask for `audit_feasibility`, held out
+# of the section so they render only where that tool is wired (see `system_prompt`).
+#
+# They exist because `automatic_feasibility_audit` defaults to MANUAL since
+# 2026-09-15: nothing scores the adopted recipe unless somebody asks, and the
+# measured election rate under the previous prompt was 1 of 6 A2 cells and then
+# 0 of 6. The cause was not reluctance — the tool's own entry named ONE moment
+# (the person asks) while three separate passages said not to call it. So these
+# put the two moments automatic mode was actually covering where the model is
+# standing when it needs them, rather than only in the tool's docs.
+
+_FEASIBILITY_BEFORE_RECORD = """**The recipe's practicality, before it becomes the record.** The pathway they
+are adopting is the one thing in the record that has to WORK after the
+conversation ends — the stance is a position and the cost is a price, but the
+recipe is a thing they will try to do on a Tuesday. So when the closing has
+settled on a pathway as their ongoing recipe and it carries no feasibility
+band, `audit_feasibility` on that one pathway (not on the menu you offered —
+just the one being adopted). What comes back is counsel, not a verdict: the
+success conditions are what they'd need in place, and a genuinely low band on
+the recipe is worth saying plainly, in their terms, before they commit to it
+("this is the right call, and the way of living with it you've picked needs
+more than you have right now — which is worth knowing before you lean on
+it"). This never delays the record. If they have said write it down, write it
+down; a decision the person has stated is not held behind your diligence, and
+a band that arrives after the record still lands on the recipe."""
+
+_FEASIBILITY_ON_A_WOBBLE = """**A wobble about DOING it is a third case, and the record already half-answers
+it.** "I don't think I can actually pull this off" is neither the accepted cost
+resurfacing nor a new tension that discriminates — the choice still stands and
+they still accept its price; what they doubt is the recipe. So reassure from
+the recipe rather than from the cost: the record's `adopted pathway` line
+carries the Ac+/Re+ steps they adopted, and where those were audited it
+carries a feasibility band with them. Read what is there before reaching for
+anything — a band on the line means the practicality was already weighed, and
+the stored reasoning names the resources, the resistance and what would have to
+be true, which is the substance to steady them with. If the line carries no
+band, `audit_feasibility` on that pathway: this is the person's own question
+about achievability, arriving about the one pathway it matters most for. And
+hold the distinction the rest of this section turns on — a recipe that is
+harder than they expected is a recipe to revisit (`deepen` for alternatives on
+the same edge, or a lower-insight pathway they can actually start), while a
+recipe that has become impossible because the world moved is new information
+and reopens the decision."""
 
 _TOOLS_INTRO = """## Internal Tools
 
@@ -672,18 +720,35 @@ _TOOL_DOCS: dict[str, str] = {
   pathways are: a band per Ac+/Re+ step with the resources, resistance,
   timelines and precedent behind it, and what would have to be true for it to
   work. Pass the `[[hash]]` of the pathway(s) in question — the ones from a
-  `pathways` line or a pathway line in the dump. Call it when practicality is
-  the person's own question ("could I actually do that?", "what would that
-  take?", "is that realistic given where I am?") or when a choice between
-  pathways turns on what each would cost rather than on how deep it goes. Do
-  NOT call it to complete your ranking inputs, on every pathway you offer, or
-  before the subject comes up: it costs two model calls per pathway and the
-  bands are absent by design (see Reading the Scores). Name the one or two
-  under discussion; more than a handful comes back deferred rather than
-  audited. Re-asking is free — pathways already assessed return their stored
-  band and reasoning without a new call. The reasoning it returns is the
-  substance to counsel from; the number alone is not an answer, and How You
-  Speak still governs whether a number may be said out loud at all.""",
+  `pathways` line or a pathway line in the dump. Three moments call for it,
+  and outside them it is spend for nothing:
+  (a) **Practicality is the person's own question** — "could I actually do
+      that?", "what would that take?", "is that realistic given where I am?" —
+      or a choice between pathways turns on what each would COST rather than
+      on how deep it goes.
+  (b) **At the closing, on the recipe about to be recorded.** When the
+      propose-and-confirm ceremony has settled on a pathway as their ongoing
+      recipe and it carries no band yet, audit that ONE pathway before you
+      read the record back. This is the only pathway whose practicality has
+      consequences past this conversation: it is what the later re-audit
+      reassures from, and a recipe they cannot execute is worth knowing now
+      rather than at 4am. Do not hold the record for it — if they have said
+      write it down, the call in that same turn is the record, and the audit
+      is not a gate in front of it (see Decision Readiness).
+  (c) **On a wobble, when what resurfaced is about doing it.** A returning
+      person shaky about whether they can still carry out the recipe is
+      asking exactly this question, in the one place the answer is already
+      half-stored. Read the band on the record's `adopted pathway` line
+      first; audit only if it is absent (see After recording — the re-audit).
+  Outside those three: do NOT call it to complete your ranking inputs, on
+  every pathway you offer, or before the subject comes up. It costs two model
+  calls per pathway and the bands are absent by design (see Reading the
+  Scores). Name the one or two under discussion; more than a handful comes
+  back deferred rather than audited. Re-asking is free — pathways already
+  assessed return their stored band and reasoning without a new call. The
+  reasoning it returns is the substance to counsel from; the number alone is
+  not an answer, and How You Speak still governs whether a number may be said
+  out loud at all.""",
     "record_decision": """- `record_decision` — Records a decision the person has EXPLICITLY
   confirmed, after the propose-and-confirm ceremony (see Decision Readiness).
   Their confirmation OBLIGES this call: once they have said to write it down,
@@ -1122,7 +1187,11 @@ Use these scores to prioritize what you draw on:
   lacking one. A pathway without a feasibility band is not a risky pathway.
   When achievability is the person's actual question, `audit_feasibility`
   estimates it on demand for the pathway in question — that is what the tool is
-  for, and it is not a step you run before offering anything (rule 3).
+  for, and it is not a step you run before offering anything (rule 3). Absence
+  is the default because the audit is elected, not scheduled: it runs at the
+  three moments the tool's own entry names — they ask, the closing settles on a
+  recipe, or a wobble is about carrying that recipe out — so a band is a sign
+  one of those happened for that pathway, and no band is a sign none did.
 
 **Prioritization rules:**
 
@@ -1174,9 +1243,9 @@ numbers in an exploration-pinned session and forbids them otherwise.
    alone: low-to-moderate first, deeper as the person engages. Do not stall on
    the missing half of this rule; insight already carries the readiness match,
    which is the part that governs what you offer first. Do not reach for
-   `audit_feasibility` to fill it in either — that tool answers the person's
-   question about practicality ("could I actually do that?", or a choice between
-   pathways that turns on what it would take), it is not a step before offering.
+   `audit_feasibility` to fill it in either — offering is not one of the three
+   moments that tool is for, and the ban is on auditing a MENU, not on auditing
+   at all{{feasibility_menu_note}}.
    Multiple pathways on the same edge at different insight levels: match to
    the conversation's depth.
 4. When the graph grows (new perspectives appear after sync), note what's
@@ -1270,6 +1339,21 @@ def system_prompt(
         if decisions_wired
         else "",
     )
+    # Same mid-sentence reason, and the same dangling-reference rule: rule 3's
+    # ban has an OBJECT ("a MENU, not auditing at all") so it cannot be read as
+    # a ban on the tool, and the case it makes room for lives in Decision
+    # Readiness — which does not render without `record_decision`. The ban keeps
+    # its object either way; only the pointer is conditional.
+    score_reading = _SCORE_READING.replace(
+        "{feasibility_menu_note}",
+        (
+            ": once the closing settles on one of these pathways as their "
+            "recipe, auditing that single pathway is exactly what Decision "
+            "Readiness asks for"
+        )
+        if decisions_wired
+        else "",
+    )
     eager = _decision_note(
         _EAGER_SCOPED if scoped else _EAGER,
         "{decision_filter_note}",
@@ -1301,6 +1385,34 @@ def system_prompt(
         )
         how_you_speak = how_you_speak.replace("{decision_speech_note}", speech_note)
 
+    # Both of Decision Readiness' feasibility passages ASK FOR A TOOL CALL, so
+    # they render only where that tool is wired — the same rule the rest of this
+    # function follows, and not a cosmetic one here: this section renders whenever
+    # `record_decision` is, and `audit_feasibility` is a separate name in the list
+    # (the scoped-consent test builds exactly that combination). Instructing an
+    # agent to run a tool it does not have is a turn spent looking for it.
+    #
+    # The moments themselves are documented on the tool; these two say what the
+    # CLOSING and the WOBBLE owe, because that is where the model is when it needs
+    # to know — the reason the elective route was measured at 1/6 and 0/6 was a
+    # prompt that named the tool's moments only in the tool's own entry.
+    decision_readiness = _DECISION_READINESS
+    if "audit_feasibility" in names:
+        decision_readiness = decision_readiness.replace(
+            "{feasibility_before_record_note}", _FEASIBILITY_BEFORE_RECORD
+        ).replace("{feasibility_wobble_note}", _FEASIBILITY_ON_A_WOBBLE)
+    else:
+        # The blank line ABOVE each placeholder goes with it — both sit between two
+        # paragraphs that already separate themselves, so removing the placeholder
+        # alone would leave a triple newline where a section was cut.
+        for placeholder in (
+            "{feasibility_before_record_note}",
+            "{feasibility_wobble_note}",
+        ):
+            decision_readiness = decision_readiness.replace(
+                f"\n\n{placeholder}", ""
+            )
+
     conversation_use = _CONVERSATION_USE
     if scoped and "ingest" not in names:
         # Don't reference a tool that isn't wired in this mode.
@@ -1315,13 +1427,13 @@ def system_prompt(
         eager,
         internal_model,
         conversation_use,
-        _DECISION_READINESS if decisions_wired else None,
+        decision_readiness if decisions_wired else None,
         _TOOLS_INTRO_SCOPED if scoped else _TOOLS_INTRO,
         "\n\n".join(tool_docs),
         _REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING,
         None if scoped else default_arc,
         how_you_speak,
-        _SCORE_READING,
+        score_reading,
         _CONTEXT_SLOT,
     ]
     return "\n\n".join(s for s in sections if s)

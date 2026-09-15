@@ -890,8 +890,11 @@ class Advisor(SettingsAware):
         did not move — wobble discrimination 1/3 pairs before and after, and the
         one correct reassure did not cite the record. Automatic therefore buys a
         band that is present, rendered into the prompt, and so far unused. That
-        is an argument about the DEFAULT, and the default stays automatic only
-        because flipping it would silently un-measure the round that priced it.
+        is an argument about the DEFAULT, and the DEFAULT IS NOW MANUAL
+        (2026-09-15) — this method does not run unless a deployment turns it on.
+        Automatic had survived only because flipping it would have un-measured
+        the round that priced it, which is a research reason and expires when the
+        build ships and real conversations become the measurement.
 
         WHY UNUSED, TRACED 2026-09-15
         ============================
@@ -915,11 +918,18 @@ class Advisor(SettingsAware):
         prompt was touched, because rule 3 already says what to do with a
         present band AND with an absent one.
 
-        What remains open is the re-audit instruction, which never mentions
-        feasibility — so on a wobble turn the number sits beside the record with
-        nothing telling the model to use it. That one IS a prompt change and
-        wants its own round. Until then, "so far unused" stands as a measurement
-        about the build that was priced, not as a claim about the ceiling.
+        The re-audit instruction, which never mentioned feasibility — so on a
+        wobble turn the number sat beside the record with nothing telling the
+        model to use it — was closed in the round that flipped this default,
+        since manual mode makes the elective route the only route. The engine
+        prompt now names three moments for `audit_feasibility` rather than one:
+        the person asks, the closing settles on ONE pathway as the recipe about
+        to be recorded, and a wobble about carrying that recipe out. That last
+        one is where the band was already being rendered and not read. The 1/6
+        and 0/6 election rates were measured against a prompt that named ONE
+        affirmative moment against THREE prohibitions, so they price that prompt
+        rather than the model's willingness; whether the repair lands is the next
+        round's measurement, not a claim here.
 
         HONEST ASYMMETRY, RECORDED RATHER THAN HIDDEN
         ============================================

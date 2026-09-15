@@ -5851,8 +5851,10 @@ and it broke it by design.
 **LIMITS.**
 
 1. **F3 failed. The person can wait 4m44s.** One turn in 48, and one is enough: this is a UX round and that is
-   a UX failure. It is now behind `automatic_feasibility_audit` (a MODE — manual leaves the tool wired), but a
-   switch is not a fix and the default is still automatic.
+   a UX failure. It is now behind `automatic_feasibility_audit` (a MODE — manual leaves the tool wired), and
+   **the default became manual on 2026-09-15**, so an unasked-for 284.5s wait is off the shipped path. A switch
+   is still not a fix: what makes manual trustworthy is the elective route, repaired in the same change (limit 3
+   below).
 2. **The +46% is measured and unattributed.** Three candidate causes, none excluded.
 3. **F1 succeeded into a void.** The band exists and nothing observably reads it. That is the open question the
    next round should be about, and it is not a latency question.
@@ -5885,10 +5887,21 @@ and it broke it by design.
    disagree. That covers both of rule 3's surfaces without touching either prompt: rule 3 already states what to
    do with a present band and with an absent one.
 
-   **STILL OPEN:** the re-audit instruction never mentions feasibility, so on a wobble turn the number sits
-   beside the record with nothing telling the model to use it. That one is a prompt change and wants its own
-   round. Until then, "so far unused" remains a measurement about the current build and not a statement about
-   the band's ceiling. Nothing here was re-measured; this round's numbers are unchanged.
+   **CLOSED 2026-09-15, in the round that flipped the default:** the re-audit instruction never mentioned
+   feasibility, so on a wobble turn the number sat beside the record with nothing telling the model to use it.
+   `_FEASIBILITY_ON_A_WOBBLE` now sits inside `_DECISION_READINESS` and points the model at the ground line's
+   band first, treating "I don't think I can actually pull this off" as a THIRD case — neither the accepted cost
+   resurfacing nor new information that discriminates — while keeping the materialised-risk rule (harder than
+   expected → revisit the recipe; impossible because the world moved → reopens the decision). The same change
+   made the flip safe rather than reckless: manual mode's 1/6-then-0/6 election rate had a cause, one affirmative
+   moment against three prohibitions, so the tool doc now names three moments (they ask / the closing settles on
+   ONE recipe / a wobble about carrying it out), rule 3's ban was scoped to a MENU, and Reading the Scores
+   explains absence as election rather than schedule. `_FEASIBILITY_BEFORE_RECORD` covers the closing and says
+   three times that it is not a gate in front of the record, because holding a confirmed decision behind an audit
+   is the one way this repair could hurt. **Nothing was measured.** "So far unused" remains a measurement about
+   the build that was priced; whether the elective route lands is the next round's endpoint, and it is a
+   machine-record question (bands present on adopted pathways at closing, and the election rate itself) before it
+   is a judged one. Nothing here was re-measured; this round's numbers are unchanged.
 4. **12 pairs, one scenario, one tier.** Nothing judged here resolves except the pressure interaction, which is
    3 replicates.
 5. **The repair seam is still invisible to the archive**, so the F3 diagnosis is a leading explanation and not

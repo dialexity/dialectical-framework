@@ -122,6 +122,12 @@ co-occurrence hotspots. Then:
       adding prompt text telling the model to go look** — the band now renders on both the pathway menu
       (`pathway_line`, where the offer is made) and the decision ground line (`adopted_pathway_summary`, where it
       is remembered), sharing one `feasibility_suffix` so the two cannot disagree, and neither prompt changed.
+      **That fix has a bound, found one round later: moving the value onto the line only works where a rule already
+      reads the line at that moment.** On a wobble turn nothing did — the re-audit instruction never mentioned
+      feasibility — so the band sat on the ground line with no reader, and that half genuinely needed prompt text
+      (`_FEASIBILITY_ON_A_WOBBLE`, 2026-09-15). So run the WHEN question in both directions: for each moment the
+      value matters, ask whether a rule fires there, and only then whether the value is on the line that rule
+      reads. Render fixes the second; nothing but prompt fixes the first.
 - [ ] **Runtime splices.** Explorer embeds `nexus_hash`/`nexus_intent`; Advisor embeds the whole
       `{dialectical_context}` dump. Your edit must tolerate an empty/"fresh conversation" block and untrusted
       interpolated text.
@@ -445,6 +451,20 @@ anchors.
       "here's what you're not seeing" in 54–56 of 120 judged warmth cells. Never re-introduce person-as-blind
       phrasing, and **rewrite the worked examples with the rule** — the regression caught them still teaching the
       old register three paragraphs after the new rule.
+- [ ] **A prohibition needs an OBJECT, or it suppresses the affirmative case too.** `audit_feasibility` was
+      elected 1/6 then 0/6, and the cause was not model reluctance: the engine prompt named ONE affirmative moment
+      (the person asks) against THREE prohibitions written to stop an eager spend — in the tool doc, in Reading the
+      Scores, and in prioritization rule 3 — so suppression won, which is the right outcome for a prompt that says
+      "don't" three times and "do" once. When a tool must be elected, count the two kinds of sentence about it, and
+      write every ban with the thing it bans: "do not audit a MENU" survives an edit that "do not audit" does not.
+      Absence also has to be EXPLAINED where the model reads scores, or the model infers a schedule that does not
+      exist. And an instruction may only name a tool where the tool is WIRED — a section gated on one tool
+      (`_DECISION_READINESS` renders on `record_decision`) that names another must hold that passage out behind a
+      placeholder gated on the second name, else a scoped session spends a turn looking for a tool it lacks
+      (`TestTheElectiveRouteNamesItsMoments`). The same applies to naming a SECTION: a cross-reference added to a
+      section that renders in every mode (`_SCORE_READING`) can dangle, which is what `_decision_note` and the
+      `_INTERNAL_MODEL` mid-sentence placeholder exist for — and when you gate a sentence, keep the part that
+      carries the RULE outside the gate and put only the pointer inside it.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
