@@ -5880,10 +5880,15 @@ and it broke it by design.
    whole `## Decision [[fakefak]]` entry with a spoofed `Validation:` line; now `one_line`'d like every other
    ledger field.
 
-   **STILL OPEN, and deliberately not closed here** because both change what the model is told: `pathway_line` —
-   the MENU rule 3 offers from — still carries no band, and the re-audit instruction still never mentions
-   feasibility. Until one of those moves, "so far unused" remains a measurement about the current build and not
-   a statement about the band's ceiling. Nothing here was re-measured; this round's numbers are unchanged.
+   **ALSO FIXED:** `pathway_line` — the MENU rule 3 offers from — now carries the band as well, via the same
+   `feasibility_suffix`, so the number a pathway is offered at and the number it is remembered at cannot
+   disagree. That covers both of rule 3's surfaces without touching either prompt: rule 3 already states what to
+   do with a present band and with an absent one.
+
+   **STILL OPEN:** the re-audit instruction never mentions feasibility, so on a wobble turn the number sits
+   beside the record with nothing telling the model to use it. That one is a prompt change and wants its own
+   round. Until then, "so far unused" remains a measurement about the current build and not a statement about
+   the band's ceiling. Nothing here was re-measured; this round's numbers are unchanged.
 4. **12 pairs, one scenario, one tier.** Nothing judged here resolves except the pressure interaction, which is
    3 replicates.
 5. **The repair seam is still invisible to the archive**, so the F3 diagnosis is a leading explanation and not

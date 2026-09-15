@@ -157,11 +157,30 @@ def pathway_line(tr, pp_index: Optional[dict[int, int]] = None) -> Optional[str]
     A bare hash list is not a menu. `adopted_pathway` asks the model to name ONE
     Transformation as the person's ongoing recipe, and it can only do that if it
     can tell the pathways apart — so the identifier travels WITH the recipe.
+
+    THE BAND IS ON THE MENU BECAUSE THIS IS WHERE THE RULE READS IT
+    ==============================================================
+    Both agents carry the rule "when offering pathways, prefer high-feasibility
+    + low-to-moderate insight first" (advisor `system_prompts.py:1170`, explorer
+    twin at `150`). This line IS the offer. Before, the only place the band was
+    rendered was the wheel dump's `#### Transformation` block, so obeying the
+    rule meant cross-referencing every candidate hash into a different section —
+    and that section is rendered only for `_find_top_layer_cycles`, so some
+    candidates had no band available anywhere. A ranking rule whose ranking key
+    is one hash lookup away from the things being ranked is a rule that gets
+    skipped.
+
+    Unaudited positions carry no suffix, which the rule's own prompt text
+    already covers ("state what to do when the band is absent") — and absence
+    must not read as a low score, so no default is invented here.
     """
     edge_result = tr.edge.get()
     edge_label = format_edge_label(edge_result[0], pp_index) if edge_result else ""
 
-    recipe = [f"{label}: {text}" for label, text, _ in recipe_positions(tr)]
+    recipe = [
+        f"{label}: {text}{feasibility_suffix(transition)}"
+        for label, text, transition in recipe_positions(tr)
+    ]
     if not recipe:
         return None
 
@@ -469,6 +488,21 @@ def transition_feasibility(transition) -> Optional[float]:
     return None
 
 
+def feasibility_suffix(transition) -> str:
+    """` (feasibility=0.NN)`, or the empty string when the position is unaudited.
+
+    One place decides how the band is spelled and how ABSENCE reads, because
+    both surfaces that carry it must agree: the menu a pathway is offered from
+    (`pathway_line`) and the ledger line the adopted one is remembered by
+    (`adopted_pathway_summary`). If those drifted, a person could be offered a
+    recipe at one number and reminded of it at another.
+    """
+    feasibility = transition_feasibility(transition)
+    if feasibility is None:
+        return ""
+    return f" (feasibility={feasibility:.2f})"
+
+
 def adopted_pathway_summary(transformation) -> str:
     """One-line summary of an adopted pathway: the Ac+/Re+ recipe with its band.
 
@@ -500,17 +534,14 @@ def adopted_pathway_summary(transformation) -> str:
     "not audited", and inventing a default would turn a missing measurement
     into a low score.
 
-    NOT YET on the menu side: `pathway_line` carries the same recipe without the
-    band, which is where prompt rule 3 ("when OFFERING pathways, prefer
-    high-feasibility first") would actually use it. Sharing
-    `recipe_positions` makes that a one-line change when it is measured.
+    `pathway_line` — the menu the pathway was offered from — carries the same
+    recipe and the same band via `feasibility_suffix`, so the number a person is
+    offered and the number they are reminded of cannot disagree.
     """
-    parts = []
-    for label, text, transition in recipe_positions(transformation):
-        feasibility = transition_feasibility(transition)
-        band = f" (feasibility={feasibility:.2f})" if feasibility is not None else ""
-        parts.append(f'{label}: "{text}"{band}')
-    return "; ".join(parts)
+    return "; ".join(
+        f'{label}: "{text}"{feasibility_suffix(transition)}'
+        for label, text, transition in recipe_positions(transformation)
+    )
 
 
 #: Lead-in for the case particulars a node was abstracted from.

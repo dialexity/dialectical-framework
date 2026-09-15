@@ -118,7 +118,10 @@ co-occurrence hotspots. Then:
       grounded on, at the last turn of the session — reader and writer never met (traced 2026-09-15; see the
       feasibility entry in [reference/systemic-map.md](reference/systemic-map.md)). Proximity is the other half:
       a number correlated to the record by hash alone, in a block that may not be rendered at all, is not on the
-      line the model was told to reassure from.
+      line the model was told to reassure from. **Fix by moving the value ONTO the line the rule reads, not by
+      adding prompt text telling the model to go look** — the band now renders on both the pathway menu
+      (`pathway_line`, where the offer is made) and the decision ground line (`adopted_pathway_summary`, where it
+      is remembered), sharing one `feasibility_suffix` so the two cannot disagree, and neither prompt changed.
 - [ ] **Runtime splices.** Explorer embeds `nexus_hash`/`nexus_intent`; Advisor embeds the whole
       `{dialectical_context}` dump. Your edit must tolerate an empty/"fresh conversation" block and untrusted
       interpolated text.

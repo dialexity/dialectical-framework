@@ -2584,9 +2584,12 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `_dump_transformation` rendered `instruction` raw, so a newline fabricated a whole `## Decision [[fakefak]]`
   entry with a spoofed `Validation:` line — now `one_line`'d like every other ledger field, and the same class as
   the `Stance:` injection guard two rounds earlier, which is the second time a line-oriented dump was found
-  trusting generated text. **STILL OPEN:** `pathway_line`, the menu rule 3 offers FROM, carries no band, and the
-  re-audit instruction still never names feasibility. Both change what the model is told, so neither was done
-  blind; "nothing reads it" therefore remains a measurement about this build and not a statement about the
+  trusting generated text. **And the menu too:** `pathway_line`, the surface rule 3 offers FROM, now
+  carries the band via the same `feasibility_suffix`, so a pathway is offered at the number it is later
+  remembered at — both of rule 3's surfaces covered with neither prompt touched, since the rule already states
+  what to do with a present band and with an absent one. **STILL OPEN:** the re-audit instruction never names
+  feasibility, so on a wobble turn the number sits beside the record with nothing pointing at it; that one is a
+  prompt change and wants its own round; "nothing reads it" therefore remains a measurement about this build and not a statement about the
   band's ceiling. **The lesson generalizes past feasibility:** a value can be written, rendered, and genuinely
   read by a prompt rule and still be dead, if the rule's moment and the write's moment are different turns. Ask
   WHEN the reader runs, not just whether a reader exists. The default stays automatic only because flipping it would un-measure the round that priced it. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the

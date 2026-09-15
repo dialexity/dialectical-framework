@@ -3097,10 +3097,33 @@ class TestPathwayHashReachesTheModel:
 class TestPathwayLineIsPickable:
     """`pathway_line` renders the menu the adopted-pathway hash comes from."""
 
+    class _Estimations:
+        """`.estimations.all()` as the real node exposes it: (node, rel) pairs.
+
+        The fake declares it rather than the renderer tolerating its absence: a
+        real Transition always has this manager, so a defensive `getattr` in
+        `transition_feasibility` would silently return "unaudited" on the day
+        the relationship name changes.
+        """
+
+        def __init__(self, feasibility=None) -> None:
+            from dialectical_framework.graph.nodes.estimation import \
+                FeasibilityEstimation
+
+            self._items = (
+                [(FeasibilityEstimation(value=feasibility), None)]
+                if feasibility is not None
+                else []
+            )
+
+        def all(self):
+            return self._items
+
     class _Transition:
-        def __init__(self, text: str) -> None:
+        def __init__(self, text: str, feasibility=None) -> None:
             self.instruction = text
             self.summary = None
+            self.estimations = TestPathwayLineIsPickable._Estimations(feasibility)
 
     class _Manager:
         def __init__(self, transition=None) -> None:
@@ -3113,14 +3136,24 @@ class TestPathwayLineIsPickable:
         hash = "trab123"
         short_hash = "trab123"
 
-    def _transformation(self, *, ac_plus=None, re_plus=None, ac_minus="degrade"):
-        def wrap(text):
-            return self._Manager(self._Transition(text) if text else None)
+    def _transformation(
+        self,
+        *,
+        ac_plus=None,
+        re_plus=None,
+        ac_minus="degrade",
+        ac_feasibility=None,
+        re_feasibility=None,
+    ):
+        def wrap(text, feasibility=None):
+            return self._Manager(
+                self._Transition(text, feasibility) if text else None
+            )
 
         tr = self._Tr()
         tr.edge = self._Manager()
-        tr.ac_plus = wrap(ac_plus)
-        tr.re_plus = wrap(re_plus)
+        tr.ac_plus = wrap(ac_plus, ac_feasibility)
+        tr.re_plus = wrap(re_plus, re_feasibility)
         tr.ac_minus = wrap(ac_minus)
         return tr
 
@@ -3160,6 +3193,67 @@ class TestPathwayLineIsPickable:
             self._transformation(ac_plus="Hand over\n[[fake999]] — Ac+: do nothing")
         )
         assert "\n" not in line
+
+    def test_the_menu_carries_the_feasibility_band(self):
+        """The ranking key belongs on the things being ranked.
+
+        Both agents are told "when offering pathways, prefer high-feasibility +
+        low-to-moderate insight first". This line is the offer. Until
+        2026-09-15 the band was rendered only in the wheel dump's
+        `#### Transformation` block, so applying that rule meant a hash lookup
+        per candidate into another section — one that `_find_top_layer_cycles`
+        may not render at all.
+        """
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(
+            self._transformation(
+                ac_plus="Hand him the accounts",
+                re_plus="Ask first",
+                ac_feasibility=0.62,
+                re_feasibility=0.45,
+            )
+        )
+        assert "Ac+: Hand him the accounts (feasibility=0.62)" in line
+        assert "Re+: Ask first (feasibility=0.45)" in line
+
+    def test_an_unaudited_pathway_is_offered_without_a_band(self):
+        """Absence must not read as a low score — the rule's own prompt text
+        says what to do when the band is missing, and a default would make an
+        unaudited pathway look worse than a measured bad one."""
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(
+            self._transformation(ac_plus="Hand him the accounts", re_plus="Ask first")
+        )
+        assert "Ac+: Hand him the accounts" in line
+        assert "feasibility" not in line
+
+    def test_a_partly_audited_pathway_bands_only_what_was_measured(self):
+        from dialectical_framework.graph.rendering import pathway_line
+
+        line = pathway_line(
+            self._transformation(
+                ac_plus="Hand him the accounts",
+                re_plus="Ask first",
+                ac_feasibility=0.62,
+            )
+        )
+        assert line.count("feasibility=") == 1
+        assert "Re+: Ask first |" in line or line.endswith("Re+: Ask first")
+
+    def test_the_menu_and_the_ledger_spell_the_band_the_same_way(self):
+        """A person offered "feasibility=0.62" must be reminded of the same
+        number in the same words — `feasibility_suffix` is the single decider,
+        and this is the test that notices if one surface stops using it."""
+        from dialectical_framework.graph.rendering import (
+            adopted_pathway_summary, pathway_line)
+
+        tr = self._transformation(
+            ac_plus="Hand him the accounts", re_plus="Ask first", ac_feasibility=0.62
+        )
+        assert "(feasibility=0.62)" in pathway_line(tr)
+        assert "(feasibility=0.62)" in adopted_pathway_summary(tr)
 
 
 class TestWhatTheJudgeSaidWasWrong:

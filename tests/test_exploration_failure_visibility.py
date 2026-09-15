@@ -76,10 +76,25 @@ def _patch_build(monkeypatch, wheels: list[str]) -> None:
     )
 
 
+class _NoEstimations:
+    """`.estimations.all()` on a fake: a real Transition always has it.
+
+    `pathway_line` reads the feasibility band off this manager, so the fake
+    declares it rather than the renderer tolerating its absence — a defensive
+    `getattr` there would report "unaudited" forever if the relationship were
+    ever renamed.
+    """
+
+    @staticmethod
+    def all():
+        return []
+
+
 class _FakeTransition:
     def __init__(self, text: str) -> None:
         self.instruction = text
         self.summary = None
+        self.estimations = _NoEstimations()
 
 
 class _FakeManager:

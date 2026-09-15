@@ -909,14 +909,17 @@ class Advisor(SettingsAware):
         its band on the ground line itself, pinned by tests through the
         assembled dump in both scoped and unscoped mode.
 
-        Two halves of the mismatch are deliberately NOT closed here, because
-        both change what the model is told and would need their own round:
-        the only prompt rule that reads the band is about which pathway to
-        OFFER (rule 3), and `pathway_line` — the menu it offers from — still
-        carries no band; and the re-audit instruction never mentions
-        feasibility, so the number now sits beside the record without anything
-        telling the model to use it. Until one of those moves, "so far unused"
-        stands as a measurement, not as a claim about the ceiling.
+        `pathway_line` — the MENU rule 3 offers from, and the one place that
+        rule was written to read a band — now carries it too, via the same
+        `feasibility_suffix`. Both surfaces are render-only changes; neither
+        prompt was touched, because rule 3 already says what to do with a
+        present band AND with an absent one.
+
+        What remains open is the re-audit instruction, which never mentions
+        feasibility — so on a wobble turn the number sits beside the record with
+        nothing telling the model to use it. That one IS a prompt change and
+        wants its own round. Until then, "so far unused" stands as a measurement
+        about the build that was priced, not as a claim about the ceiling.
 
         HONEST ASYMMETRY, RECORDED RATHER THAN HIDDEN
         ============================================

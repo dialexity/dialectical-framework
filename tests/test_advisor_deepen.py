@@ -389,12 +389,27 @@ class TestOneDeepenIsOneProgressStream:
         assert len([e for e in received if e.final]) == 1
 
 
+class _NoEstimations:
+    """`.estimations.all()` on a fake: a real Transition always has it.
+
+    `pathway_line` reads the feasibility band off this manager, so the fake
+    declares it rather than the renderer tolerating its absence — a defensive
+    `getattr` there would report "unaudited" forever if the relationship were
+    ever renamed.
+    """
+
+    @staticmethod
+    def all():
+        return []
+
+
 class _FakeTransition:
     def __init__(self, text: str) -> None:
         self.instruction = text
         self.summary = None
         self.source = _FakeEnd()
         self.target = _FakeEnd()
+        self.estimations = _NoEstimations()
 
 
 class _FakeEnd:
