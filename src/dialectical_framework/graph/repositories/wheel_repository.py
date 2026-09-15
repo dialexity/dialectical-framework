@@ -133,9 +133,18 @@ class WheelRepository:
 
         # Query wheels that have the right number of transitions
         # A wheel with N components has N transitions (circular)
+        #
+        # `w.hash IS NOT NULL` is the committed-only invariant (CLAUDE.md), and
+        # here it was a LIVE hole rather than a formality. `_build_wheels_for_cycle`
+        # saves the Wheel to get an `_id`, attaches every Transition, then commits —
+        # so a run that stops in that window leaves a Wheel carrying the FULL
+        # transition count and a matching signature, with `hash IS NULL`. Without
+        # this filter that abandoned wheel is returned as the dedup hit, the caller
+        # `continue`s past building a real one, and the exploration ends a wheel
+        # short while believing it reused one.
         query = """
             MATCH (w:Wheel)<-[:BELONGS_TO_CYCLE]-(t:Transition)
-            WHERE w.sid = $sid
+            WHERE w.sid = $sid AND w.hash IS NOT NULL
             WITH w, count(t) as trans_count
             WHERE trans_count = $expected_count
             RETURN w
@@ -234,9 +243,19 @@ class WheelRepository:
         pp_hashes = sorted([pp.hash for pp in perspectives if pp.hash is not None])
 
         # Find all Wheels belonging to Cycles with exactly these Perspective hashes
+        #
+        # Committed-only, same as the sibling `find_by_nexus` and for a sharper
+        # reason: the parent Cycle commits BEFORE its wheels are built, and
+        # `cycle.wheels.connect(wheel)` runs before `wheel.commit()`, so an
+        # abandoned wheel is reachable through a perfectly good committed Cycle.
+        # This read feeds probability normalisation across competing alternatives
+        # (`causality_estimation`), the synthesis sub-wheel dump and the
+        # exploration presented to the person — a ghost wheel there is not stale
+        # rows, it is a phantom alternative diluting the normalisation.
         query = """
             MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)
             WHERE w.sid = $sid
+            AND w.hash IS NOT NULL AND c.hash IS NOT NULL
             AND size(c.perspective_hashes) = $hash_count
             AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """

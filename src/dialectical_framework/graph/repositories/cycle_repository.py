@@ -150,9 +150,17 @@ class CycleRepository:
 
         pp_hashes = sorted([pp.hash for pp in perspectives])  # Sort for set comparison
 
+        # Committed-only, for symmetry with `WheelRepository.find_by_layer` and
+        # the invariant in CLAUDE.md. Unlike the wheel side this closes no live
+        # hole: no current path saves a Cycle before committing it
+        # (`_find_or_create_cycle` goes straight to `commit()`, and
+        # `set_perspectives` is in-memory), so today an uncommitted Cycle with
+        # `perspective_hashes` populated cannot exist. That is a property of how
+        # callers happen to build them, not of this query — which is exactly the
+        # kind of accident the filter is here to stop mattering.
         query = """
             MATCH (c:Cycle)
-            WHERE c.sid = $sid
+            WHERE c.sid = $sid AND c.hash IS NOT NULL
             AND size(c.perspective_hashes) = $hash_count
             AND ALL(h IN $pp_hashes WHERE h IN c.perspective_hashes)
         """

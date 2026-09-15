@@ -171,6 +171,19 @@ drift-hotspot catalog, the pipeline seams, the gates, and the cross-agent parity
 anchors.
 
 ### Theory fidelity (the 8 generative rules)
+- [ ] **A stated invariant is only as strong as the queries that honour it — so grep the CLASS, never
+      trust the sibling you happen to be reading.** CLAUDE.md says every listing/discovery query MUST
+      filter `WHERE n.hash IS NOT NULL` (the `saved_at`/`hash IS NULL` garbage convention). Two of the
+      three wheel reads did not, for months, while `find_by_nexus` sitting between them did — and the map
+      entry describing that one as "committed-only" read as if it covered all three. What made it a
+      reasoning defect rather than stale rows: `find_by_layer` feeds probability normalisation across
+      competing alternatives, so an abandoned wheel is a PHANTOM ALTERNATIVE, and
+      `find_by_component_sequence` is the dedup read, so returning one makes the builder skip a real
+      wheel. When you fix such a query, pin BOTH halves: that the ghost is excluded (the test must fail
+      without the fix — verify by reverting it) and that committed structure is still returned, since a
+      predicate that drops everything satisfies the first half perfectly. And check whether the filter
+      closes a live hole or is only a guard; say which, because a guard whose safety comes from caller
+      habit is one refactor from being a hole.
 - [ ] **Single-source-of-truth for scales.** Any prompt stating HS / complementarity / area / Ks / insight /
       proactiveness / mode / arousal bands must **interpolate the constant** (`HS_SCALE`, `COMPLEMENTARITY_SCALE`,
       `ASPECT_DEFINITIONS` from `scoring_scales.py`; `INSIGHT_SCALE`, `PROACTIVENESS_SCALE`, `POLAR_PAIRS` from
