@@ -5856,6 +5856,34 @@ and it broke it by design.
 2. **The +46% is measured and unattributed.** Three candidate causes, none excluded.
 3. **F1 succeeded into a void.** The band exists and nothing observably reads it. That is the open question the
    next round should be about, and it is not a latency question.
+
+   **PARTLY CLOSED 2026-09-15 (limit 3), by tracing rather than by measuring.** Something does read the band —
+   prompt rule 3, "when OFFERING pathways, prefer high-feasibility + low-to-moderate insight first" (advisor
+   `system_prompts.py:1170`, explorer twin at `150`) — plus three display-only render sites. But the reader and
+   the writer never met. Rule 3 is about which pathway to offer; the automatic audit scores the pathway a
+   decision is ALREADY grounded on, and `record_decision` fired at t5 of the 6-turn decide session — the last
+   turn — in all 5 recording cells of `feasibility-offturn`. The band therefore came into existence after the
+   only rule that reads it could have applied, on the one pathway no longer a candidate to offer. Three holes
+   compounded it: the re-audit instruction (`system_prompts.py:508-540`, `698-726`) never mentions feasibility;
+   the decision's own ground line rendered `- adopted pathway: [[afe927e]] Ac = 94eb7ffa → 5450a3bd` — two node
+   hashes, the bandless `Ac` position, no recipe — so the band was a hash cross-reference away in a separate
+   `#### Transformation` block; and that block is rendered only for `_find_top_layer_cycles`, so a decision
+   closed on a lower-layer wheel drops out entirely once the graph grows a layer. And "rendered into the prompt"
+   (`advisor.py`, `settings.py`) was prose: every `feasibility=` assertion in the suite was about the
+   `audit_feasibility` TOOL's report, nothing about the render.
+
+   **FIXED:** `rendering.adopted_pathway_summary` puts the Ac+/Re+ recipe and its band on the decision's ground
+   line, pinned through the assembled dump in both scoped and unscoped mode (`test_decision.py`,
+   `TestTheAdoptedPathwayCarriesItsFeasibilityBand`). Absence renders as absence — an unaudited position gets no
+   suffix, never `0.00`. Writing prose into that line surfaced a pre-existing ledger-injection hole:
+   `_dump_transformation` rendered model-written `instruction` text raw, so a newline in a pathway fabricated a
+   whole `## Decision [[fakefak]]` entry with a spoofed `Validation:` line; now `one_line`'d like every other
+   ledger field.
+
+   **STILL OPEN, and deliberately not closed here** because both change what the model is told: `pathway_line` —
+   the MENU rule 3 offers from — still carries no band, and the re-audit instruction still never mentions
+   feasibility. Until one of those moves, "so far unused" remains a measurement about the current build and not
+   a statement about the band's ceiling. Nothing here was re-measured; this round's numbers are unchanged.
 4. **12 pairs, one scenario, one tier.** Nothing judged here resolves except the pressure interaction, which is
    3 replicates.
 5. **The repair seam is still invisible to the archive**, so the F3 diagnosis is a leading explanation and not

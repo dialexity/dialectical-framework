@@ -49,7 +49,8 @@ class Settings(BaseModel):
     #
     #   - Nothing in the code branches on what it produces. The
     #     FeasibilityEstimation is rendered when present and omitted when absent
-    #     (dialectical_context._format_transition_scores, inspect_node), and the
+    #     (dialectical_context._format_transition_scores, inspect_node, and
+    #     rendering.adopted_pathway_summary on a decision's ground line), and the
     #     critique Rationale it writes has no reader anywhere in the tree.
     #     Resume accounting, wheel_completeness, build_status and every score are
     #     untouched by its absence — a wheel built without it is not "partial".

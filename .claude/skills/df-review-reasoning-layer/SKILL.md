@@ -105,6 +105,20 @@ co-occurrence hotspots. Then:
     - Concern → check the SYSTEM_PROMPT, the `_*_prompt()` user content, AND the DTO field descriptions
       (Mirascope sends them). Inline examples must not contradict interpolated constants or field text.
 - [ ] **DTO `Field(description=...)` is prompt surface** — review it too.
+- [ ] **Every line-oriented dump section must `one_line()` any model- or user-written text it interpolates.**
+      The `# Decisions` ledger, the `#### Transformation` block and the perspective dumps all teach the model to
+      parse by line prefix (`Stance:`, `Validation:`, `- adopted pathway:`), so one raw newline lets generated
+      content fabricate sibling entries. Found twice: `Stance:` (guarded), then `_dump_transformation`'s
+      `instruction` (2026-09-15, a pathway forging `## Decision [[fakefak]]` with a spoofed `Validation:` line).
+      When you put new prose on a dump line, that is the check — not whether the prose looks benign.
+- [ ] **"Something reads it" is not enough — ask WHEN the reader runs.** A value can be written, rendered into the
+      prompt every turn, and genuinely read by a prompt rule, and still be dead if the rule's moment and the
+      write's moment are different turns. The feasibility band's only behavioural reader is "when OFFERING
+      pathways, prefer high-feasibility first", while the automatic audit scores the pathway a decision is ALREADY
+      grounded on, at the last turn of the session — reader and writer never met (traced 2026-09-15; see the
+      feasibility entry in [reference/systemic-map.md](reference/systemic-map.md)). Proximity is the other half:
+      a number correlated to the record by hash alone, in a block that may not be rendered at all, is not on the
+      line the model was told to reassure from.
 - [ ] **Runtime splices.** Explorer embeds `nexus_hash`/`nexus_intent`; Advisor embeds the whole
       `{dialectical_context}` dump. Your edit must tolerate an empty/"fresh conversation" block and untrusted
       interpolated text.
@@ -392,7 +406,9 @@ anchors.
       before reaching for the same fix: the weave was a LATENCY trade, so moving it off the turn repaid it in
       full, while the feasibility audit (2026-09-14) was a COST trade — 40% of `explore`'s provider spend — where
       deferral removes the wait and not the spend. There the repair has to be SCOPED instead, and the scope comes
-      from asking where the artifact is actually READ (one adopted pathway, 2 calls, not the eager 2 × 6N).** See
+      from asking where the artifact is actually READ (one adopted pathway, 2 calls, not the eager 2 × 6N) — and
+      then WHEN, because scoping the write to the read site still buys nothing if the two land on different turns,
+      which is exactly what that scoping did (see the WHEN item in Altitude 2).** See
       "The construction came back, off the turn" under Decision lifecycle in reference §4.
 
 ### Cross-agent parity (see the §5 matrix)

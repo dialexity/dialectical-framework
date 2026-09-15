@@ -30,6 +30,7 @@ from dialectical_framework.graph.rendering import (
     completeness_line,
     format_edge_label,
     format_spiral,
+    one_line,
 )
 from dialectical_framework.graph.repositories.cycle_repository import CycleRepository
 from dialectical_framework.graph.repositories.decision_repository import (
@@ -865,7 +866,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             result = manager.get()
             if result:
                 transition, rel = result
-                text = transition.instruction or transition.summary or ""
+                # one_line: instruction/summary are model-written, and this
+                # block is line-oriented — a newline in the text let a pathway
+                # fabricate a whole `## Decision [[fakefak]]` entry, spoofed
+                # `Validation:` included (see test_decision.py's
+                # test_pathway_text_cannot_fabricate_ledger_lines).
+                text = one_line(transition.instruction or transition.summary or "")
                 if not text:
                     continue
                 scores = self._format_transition_scores(rel, transition)
@@ -1027,12 +1033,11 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
     @staticmethod
     def _get_feasibility(transition) -> Optional[float]:
-        from dialectical_framework.graph.nodes.estimation import FeasibilityEstimation
+        # Delegated so the wheel dump and the decision ledger cannot drift on
+        # what "the band" is or how absence reads (see transition_feasibility).
+        from dialectical_framework.graph.rendering import transition_feasibility
 
-        for est, _ in transition.estimations.all():
-            if isinstance(est, FeasibilityEstimation):
-                return est.value
-        return None
+        return transition_feasibility(transition)
 
     @staticmethod
     def _get_dialectical_validity(perspective) -> Optional[float]:

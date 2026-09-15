@@ -893,6 +893,31 @@ class Advisor(SettingsAware):
         is an argument about the DEFAULT, and the default stays automatic only
         because flipping it would silently un-measure the round that priced it.
 
+        WHY UNUSED, TRACED 2026-09-15
+        ============================
+        "Rendered into the prompt" was true and untested, and the render was in
+        the wrong place to be read. The band landed inside the wheel dump's
+        `#### Transformation [[hash]]` block; the decision's own ground line —
+        the thing the re-audit is told to reassure FROM — read, verbatim from
+        the archive, `- adopted pathway: [[afe927e]] Ac = 94eb7ffa → 5450a3bd`.
+        Two node hashes, the `Ac` position (which carries no band at all), and
+        no recipe. Correlating that to the band meant a hash cross-reference
+        into a separate block, and on a graph that has grown a layer the block
+        need not be rendered at all (`_find_top_layer_cycles`).
+
+        So `rendering.adopted_pathway_summary` now puts the Ac+/Re+ recipe and
+        its band on the ground line itself, pinned by tests through the
+        assembled dump in both scoped and unscoped mode.
+
+        Two halves of the mismatch are deliberately NOT closed here, because
+        both change what the model is told and would need their own round:
+        the only prompt rule that reads the band is about which pathway to
+        OFFER (rule 3), and `pathway_line` — the menu it offers from — still
+        carries no band; and the re-audit instruction never mentions
+        feasibility, so the number now sits beside the record without anything
+        telling the model to use it. Until one of those moves, "so far unused"
+        stands as a measurement, not as a claim about the ceiling.
+
         HONEST ASYMMETRY, RECORDED RATHER THAN HIDDEN
         ============================================
         The record's rationale was written before this band existed, so a low

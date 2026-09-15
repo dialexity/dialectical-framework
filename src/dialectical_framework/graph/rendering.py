@@ -124,28 +124,44 @@ def format_spiral(wheel, pp_index: Optional[dict[int, int]] = None) -> str:
     return ", ".join(pairs)
 
 
-def pathway_line(tr, pp_index: Optional[dict[int, int]] = None) -> Optional[str]:
-    """One pickable line for a Transformation: hash, edge, and its Ac+/Re+ text.
+def recipe_positions(tr) -> list[tuple[str, str, Transition]]:
+    """The positions that ARE the adopted recipe: (label, text, transition).
 
-    A bare hash list is not a menu. `adopted_pathway` asks the model to name ONE
-    Transformation as the person's ongoing recipe, and it can only do that if it
-    can tell the pathways apart — so the identifier travels WITH the recipe.
     Ac+/Re+ only: those two ARE the circular causality (Rule 5.1, T-→A+ and
     A-→T+ simultaneously), so they are what gets adopted; Ac-/Re- are the
-    degradation modes and belong to the trap-naming, not to a menu of recipes.
-    """
-    edge_result = tr.edge.get()
-    edge_label = format_edge_label(edge_result[0], pp_index) if edge_result else ""
+    degradation modes and belong to the trap-naming, not to a recipe.
 
-    recipe = []
-    for position, manager in (("Ac+", tr.ac_plus), ("Re+", tr.re_plus)):
+    Shared by the pathway MENU (`pathway_line`, where the model picks one) and
+    the decision LEDGER (`adopted_pathway_summary`, where the record of the
+    picked one is read back). Two copies of this loop would let the person be
+    offered a recipe in one wording and reminded of it in another.
+
+    Positions with no text are omitted, so an empty list means "nothing here a
+    person could act on" — which is what makes a pathway unofferable.
+    """
+    positions = []
+    for label, manager in (("Ac+", tr.ac_plus), ("Re+", tr.re_plus)):
         result = manager.get()
         if not result:
             continue
         transition, _ = result
         text = one_line(transition.instruction or transition.summary or "")
         if text:
-            recipe.append(f"{position}: {text}")
+            positions.append((label, text, transition))
+    return positions
+
+
+def pathway_line(tr, pp_index: Optional[dict[int, int]] = None) -> Optional[str]:
+    """One pickable line for a Transformation: hash, edge, and its Ac+/Re+ text.
+
+    A bare hash list is not a menu. `adopted_pathway` asks the model to name ONE
+    Transformation as the person's ongoing recipe, and it can only do that if it
+    can tell the pathways apart — so the identifier travels WITH the recipe.
+    """
+    edge_result = tr.edge.get()
+    edge_label = format_edge_label(edge_result[0], pp_index) if edge_result else ""
+
+    recipe = [f"{label}: {text}" for label, text, _ in recipe_positions(tr)]
     if not recipe:
         return None
 
@@ -436,6 +452,67 @@ def one_line(text: Optional[str]) -> str:
     return " ".join((text or "").split())
 
 
+def transition_feasibility(transition) -> Optional[float]:
+    """The `FeasibilityEstimation` value on a transition, or None if unaudited.
+
+    None means "not audited", never "infeasible" — the band exists only where
+    `TransformationAudit` has run (eagerly under `audit_transformations`, on
+    demand via `audit_feasibility`, or off-turn for an adopted pathway under
+    `automatic_feasibility_audit`). Callers must render absence as absence.
+    """
+    from dialectical_framework.graph.nodes.estimation import \
+        FeasibilityEstimation
+
+    for est, _ in transition.estimations.all():
+        if isinstance(est, FeasibilityEstimation):
+            return est.value
+    return None
+
+
+def adopted_pathway_summary(transformation) -> str:
+    """One-line summary of an adopted pathway: the Ac+/Re+ recipe with its band.
+
+    WHY NOT THE DEFAULT TRANSFORMATION FORMAT
+    =========================================
+    `str(transformation)` renders all six positions as `alias = transition`,
+    and a Transformation's own transitions are not connected to a Cycle or
+    Wheel, so `Transition._get_perspectives()` finds nothing and every alias
+    degrades to a truncated node hash. The ledger line that came out of that
+    read, verbatim from the archive:
+
+        - adopted pathway: [[afe927e]] Ac = 94eb7ffa → 5450a3bd
+
+    Two node hashes and the `Ac` position, which is the structural move and
+    carries no feasibility. Nothing in it is the thing the re-audit prompt
+    promises to reassure from ("here is the recipe they adopted for living with
+    it"), and nothing in it says how practical that recipe was judged to be.
+
+    So this renders the two positions that ARE the recipe — Ac+ (what to do)
+    and Re+ (what to watch) — by their instruction text, each with its
+    feasibility band when audited. Same fields and same `feasibility=0.NN`
+    spelling as the `#### Transformation` block in the wheel dump, so a model
+    that has learned to read the band there reads it here without being taught
+    a second format. The difference is proximity: there the band sits in a
+    separate block correlated to the decision by hash alone, here it sits on
+    the decision's own ground line.
+
+    An unaudited pathway simply has no `(feasibility=...)` suffix — absence is
+    "not audited", and inventing a default would turn a missing measurement
+    into a low score.
+
+    NOT YET on the menu side: `pathway_line` carries the same recipe without the
+    band, which is where prompt rule 3 ("when OFFERING pathways, prefer
+    high-feasibility first") would actually use it. Sharing
+    `recipe_positions` makes that a one-line change when it is measured.
+    """
+    parts = []
+    for label, text, transition in recipe_positions(transformation):
+        feasibility = transition_feasibility(transition)
+        band = f" (feasibility={feasibility:.2f})" if feasibility is not None else ""
+        parts.append(f'{label}: "{text}"{band}')
+    return "; ".join(parts)
+
+
 #: Lead-in for the case particulars a node was abstracted from.
 #: Phrased as evidence ("came in as") rather than as a claim, so the model
 #: treats it as facts to check against, not as another assertion to defend.
@@ -504,6 +581,7 @@ def decision_ground_line(
     needn't.
     """
     from dialectical_framework.graph.nodes.perspective import Perspective
+    from dialectical_framework.graph.nodes.transformation import Transformation
     from dialectical_framework.graph.nodes.wheel import Wheel
 
     label = DECISION_GROUND_ROLES.get(role or "", "ground")
@@ -520,9 +598,15 @@ def decision_ground_line(
         nexus = find_nexus_for_wheel(node)
         pp_index = build_pp_index(nexus) if nexus else None
         text = format_spiral(node, pp_index) or f"{node!r}"
+    elif isinstance(node, Transformation):
+        # The recipe plus its feasibility band — see adopted_pathway_summary
+        # for why the default Transformation format cannot serve here. Falls
+        # back to the generic first-line read when the positions carry no text,
+        # so a half-built pathway still renders as something.
+        text = adopted_pathway_summary(node) or str(node).strip().split("\n")[0]
     else:
-        # Statements are single-line already; Transformations/Syntheses
-        # summarize as their first line (Ac/Re structure / S+ headline).
+        # Statements are single-line already; a Synthesis summarizes as its
+        # first line (the S+ headline).
         text = str(node).strip().split("\n")[0]
 
     type_part = f" ({node.__class__.__name__})" if show_type else ""

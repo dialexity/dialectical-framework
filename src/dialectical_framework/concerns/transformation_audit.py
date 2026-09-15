@@ -29,9 +29,10 @@ expensive thing per unit of consequence in the whole pipeline:
               concern billed twice per Transformation. The two are gathered, so
               the LATENCY of one audited pathway is ~one call, not two — cost is
               unchanged, and turning the eager path back on still buys 12 calls.
-    consumers no code. `FeasibilityEstimation` is read at three render sites
+    consumers no code. `FeasibilityEstimation` is read at four render sites
               (`dialectical_context._format_transition_scores`, `inspect_node`,
-              and now `audit_feasibility`), all display-only. The critique
+              `audit_feasibility`, and `rendering.adopted_pathway_summary` on a
+              decision's `adopted pathway` ground line), all display-only. The critique
               Rationale had NO reader at all when the eager pass was removed —
               `.critiques` has no traversal outside its own declaration and the
               cascade-delete in `NodeRepository`; the tool reads it through the

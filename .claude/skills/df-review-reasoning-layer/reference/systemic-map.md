@@ -2563,7 +2563,33 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   person waited 284.5s**, which failed that round's pre-registered tail bar of ≤5s by a factor of 57. So the band
   is present, rendered into the prompt every turn (`dialectical_context.py:940`), and **nothing has been shown to
   read it** — this map's oldest defect, a value computed and never consumed, one layer up from where it usually
-  sits. The default stays automatic only because flipping it would un-measure the round that priced it. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
+  sits. **Traced 2026-09-15, and the void has a shape:** something DOES read the band — prompt rule 3, "when
+  OFFERING pathways, prefer high-feasibility + low-to-moderate insight first" (`advisor/system_prompts.py:1170`,
+  explorer twin at `150`) — but the reader and the writer never met. Rule 3 is about which pathway to offer,
+  while the automatic audit scores the pathway a decision is ALREADY grounded on, and `record_decision` fired at
+  **t5 of the 6-turn decide session, the last turn, in all 5 recording cells** — so the band came into existence
+  after the only rule that reads it could have applied, on the one pathway no longer a candidate to offer.
+  Compounded three ways: the re-audit instruction (`system_prompts.py:508-540`, `698-726`) tells the model to
+  reassure FROM the record and never mentions feasibility; the decision's own ground line read
+  `- adopted pathway: [[afe927e]] Ac = 94eb7ffa → 5450a3bd` — two node hashes and the bandless `Ac` position,
+  because a Transformation's transitions hang off no Cycle or Wheel so alias resolution falls through, and
+  `split("\n")[0]` then keeps only the first — putting the band a hash cross-reference away in a separate
+  `#### Transformation` block that `_find_top_layer_cycles` stops rendering once the graph grows a layer. And
+  "rendered into the prompt" was **prose with no test behind it**: every `feasibility=` assertion in the suite was
+  about the `audit_feasibility` TOOL's report. **FIXED:** `rendering.adopted_pathway_summary` renders the Ac+/Re+
+  recipe with its band on the ground line, sharing `recipe_positions` with `pathway_line` so the menu and the
+  ledger cannot word the same recipe differently, pinned through the assembled dump in both modes
+  (`test_decision.py::TestTheAdoptedPathwayCarriesItsFeasibilityBand`); absence renders as absence, never `0.00`.
+  Putting model-written prose on that line surfaced a **pre-existing ledger-injection hole**:
+  `_dump_transformation` rendered `instruction` raw, so a newline fabricated a whole `## Decision [[fakefak]]`
+  entry with a spoofed `Validation:` line — now `one_line`'d like every other ledger field, and the same class as
+  the `Stance:` injection guard two rounds earlier, which is the second time a line-oriented dump was found
+  trusting generated text. **STILL OPEN:** `pathway_line`, the menu rule 3 offers FROM, carries no band, and the
+  re-audit instruction still never names feasibility. Both change what the model is told, so neither was done
+  blind; "nothing reads it" therefore remains a measurement about this build and not a statement about the
+  band's ceiling. **The lesson generalizes past feasibility:** a value can be written, rendered, and genuinely
+  read by a prompt rule and still be dead, if the rule's moment and the write's moment are different turns. Ask
+  WHEN the reader runs, not just whether a reader exists. The default stays automatic only because flipping it would un-measure the round that priced it. **One asymmetry is recorded rather than hidden:** the decision's rationale was written before the
   band existed and `DecisionCoherenceCheck` will not re-run, so a low score arrives against a ground the record
   never weighed. That is additive information about an existing ground, and a recipe the person cannot execute is
   worth knowing late. **Unmeasured at the behaviour layer** — no round has run with it, and the weave's own result
