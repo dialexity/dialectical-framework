@@ -183,7 +183,13 @@ anchors.
       without the fix — verify by reverting it) and that committed structure is still returned, since a
       predicate that drops everything satisfies the first half perfectly. And check whether the filter
       closes a live hole or is only a guard; say which, because a guard whose safety comes from caller
-      habit is one refactor from being a hole.
+      habit is one refactor from being a hole. **And grepping the class is still not enough: the third
+      instance of that same hole, found 2026-09-15 by rendering the prompt rather than reading the
+      repositories, was `DialecticalContext._get_cycle_wheels` — a RELATIONSHIP TRAVERSAL
+      (`cycle.wheels.all()`), which no sweep over `*Repository` queries can reach. When an invariant is
+      about node state rather than about SQL, enumerate every way the node is REACHED, traversals
+      included, and prefer proving it at the surface the invariant exists to protect (here: is the ghost
+      in the rendered prompt?) over proving it query by query.**
 - [ ] **Single-source-of-truth for scales.** Any prompt stating HS / complementarity / area / Ks / insight /
       proactiveness / mode / arousal bands must **interpolate the constant** (`HS_SCALE`, `COMPLEMENTARITY_SCALE`,
       `ASPECT_DEFINITIONS` from `scoring_scales.py`; `INSIGHT_SCALE`, `PROACTIVENESS_SCALE`, `POLAR_PAIRS` from

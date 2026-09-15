@@ -322,3 +322,56 @@ class WheelRepository:
 
         return [(row["c"], row["w"]) for row in results]
 
+    @inject
+    def find_developed_by_nexus(
+        self,
+        nexus: Nexus,
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+        sid: Optional[str] = Provide[DI.sid],
+    ) -> list[tuple[Cycle, Wheel]]:
+        """
+        Find every Wheel under a Nexus that has at least one Transformation.
+
+        Same nexus scoping and same (Cycle, Wheel) shape as `find_by_nexus`,
+        narrowed to wheels whose pathways actually got developed — the ones
+        that hold work a person would recognise as theirs.
+
+        ONE query rather than `find_by_nexus` plus `get_transformations` per
+        wheel, and that is the whole reason this method exists: the caller is
+        `DialecticalContext`, which re-renders on EVERY turn, and the per-wheel
+        loop would read `Wheel.edges` 96 times at k=4 (the framework's most
+        expensive read — see `_signature_of`) to answer a yes/no question the
+        DB can answer in one traversal.
+
+        Returns:
+            (Cycle, Wheel) pairs, largest layer first
+        """
+        nexus_pp_hashes = [
+            pp.hash for pp, _ in nexus.perspectives.all() if pp.hash is not None
+        ]
+        if not sid or not nexus_pp_hashes:
+            return []
+
+        # `tr.hash IS NOT NULL` for the same reason the wheel and cycle carry
+        # it: this is a discovery query, and a Transformation abandoned
+        # mid-build would make an empty wheel look developed.
+        query = """
+            MATCH (c:Cycle)-[:HAS_WHEEL]->(w:Wheel)<-[:BELONGS_TO_CYCLE]-(t:Transition)
+            MATCH (tr:Transformation)-[:ACTION_REFLECTION]->(t)
+            WHERE w.sid = $sid AND c.sid = $sid
+            AND w.hash IS NOT NULL AND c.hash IS NOT NULL
+            AND tr.hash IS NOT NULL
+            AND size(c.perspective_hashes) > 0
+            AND ALL(h IN c.perspective_hashes WHERE h IN $nexus_pp_hashes)
+            RETURN DISTINCT c, w
+            ORDER BY size(c.perspective_hashes) DESC, c.committed_at ASC,
+                     w.committed_at ASC, id(w) ASC
+        """
+        results = list(
+            graph_db.execute_and_fetch(
+                query, {"sid": sid, "nexus_pp_hashes": nexus_pp_hashes}
+            )
+        )
+
+        return [(row["c"], row["w"]) for row in results]
+

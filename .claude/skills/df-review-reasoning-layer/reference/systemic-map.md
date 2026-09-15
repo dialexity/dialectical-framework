@@ -2146,6 +2146,36 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`
   to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
   tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.
+- **Layer visibility in counsel mode** (`DialecticalContext._dump_nexus` + `_find_developed_lower_layers`
+  + `_append_cycle_group` + `WheelRepository.find_developed_by_nexus`, fixed 2026-09-15): `_find_top_layer_cycles`
+  returns cycles at the HIGHEST layer and falls back to a smaller one only when the top layer is EMPTY.
+  Correct for the unscoped dump (a summary; the newest layer is the most complete reading). In COUNSEL MODE
+  it dropped finished work: the moment a Navigator or the Advisor's own `explore` wove in one more tension,
+  a wheel carrying a written Ac+/Re+ recipe was replaced in the prompt by `Pathways: 0/12 (not yet
+  developed)`. **The entry above is the argument that made it a defect rather than a compression choice —
+  the wheel cap is already exempt in counsel mode "so the counsel head is not blind to parts of the
+  deliverable the user assembled deliberately", and the LAYER selection contradicted that exemption while
+  being the harsher cut.** "The model can `inspect_node` it" is not a mitigation: measured elective-tool
+  election is 0–2 of 6. Partially routed around already — an ADOPTED pathway's recipe rides on the
+  decision's own ground line (`rendering.adopted_pathway_summary`) — so what vanished was every developed
+  pathway not yet decided upon. Fix: counsel mode also renders earlier-layer cycles that carry DEVELOPED
+  pathways, and DEVELOPED is the bound that keeps this from re-admitting 96 wheels at k=4 (development is
+  elective and rare: `EXPLORE_DEEP_WHEELS = 1` per `explore` plus the coarser rungs it refines from). The
+  undeveloped siblings of a rendered cycle are named-not-shown; an entirely undeveloped layer stays hidden;
+  the unscoped dump is untouched. **Two reasoning guards, both of which a future edit here must keep:**
+  (1) ONE NORMALISATION GROUP PER LAYER — `find_by_layer` defines competing alternatives as same-layer, so
+  `CausalityEstimation` never scored a layer-1 cycle against a layer-2 one; merging the layers into one
+  cycle list would invent that comparison and hand the model a percentage nothing computed, which is why
+  `_append_cycle_group` takes one layer at a time and the render carries an intro line saying the
+  percentages compare within the group only; (2) the `only_wheels` filter runs AFTER the probability
+  denominator is computed, for the same reason the wheel cap leaves it alone. Cost: `find_developed_by_nexus`
+  is ONE query and exists only because of that — `DialecticalContext` re-renders every turn, and
+  `find_by_nexus` + `get_transformations` per wheel would read `Wheel.edges` (the framework's most
+  expensive read, see `_signature_of`) ~88 times per turn at k=4 to answer a yes/no question. Pinned by
+  `tests/test_layer_visibility_graph.py` (8 tests, all four guarantees mutation-verified). **Still open
+  (recorded, not fixed):** counsel-mode `anchor` plants a STANDALONE perspective while `_resolve_scoped`
+  renders only the pinned nexus, so a tension the head just planted is invisible until `explore` weaves it
+  in — and `explore` fires 2/6.
 - **Decision lifecycle** (`_DECISION_READINESS` in `advisor/system_prompts.py` + `DialecticalContext._dump_decisions`
   + `concerns/record_decision.py` + `concerns/decision_coherence_check.py`, live since 2026-08): the Advisor's
   convergence mechanics — discrimination test (map a new tension only if it could change the choice; cross-referenced
@@ -3236,7 +3266,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   **blocked is never offered**, and **unreadable is not finished** (a node whose read fails lands in
   `unreadable_hashes` and keeps `is_complete` False). Wheels come from
   `WheelRepository.find_by_nexus` (Cycle→Wheel across all layers, committed-only, nexus-scoped by perspective
-  hashes — the all-layer counterpart to `find_by_layer`). **`find_by_nexus` was the only one of the three wheel reads that HAD the committed-only predicate, and the other two were fixed 2026-09-15 after this entry's own parenthesis was read as if it described all of them.** The gap was reachable, not theoretical: `_build_wheels_for_cycle` commits the parent Cycle first, then `wheel.save()`s, attaches every Transition, connects the Cycle, and commits LAST — so a stopped run leaves a Wheel with the full transition count, a matching canonical signature and a committed Cycle pointing at it. `find_by_component_sequence` returned it as a dedup hit (the caller `continue`s past building a real wheel, so the exploration ends one short while believing it reused one) and `find_by_layer` returned it as a competing alternative into `CausalityEstimation`'s probability normalisation, the synthesis sub-wheel dump and `present_exploration`. **The reasoning-layer lesson is that a garbage-marking convention is only as strong as the query that honours it: `saved_at`/`hash IS NULL` is stated as a MUST in CLAUDE.md and was unenforced in the two reads that feed normalisation — so when a doc says a class of query filters something, grep the class, do not trust the sibling you happen to be reading.** `CycleRepository.find_by_layer` took the same predicate as a guard rather than a fix (nothing `save()`s a Cycle before committing, so that side was safe by caller habit, not by construction). Pinned by `tests/test_uncommitted_wheel_visibility_graph.py` (5 tests; the two bug tests fail without the fix, and two more pin that the predicate does not hide committed structure). Locked by `tests/test_resume_completeness.py` (taxonomy agreement +
+  hashes — the all-layer counterpart to `find_by_layer`). **`find_by_nexus` was the only one of the three wheel reads that HAD the committed-only predicate, and the other two were fixed 2026-09-15 after this entry's own parenthesis was read as if it described all of them.** The gap was reachable, not theoretical: `_build_wheels_for_cycle` commits the parent Cycle first, then `wheel.save()`s, attaches every Transition, connects the Cycle, and commits LAST — so a stopped run leaves a Wheel with the full transition count, a matching canonical signature and a committed Cycle pointing at it. `find_by_component_sequence` returned it as a dedup hit (the caller `continue`s past building a real wheel, so the exploration ends one short while believing it reused one) and `find_by_layer` returned it as a competing alternative into `CausalityEstimation`'s probability normalisation, the synthesis sub-wheel dump and `present_exploration`. **The reasoning-layer lesson is that a garbage-marking convention is only as strong as the query that honours it: `saved_at`/`hash IS NULL` is stated as a MUST in CLAUDE.md and was unenforced in the two reads that feed normalisation — so when a doc says a class of query filters something, grep the class, do not trust the sibling you happen to be reading.** `CycleRepository.find_by_layer` took the same predicate as a guard rather than a fix (nothing `save()`s a Cycle before committing, so that side was safe by caller habit, not by construction). Pinned by `tests/test_uncommitted_wheel_visibility_graph.py` (5 tests; the two bug tests fail without the fix, and two more pin that the predicate does not hide committed structure). **A THIRD instance surfaced 2026-09-15 and it sharpens the lesson: grepping the class was not enough either.** `DialecticalContext._get_cycle_wheels` reaches wheels by TRAVERSAL (`cycle.wheels.all()`), not by query — structurally invisible to a sweep over `*Repository` — and since `_build_wheels_for_cycle` runs `cycle.wheels.connect(wheel)` BEFORE `wheel.commit()`, an abandoned wheel hangs off a perfectly good committed Cycle and was rendered into the counsel prompt as an arrangement that produced nothing (`### Wheel [[None]]`, since `short_hash` returns None when `hash` is None). It was found by RENDERING the prompt, not by reading the code. So: when an invariant is about node state, enumerate every way the node is REACHED and prefer proving it at the surface the invariant protects. Pinned by `tests/test_layer_visibility_graph.py::TestAnAbandonedWheelIsNotRenderedAtAll`. A fourth wheel read now exists — `find_developed_by_nexus` (wheels with at least one Transformation, `tr.hash IS NOT NULL` too, since an abandoned Transformation would make an empty wheel look developed); see the layer-visibility entry. Locked by `tests/test_resume_completeness.py` (taxonomy agreement +
   tie-break, counting, pair-blocked naming and no-waste, register split incl. the `0/N` wording,
   fresh/resume/complete pair drivers, band de-dup at the write site, `still_missing` reporting,
   hash-exclusion, stamp rendering) and `test_prompt_review_regressions.py::TestCompletenessRegisterSplit`.

@@ -720,20 +720,113 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         # Cycles and Wheels (reference perspectives by index)
         cycles = self._find_top_layer_cycles(nexus, pp_list, cycle_repo)
+        self._append_cycle_group(lines, cycles, wheel_repo, pp_index)
 
-        if cycles:
-            cycle_probs = self._collect_raw_probabilities(cycles)
-            total_cycle_prob = sum(p for p in cycle_probs.values() if p is not None)
-
-            for cycle in cycles:
-                cycle_dump = self._dump_cycle(
-                    cycle, wheel_repo, cycle_probs, total_cycle_prob, pp_index
+        # Counsel mode ALSO gets the earlier layers that carry developed
+        # pathways, and this is the same load-bearing exemption `_dump_cycle`
+        # already makes for the wheel cap: the head debriefing the person's own
+        # deliverable must not be blind to parts of it they built deliberately.
+        # Without this, growing the exploration by one tension REPLACED finished
+        # work with an empty shell — a wheel with its Ac+/Re+ recipe written
+        # became `Pathways: 0/12 (not yet developed)` at the new layer, because
+        # `_find_top_layer_cycles` returns the HIGHEST layer and falls back to a
+        # smaller one only when the top is empty. The decision path was already
+        # routed around it (an adopted pathway's recipe rides on the decision's
+        # own ground line), so what vanished was every developed pathway not yet
+        # decided upon — which is most of them, at the moment they matter most.
+        #
+        # DEVELOPED is the bound, not a count: undeveloped lower layers stay
+        # hidden, so this adds what the person elected to build (one wheel per
+        # `explore` plus the coarser rungs it refines from, plus anything
+        # `deepen` was asked for) and never the combinatorial rest — 96 wheels
+        # at k=4. The unscoped dump is deliberately untouched: it has no
+        # deliverable to be faithful to and it pays the wheel cap for the same
+        # reason.
+        if self._nexus_hash:
+            top_ids = {c._id for c in cycles}
+            groups, developed = self._find_developed_lower_layers(
+                nexus, top_ids, wheel_repo
+            )
+            for layer, group in groups:
+                lines.append("")
+                lines.append(
+                    f"Earlier structure this exploration still carries "
+                    f"({layer} of {len(pp_list)} tensions). Percentages below "
+                    f"compare within this group only — never against the layer "
+                    f"above."
                 )
-                if cycle_dump:
-                    lines.append("")
-                    lines.append(cycle_dump)
+                self._append_cycle_group(
+                    lines, group, wheel_repo, pp_index, only_wheels=developed
+                )
 
         return "\n".join(lines) if len(lines) > 1 else None
+
+    def _append_cycle_group(
+        self,
+        lines: list[str],
+        cycles: list[Cycle],
+        wheel_repo: WheelRepository,
+        pp_index: dict[int, int],
+        only_wheels: Optional[set[int]] = None,
+    ) -> None:
+        """Render one layer's cycles, normalising probabilities within it.
+
+        The GROUP is the normalisation unit, and that is why the layers are not
+        merged into one list: `find_by_layer` defines competing alternatives as
+        same-layer, so `CausalityEstimation` never scored a layer-1 cycle
+        against a layer-2 one. A shared denominator would invent that
+        comparison and hand the model a percentage nothing computed.
+        """
+        if not cycles:
+            return
+
+        cycle_probs = self._collect_raw_probabilities(cycles)
+        total_cycle_prob = sum(p for p in cycle_probs.values() if p is not None)
+
+        for cycle in cycles:
+            cycle_dump = self._dump_cycle(
+                cycle,
+                wheel_repo,
+                cycle_probs,
+                total_cycle_prob,
+                pp_index,
+                only_wheels=only_wheels,
+            )
+            if cycle_dump:
+                lines.append("")
+                lines.append(cycle_dump)
+
+    @staticmethod
+    def _find_developed_lower_layers(
+        nexus: Nexus, top_cycle_ids: set[int], wheel_repo: WheelRepository
+    ) -> tuple[list[tuple[int, list[Cycle]]], set[int]]:
+        """Cycles below the top layer that carry developed pathways, by layer.
+
+        Returns (layer size, Cycles) per layer, largest first, plus the ids of
+        the developed Wheels, which the caller passes back down so a rendered
+        cycle shows the work and not its undeveloped siblings.
+
+        The layer size comes back explicitly rather than the caller reading it
+        off `group[0]`: the group is the normalisation unit, so anything that
+        ever produced an empty one would crash the render on an index instead of
+        simply having nothing to say.
+        """
+        pairs = wheel_repo.find_developed_by_nexus(nexus)
+
+        developed_wheel_ids: set[int] = set()
+        by_layer: dict[int, dict[int, Cycle]] = {}
+        for cycle, wheel in pairs:
+            if cycle._id in top_cycle_ids:
+                continue
+            developed_wheel_ids.add(wheel._id)
+            layer = len(cycle.perspective_hashes or [])
+            by_layer.setdefault(layer, {})[cycle._id] = cycle
+
+        groups = [
+            (layer, list(by_layer[layer].values()))
+            for layer in sorted(by_layer, reverse=True)
+        ]
+        return groups, developed_wheel_ids
 
     def _dump_cycle(
         self,
@@ -742,6 +835,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         cycle_probs: dict,
         total_cycle_prob: float,
         pp_index: dict[int, int],
+        only_wheels: Optional[set[int]] = None,
     ) -> Optional[str]:
         lines = [f"## Cycle [[{cycle.short_hash}]]"]
 
@@ -773,6 +867,23 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             wheel_probs = self._collect_raw_probabilities(wheels)
             total_wheel_prob = sum(p for p in wheel_probs.values() if p is not None)
 
+            # An earlier layer is included for the work developed ON it, so its
+            # undeveloped siblings would be pure shell. The denominator above
+            # still spans the FULL sibling set, for the same reason the top-%
+            # cap leaves it alone: the ranking is over all alternatives, not
+            # over the ones that survived a render filter.
+            undeveloped = 0
+            if only_wheels is not None:
+                kept = [w for w in wheels if w._id in only_wheels]
+                undeveloped = len(wheels) - len(kept)
+                wheels = kept
+                if not wheels:
+                    # Only reachable on this path, and a bare cycle header with
+                    # a sequence and nothing under it reads as an arrangement
+                    # that produced nothing rather than one we chose not to
+                    # render. The top-layer path keeps its old behaviour.
+                    return None
+
             max_wheels = 0 if self._nexus_hash else self.settings.advisor_wheel_quality_top_plausible
             # Hash tiebreaker: with probability-only keys, tied (or unscored)
             # wheels resolve by arrival order — unspecified in Cypher — so
@@ -796,6 +907,12 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 lines.append(
                     f"({hidden} lower-probability wheel(s) not shown — "
                     f"reachable via inspect_node on the cycle)"
+                )
+
+            if undeveloped:
+                lines.append(
+                    f"({undeveloped} wheel(s) at this layer have no pathways "
+                    f"developed — not shown)"
                 )
 
         return "\n".join(lines) if len(lines) > 1 else None
@@ -1074,9 +1191,20 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
     @staticmethod
     def _get_cycle_wheels(cycle: Cycle, wheel_repo: WheelRepository) -> list[Wheel]:
-        """Get all wheels belonging to a cycle."""
+        """Get all committed wheels belonging to a cycle.
+
+        `hash IS NOT NULL` for the same reason the wheel QUERIES carry it — and
+        this one is a traversal, which is why grepping the repositories did not
+        find it in 2026-09-15's sweep. `_build_wheels_for_cycle` runs
+        `cycle.wheels.connect(wheel)` BEFORE `wheel.commit()`, so a run that
+        stops in that window leaves an abandoned wheel hanging off a perfectly
+        good committed Cycle — reachable from here, and rendered into the prompt
+        as an arrangement that produced nothing.
+        """
         wheels = []
         for wheel, _ in cycle.wheels.all():
+            if wheel.hash is None:
+                continue
             wheels.append(wheel)
         return wheels
 
