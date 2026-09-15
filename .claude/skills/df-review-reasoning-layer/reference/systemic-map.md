@@ -2172,10 +2172,46 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   is ONE query and exists only because of that — `DialecticalContext` re-renders every turn, and
   `find_by_nexus` + `get_transformations` per wheel would read `Wheel.edges` (the framework's most
   expensive read, see `_signature_of`) ~88 times per turn at k=4 to answer a yes/no question. Pinned by
-  `tests/test_layer_visibility_graph.py` (8 tests, all four guarantees mutation-verified). **Still open
-  (recorded, not fixed):** counsel-mode `anchor` plants a STANDALONE perspective while `_resolve_scoped`
-  renders only the pinned nexus, so a tension the head just planted is invisible until `explore` weaves it
-  in — and `explore` fires 2/6.
+  `tests/test_layer_visibility_graph.py` (8 tests, all four guarantees mutation-verified). Found alongside it and fixed
+  in the next change: the counsel-mode anchor fence, below.
+- **The counsel-mode scope fence** (`DialecticalContext._resolve_scoped`, widened 2026-09-15): the pinned render
+  used to hide EVERY perspective that was not a member of the pinned nexus. But counsel-mode `anchor` plants a
+  STANDALONE perspective — `explore` is what weaves one in, and `explore` fires 2 times in 6 — so the tension the
+  head had just planted, in this conversation, out of the person's own words, was on the next turn one digit in
+  "3 other tension(s) exist outside this exploration (not shown)", indistinguishable from another exploration's.
+  The head could act on its own anchor only by remembering the hash out of an earlier turn's tool result.
+  **The decisive argument is that the DUMP was enforcing a stricter pin than the TOOLS it serves, and the tools
+  had already written the correct rule down:** `tools/scoped.py::_outside_scope_refusal` says "the pin protects
+  explorations (deliverables), not standalone garbage: member of another nexus → refused; member of no nexus →
+  allowed (e.g. a framing this head anchored during the conversation and the user rejected)", and `explore`'s
+  tool doc says to call it "when a newly anchored tension should join the exploration". The write scope in the
+  parity matrix below had said "pinned members + standalone PPs" for as long as the render column said "one
+  nexus". Fix: unattached tensions render in counsel mode under the same `# Unexplored Tensions` heading, through
+  the same renderer and the same quality floor as the unscoped dump, with their particulars hoisted; other
+  explorations' members stay fenced to a count line. **Two guards a future edit must keep:** (1) cross-references
+  are built over the PINNED nexus only — passing every nexus would emit "Same opposition family as perspective 1
+  in [[otherhash]]" and walk straight around the count line, naming both the other exploration and its contents;
+  (2) the quality floor is the ONLY bound, unchanged from unscoped, because inventing a second quality policy for
+  counsel mode would be a new reasoning rule smuggled in under a visibility fix. The Advisor prompt's "Unexplored
+  Tensions" paragraph carried the old rule verbatim ("in an exploration-pinned session this section is absent...
+  not yours to work with") and was corrected in the same change — it had ALREADY been wrong about `discard`.
+  Pinned by `tests/test_counsel_anchor_visibility.py` (10 tests, four mutations verified) plus the rewritten
+  `TestDialecticalContextScoped`, whose three old assertions pinned the old fence and moved with it, and
+  `TestScopedSync` in `tests/test_advisor_scoped_tools.py`, which pinned the same old rule one layer up at the
+  TOOL and now pins both halves (unattached shown, another exploration fenced to its count).
+  **The widening's cost claim — "one `find_all` plus one relationship read per nexus, per turn; the unscoped
+  dump has always paid exactly this" — is now MEASURED rather than asserted, and getting an instrument that
+  could carry it took three attempts worth reusing.** Seconds cannot: the existing absolute budget flaked at
+  3.21s against 0.29s for the same unchanged path, purely on box load (15-minute load average 18.6), and a
+  same-run RATIO, which does survive contention, moved only 0.62x -> 0.81x under a read-per-perspective
+  mutation — while in one run that mutation measured FASTER than the code it degraded. A LEVEL comparison in
+  query counts fails for a different reason that looks like success: counsel runs 193 queries against the
+  unscoped dump's 259, because it renders one exploration rather than all of them, so a 7-query regression hides
+  in 66 queries of headroom. What carries the claim is the SLOPE — graph round-trips added per additional
+  unattached tension — which is **37.00 on both paths, an exact equality**, since both render that set with the
+  same renderer; the per-node mutation reads 38.00 and fails. Transferable: when two paths render overlapping
+  but unequal sets, compare their slopes and never their totals, and never grade a per-node read in wall time
+  at a size where seven round-trips are smaller than the noise. `tests/test_context_refresh_cost.py`.
 - **Decision lifecycle** (`_DECISION_READINESS` in `advisor/system_prompts.py` + `DialecticalContext._dump_decisions`
   + `concerns/record_decision.py` + `concerns/decision_coherence_check.py`, live since 2026-08): the Advisor's
   convergence mechanics — discrimination test (map a new tension only if it could change the choice; cross-referenced
@@ -3177,10 +3213,14 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   "what is THIS tension built on", and those are different questions. Near-duplicate wordings are BOTH kept: choosing
   which phrasing of the person's own disclosure to drop is not a renderer's call, and a dropped variant reads as a
   forgotten fact. `_SCORE_READING`'s particulars paragraph names the new header and explains the two placements, so
-  the read-side instruction and the render cannot drift. The scoped render fences to nexus members only — same fence
-  as the perspectives themselves, since an outside tension appears in counsel mode as a count and hoisting its facts
-  would leak around that. Locked by `tests/test_dialectical_context.py::TestCaseParticularsAreHoisted` and
-  `TestScopedDumpCarriesTheCase` (incl. the outside-tension leak guard and "assessment prose is never hoisted" —
+  the read-side instruction and the render cannot drift. The scoped render fences to nexus members PLUS tensions attached to no
+  exploration (2026-09-15; it was members-only before) — same fence as the perspectives themselves, which is about whose
+  DELIVERABLE a tension belongs to and not whose facts it carries: another exploration's tension appears in counsel mode
+  as a count and hoisting its facts would leak around that, while an unattached tension is normally this head's own
+  anchor and its `context` argument is the only place the person's particulars survive. Pre-floor either way — the
+  quality gate suppresses a weak TETRAD, never the facts behind it. Locked by
+  `tests/test_dialectical_context.py::TestCaseParticularsAreHoisted` and
+  `TestScopedDumpCarriesTheCase` (incl. the other-exploration leak guard and "assessment prose is never hoisted" —
   hoisting untagged rationales would do the exact opposite of this fix). **Unverified at the behaviour layer**: a
   context change is a claim about the model's reply, and no `used`-rate re-measurement exists yet.
   **The lane silently dropped every RE-anchor, and that is a code defect no prompt altitude could have caught**
@@ -3298,7 +3338,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Analyst | ✅ (`create_nexus`, the handoff) | ✅ | ✅ | ❌ | ✅ sid-wide | full case |
 | Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ (consent-first, prompt-enforced) | ✅ sid-wide (incl. Decisions) | full case (render at construction) |
-| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + outside count + Decisions (Case-wide) |
+| Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + unattached PPs (quality-floored) + Decisions (Case-wide) + a count of other explorations' tensions — the render scope now MATCHES the write scope to its left, which it did not until 2026-09-15 |
 
 `Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head

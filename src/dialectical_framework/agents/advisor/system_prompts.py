@@ -1056,8 +1056,12 @@ but no pathways or synthesis exist for them until `explore` runs. This list
 is quality-filtered: tensions below the floor are suppressed with a count
 line (fetch one via `inspect_node` only if the person insists on that exact
 framing). (In an
-exploration-pinned session this section is absent: outside tensions appear
-only as a count and are not yours to work with.)
+exploration-pinned session this section still appears, and it holds exactly the
+tensions attached to no exploration — including the ones YOU anchored in this
+conversation, which is where a fresh anchor lands until `explore` weaves it in.
+Those are yours to work with: weave, discard, or draw on them. What is fenced
+there is tensions belonging to OTHER explorations of this case; they appear only
+as a count and are not yours to touch from a pinned session.)
 
 **Graph hierarchy:**
 - Nexus (a group of related tensions — perspectives indexed 1, 2, 3...)

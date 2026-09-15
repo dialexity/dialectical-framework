@@ -27,6 +27,7 @@ from test_dialectical_context import _create_perspective_with_aspects
 from dialectical_framework.concerns.dialectical_context import \
     DialecticalContext
 from dialectical_framework.graph.nodes.case import Case
+from dialectical_framework.graph.nodes.nexus import Nexus
 from dialectical_framework.graph.scope_context import scope
 
 #: The archive's observed per-cell anchor productivity, upper end.
@@ -62,6 +63,90 @@ TENSION_COUNT = 7
 #: budget below is unchanged either way — it is an absolute bound on the refresh,
 #: not a ratio, and the share is printed for judgement, never asserted.
 MEDIAN_TOOL_ROUND_S = 41.4
+
+#: How many QUERIES the counsel-mode refresh may run per unattached tension.
+#:
+#: A count and not a second seconds-budget, and the reason is measured rather than
+#: stylistic. Seconds cannot carry this claim at the size people actually hit: the
+#: absolute bound above is a laptop figure a loaded box blows straight through for
+#: reasons no code here controls (0.29s alone against 3.21s inside one full suite
+#: run at a 15-minute load average of 18.6 — an 11x swing on a path that had not
+#: changed), and a same-run RATIO, which does survive that contention, turned out
+#: to be blind to the very thing worth catching: adding a relationship read PER
+#: PERSPECTIVE moved it from 0.62x to 0.81x, nowhere near any bound that would not
+#: also fire on noise. Seven extra round-trips are simply not visible in wall time
+#: at seven tensions — they are visible at fifty, which is a graph nobody has yet.
+#: The sharpest form of that: with the per-node read mutation in place, the counsel
+#: refresh measured FASTER than without it (0.5665s against 0.5769s) in the same run
+#: that counted its extra queries exactly. Wall time here is noise wearing a number.
+#:
+#: `execute_and_fetch` calls are exact, deterministic, and identical whatever else
+#: the box is doing, and they are the quantity the claim at the widening site is
+#: actually about: "one `find_all` plus one relationship read per nexus, per turn".
+#: Per NEXUS is the contract; per PERSPECTIVE is the regression.
+#:
+#: But the assertion cannot be on the LEVEL, and that dead end is worth recording
+#: because it looks like it works: counsel runs 193 queries against the unscoped
+#: dump's 259 (it renders one exploration, not all of them), so the comparison
+#: passes with 66 round-trips of headroom — and the per-perspective mutation only
+#: needs 7 of them. A level test over a set the two paths render DIFFERENTLY has
+#: slack in it by construction, whatever instrument measures the level.
+#:
+#: So the assertion is on the SLOPE: how many queries each path adds per additional
+#: unattached tension. Rendering a tension legitimately costs reads — that is what
+#: the widening bought — and both paths render it with the SAME renderer over the
+#: same set, so their slopes must match. A read added per node on the pinned path
+#: only shows up as a steeper counsel slope regardless of either level. Slack of
+#: 0.5 a tension: the slopes are equal in the mechanism, and half a query per node
+#: is below anything a real per-node read can cost.
+#:
+#: Measured, and it is an exact equality rather than an approximate one — 37.00 per
+#: tension on both paths (259 -> 481 unscoped, 193 -> 415 counsel), which is the
+#: widening-site comment's claim demonstrated to the query. The per-node mutation
+#: reads 38.00 against 37.00 and fails.
+COUNSEL_SLOPE_SLACK = 0.5
+
+#: Unattached tensions at the two measured sizes. The step is what the slope is
+#: divided by, so it wants to be large enough that one query per node is not a
+#: rounding artifact and small enough to keep the fixture cheap.
+UNATTACHED_SIZES = (2, 8)
+
+
+async def _median_refresh(make_concern, reps: int = 5) -> tuple[float, str]:
+    """Median seconds of `reps` reads, plus the last dump.
+
+    The FIRST read is discarded rather than counted: it pays for connection setup
+    and any lazy schema work, which a per-turn refresh from turn 2 on does not.
+    """
+    dump = await make_concern().resolve()
+    timings: list[float] = []
+    for _ in range(reps):
+        started = time.monotonic()
+        dump = await make_concern().resolve()
+        timings.append(time.monotonic() - started)
+    return sorted(timings)[len(timings) // 2], dump
+
+
+async def _count_queries(db, monkeypatch, make_concern) -> tuple[int, str]:
+    """Graph round-trips one refresh runs, plus the dump it produced.
+
+    `execute_and_fetch` hands back the connection's own generator, so the query has
+    not necessarily run when it returns — but it has certainly been ASKED, and asked
+    is what this counts. Wrapping the singleton the DI container hands out is the
+    same instrument `probe_build_wheels_offprovider.py` uses.
+    """
+    calls = 0
+    fetch = db.execute_and_fetch
+
+    def counting_fetch(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return fetch(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(db, "execute_and_fetch", counting_fetch)
+        dump = await make_concern().resolve()
+    return calls, dump
 
 
 @pytest.mark.asyncio
@@ -111,4 +196,110 @@ async def test_the_refresh_is_cheap_against_the_reply_path():
         "person's wait, and it is paid on EVERY turn — including turns that "
         "changed nothing. Either the dump grew a per-node query or the graph "
         "read needs its own budget."
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
+    di_container, monkeypatch
+):
+    """The counsel-mode refresh, which the test above does not measure at all.
+
+    This is the path the Advisor actually runs on in counsel mode, and it is the
+    one the scope fence widened on 2026-09-15: `_resolve_scoped` now reads every
+    nexus's members to tell an UNATTACHED tension (renderable — it is likely this
+    head's own anchor) from one belonging to another exploration (fenced to a
+    count). The comment at that site claims the cost is what the unscoped dump has
+    always paid to compute the same set. This measures the claim.
+
+    The assertion is on graph ROUND-TRIPS per added tension, not on seconds and not
+    on a total; see `COUNSEL_SLOPE_SLACK` for both dead ends and why the slope is
+    what survives them. Seconds are still measured and printed, because the absolute
+    figure is worth watching even where it cannot carry an assertion.
+
+    Bounded on purpose: this fixture has perspectives, two explorations and
+    unattached tensions, but NO cycles or wheels. Counsel mode renders wheels
+    without the unscoped dump's `advisor_wheel_quality_top_plausible` cap, so a
+    developed graph is a different and larger question than the read set this pins.
+    """
+    case = Case()
+    case.commit()
+    small, large = UNATTACHED_SIZES
+
+    with scope(case.sid):
+        # The shape counsel mode is pinned into: the exploration under discussion,
+        # a second one whose tensions must stay fenced, and unattached tensions —
+        # the anchors this head planted and has not woven in yet.
+        pinned = Nexus(intent="the exploration under discussion")
+        pinned.save()
+        pinned.commit()
+        other = Nexus(intent="another exploration of the same case")
+        other.save()
+        other.commit()
+        for i in range(3):
+            _create_perspective_with_aspects(
+                thesis_text=f"Pinned {i} thesis",
+                antithesis_text=f"Pinned {i} antithesis",
+                thesis_meaning="test",
+            ).nexus.connect(pinned)
+        for i in range(2):
+            _create_perspective_with_aspects(
+                thesis_text=f"Elsewhere {i} thesis",
+                antithesis_text=f"Elsewhere {i} antithesis",
+                thesis_meaning="test",
+            ).nexus.connect(other)
+
+        def seed_unattached(start: int, stop: int) -> None:
+            for i in range(start, stop):
+                _create_perspective_with_aspects(
+                    thesis_text=f"Unattached {i} thesis",
+                    antithesis_text=f"Unattached {i} antithesis",
+                    thesis_meaning="test",
+                )
+
+        make_counsel = lambda: DialecticalContext(nexus_hash=pinned.short_hash)
+        db = di_container.graph_db()
+
+        seed_unattached(0, small)
+        unscoped_small, _ = await _count_queries(db, monkeypatch, DialecticalContext)
+        counsel_small, counsel_dump = await _count_queries(
+            db, monkeypatch, make_counsel
+        )
+
+        seed_unattached(small, large)
+        unscoped_large, _ = await _count_queries(db, monkeypatch, DialecticalContext)
+        counsel_large, _ = await _count_queries(db, monkeypatch, make_counsel)
+
+        unscoped_median, unscoped_dump = await _median_refresh(DialecticalContext)
+        counsel_median, _ = await _median_refresh(make_counsel)
+
+    step = large - small
+    unscoped_slope = (unscoped_large - unscoped_small) / step
+    counsel_slope = (counsel_large - counsel_small) / step
+
+    print(f"\nUnattached tensions: {small} -> {large} (3 pinned, 2 elsewhere)")
+    print(f"Unscoped queries: {unscoped_small} -> {unscoped_large} "
+          f"({unscoped_slope:.2f} per tension), median {unscoped_median:.4f}s "
+          f"({len(unscoped_dump)} chars)")
+    print(f"Counsel queries:  {counsel_small} -> {counsel_large} "
+          f"({counsel_slope:.2f} per tension), median {counsel_median:.4f}s")
+    print(f"Share of one {MEDIAN_TOOL_ROUND_S}s tool round: "
+          f"{counsel_median / MEDIAN_TOOL_ROUND_S:.2%}")
+
+    assert counsel_dump, "rendered an empty counsel dump over a pinned exploration"
+    # Non-vacuity: if the fixture stopped exercising the widened branch, the slope
+    # would be measuring nothing. The unattached tensions must actually render.
+    assert "# Unexplored Tensions" in counsel_dump, (
+        "fixture is inert: no unattached tension reached the dump, so the reads "
+        "this test is supposed to bound were never made"
+    )
+    assert counsel_slope > 0, (
+        "fixture is inert: adding unattached tensions changed the counsel refresh's "
+        "query count by nothing, so there is no slope here to bound"
+    )
+    assert counsel_slope <= unscoped_slope + COUNSEL_SLOPE_SLACK, (
+        f"the counsel-mode refresh adds {counsel_slope:.2f} graph queries per "
+        f"unattached tension against the unscoped dump's {unscoped_slope:.2f}. "
+        "Both render that set with the same renderer, so the slopes must match — "
+        "this says the pinned path is now asking a question per node."
     )

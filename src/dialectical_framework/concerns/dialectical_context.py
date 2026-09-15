@@ -67,8 +67,9 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         context = DialecticalContext()
         dump = await context.resolve()
 
-    Nexus-scoped usage (renders only one nexus + inputs; perspectives outside
-    the nexus appear only as a one-line count):
+    Nexus-scoped usage (renders one nexus + inputs + the tensions attached to no
+    exploration at all, e.g. this head's own anchors; only OTHER explorations'
+    perspectives are fenced down to a one-line count):
         context = DialecticalContext(nexus_hash="abc1234")
         dump = await context.resolve()
     """
@@ -200,14 +201,53 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if inputs_dump:
             sections.append(inputs_dump)
 
+        members = [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
+        member_ids = {pp._id for pp in members}
+
+        # The outside world splits in two, and only ONE half is fenced. The pin
+        # protects EXPLORATIONS — deliverables the person assembled under some
+        # other heading — not tensions that belong to no exploration at all.
+        # `tools/scoped.py` already draws exactly this line for `discard` ("the
+        # pin protects explorations, not standalone garbage: member of another
+        # nexus → refused; member of no nexus → allowed, e.g. a framing this
+        # head anchored during the conversation and the user rejected"), and
+        # `explore`'s own tool doc says to call it "when a newly anchored
+        # tension should join the exploration".
+        #
+        # So the tools could act on an unattached tension that this dump had
+        # reduced to an anonymous count — and counsel-mode `anchor` plants a
+        # STANDALONE perspective every single time. The head could only use its
+        # own anchor by remembering the hash out of an earlier turn's tool
+        # result; on the next turn the tension it had just planted, in this
+        # conversation, from the person's own words, was one digit in "3 other
+        # tension(s) exist outside this exploration (not shown)", indistinguishable
+        # from somebody else's deliverable. `explore` — the tool that would fix
+        # it by weaving the tension in — fires 2 times in 6.
+        #
+        # Costs one `find_all` plus one relationship read per nexus, per turn.
+        # The unscoped dump has always paid exactly this to compute the same set.
+        nexused_pp_ids: set = set()
+        for other_nexus in nexus_repo.find_all():
+            for pp, _ in other_nexus.perspectives.all():
+                if not pp.discarded:
+                    nexused_pp_ids.add(pp._id)
+
+        all_active = PerspectiveRepository().find_all_active()
+        unattached = [pp for pp in all_active if pp._id not in nexused_pp_ids]
+        other_exploration_count = sum(
+            1
+            for pp in all_active
+            if pp._id not in member_ids and pp._id in nexused_pp_ids
+        )
+
         # Counsel mode needs the person's case as much as the unscoped dump —
         # arguably more, since this is the head debriefing their own
-        # deliverable. Scoped to the nexus's own members: an outside tension's
-        # facts are not this exploration's to speak (same fence as the
-        # perspectives themselves, which appear only as a count).
-        particulars_dump = self._dump_case_particulars(
-            [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
-        )
+        # deliverable. Members AND unattached tensions: the fence above is about
+        # whose deliverable a tension belongs to, not whose facts it carries,
+        # and `anchor`'s `context` argument is "the only place their particulars
+        # survive". Pre-floor, matching the unscoped dump — the quality gate
+        # suppresses a weak TETRAD, never the particulars behind it.
+        particulars_dump = self._dump_case_particulars(members + unattached)
         if particulars_dump:
             sections.append(particulars_dump)
 
@@ -217,25 +257,54 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if decisions_dump:
             sections.append(decisions_dump)
 
-        nexus_dump = self._dump_nexus(nexus)
+        # Same floor and the same renderer as the unscoped dump. Inventing a
+        # second quality policy for counsel mode is not this change's job, and
+        # the floor's own reason ("a weak tetrad delivered with full counsel
+        # choreography is confident bad advice") is if anything sharper here.
+        #
+        # Cross-references are built over the PINNED nexus only. That is the
+        # fence, not an oversight: a line reading "Same opposition family as
+        # perspective 2 in [[otherhash]]" would name another exploration's
+        # contents, which is the leak the count line exists to prevent. The
+        # correspondence this does unlock is the one `_build_cross_nexus_refs`
+        # already documents and could not reach from counsel mode — "a fresh
+        # unexplored anchor echoing an already-explored tension".
+        shown_unattached, suppressed_count = self._apply_quality_floor(unattached)
+        cross_refs = (
+            self._build_cross_nexus_refs([nexus], shown_unattached)
+            if shown_unattached
+            else {}
+        )
+
+        nexus_dump = self._dump_nexus(nexus, cross_refs)
         if nexus_dump:
             sections.append(nexus_dump)
 
-        member_ids = {
-            pp._id for pp, _ in nexus.perspectives.all() if not pp.discarded
-        }
-        all_active = PerspectiveRepository().find_all_active()
-        outside_count = sum(1 for pp in all_active if pp._id not in member_ids)
-        if outside_count:
+        # After the exploration, not before it: the deliverable is the subject
+        # of the conversation, and an unattached tension reads as a candidate to
+        # weave into it.
+        if shown_unattached:
             sections.append(
-                f"{outside_count} other tension(s) exist outside this "
-                f"exploration (not shown)."
+                self._dump_standalone_perspectives(shown_unattached, cross_refs)
+            )
+        if suppressed_count:
+            sections.append(
+                f"{suppressed_count} unexplored tension(s) suppressed for low "
+                f"quality (weak opposition, blurred structure, unnatural/"
+                f"distorted framing, or failed validation) — reachable via "
+                f"inspect_node if needed."
+            )
+        if other_exploration_count:
+            sections.append(
+                f"{other_exploration_count} tension(s) belong to other "
+                f"exploration(s) in this case — not shown, and not yours to "
+                f"work with from here."
             )
 
         # Case-level, like the decisions above: work the person started and
         # lost does not stop mattering because the head is pinned to one
         # exploration. A count line is also all the fence allows — the same
-        # treatment the outside tensions get.
+        # treatment the other explorations' tensions get.
         pending_dump = self._dump_pending_analysis()
         if pending_dump:
             sections.append(pending_dump)
@@ -243,7 +312,8 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         self._report.ok = True
         self._report.summary = (
             f"Nexus [[{nexus.short_hash}]]: {len(member_ids)} perspectives, "
-            f"{outside_count} outside"
+            f"{len(shown_unattached)} unexplored, "
+            f"{other_exploration_count} in other explorations"
         )
         return "\n\n".join(sections)
 

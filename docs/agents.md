@@ -425,10 +425,18 @@ audit_feasibility pinned to the nexus — it IS Analyst+Explorer behind one
 voice), but with two constraints:
 
 - **Nexus pin in code** (`advisor/tools/scoped.py`): it cannot create sibling nexuses or
-  reach outside the exploration (deepen refuses wheels of other explorations;
+  reach into ANOTHER exploration (deepen refuses wheels of other explorations;
   audit_feasibility refuses pathways of other explorations — it writes and it
-  spends provider calls, so it is guarded like the other write tools). Only
-  `ingest` is excluded (bulk extraction belongs to the Analyst thread).
+  spends provider calls, so it is guarded like the other write tools; discard
+  refuses their perspectives). Only `ingest` is excluded (bulk extraction belongs
+  to the Analyst thread).
+
+  What the pin does NOT hide is a tension attached to no exploration, and that
+  matters because `anchor` plants exactly that: a freshly anchored tension is
+  standalone until `explore` weaves it in. So the counsel head reads its own
+  anchors in the context dump (under `# Unexplored Tensions`, quality-floored like
+  the unscoped dump, with their particulars hoisted) and can weave, discard or
+  draw on them. Other explorations' tensions appear only as a count.
 - **Transparent mutation** (`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`): unlike the unscoped Advisor's
   silent graph-building, the counsel head asks before adding a new tension to the
   user-built exploration and announces the change afterwards. The deliverable never

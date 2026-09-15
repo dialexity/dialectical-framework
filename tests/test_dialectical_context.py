@@ -248,7 +248,16 @@ class TestDialecticalContextWithPerspectives:
 
 
 class TestDialecticalContextScoped:
-    """Nexus-scoped rendering: one nexus + outside-count line only."""
+    """Nexus-scoped rendering: one nexus, plus what is attached to no nexus.
+
+    The fence moved 2026-09-15 and these tests moved with it. It used to hide
+    every perspective that was not a member of the pinned nexus, standalone ones
+    included — which meant the head's OWN anchor, planted in this conversation
+    from the person's own words, became one digit in an anonymous count on the
+    next turn (counsel-mode `anchor` always plants a standalone perspective).
+    The pin protects other explorations, exactly as `tools/scoped.py`'s discard
+    guard already had it.
+    """
 
     @staticmethod
     def _seed_nexus_and_outside(sid: str) -> str:
@@ -265,7 +274,27 @@ class TestDialecticalContextScoped:
         in_nexus.nexus.connect(nexus)
         return nexus.hash
 
-    async def test_scoped_dump_contains_only_nexus_perspectives(self):
+    @staticmethod
+    def _seed_two_explorations(sid: str) -> str:
+        """A member of the pinned exploration and a member of another one."""
+        mine = _create_perspective_with_aspects(
+            thesis_text="Control", antithesis_text="Freedom"
+        )
+        theirs = _create_perspective_with_aspects(
+            thesis_text="Depth", antithesis_text="Breadth"
+        )
+        pinned = Nexus(intent="scoped test exploration")
+        pinned.save()
+        pinned.commit()
+        mine.nexus.connect(pinned)
+
+        other = Nexus(intent="a different exploration")
+        other.save()
+        other.commit()
+        theirs.nexus.connect(other)
+        return pinned.hash
+
+    async def test_scoped_dump_shows_the_nexus_and_unattached_tensions(self):
         sid = _new_sid()
         with scope(sid):
             nexus_hash = self._seed_nexus_and_outside(sid)
@@ -274,27 +303,43 @@ class TestDialecticalContextScoped:
 
             assert "Control" in dump
             assert "Freedom" in dump
-            # the standalone perspective must NOT be rendered
-            assert "Speed" not in dump
-            assert "Thoroughness" not in dump
+            # Attached to no exploration, so nothing is fenced by showing it —
+            # and this is where a counsel-mode anchor lands.
+            assert "Speed" in dump
+            assert "Thoroughness" in dump
+            assert "# Unexplored Tensions" in dump
 
-    async def test_scoped_dump_has_outside_count_line(self):
+    async def test_scoped_dump_hides_other_explorations(self):
+        """The half of the fence that stays: another deliverable's contents."""
         sid = _new_sid()
         with scope(sid):
-            nexus_hash = self._seed_nexus_and_outside(sid)
+            nexus_hash = self._seed_two_explorations(sid)
 
             dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
 
-            assert "1 other tension(s) exist outside this exploration" in dump
-
-    async def test_scoped_dump_no_unexplored_section(self):
-        sid = _new_sid()
-        with scope(sid):
-            nexus_hash = self._seed_nexus_and_outside(sid)
-
-            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
-
+            assert "Control" in dump
+            assert "Depth" not in dump
+            assert "Breadth" not in dump
             assert "# Unexplored Tensions" not in dump
+
+    async def test_scoped_dump_counts_other_explorations_tensions(self):
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = self._seed_two_explorations(sid)
+
+            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
+
+            assert "1 tension(s) belong to other exploration(s)" in dump
+
+    async def test_scoped_dump_does_not_count_an_unattached_tension_as_outside(self):
+        """A standalone tension is shown, so it must not ALSO be counted away."""
+        sid = _new_sid()
+        with scope(sid):
+            nexus_hash = self._seed_nexus_and_outside(sid)
+
+            dump = await DialecticalContext(nexus_hash=nexus_hash[:7]).resolve()
+
+            assert "belong to other exploration" not in dump
 
     async def test_scoped_raises_on_missing_nexus(self):
         sid = _new_sid()
@@ -628,9 +673,10 @@ class TestScopedDumpCarriesTheCase:
         assert "45% equity" in result
 
     @pytest.mark.asyncio
-    async def test_an_outside_tensions_facts_are_not_this_explorations_to_speak(self):
-        """Same fence as the perspectives themselves: an outside tension appears
-        only as a count, so hoisting its particulars would leak around it."""
+    async def test_another_explorations_facts_are_not_this_explorations_to_speak(self):
+        """Same fence as the perspectives themselves: another exploration's
+        tensions appear only as a count, so hoisting their particulars would leak
+        around it."""
         sid = _new_sid()
         with scope(sid):
             member = _create_perspective_with_aspects(thesis_text="Speed")
@@ -642,7 +688,38 @@ class TestScopedDumpCarriesTheCase:
             member.nexus.connect(nexus)
             nexus.commit()
 
+            other = Nexus(intent="a different exploration")
+            other.save()
+            other.commit()
+            outsider.nexus.connect(other)
+
             result = await DialecticalContext(nexus_hash=nexus.short_hash).resolve()
 
         assert "45% equity" in result
         assert "spouse co-signed" not in result
+
+    @pytest.mark.asyncio
+    async def test_an_unattached_tensions_facts_are_the_persons_facts(self):
+        """The fence is about whose DELIVERABLE a tension belongs to, not whose
+        facts it carries — and `anchor`'s `context` is the only place the
+        person's particulars survive, since the tetrad keeps a few words a pole.
+        A tension attached to no exploration is normally this head's own anchor.
+        """
+        sid = _new_sid()
+        with scope(sid):
+            member = _create_perspective_with_aspects(thesis_text="Speed")
+            anchored = _create_perspective_with_aspects(thesis_text="Care")
+            _ground(member, "Cofounder holds 45% equity.")
+            _ground(anchored, "Founder's spouse co-signed the lease.")
+            nexus = Nexus()
+            nexus.save()
+            member.nexus.connect(nexus)
+            nexus.commit()
+
+            result = await DialecticalContext(nexus_hash=nexus.short_hash).resolve()
+
+        assert "45% equity" in result
+        # Hoisted as a bullet, not merely present as a `Grounded in:` line down
+        # in the tetrad block: the hoist exists because per-block grounding was
+        # measured referenced 0.04 of the time.
+        assert "- Founder's spouse co-signed the lease." in result

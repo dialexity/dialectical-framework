@@ -42,7 +42,18 @@ def _tool_by_name(tools: list, name: str):
 
 
 class TestScopedSync:
-    async def test_scoped_sync_pinned_to_nexus(self):
+    """What the pinned `sync` shows, and what it fences.
+
+    This class pinned the STRICTER rule until 2026-09-15 — every perspective
+    outside the pinned nexus hidden, unattached ones included. That was the same
+    defect `test_counsel_anchor_visibility.py` documents: the render was enforcing
+    a tighter pin than the tools it serves, so a tension this head anchored in the
+    conversation (counsel-mode `anchor` always plants a STANDALONE perspective) was
+    invisible to it next turn, while `discard` and `explore` would both act on it.
+    The assertion moved with the fence; the fence that remains is below it.
+    """
+
+    async def test_scoped_sync_shows_the_nexus_and_unattached_tensions(self):
         sid = _new_sid()
         with scope(sid):
             nexus = _create_nexus()
@@ -58,7 +69,32 @@ class TestScopedSync:
             dump = await sync()
 
             assert "Control" in dump
+            assert "Speed" in dump, (
+                "a tension attached to NO exploration is this head's to work "
+                "with — `discard` and `explore` both accept it, so `sync` "
+                "hiding it left the head unable to name what it just anchored"
+            )
+
+    async def test_scoped_sync_fences_another_exploration(self):
+        """The half of the pin that did not move: another deliverable."""
+        sid = _new_sid()
+        with scope(sid):
+            nexus = _create_nexus()
+            member = _create_perspective_with_aspects(
+                thesis_text="Control", antithesis_text="Freedom"
+            )
+            member.nexus.connect(nexus)
+            elsewhere = _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Thoroughness"
+            )
+            elsewhere.nexus.connect(_create_nexus("another exploration"))
+
+            sync = _tool_by_name(build_scoped_tools(nexus.hash[:7]), "sync")
+            dump = await sync()
+
+            assert "Control" in dump
             assert "Speed" not in dump
+            assert "belong to other exploration(s)" in dump
 
 
 class TestScopedExplore:
