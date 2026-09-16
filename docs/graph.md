@@ -245,9 +245,12 @@ case = Case()
 case.commit()
 
 with scope(case.sid):
-    # Create inputs (inherit sid from scope)
-    input_a = Input(content="https://article.com/pro")
-    input_b = Input(content="https://article.com/con")
+    # Create inputs (inherit sid from scope).
+    # `content` is whatever the app's InputResolver understands. The DEFAULT
+    # resolver fetches nothing — a URL here would be analysed as the URL string.
+    # See "Input Resolution" below.
+    input_a = Input(content="Preplanned courses guarantee coverage...")
+    input_b = Input(content="On-demand generation follows the learner...")
     input_a.commit()
     input_b.commit()
     case.inputs.connect(input_a)
@@ -723,6 +726,16 @@ wheel.commit()  # Computes hash from edges, makes immutable
 
 **Note:** The first `connect()` auto-saves if needed, so explicit `save()` is optional but recommended for clarity.
 
+#### Abandoned HEAD nodes accumulate until something reaps them
+
+`save()` stamps `saved_at`; `commit()` clears it and sets `hash`. So a node with `saved_at` set and `hash` null is *being built* — and a run that dies in that window (crash, cancelled request, provider timeout, a `KeyboardInterrupt` between `save()` and `commit()`) leaves it in the graph exactly as it was. Applies to every `IncrementalBuildMixin` node — Ideas, Perspective, Synthesis, Transformation, Wheel (Cycle and Transition are not among them, despite the mixin's own docstring naming Cycle).
+
+**The framework never reads `saved_at` back — a script does.** Inside `src/` the field is written (two places) and cleared on commit, and nothing queries it: no TTL, no reaper on any code path a host can call, no repository method that lists stale HEADs. Reaping is an out-of-process chore. `scripts/cleanup_stale_nodes.py` deletes every node with `hash IS NULL AND saved_at IS NOT NULL AND saved_at < now - max-age` (default one day; `--sid` scopes it to one Case, `--dry-run` prints the per-label counts first), and **nothing schedules it** — cron, a worker, or a deploy hook is the host app's call.
+
+They are not inert, either. Read sites defend against them one at a time, and that defence was retrofitted after a live bug: `WheelRepository.find_by_components` matched an abandoned Wheel that already carried its full transition count, returned it as a dedup hit, and the exploration ended a wheel short *believing it had reused one*. Its `WHERE w.hash IS NOT NULL` filter is the fix. Anywhere that invariant is missed, an abandoned container can still be mistaken for a finished one.
+
+**What to do today:** run the script on a schedule, and prefer a fresh `sid` per exploration so abandoned work is confined to a scope nothing queries again rather than mixed into a Case you keep using. What is genuinely missing is an *in-process* route: the script opens its own connection and writes the Cypher itself, so a host that wants to reap from inside its own event loop has no repository method to call — and writing the query at the call site is exactly what the framework's own rule forbids. Treat that as a gap rather than an oversight; nobody owns it.
+
 ## Common Operations
 
 ```python
@@ -879,6 +892,37 @@ Rationale ─[PROVIDES]─► Estimation ─[ESTIMATES]─► AssessableEntity
 
 **Content-addressed identity:** Estimations are identified by `(type, value, target)`. Same tuple = same hash = reused node.
 
+## Input Resolution
+
+An `Input` node stores a **reference**, not necessarily the material itself. Turning that reference into text the model can read is the job of an `InputResolver` (`protocols/input_resolver.py`), injected as `DI.input_resolver` in twelve modules — five Analyst extraction skills (`surface_theses`, `anchor_theses`, `introduce_polarity`, `find_polarities`, `expand_polarities`), `explore_transformations`, `generate_synthesis`, `read_input`, `audit_feasibility`, `SourceDigest`, and both causality estimators. It is the seam through which an app plugs in its own content sources.
+
+**The default resolves three things and fetches nothing.** `CompositeInputResolver` dispatches on the content prefix:
+
+| Content | Resolver | Result |
+|---------|----------|--------|
+| `dx://sid/hash` | `DialexityInputResolver` | text of the referenced graph node |
+| `data:...` | `VerbatimInputResolver` | decoded (URL-encoded or base64) |
+| anything else | `VerbatimInputResolver` | **returned as-is** |
+
+**So `Input(content="https://example.com/article")` is analysed as the literal string `https://example.com/article`.** There is no fetch, and nothing raises: the pipeline dutifully surfaces theses from a 38-character URL and writes them to the graph. This is the framework's minimal default (`VerbatimInputResolver`'s own docstring says apps should override it for production), and it is the single most likely way a working integration produces confident nonsense. If your inputs are URLs, uploads, or session-scoped blobs, **you supply the resolver**:
+
+```python
+from dependency_injector import providers
+from dialectical_framework.protocols.input_resolver import InputResolver
+
+class MyAppResolver(InputResolver):
+    async def resolve(self, input_node) -> str: ...          # required
+    async def resolve_all(self, source) -> str: ...          # required
+    async def resolve_native(self, input_node): ...          # optional, see below
+
+container = DialecticalReasoning.setup(Settings.from_env())
+container.input_resolver.override(providers.Singleton(MyAppResolver))
+```
+
+`resolve_all` takes either a `Case` (resolves every connected `Input`) or a list of `Input`s, and decides how the pieces are combined. Prompt-side rendering is separate: `utils/input_context.py` wraps each input's digest in `<Input id="...">` tags and holds the whole thing to a character budget.
+
+**`resolve_native` is the multimodal path.** `resolve()` always flattens to text; `resolve_native()` may return Mirascope `UserContent` — a `str`, or `Image`/`Document` parts — so the model reads an image or PDF natively instead of a lossy transcription (`SourceDigest`'s vision pass uses it). The default implementation delegates to `resolve()`, so a text-only resolver need not implement it, and a resolver that backs image or PDF sources should.
+
 ## Events
 
 Graph mutations are broadcast via `GraphEventBus` (in-process async, channel = sid):
@@ -887,12 +931,38 @@ Graph mutations are broadcast via `GraphEventBus` (in-process async, channel = s
 
 **Emitting (tools/concerns):** Call methods on `ExecutionReport` — e.g., `self._report.node_created(node)`. The report auto-publishes to the bus. Fire-and-forget.
 
-**Subscribing (app/UI layer):**
+**Getting the bus.** `DialecticalReasoning.setup()` **returns the container**, and the bus is a singleton on it. That return value is the only handle — a host that discards it has no way to reach the bus later:
+
+```python
+container = DialecticalReasoning.setup(Settings.from_env())
+bus = container.event_bus()
+
+await bus.connect()        # app startup
+...
+await bus.disconnect()     # app shutdown
+```
+
+**`connect()` is not optional, and skipping it fails silently.** `publish()` and `publish_progress()` return early while the bus is disconnected — deliberately, so a host that never subscribes pays nothing at the hundreds of emission points. The cost of that design is the failure mode: subscribe without connecting and you get a stream that yields nothing, forever, with no error anywhere. Every tool still works, every node still commits. Nothing arrives. There is no warning to grep for, so **a test that subscribes should assert its own wiring first** (same reasoning as the bus-teardown trap in `CLAUDE.md`) — otherwise "nothing arrived" is indistinguishable from the bug such a test exists to catch.
+
+**Subscribing (app/UI layer).** The object yielded by the subscriber is `broadcaster`'s envelope; the framework's `GraphEvent` is on `.message`:
+
 ```python
 async with bus.subscribe(sid) as subscriber:
     async for event in subscriber:
-        process(event.effect)
+        graph_event = event.message          # GraphEvent(sid, effect, timestamp)
+        process(graph_event.effect)          # Effect(effect_type, node, ...)
 ```
+
+**Progress is a second channel.** Work-in-flight signals publish on `f"{sid}:progress"`, never on `sid`, so an existing graph subscriber cannot break and progress is opt-in. A host that wants both a live canvas and a progress indicator runs two subscriptions:
+
+```python
+async with bus.subscribe_progress(sid) as subscriber:
+    async for event in subscriber:
+        p = event.message                    # ProgressEvent, never a GraphEvent
+        render(p.stage, p.done, p.total, p.detail, final=p.final)
+```
+
+**Do not render `done/total` as a completion bar.** `total` grows as work is discovered, and because growth is additive the counter genuinely reaches it mid-run — one measured ingest sat at 19/19 for 1.9s at 63% of the wall before dropping back to 19/20. `done` also counts steps *announced*, not finished. Render "step N, more coming", use `key` to keep concurrent scopes apart, treat `note=True` as label-only (same counts), and clear on `final`. `events/progress_event.py` carries the full reasoning and the measurements behind each of those; `utils/progress.py` is the emission side.
 
 ## Discarded Nodes
 

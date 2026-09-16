@@ -61,7 +61,10 @@ class Case(BaseNode, label="Case"):
         case = Case()
         case.commit()
 
-        input_node = Input(content="https://article.com")
+        # `content` is whatever the app's InputResolver understands. The DEFAULT
+        # resolver fetches nothing, so a URL here is analysed as the URL string —
+        # see docs/graph.md "Input Resolution".
+        input_node = Input(content="Remote work trades hallway context for focus")
         input_node.commit()
         case.inputs.connect(input_node)
 

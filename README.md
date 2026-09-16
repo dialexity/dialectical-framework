@@ -16,7 +16,9 @@ And the synthesis is *earned*, not asserted. Where "think step by step" leaves r
 
 ## How It Works
 
-1. **Input** — text, URLs, or raw ideas from any domain
+1. **Input** — text or raw ideas from any domain (URLs, uploads and other sources
+   once you supply an [`InputResolver`](docs/graph.md#input-resolution) — the default
+   fetches nothing)
 2. **Analysis** — extract the theses, find each one's true antithesis, develop the four aspects (T+, T-, A+, A-) that say where each side helps and where it overreaches
 3. **Graph curation** — commit every insight as content-addressed, rule-validated nodes and edges — nothing is stored until it holds up
 4. **Exploration** — combine perspectives into Cycles, arrange them into Wheels, and trace the Transformations whose circular causality yields synthesis

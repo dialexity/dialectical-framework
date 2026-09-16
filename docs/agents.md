@@ -130,9 +130,41 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    concurrent same-sid writers produce duplicate nodes/edges and half-built
    containers. Different sids are fine. Parallelism *inside* one turn is
    already handled (LLM work gathers, graph writes stay sequential).
-3. **Message persistence** — save/load `agent.messages` per conversation thread.
-4. **Phase handoff & live updates** — see [Handoffs](#handoffs-the-ux-glue) and the
-   `GraphEventBus` (effects publish per `sid` for reactive canvas updates).
+3. **Message persistence** — save/load `agent.messages` per conversation thread. Carrying
+   the list forward inside one process needs nothing: hand it to the next
+   `Advisor(messages=saved)` and you are done.
+
+   **Writing it to a database needs a projection, and the obvious projection is the
+   lossy one.** These are Mirascope message dataclasses — `SystemMessage`,
+   `UserMessage`, `AssistantMessage` — not Pydantic models: no `model_dump`, no
+   `model_validate`, and Mirascope ships no dump/load helper. What they do have is a
+   shape that serializes cleanly by hand. Every message and every content part is a
+   dataclass with a `type` (or `role`) discriminator and JSON-able fields, including
+   multimodal ones, whose bytes live as base64 `str` inside a `source` object. So:
+
+   ```python
+   import dataclasses, json
+   json.dumps([dataclasses.asdict(m) for m in advisor.messages])   # lossless
+   ```
+
+   Rebuild by dispatching on `role`, then on each part's `type` (`text`, `tool_call`,
+   `thought`, `tool_output`, `image`, `audio`, `document`).
+
+   **Keep `raw_message`.** It looks like provenance and is not: it holds the provider's
+   own payload, and Mirascope passes it back **verbatim** as input on the next call —
+   the framework has to reach into it and strip output-only fields (`caller` on
+   `tool_use` blocks) or the following request 400s (`_strip_caller_from_messages`).
+   A role-plus-content projection therefore does more than lose detail: the provider
+   sees a conversation in which the assistant referred to tool work it never did.
+
+   The system message is the one thing you may drop. It sits at `messages[0]` and the
+   framework rewrites it every turn from the live graph dump, so a saved copy is
+   replaced rather than honoured.
+4. **Phase handoff & live updates** — see [Handoffs](#handoffs-the-ux-glue) and
+   [Events](graph.md#events) for the `GraphEventBus`: where to get it
+   (`container.event_bus()`), the `await bus.connect()` that a host must not skip
+   (publishing is a silent no-op without it), and the separate `f"{sid}:progress"`
+   channel for work-in-flight signals.
 5. **Draining deferred work** — `await advisor.wait_for_deferred_work()` before the
    conversation's scope goes away (once, after the last turn). The Advisor starts one
    thing the turn does not wait for: when a decision closes over tensions nothing has
