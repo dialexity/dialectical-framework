@@ -23,7 +23,8 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.advisor.system_prompts import \
     system_prompt
 from dialectical_framework.agents.agent_context import agent_scope
-from dialectical_framework.graph.scope_context import require_current_sid
+from dialectical_framework.graph.scope_context import (get_current_sid,
+                                                        require_current_sid)
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
@@ -43,6 +44,152 @@ class ChatResponse(BaseModel):
     """Response from the advisor chat."""
 
     message: str = Field(description="The assistant's response message")
+
+
+class _DeferredWork:
+    """One sid's off-turn weave: the running task and the queue feeding it.
+
+    Keyed by SID rather than held on the Advisor, and the reason is the
+    documented resume pattern rather than tidiness. `Advisor(messages=saved)`
+    is how a stateless host (one instance per HTTP request, conversation
+    restored from storage) carries a conversation forward — so instance N+1
+    routinely inherits a conversation whose off-turn weave was started by
+    instance N. With this state on the instance, N+1 saw no task: it settled
+    nothing at the top of its turn and its own closing started a SECOND weave,
+    which is two concurrent writers on one sid — duplicate nodes, duplicated
+    directed edges and half-built containers (docs/agents.md). The single-flight
+    guard was per-instance while the contract it enforces is per-sid.
+
+    The QUEUE moves with the task, and not by symmetry. The `JOINED` outcome
+    rests on "the running task re-reads the queue after every weave", so a
+    sid-keyed task reading a per-instance queue would report JOINED and then
+    drain a list the decision was never in — silently losing the ground, which
+    is worse than the race. One mechanism, one key.
+
+    ONE LIMIT, STATED RATHER THAN ENGINEERED AROUND
+    ==============================================
+    The running task is bound to the instance that created it, so it weaves under
+    THAT instance's nexus pin (`_weave_unwoven_perspectives`,
+    `_existing_pathway_hashes`). A decision queued by a differently-pinned
+    Advisor and drained by this task would therefore be grounded against the
+    wrong exploration. Reaching that requires two turns on one sid to OVERLAP —
+    every turn opens by settling this sid's work, so a resumed instance never
+    closes a decision while a previous weave is live — and overlapping turns on
+    one sid are the contract violation this whole seam exists because of. Pinning
+    per queue entry would be machinery bought for a state the framework already
+    tells hosts not to create.
+    """
+
+    __slots__ = ("task", "decisions")
+
+    def __init__(self) -> None:
+        self.task: Optional[asyncio.Task] = None
+        self.decisions: list[str] = []
+
+    @property
+    def idle(self) -> bool:
+        """Nothing running, nothing queued — the entry carries no information."""
+        return not self.decisions and (self.task is None or self.task.done())
+
+
+#: Off-turn work by sid. Process-global because the point is to be found by an
+#: Advisor that did not create it. Touched only from the event loop running that
+#: sid's turn, which the one-writer-per-sid contract already makes singular.
+_DEFERRED_WORK: dict[str, _DeferredWork] = {}
+
+
+def _deferred_work(key: str) -> _DeferredWork:
+    """The deferred-work entry for `key`, created if there is none.
+
+    Only for callers about to WRITE (queue a decision, register a task). Readers
+    take `_deferred_work_if_any`, so that asking whether a conversation has work
+    in flight is not itself what makes the registry grow.
+    """
+    _sweep_idle(keep=key)
+    entry = _DEFERRED_WORK.get(key)
+    if entry is None:
+        entry = _DEFERRED_WORK[key] = _DeferredWork()
+    return _drop_task_from_a_dead_loop(entry, key)
+
+
+def _deferred_work_if_any(key: str) -> Optional[_DeferredWork]:
+    """The deferred-work entry for `key`, or None. Creates nothing."""
+    _sweep_idle()
+    entry = _DEFERRED_WORK.get(key)
+    return None if entry is None else _drop_task_from_a_dead_loop(entry, key)
+
+
+def _sweep_idle(keep: Optional[str] = None) -> None:
+    """Retire entries holding neither a live task nor a queued decision.
+
+    Swept on access rather than by a reaper, which keeps the invariant statable:
+    an entry exists only while it has work, so a long-running host holds one per
+    sid CURRENTLY weaving and not one per sid it has ever served. An idle entry
+    carries no information, so dropping it is free.
+    """
+    for stale in [k for k, v in _DEFERRED_WORK.items() if k != keep and v.idle]:
+        del _DEFERRED_WORK[stale]
+
+
+def _drop_task_from_a_dead_loop(entry: _DeferredWork, key: str) -> _DeferredWork:
+    """Forget a live task that belongs to a different event loop.
+
+    The same sid used by a loop that ended without draining (a test suite, or a
+    host that tore a loop down mid-weave). Awaiting such a task raises "attached
+    to a different loop" — a failure that reads like a framework bug — and the
+    weave died with its loop either way.
+    """
+    if entry.task is None or entry.task.done() or _on_this_loop(entry.task):
+        return entry
+    logger.warning(
+        "Discarding deferred work for scope %s: its task belongs to an event loop "
+        "that is no longer the one running. The weave was lost with that loop; the "
+        "decisions it would have grounded keep the grounds they were recorded "
+        "with.",
+        key,
+    )
+    entry.task = None
+    return entry
+
+
+def _on_this_loop(task: asyncio.Task) -> bool:
+    """Whether `task` can be awaited from here."""
+    try:
+        return task.get_loop() is asyncio.get_running_loop()
+    except RuntimeError:
+        # No loop running in this call — a synchronous probe (the single-flight
+        # check runs on the turn's thread but `_schedule_pathway_construction`
+        # is not a coroutine). Nothing is about to be awaited, so nothing is
+        # about to break: leave the entry as it is.
+        return True
+
+
+async def _await_deferred_task(
+    task: asyncio.Task, deadline: Optional[float]
+) -> bool:
+    """Wait for one deferred task. False means the deadline passed first.
+
+    `asyncio.wait` rather than `wait_for`, because `wait_for` CANCELS what it
+    times out on. Cancelling is a decision about the host's intent — whether the
+    graph is better with a half-finished weave than with an unfinished one — and
+    a `timeout=` argument is not that decision. The caller that wants the work
+    stopped drops the loop, which cancels it anyway.
+    """
+    remaining = None if deadline is None else deadline - time.monotonic()
+    if remaining is not None and remaining <= 0:
+        return False
+    done, _pending = await asyncio.wait({task}, timeout=remaining)
+    if not done:
+        return False
+    # Raises CancelledError if the TASK was cancelled, which propagates on
+    # purpose: that is a shutdown in progress, and the pre-timeout code let it
+    # through too.
+    error = task.exception()
+    if error is not None:
+        # The task logs its own failures; this only stops a deferred failure
+        # from surfacing at an unrelated shutdown seam.
+        logger.error("Deferred Advisor work ended in an error", exc_info=error)
+    return True
 
 
 class Advisor(SettingsAware):
@@ -82,7 +229,7 @@ class Advisor(SettingsAware):
             )
             response = await advisor.chat("I want to talk through what we found...")
 
-    Usage (resuming conversation):
+    Usage (resuming conversation — including one instance per request):
         with scope(case.sid):
             advisor = Advisor(
                 app_preamble=COUNSELOR_PERSONA,
@@ -90,6 +237,13 @@ class Advisor(SettingsAware):
                 principal="human",
             )
             response = await advisor.chat("What about the other angle?")
+
+        # A NEW instance every turn is a supported shape, and nothing about the
+        # off-turn weave leaks out of it: the deferred task and its queue are
+        # keyed by sid (see `_DeferredWork`), so this Advisor waits for the weave
+        # its predecessor started and cannot start a second one on the same
+        # conversation. `wait_for_deferred_work()` on whichever instance the host
+        # happens to hold drains the whole conversation.
 
     Usage (app-provided domain tools):
         # The app brings field knowledge two ways: prose in the preamble,
@@ -138,6 +292,16 @@ class Advisor(SettingsAware):
     # use with one round of slack. Not a latency budget — there is no turn
     # waiting on this — but a spin guard: see `_weave_unwoven_perspectives`.
     _MAX_WEAVE_ROUNDS = 4
+
+    #: Every `_DEFERRED_WORK` key this instance has scheduled under. A CLASS
+    #: attribute, immutable, replaced (never mutated) per instance — so a
+    #: stand-in that binds these methods without running `__init__` reads an
+    #: empty set instead of an AttributeError, and no instance can mutate a
+    #: shared default. Its only job is the host that drains AFTER its
+    #: `with scope(sid)` has closed: `wait_for_deferred_work` then has no sid to
+    #: resolve, and that call used to work by accident when the task lived on the
+    #: instance. Dropping it would be a regression dressed as a fix.
+    _deferred_work_keys: frozenset[str] | set[str] = frozenset()
 
     def __init__(
         self,
@@ -204,14 +368,12 @@ class Advisor(SettingsAware):
         # handed to the person. None until the first turn completes.
         self.last_turn_timing: Optional[TurnTiming] = None
         # Pathway construction moved OFF the turn — see
-        # `_schedule_pathway_construction`. The task reference is held to keep
-        # the task from being garbage-collected mid-flight (asyncio only holds a
-        # weak reference), and it is the single-flight guard: one weave at a
-        # time, so this seam can never race itself. Decisions closed while a
-        # weave is in flight queue here and the running task drains them, which
-        # is why the queue is a field and not a local.
-        self._deferred_pathway_task: Optional[asyncio.Task] = None
-        self._decisions_awaiting_pathway: list[str] = []
+        # `_schedule_pathway_construction`. NOTHING IS INITIALISED HERE, and the
+        # absence is the fix rather than an omission: the task and the queue live
+        # in `_DEFERRED_WORK` keyed by sid (see `_DeferredWork`), reached through
+        # the two properties below. A constructor that reset them would clear the
+        # weave the PREVIOUS instance on this sid left running, which is precisely
+        # what the documented `Advisor(messages=saved)` resume used to do.
         # What the seam concluded, and whether it left work in flight — set by
         # `_repair_unrecorded_decision` and read by `_record_turn_timing` on the
         # very next statement of the same turn. Fields rather than a return
@@ -225,6 +387,53 @@ class Advisor(SettingsAware):
         self._conversation.set_system_prompt(
             self._build_system_prompt(app_preamble, dialectical_context)
         )
+
+    def _deferred_work_key(self) -> str:
+        """Which `_DEFERRED_WORK` entry this Advisor's off-turn work belongs to.
+
+        The sid, because that is what the one-writer contract is about and what
+        the weave writes under. Read from the scope rather than stored at
+        construction: the scope is per-turn, and an Advisor is allowed to outlive
+        one (`Advisor.__init__` only needs a scope when a nexus pin has to be
+        validated).
+        """
+        sid = get_current_sid()
+        if sid:
+            return sid
+        # No scope. Nothing conversational arrives here unscoped — `chat` and
+        # `chat_stream` both open with `require_current_sid` — so this is a
+        # programmatic caller or a unit test driving the seam directly. Keying on
+        # the instance restores exactly the pre-registry per-instance behaviour
+        # for the one caller the sid contract cannot speak about. The id cannot be
+        # recycled underneath us while it matters: a live task holds this
+        # instance's bound coroutine, and the entry is swept once it does not.
+        return f"instance:{id(self)}"
+
+    @property
+    def _deferred_pathway_task(self) -> Optional[asyncio.Task]:
+        """The weave in flight for this sid, if any.
+
+        A property rather than a field so that every Advisor on one sid sees the
+        same task — this is the single-flight guard, and it also keeps the task
+        from being garbage-collected mid-flight (asyncio holds only a weak
+        reference to a running task).
+        """
+        entry = _deferred_work_if_any(self._deferred_work_key())
+        return None if entry is None else entry.task
+
+    @_deferred_pathway_task.setter
+    def _deferred_pathway_task(self, task: Optional[asyncio.Task]) -> None:
+        _deferred_work(self._deferred_work_key()).task = task
+
+    @property
+    def _decisions_awaiting_pathway(self) -> list[str]:
+        """Decision hashes queued for the next weave on this sid.
+
+        Read-only as a name (the LIST is mutated in place, by design): the
+        running task re-reads it after every weave, so replacing it would drop
+        whatever a closing appended mid-flight.
+        """
+        return _deferred_work(self._deferred_work_key()).decisions
 
     @staticmethod
     def _validate_nexus(nexus_hash: str) -> None:
@@ -748,6 +957,17 @@ class Advisor(SettingsAware):
         think-time absorbed the weave. When it is not zero the deferral has
         genuinely charged the person, and `TurnTiming.deferred_wait_s` is where
         that shows up rather than being buried in `generation_s`.
+
+        DELIBERATELY UNBOUNDED, unlike the host-facing `wait_for_deferred_work`.
+        The wait exists to keep a correctness invariant (one writer per sid), so a
+        timeout here would be trading duplicate nodes and half-built containers
+        for latency. A host that wants a bound on a SHUTDOWN drain has one; a turn
+        does not get to decide it has waited long enough to start corrupting the
+        graph.
+
+        Finds work started by a DIFFERENT Advisor on the same sid, which is the
+        whole point: the documented resume pattern (`Advisor(messages=saved)`)
+        hands the conversation to a new instance every turn.
         """
         if self._deferred_pathway_task is None:
             return 0.0
@@ -755,8 +975,8 @@ class Advisor(SettingsAware):
         await self.wait_for_deferred_work()
         return time.monotonic() - started
 
-    async def wait_for_deferred_work(self) -> None:
-        """Await anything this Advisor started off-turn. A HOST OBLIGATION.
+    async def wait_for_deferred_work(self, timeout: float | None = None) -> bool:
+        """Await off-turn work on this conversation. A HOST OBLIGATION.
 
         Call this before the process (or the session's scope) goes away —
         typically once, after the last turn. It is the same shape of contract as
@@ -764,29 +984,45 @@ class Advisor(SettingsAware):
         does not wait for, and only the host knows when there is no more turn
         coming.
 
-        Skipping it does not corrupt anything — every deferred write is
+        Waits for the SID, not for this object: work started by an earlier Advisor
+        on the same conversation is drained here too, so a stateless host
+        (one instance per request, `messages=` restored from storage) can drain
+        from whichever instance it happens to be holding.
+
+        `timeout` bounds the wait in seconds — for a shutdown path that must not
+        hang on a slow provider. It does NOT cancel the work: returns False with
+        the weave still running, so the caller decides whether to keep waiting,
+        carry on, or drop the loop (which cancels it). Returns True when nothing
+        is left in flight.
+
+        Skipping this entirely does not corrupt anything — every deferred write is
         fail-soft and idempotent — but the weave is cancelled with the loop, so
         the decision keeps whatever grounds it was recorded with. That is the
         pre-deferral behaviour, not a new failure mode.
 
         Safe to call any number of times, including when nothing was deferred.
         """
-        # Loops on the FIELD rather than awaiting one captured task: a turn that
-        # lands while this is waiting replaces it, and awaiting the stale
-        # reference would return with work still in flight.
-        while True:
-            task = self._deferred_pathway_task
-            if task is None or task.done():
-                return
-            try:
-                await task
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                # The task logs its own failures; this guard only stops a
-                # deferred failure from surfacing at an unrelated shutdown seam.
-                logger.exception("Deferred Advisor work ended in an error")
-                return
+        deadline = None if timeout is None else time.monotonic() + timeout
+        # The sid in scope first — that is the entry a host draining inside its
+        # `with scope(sid):` (the documented shape) means. Then any key this
+        # instance scheduled under, for the host that drains after the scope has
+        # closed: there is no sid to resolve then, and that call worked by
+        # accident while the task lived on the instance.
+        for entry_key in [None, *sorted(self._deferred_work_keys)]:
+            # Re-reads the entry each pass rather than awaiting one captured task:
+            # a closing that lands while this waits can replace it, and awaiting
+            # the stale reference would return with work still in flight.
+            while True:
+                if entry_key is None:
+                    task = self._deferred_pathway_task
+                else:
+                    known = _deferred_work_if_any(entry_key)
+                    task = None if known is None else known.task
+                if task is None or task.done():
+                    break
+                if not await _await_deferred_task(task, deadline):
+                    return False
+        return True
 
     def _schedule_pathway_construction(self, decision_hash: str | None) -> None:
         """Queue the weave this closing is entitled to, to run OFF the turn.
@@ -815,7 +1051,17 @@ class Advisor(SettingsAware):
         ContextVar this turn is running under is inherited by the task. That is
         the whole reason this is scheduled from the turn rather than handed to a
         host to run later: outside the scope every write would land under a
-        different root, or refuse (`require_for_current_scope`).
+        different root, or refuse (`require_for_current_scope`). It is also what
+        lets the task resolve the same `_DEFERRED_WORK` key from inside itself as
+        the turn that created it.
+
+        SINGLE FLIGHT IS PER SID, NOT PER OBJECT
+        ========================================
+        The task and the queue live in `_DEFERRED_WORK[sid]` (see `_DeferredWork`
+        for why), so the guard holds across the resume pattern this framework
+        documents: a host that builds a fresh Advisor per turn from saved messages
+        cannot start a second concurrent weave on a conversation, and cannot lose
+        a decision to one either.
 
         Fail-soft and silent: the reply is already delivered, and a pathway the
         person never asked about must not surface to them as an error.
@@ -845,6 +1091,13 @@ class Advisor(SettingsAware):
         weave = self._run_deferred_pathway_construction()
         try:
             self._deferred_pathway_task = asyncio.create_task(weave)
+            # Where it was scheduled, so a host that drains AFTER leaving the
+            # `with scope(sid):` still finds it — see `wait_for_deferred_work`.
+            # Replaced rather than mutated: the class default is immutable on
+            # purpose (a shared mutable default would pool every Advisor's keys).
+            self._deferred_work_keys = set(self._deferred_work_keys) | {
+                self._deferred_work_key()
+            }
             # After the create, never before: the seconds a later turn waits on
             # `deferred_wait_s` begin at this line, so a turn that claimed to
             # have started work the loop refused would send that wait looking
@@ -879,26 +1132,43 @@ class Advisor(SettingsAware):
         """
         rounds = 0
         grounded: list[str] = []
-        while self._decisions_awaiting_pathway and rounds < self._MAX_WEAVE_ROUNDS:
-            rounds += 1
-            pending = list(self._decisions_awaiting_pathway)
-            self._decisions_awaiting_pathway.clear()
-            try:
-                pathways = await self._weave_unwoven_perspectives()
-            except Exception:
-                logger.exception(
-                    "Deferred pathway construction failed (fail-soft); the "
-                    "decisions it would have grounded keep the grounds they "
-                    "were recorded with"
-                )
-                # BREAK, not return: a decision grounded in an earlier round
-                # still has a recipe worth scoring, and this round's failure is
-                # about the weave rather than about that record.
-                break
-            for decision_hash in pending:
-                self._ground_recorded_decision(decision_hash, pathways)
-                grounded.append(decision_hash)
-        await self._audit_adopted_pathways(grounded)
+        try:
+            while (
+                self._decisions_awaiting_pathway and rounds < self._MAX_WEAVE_ROUNDS
+            ):
+                rounds += 1
+                pending = list(self._decisions_awaiting_pathway)
+                self._decisions_awaiting_pathway.clear()
+                try:
+                    pathways = await self._weave_unwoven_perspectives()
+                except Exception:
+                    logger.exception(
+                        "Deferred pathway construction failed (fail-soft); the "
+                        "decisions it would have grounded keep the grounds they "
+                        "were recorded with"
+                    )
+                    # BREAK, not return: a decision grounded in an earlier round
+                    # still has a recipe worth scoring, and this round's failure is
+                    # about the weave rather than about that record.
+                    break
+                for decision_hash in pending:
+                    self._ground_recorded_decision(decision_hash, pathways)
+                    grounded.append(decision_hash)
+            await self._audit_adopted_pathways(grounded)
+        finally:
+            # Retire this sid's registry entry as the task ends, so keys do not
+            # accumulate for the life of the process. In a `finally` because a
+            # cancelled drain must clean up too, and guarded on being OUR task
+            # with an empty queue so a closing that landed in the last instant
+            # keeps its place: whoever owns the entry then also owns the cleanup.
+            key = self._deferred_work_key()
+            entry = _DEFERRED_WORK.get(key)
+            if (
+                entry is not None
+                and entry.task is asyncio.current_task()
+                and not entry.decisions
+            ):
+                del _DEFERRED_WORK[key]
 
     async def _audit_adopted_pathways(self, decision_hashes: list[str]) -> None:
         """Score the recipe each closing actually adopted, off the turn.

@@ -2571,7 +2571,36 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `await advisor.wait_for_deferred_work()` before shutdown, same shape as the `aclosing` contract (docs/agents.md
   obligation 5; `tests/e2e/arms.py::AdvisorArm.finish`, which the driver calls before every decision read and
   graph render — omit it and the bench measures the pre-weave graph and scores the deferral as having done
-  nothing, the mirror of the r-round mistake where the bench measured a seam the product did not have). One
+  nothing, the mirror of the r-round mistake where the bench measured a seam the product did not have).
+  **THE STATE IS KEYED BY SID, NOT HELD ON THE ADVISOR** (2026-09-16, module-level `_DEFERRED_WORK` in
+  `advisor.py`), and the reason is the framework's own documented resume pattern: `Advisor(messages=saved)` is how
+  a stateless host carries a conversation forward — one instance per HTTP request — and with the task on the
+  instance that shape defeated BOTH bounds at once. Instance N+1 saw no task, so `_settle_deferred_work` returned
+  0.0 without waiting AND its own closing started a second weave: two concurrent writers on one sid, i.e. the seam
+  built to protect the graph arming the exact failure it protects against, on the deployment shape most likely to
+  reach production. The QUEUE had to move with the task rather than merely beside it, and this is the part that
+  would have been easy to get half-right: `DeferralOutcome.JOINED` rests on "the running task re-reads the queue",
+  so a sid-keyed task over a per-instance queue reports JOINED and then drains a list the decision was never in —
+  mutation-verified to lose the ground SILENTLY, which is strictly worse than the race. Three secondary
+  properties, each in code rather than in prose: entries retire when their work ends (swept on access, so a
+  long-running host holds one entry per sid *currently weaving*, not one per sid ever served); a live task
+  belonging to a dead event loop is discarded with a warning instead of awaited into "attached to a different
+  loop"; and reads use a non-creating lookup so that asking whether work is in flight is not what makes the
+  registry grow. One limit accepted and stated rather than engineered around: the running task weaves under the
+  nexus pin of the instance that CREATED it, so a decision queued by a differently-pinned Advisor would ground
+  against the wrong exploration — reachable only if two turns on one sid overlap, which is the contract violation
+  this whole seam exists because of, since every turn opens by settling that sid's work. **`wait_for_deferred_work`
+  also grew a `timeout`** for shutdown paths that must not hang on a slow provider: `True` when nothing is left in
+  flight, `False` if the bound passed first, and it does NOT cancel — `asyncio.wait` rather than `wait_for`
+  deliberately, because whether a half-woven graph beats an unfinished one is the host's intent and a `timeout=`
+  argument is not that decision (the caller that wants it stopped drops the loop, which cancels it anyway). The
+  TURN-top settle stays unbounded on purpose, and the docstring says why: it holds a correctness invariant, so a
+  timeout there would trade duplicate nodes and half-built containers for latency. Locked by
+  `TestOneWriterPerSidSurvivesAFreshAdvisor` (`tests/test_decision_confirmation_repair.py`), whose stub is bound
+  to the real registry properties for the same reason the rest of that file binds real methods — a per-instance
+  stand-in would leave every other deferral test exercising the behaviour that had the defect. Mutation-verified
+  three ways: per-instance keying fails the two cross-instance tests, a cancelling timeout fails the timeout test,
+  and a per-instance queue over a sid-keyed task reproduces the silent dropped ground exactly. One
   hazard found while building and fixed in code rather than documented away: **the deferred task is a WRITER, and
   one-writer-per-sid is a hard contract that nothing enforces** — so `chat`/`chat_stream` await the previous
   turn's weave before starting (`_settle_deferred_work`, before `_refresh_context`, which also means the turn's

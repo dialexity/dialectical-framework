@@ -28,9 +28,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from dialectical_framework.agents.advisor.advisor import Advisor
+from dialectical_framework.agents.advisor.advisor import (_DEFERRED_WORK,
+                                                            Advisor)
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.stream_events import ToolResult
+from dialectical_framework.agents.turn_timing import DeferralOutcome
+from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.concerns.decision_confirmation_check import (
     ConfirmationVerdictDto, DecisionConfirmationCheck)
 from dialectical_framework.concerns.record_decision import UNATTESTED_PRINCIPAL
@@ -79,10 +82,13 @@ class _StubAdvisor:
         self.settings = SimpleNamespace(
             automatic_feasibility_audit=automatic_feasibility_audit
         )
-        # Per-instance, matching the real `__init__`: a class-level list would
-        # leak one test's pending decisions into the next.
-        self._deferred_pathway_task = None
-        self._decisions_awaiting_pathway: list[str] = []
+        # NOT declared here, matching the real `__init__`: the deferred task and
+        # the queue live in `_DEFERRED_WORK` keyed by sid, reached through the
+        # properties bound below. Assigning them here would compile (the task has
+        # a setter) and would reintroduce exactly the defect the registry removes —
+        # a fresh instance clearing the weave the previous one left running.
+        # Test isolation still holds: unscoped stubs key on their own `id(self)`,
+        # and scoped ones on whatever sid the test opened.
         # Mirrors the real `__init__`. The seam resets both on entry, so a stub
         # without them would still work — declared anyway, because a test that
         # asserts `is None` before the seam runs is asserting the constructor's
@@ -123,6 +129,16 @@ class _StubAdvisor:
     _audit_adopted_pathways = Advisor._audit_adopted_pathways
     _adopted_pathway_hash = Advisor._adopted_pathway_hash
     wait_for_deferred_work = Advisor.wait_for_deferred_work
+    _settle_deferred_work = Advisor._settle_deferred_work
+    # The sid-keyed registry seam, bound as PROPERTIES rather than stubbed with
+    # plain attributes — otherwise every test in `TestDeferredPathwayConstruction`
+    # would exercise per-instance single flight, which is the behaviour that had
+    # the resume defect, and `TestOneWriterPerSidSurvivesAFreshAdvisor` below
+    # would be testing a mechanism nothing else in this file uses.
+    _deferred_work_key = Advisor._deferred_work_key
+    _deferred_work_keys = Advisor._deferred_work_keys
+    _deferred_pathway_task = Advisor.__dict__["_deferred_pathway_task"]
+    _decisions_awaiting_pathway = Advisor.__dict__["_decisions_awaiting_pathway"]
 
 
 def _ok_report() -> ExecutionReport:
@@ -1469,6 +1485,257 @@ class TestDeferredPathwayConstruction(_SeamFixtures):
 
         assert state["calls"] == []
         assert advisor._deferred_pathway_task is None
+
+
+class TestOneWriterPerSidSurvivesAFreshAdvisor(_SeamFixtures):
+    """The single-flight guard belongs to the CONVERSATION, not to the object.
+
+    THE DEFECT THIS PINS
+    ====================
+    The framework documents `Advisor(messages=saved_messages)` as how a
+    conversation is carried forward, and that is what a stateless host does — one
+    instance per HTTP request, messages restored from storage. While the deferred
+    task and its queue lived on the instance, that pattern defeated both bounds
+    at once: instance N+1 settled nothing at the top of its turn (it saw no task)
+    and its own closing started a SECOND weave on the same sid. Two concurrent
+    writers on one sid is what `docs/agents.md` says produces duplicate nodes,
+    duplicated directed edges and half-built containers — so the seam built to
+    protect the graph was arming the failure it was protecting against, on the
+    single deployment shape most likely to be used in production.
+
+    Nothing about this is visible from one Advisor, which is why these tests use
+    two.
+    """
+
+    def _held_weave(self, monkeypatch, release, *, built=None):
+        """A weave that BLOCKS inside the exploration until `release` is set.
+
+        An Event rather than a sleep: what has to be true is that the second
+        Advisor arrives while the first weave is genuinely mid-flight, and a
+        sleep long enough to make that reliable is a sleep long enough to make
+        the suite slow.
+        """
+        state = {"calls": [], "perspectives": None}
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            state["calls"].append(list(perspective_hashes))
+            await release.wait()
+            for pp in state["perspectives"]:
+                pp.in_cycle = True
+            return "{}", list(built or ["tr0100"])
+
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        return state
+
+    def _with_perspectives(self, monkeypatch, state, count, woven=0):
+        perspectives = self._perspectives(count, woven=woven)
+        state["perspectives"] = perspectives
+        self._patch_repo(monkeypatch, perspectives)
+        return perspectives
+
+    def _grounding_recorder(self, monkeypatch) -> list:
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append(h),
+        )
+        return grounded
+
+    @pytest.mark.asyncio
+    async def test_a_fresh_advisor_joins_the_weave_it_did_not_start(
+        self, monkeypatch
+    ):
+        """The instance that closes the decision is not the one that is weaving.
+
+        Two things are asserted together on purpose. No second task, or the graph
+        gets two concurrent writers; AND the second decision still gets grounded,
+        because reporting JOINED while draining a queue the decision was never in
+        would be a quieter version of the same bug.
+        """
+        release = asyncio.Event()
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 3)
+        monkeypatch.setattr(
+            _StubAdvisor, "_existing_pathway_hashes", lambda self: ["tr0100"]
+        )
+        grounded = self._grounding_recorder(monkeypatch)
+
+        with scope("sid-shared"):
+            first = _StubAdvisor([])
+            first._schedule_pathway_construction("dec00001")
+            task = first._deferred_pathway_task
+            # Let the weave actually enter the exploration, so the second
+            # closing lands mid-flight rather than in the same tick.
+            await asyncio.sleep(0)
+            assert state["calls"], (
+                "the weave had not started; the join is not mid-flight"
+            )
+
+            resumed = _StubAdvisor([])  # the host's next request, same conversation
+            resumed._schedule_pathway_construction("dec00002")
+            assert resumed._last_deferral is DeferralOutcome.JOINED
+            assert resumed._deferred_pathway_task is task, (
+                "a fresh Advisor started a second concurrent weave on one sid"
+            )
+
+            release.set()
+            assert await resumed.wait_for_deferred_work() is True
+
+        assert sorted(grounded) == ["dec00001", "dec00002"], (
+            "the decision the resumed instance closed was reported as joined "
+            "and then never grounded"
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_fresh_advisor_settles_the_weave_before_its_turn(
+        self, monkeypatch
+    ):
+        """The wait at the top of the turn has to find work it did not start.
+
+        This is the half that keeps ONE WRITER PER SID true: without it the
+        resumed instance opens its turn while the previous instance's weave is
+        still writing.
+        """
+        release = asyncio.Event()
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 2)
+        self._grounding_recorder(monkeypatch)
+
+        with scope("sid-shared"):
+            first = _StubAdvisor([])
+            first._schedule_pathway_construction("dec00001")
+            task = first._deferred_pathway_task
+            await asyncio.sleep(0)
+
+            resumed = _StubAdvisor([])
+
+            async def release_soon():
+                await asyncio.sleep(0.02)
+                release.set()
+
+            releaser = asyncio.create_task(release_soon())
+            waited = await resumed._settle_deferred_work()
+            await releaser
+
+        assert task.done(), "the resumed turn started while the weave was writing"
+        assert waited >= 0.02, (
+            "the resumed instance reported a free settle while it actually waited"
+        )
+
+    @pytest.mark.asyncio
+    async def test_another_conversation_is_not_made_to_wait(self, monkeypatch):
+        """Keyed by sid, so the guard does not serialise unrelated conversations.
+
+        Different sids are explicitly fine (`docs/agents.md`); a registry keyed on
+        anything coarser would turn a correctness guard into a throughput ceiling.
+        """
+        release = asyncio.Event()
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 2)
+        self._grounding_recorder(monkeypatch)
+
+        with scope("sid-one"):
+            one = _StubAdvisor([])
+            one._schedule_pathway_construction("dec00001")
+            # Read INSIDE its own scope: the property resolves through the sid in
+            # scope, so reading it from under another one would answer about that
+            # other conversation.
+            first_task = one._deferred_pathway_task
+        with scope("sid-two"):
+            two = _StubAdvisor([])
+            two._schedule_pathway_construction("dec00002")
+            assert two._last_deferral is DeferralOutcome.STARTED
+            assert two._deferred_pathway_task is not first_task
+
+        release.set()
+        assert await one.wait_for_deferred_work() is True
+        assert await two.wait_for_deferred_work() is True
+
+    @pytest.mark.asyncio
+    async def test_draining_after_the_scope_closed_still_finds_the_work(
+        self, monkeypatch
+    ):
+        """`wait_for_deferred_work()` outside the `with scope(sid):` still drains.
+
+        The documented obligation is "before the conversation's scope goes away",
+        but a host that calls it one line later used to be fine, because the task
+        was on the object. Keying by sid would have silently turned that into a
+        no-op — a regression dressed as a fix — so the Advisor remembers where it
+        scheduled.
+        """
+        release = asyncio.Event()
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 2)
+        grounded = self._grounding_recorder(monkeypatch)
+
+        with scope("sid-shared"):
+            advisor = _StubAdvisor([])
+            advisor._schedule_pathway_construction("dec00001")
+            task = advisor._deferred_pathway_task
+        # Scope closed: `get_current_sid()` is None from here on.
+        release.set()
+        assert await advisor.wait_for_deferred_work() is True
+        assert task.done() and grounded == ["dec00001"]
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_gives_up_waiting_without_giving_up_the_work(
+        self, monkeypatch
+    ):
+        """The bound is on the WAIT, not on the weave.
+
+        A shutdown path needs to stop hanging on a slow provider; that is not the
+        same statement as "the graph is better half-woven". So the timeout returns
+        False with the task still running, and the caller decides.
+        """
+        release = asyncio.Event()
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 2)
+        grounded = self._grounding_recorder(monkeypatch)
+
+        with scope("sid-shared"):
+            advisor = _StubAdvisor([])
+            advisor._schedule_pathway_construction("dec00001")
+            task = advisor._deferred_pathway_task
+
+            assert await advisor.wait_for_deferred_work(timeout=0.01) is False
+            assert not task.done() and not task.cancelled(), (
+                "the timeout cancelled the weave instead of just stopping the wait"
+            )
+
+            release.set()
+            assert await advisor.wait_for_deferred_work(timeout=5) is True
+
+        assert task.done() and grounded == ["dec00001"]
+
+    @pytest.mark.asyncio
+    async def test_a_timeout_that_is_not_needed_reports_success(self, monkeypatch):
+        """True means "nothing in flight", including "nothing was ever deferred"."""
+        with scope("sid-shared"):
+            assert await _StubAdvisor([]).wait_for_deferred_work(timeout=0) is True
+
+    @pytest.mark.asyncio
+    async def test_the_registry_does_not_outlive_the_work(self, monkeypatch):
+        """A process-global keyed by sid is a leak unless the key retires.
+
+        One entry per sid CURRENTLY weaving, not one per sid ever seen — a
+        long-running host holds thousands of conversations over its life.
+        """
+        release = asyncio.Event()
+        release.set()  # nothing to observe mid-flight here
+        state = self._held_weave(monkeypatch, release)
+        self._with_perspectives(monkeypatch, state, 2)
+        self._grounding_recorder(monkeypatch)
+
+        with scope("sid-transient"):
+            advisor = _StubAdvisor([])
+            advisor._schedule_pathway_construction("dec00001")
+            assert "sid-transient" in _DEFERRED_WORK
+            await advisor.wait_for_deferred_work()
+
+        assert "sid-transient" not in _DEFERRED_WORK
 
 
 class TestTheAdoptedRecipeIsScored(_SeamFixtures):

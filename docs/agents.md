@@ -149,11 +149,27 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    fail-soft and idempotent, and the decision keeps the grounds it was recorded with.
    Safe to call any number of times, including when nothing was deferred.
 
+   **It waits for the conversation, not for the object.** Deferred work is tracked
+   per `sid`, so `wait_for_deferred_work()` drains a weave started by an *earlier*
+   Advisor on the same conversation — which is what makes the stateless shape
+   (`Advisor(messages=saved_messages)`, one instance per request) safe. Two
+   Advisors on one `sid` also share the single-flight guard: the second cannot
+   start a concurrent weave, and a decision it closes mid-weave is drained by the
+   running one rather than dropped. Different `sid`s are independent.
+
+   `wait_for_deferred_work(timeout=30)` bounds the wait for a shutdown path that
+   must not hang on a slow provider. It returns `True` when nothing is left in
+   flight and `False` if the timeout passed first — and it does **not** cancel the
+   work: whether a half-woven graph beats an unfinished one is the host's call, so
+   the weave keeps running and the caller decides (keep waiting, carry on, or drop
+   the loop, which cancels it).
+
    The *next turn* needs no help: `chat()`/`chat_stream()` wait for any in-flight
    weave before they start, because of the one-writer-per-sid contract in (2). That
-   wait is normally zero — the person's think-time absorbs it — and when it is not,
-   it is recorded as `TurnTiming.deferred_wait_s` rather than hidden inside
-   `generation_s`.
+   wait is deliberately unbounded — it protects the graph, and a timeout there
+   would trade duplicate nodes for latency. It is normally zero anyway — the
+   person's think-time absorbs it — and when it is not, it is recorded as
+   `TurnTiming.deferred_wait_s` rather than hidden inside `generation_s`.
 
 ```python
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning

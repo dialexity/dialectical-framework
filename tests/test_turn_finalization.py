@@ -518,6 +518,12 @@ class _StubAdvisor:
     _record_turn_timing = Advisor._record_turn_timing
     _settle_deferred_work = Advisor._settle_deferred_work
     wait_for_deferred_work = Advisor.wait_for_deferred_work
+    # Deferred work is sid-keyed (`Advisor._DEFERRED_WORK`), so the task the
+    # tests below assign has to go through the real property or the settle at the
+    # top of the turn would look somewhere else for it.
+    _deferred_work_key = Advisor._deferred_work_key
+    _deferred_work_keys = Advisor._deferred_work_keys
+    _deferred_pathway_task = Advisor.__dict__["_deferred_pathway_task"]
 
 
 @pytest.mark.llm
