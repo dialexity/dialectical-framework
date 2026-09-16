@@ -186,6 +186,12 @@ with scope(case.sid):
     reply = await analyst.chat("We're torn between preplanning courses and generating them on demand.")
 ```
 
+**All five obligations, running:** [`examples/advisor_chat.py`](../examples/advisor_chat.py)
+is a console chat with each one marked in place — a chat loop being the smallest program
+in which all five are load-bearing. `tests/test_examples_advisor_chat.py` asserts that it
+still honours them, so it is a checked reference rather than a snapshot of one that used
+to work.
+
 ---
 
 ## Analyst — content → nexus

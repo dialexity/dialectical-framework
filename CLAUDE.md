@@ -426,6 +426,8 @@ async def surface_theses(
 5. Modern syntax: `list[str]`, `dict[str, int]`, `X | None` — not `List`, `Dict`, `Union`
 6. Prefer `isinstance(node, IntentMixin)` over `getattr(node, 'intent', None)` for mixin attributes
 
+**The annotations only reach integrators because of `src/dialectical_framework/py.typed`.** PEP 561: a type checker must IGNORE a distributed package's inline annotations unless that marker ships inside it, so without the file every rule above buys nothing outside this repo — an integrator running mypy or pyright sees `Advisor` as `Any` and no signature we write is checked at their end. It is an empty file and Poetry picks it up from the package directory with no `pyproject.toml` entry (verified in both the wheel and the sdist); `tests/test_packaging.py` guards it against a delete, because nothing else in this repo notices its absence. Added 2026-09-16 — it is NOT in the published 1.8.1, so typing support starts with the next release.
+
 ---
 
 ## Testing
