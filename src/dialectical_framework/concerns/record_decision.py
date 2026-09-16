@@ -13,8 +13,9 @@ confirmed wording, never as instructions to interpret. The concern:
    (`_ground_set_inconsistency`)
 2. Commits the Decision (question rides intent, stance frozen in hash)
 3. Attaches the distilled why as a Rationale carrying the confirming
-   principal's provenance (agent="human" only when a person confirmed;
-   delegated drivers pass their own identity — see resolve())
+   principal's provenance (agent="human" only when the HOST attested that a
+   person confirmed; delegated drivers pass their own identity; say nothing
+   and it records UNATTESTED_PRINCIPAL — see resolve())
 4. Connects GROUNDED_IN edges with their roles
 5. Runs DecisionCoherenceCheck and flags the verdict (fail-soft: a failed
    or errored check NEVER blocks the record — soft gate)
@@ -47,6 +48,35 @@ COST_POSITIONS: tuple[tuple[str, str, str], ...] = (
     ("T-", "t_minus", "T_MINUS"),
     ("A-", "a_minus", "A_MINUS"),
 )
+
+#: Provenance stamped when the host attested NOTHING about who confirmed.
+#:
+#: `principal` used to default to `"human"`, which is the one value in this
+#: field that is a claim about the world: `"human"` means a PERSON read the
+#: wording back and said yes, and the renderers present those rationales as
+#: that person's own "Why" with no attribution. A default cannot know whether
+#: anyone was there, so the old default fabricated an attestation on every
+#: integration that never thought about the parameter — and this framework's
+#: own bench had to remember not to trip on it (`tests/e2e/driver.py`:
+#: `E2E_PRINCIPAL`, commented `NEVER "human" — no person confirmed anything
+#: here`). A field that a caller can get catastrophically wrong by saying
+#: nothing is the framework's defect, not the caller's.
+#:
+#: So the default understates instead. It is deliberately in the `agent:`
+#: family — the ledger renders `"human"` and `agent:*` and shows nothing at
+#: all for other values, so a neutral-looking placeholder would have deleted
+#: the decision's why from the dump the model reads next turn — and it is
+#: deliberately UGLY rather than plausible: "confirmed by agent:unattested"
+#: is a contradiction on its face, which is what an integrator needs to see
+#: in their own UI the first time they read a decision back. Passing
+#: `principal="human"` (a real person is confirming) or `"agent:<name>"` (a
+#: delegated driver is) makes it go away.
+#:
+#: Understating is the safe direction and only that direction: a false
+#: `"human"` corrupts the record's authority semantics unfixably, while a
+#: missing attestation leaves the wording intact and is repaired by passing
+#: the kwarg.
+UNATTESTED_PRINCIPAL = "agent:unattested"
 
 
 class GroundLink(BaseModel):
@@ -89,18 +119,20 @@ class RecordDecision(ReasonableConcern[str | None]):
         stance: str,
         rationale: str,
         grounds: list[GroundLink] | None = None,
-        principal: str = "human",
+        principal: str = UNATTESTED_PRINCIPAL,
     ) -> str | None:
         """
         `principal` is the provenance stamped on the decision's Rationale —
-        WHO confirmed the recording ceremony. "human" (default) is the
-        sentinel meaning an actual person confirmed the wording; a delegated
-        driver (agent-to-agent runs) must pass its own identity (e.g.
-        "agent:<name>" or a <provider>/<model> string) — the ledger and
-        inspect_node render only human-confirmed rationales as the person's
-        own "why", so a false "human" here corrupts the record's authority
-        semantics unfixably. Attested by the HOST at agent construction
-        (Advisor(principal=...)), never by the LLM.
+        WHO confirmed the recording ceremony. "human" is the sentinel meaning
+        an actual person confirmed the wording; a delegated driver
+        (agent-to-agent runs) passes its own identity ("agent:<name>" or a
+        <provider>/<model> string). The ledger and inspect_node render only
+        human-confirmed rationales as the person's own "why", so a false
+        "human" here corrupts the record's authority semantics unfixably —
+        which is why it is NOT the default and never can be. Attested by the
+        HOST at agent construction (Advisor(principal=...)), never by the LLM;
+        say nothing and the record honestly says nobody attested
+        (UNATTESTED_PRINCIPAL, whose docstring has the whole argument).
         """
         from dialectical_framework.concerns.decision_coherence_check import \
             DecisionCoherenceCheck

@@ -155,6 +155,10 @@ class TestRecordDecisionConcern:
                 stance="Accept the startup offer",
                 rationale="Growth outweighs stability for me right now.",
                 grounds=[GroundLink(hash=ground.hash, role="accepted_cost")],
+                # Attested explicitly: this test is ABOUT the human-provenance
+                # rationale, and "human" is never a default (see
+                # UNATTESTED_PRINCIPAL) — only a host can make that claim.
+                principal="human",
             )
 
             assert decision_hash is not None
@@ -375,9 +379,12 @@ class TestRecordDecisionConcern:
 class TestDecisionProvenance:
     """The confirming principal is a host-attested fact (review finding:
     hardcoded agent="human" would persist a false provenance claim under a
-    delegated agent driver). "human" stays the default; a driver identity
-    flows through the tool closure and renders attributed — never as the
-    person's own confirmation."""
+    delegated agent driver). A driver identity flows through the tool closure
+    and renders attributed — never as the person's own confirmation.
+
+    "human" is NOT the default and never can be: a default is the framework
+    guessing, and on this one field a guess is a claim about the world. A host
+    that attests nothing gets `UNATTESTED_PRINCIPAL`."""
 
     async def test_driver_principal_stamped_on_rationale(self):
         from dialectical_framework.concerns.record_decision import RecordDecision
@@ -395,19 +402,56 @@ class TestDecisionProvenance:
             why, _ = decision.rationales.all()[0]
             assert why.agent == "agent:dataset-driver"
 
-    async def test_default_principal_is_human(self):
+    async def test_an_unattested_recording_does_not_claim_a_person(self):
+        """A host that says nothing about who confirmed must not get a record
+        saying a PERSON did. This is the whole of the item: `principal` used to
+        default to "human", so every app that never passed it — every test, every
+        driver, every automated caller — wrote decisions attesting a human
+        confirmation nobody gave."""
         from dialectical_framework.agents.advisor.tools.record_decision import (
             record_decision,
+        )
+        from dialectical_framework.concerns.record_decision import (
+            UNATTESTED_PRINCIPAL,
+        )
+
+        assert UNATTESTED_PRINCIPAL != "human"
+
+        sid = _new_sid()
+        with scope(sid):
+            await record_decision(question="Q?", stance="S", rationale="R")
+            decision = DecisionRepository().find_all_active()[0]
+            why, _ = decision.rationales.all()[0]
+            assert why.agent == UNATTESTED_PRINCIPAL
+
+    async def test_the_unattested_default_still_renders_its_why(self):
+        """The default cannot be any neutral placeholder: BOTH readers of this
+        field branch on the two known families, and the ledger — which is what
+        reaches the model's own context — renders NOTHING for an `agent` outside
+        them. So a default in neither family would silently delete the recorded
+        why from the Advisor's prompt, which is worse than a wrong attribution.
+        That is why `UNATTESTED_PRINCIPAL` is in the `agent:` namespace."""
+        from dialectical_framework.concerns.dialectical_context import (
+            DialecticalContext,
+        )
+        from dialectical_framework.concerns.record_decision import (
+            UNATTESTED_PRINCIPAL,
+            RecordDecision,
         )
 
         sid = _new_sid()
         with scope(sid):
-            await record_decision(
-                question="Q?", stance="S", rationale="R"
+            concern = RecordDecision()
+            await concern.resolve(
+                question="Which scenario?",
+                stance="Scenario B",
+                rationale="Unattested why.",
             )
-            decision = DecisionRepository().find_all_active()[0]
-            why, _ = decision.rationales.all()[0]
-            assert why.agent == "human"
+            dump = await DialecticalContext().resolve()
+
+        assert f"Why (confirmed by {UNATTESTED_PRINCIPAL}): Unattested why." in dump
+        # And never as the person's own unattributed confirmation.
+        assert "\nWhy: Unattested why." not in dump
 
     async def test_advisor_principal_reaches_tool_closure(self):
         """Advisor(principal=...) must build a record_decision whose

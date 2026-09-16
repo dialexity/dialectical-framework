@@ -33,8 +33,13 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
+from dialectical_framework.concerns.record_decision import \
+    UNATTESTED_PRINCIPAL
 
-def build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
+
+def build_scoped_tools(
+    nexus_hash: str, principal: str = UNATTESTED_PRINCIPAL
+) -> list:
     """
     Build the tool set for an exploration-pinned Advisor (counsel mode).
 
@@ -43,7 +48,8 @@ def build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
     nexus exists happens in Advisor.__init__, not here (keeps the factory
     DB-free for signature tests). `principal` (host-attested confirmer
     identity, closed over the same way) reaches record_decision — see
-    tools/record_decision.py.
+    tools/record_decision.py. It defaults to no attestation rather than to
+    "human", which is a claim only a host can make.
     """
     from dialectical_framework.agents.advisor.tools.anchor import anchor
     from dialectical_framework.agents.advisor.tools.record_decision import \

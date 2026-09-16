@@ -103,7 +103,12 @@ DialecticalReasoning.setup(Settings.from_env())
 case = Case(); case.commit()
 
 with scope(case.sid):
-    advisor = Advisor(app_preamble="You are a systems thinking coach...")
+    # `principal="human"` because a real person is on the other end: it is what
+    # lets a decision they confirm be recorded as THEIR confirmation. The
+    # default attests nobody — see docs/agents.md.
+    advisor = Advisor(
+        app_preamble="You are a systems thinking coach...", principal="human"
+    )
     # `aclosing` because a host that stops MID-TURN must CLOSE the generator —
     # that is what releases the provider connection and records the turn's
     # seconds. Breaking on `ResponseComplete` needs none of it: that event is

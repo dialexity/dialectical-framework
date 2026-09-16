@@ -2755,6 +2755,27 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   unattributed "Why:" ONLY for agent=="human" ("Why (confirmed by agent:<name>):" otherwise); inspect_node
   mirrors this. Changing the sentinel or adding principals must update `_dump_decisions`, `_inspect_decision`,
   GRAPH_SCHEMA's Decision row, and docs/graph.md together (locked by `TestDecisionProvenance`).
+  **"human" is NOT the default, since 2026-09-16, and the reason it cannot be is worth carrying.** It was
+  `principal: str = "human"` on four signatures, so every host that never passed the argument — every test,
+  every driver, every automated caller — wrote records attesting a human confirmation nobody gave, and the
+  framework's own bench had to dodge it (`tests/e2e/driver.py`: `E2E_PRINCIPAL`, commented `NEVER "human"`).
+  This is the one field where a default is a CLAIM ABOUT THE WORLD: "human" means a person read the wording
+  back and said yes, and the two renderers above then present that rationale as the person's own unattributed
+  "Why". The new default is `UNATTESTED_PRINCIPAL = "agent:unattested"` (`concerns/record_decision.py`, the
+  write layer, so it is layer-neutral). **Two constraints shaped the value and neither is cosmetic.** It had to
+  be in the `agent:` FAMILY, because the ledger — the render that reaches the Advisor's own system prompt —
+  emits nothing at all for an `agent` outside `human`/`agent:*`, so a neutral placeholder would have silently
+  deleted the recorded why from the model's context, which is worse than a wrong attribution. And it is
+  deliberately UGLY rather than plausible: "confirmed by agent:unattested" is a contradiction on its face,
+  which is what an integrator must see in their own UI. Understating is the safe direction — a false "human"
+  corrupts authority semantics unfixably, a missing attestation leaves the wording intact and is repaired by
+  passing the kwarg. NOT made required, on a measured census: `Advisor(` 70 call sites of which 14 pass it,
+  `RecordDecision.resolve` 26 of which 5 — 77 edits, most in tests that do not care, each forcing a test author
+  to write a provenance claim they do not mean. **No prompt branches on attestation** (verified by grep for
+  "confirmed by", "Why (human)", "Why:"), so this carries no reasoning-logic risk: it is provenance-truthful
+  plus presentational. Pinned by `TestDecisionProvenance::test_an_unattested_recording_does_not_claim_a_person`
+  and `::test_the_unattested_default_still_renders_its_why` (the second is the family constraint, and it is the
+  one that fails if someone "tidies" the value to `"unattested"` or `"none"`).
   **Named-options guidance** (in `_DECISION_READINESS`, live since 2026-08): when a decision arrives
   as "X or Y", the pair is anchored AS the person's framing (options are valid graph citizens — the tetrad
   expansion, not a translation layer, surfaces the root tension); alternative tetrads on the same polarity are

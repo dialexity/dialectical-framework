@@ -8,10 +8,11 @@ through the standard `discard` tool (reason referencing the new decision).
 
 Provenance: WHO confirmed is a host-attested fact, closed over at tool
 construction (Advisor(principal=...)) — never an LLM-supplied parameter.
-"human" (the default) means an actual person confirmed the wording; a
-delegated driver (agent-to-agent runs) must be constructed with its own
-identity, else the ledger and inspect_node would present machine-authored
-rationales as the person's own confirmed "why".
+"human" means an actual person confirmed the wording, and it is NOT the
+default: a host that says nothing records `UNATTESTED_PRINCIPAL`, because
+guessing "human" would have the ledger and inspect_node present
+machine-authored rationales as the person's own confirmed "why". A delegated
+driver (agent-to-agent runs) passes its own identity instead.
 """
 
 from __future__ import annotations
@@ -21,7 +22,8 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
-from dialectical_framework.concerns.record_decision import GroundLink
+from dialectical_framework.concerns.record_decision import (
+    UNATTESTED_PRINCIPAL, GroundLink)
 from dialectical_framework.utils.progress import progress_key
 
 
@@ -37,10 +39,11 @@ def _progress_key(question: str, stance: str) -> str:
     return progress_key(question, stance)
 
 
-def build_record_decision(principal: str = "human"):
+def build_record_decision(principal: str = UNATTESTED_PRINCIPAL):
     """Build the record_decision tool with the confirming principal
     closed over (same code-not-prompt enforcement as the nexus pin in
-    scoped.py)."""
+    scoped.py). Defaults to no attestation, never to "human" — see
+    `UNATTESTED_PRINCIPAL`."""
 
     attested_principal = principal
 
@@ -106,7 +109,14 @@ def build_record_decision(principal: str = "human"):
     return record_decision
 
 
-# Default build: a human principal. Kept module-level so existing imports
-# (toolset builders, tests) stay valid; hosts with a non-human driver pass
-# principal= at Advisor construction instead of importing this.
+# A pre-built tool, for the callers that want the FUNCTION rather than a
+# configured one: signature checks, progress-stream tests, direct
+# `record_decision(...)` calls that are not exercising provenance. Neither
+# production caller uses it (`_build_tools` and `build_scoped_tools` both pass a
+# principal through), and it was briefly deleted on the grounds that a
+# pre-built tool carries a provenance guess with no host in scope to correct
+# it. That argument was about the OLD default. Built from
+# `UNATTESTED_PRINCIPAL`, it claims nothing, so importing it and recording
+# through it is honest — the record simply says nobody attested, which is what
+# happened.
 record_decision = build_record_decision()

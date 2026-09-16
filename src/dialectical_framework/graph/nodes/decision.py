@@ -37,7 +37,9 @@ class Decision(IntentMixin, AssessableEntity, label="Decision"):
       estimations/critiques on decisions. Its `agent` names the confirming
       principal: "human" iff a person confirmed the ceremony; a delegated
       driver records "agent:<name>" (host-attested via
-      Advisor(principal=...), never LLM-supplied).
+      Advisor(principal=...), never LLM-supplied). A host that attests
+      nothing gets UNATTESTED_PRINCIPAL ("agent:unattested") — "human" is
+      never a default, because only a host can know a person was there.
     - Grounds are GROUNDED_IN edges to committed nodes (perspectives,
       statements, wheels, transformations) with an optional role
       ("accepted_cost" — the chosen side's minus aspect, i.e. the risk

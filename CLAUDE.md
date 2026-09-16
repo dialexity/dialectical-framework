@@ -336,7 +336,7 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 ### Model Provenance is Rationale-Only
 
-Only `Rationale.agent` tracks generating model (`<provider>/<model>`, auto-filled from settings; sentinel `"human"` = user-confirmed content, e.g. a Decision's rationale). Other nodes trace provenance through their Rationale — intentional, don't "fix" by adding `agent` elsewhere.
+Only `Rationale.agent` tracks generating model (`<provider>/<model>`, auto-filled from settings; sentinel `"human"` = user-confirmed content, e.g. a Decision's rationale). Other nodes trace provenance through their Rationale — intentional, don't "fix" by adding `agent` elsewhere. **`"human"` is never a DEFAULT anywhere, and that is a rule about this field rather than a preference:** it means a person read the wording back and said yes, and both renderers then present such a rationale as that person's own unattributed "Why", so a default would be the framework making a claim about who was in the room. `Advisor(principal=...)`/`RecordDecision.resolve(principal=...)` default to `UNATTESTED_PRINCIPAL = "agent:unattested"` (`concerns/record_decision.py`); a host with a real person on the other end must pass `"human"` explicitly, and an automated one passes `"agent:<name>"`. The value is in the `agent:` family because the ledger renders NOTHING for an `agent` outside `human`/`agent:*` — a neutral placeholder would delete the recorded why from the Advisor's own prompt — and it is deliberately ugly so "confirmed by agent:unattested" reads as the contradiction it is. See the systemic map's Decision-provenance section for the census that ruled out making the argument required.
 
 ### Statement Generation Conventions
 

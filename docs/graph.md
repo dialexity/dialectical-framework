@@ -397,7 +397,10 @@ decision is a speech act, never extracted from conversation).
   actual person confirmed the ceremony; a delegated driver (agent-to-agent
   runs) records `"agent:<name>"` instead — host-attested at Advisor
   construction (`Advisor(principal=...)`), never LLM-supplied, so a record
-  can never claim human confirmation it didn't get. The timestamp is
+  can never claim human confirmation it didn't get. `"human"` is NOT the
+  default and never can be: a host that attests nothing records
+  `"agent:unattested"` (`UNATTESTED_PRINCIPAL`), which renders attributed
+  like any other agent identity. The timestamp is
   `committed_at` (recording IS deciding).
 - **Grounds**: `GROUNDED_IN` edges (analytical layer) to committed nodes, with
   an open-vocabulary `role` property. Seed roles — a role exists iff a consumer

@@ -33,6 +33,7 @@ from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.stream_events import ToolResult
 from dialectical_framework.concerns.decision_confirmation_check import (
     ConfirmationVerdictDto, DecisionConfirmationCheck)
+from dialectical_framework.concerns.record_decision import UNATTESTED_PRINCIPAL
 
 
 @pytest.fixture(autouse=True)
@@ -58,7 +59,10 @@ class _StubAdvisor:
     def __init__(
         self,
         tool_results=None,
-        principal: str = "human",
+        # Mirrors the real class: no attestation unless a host makes one. A
+        # stub defaulting to "human" would let a repair that hardcoded the
+        # sentinel pass every test in here.
+        principal: str = UNATTESTED_PRINCIPAL,
         nexus_hash: str | None = None,
         automatic_feasibility_audit: bool = True,
     ) -> None:
@@ -193,14 +197,15 @@ class TestRepairFires:
 
         monkeypatch.setattr(RecordDecision, "resolve", fake_record)
 
-        advisor = _StubAdvisor([])
+        advisor = _StubAdvisor([], principal="human")
         await advisor._repair_unrecorded_decision(
             "Write that down as the decision.", "**Your Decision** Buy him out..."
         )
 
         assert recorded["stance"] == "Buy him out"
         assert recorded["question"] == "Buy out the cofounder or restructure?"
-        # Same attestation the tool would have carried.
+        # Same attestation the tool would have carried — read off the instance,
+        # never assumed, which is why the stub's own default is unattested.
         assert recorded["principal"] == "human"
 
     @pytest.mark.asyncio

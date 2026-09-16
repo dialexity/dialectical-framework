@@ -98,7 +98,7 @@ Construction is uniform except for what each is bound to:
 Analyst(app=None, app_preamble=None, messages=None, app_tools=None)              # Case-scoped (ambient)
 Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None) # bound to one Nexus
 Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
-        nexus_hash=None, app_tools=None)
+        nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL)
 ```
 
 **`app` (an `AppSpec`, `agents/app_spec.py`) is the recommended interface**: the app
@@ -285,14 +285,19 @@ it drives toward the choice and keeps the recorded decision, while the convergen
 mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
-nexus_hash=None, app_tools=None, principal="human")`. `dialectical_context` is an optional
-pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the system
-prompt — use it when a rich graph already exists at conversation start. `principal` is the
-host's attestation of WHO confirms decisions in this conversation: leave the default only
-when an actual person is on the other end; a delegated driver (agent-to-agent runs) must
-pass its identity (e.g. `"agent:dataset-driver"`) so recorded decisions carry honest
-provenance — the ledger renders driver-confirmed rationales attributed, never as the
-person's own "Why". Closed over by the tool in code; the LLM cannot set it. `nexus_hash` pins the
+nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL)`. `dialectical_context` is an
+optional pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the
+system prompt — use it when a rich graph already exists at conversation start. `principal` is
+the host's attestation of WHO confirms decisions in this conversation, and it is the one
+argument where OMITTING it is not a neutral choice: **pass `"human"` when an actual person is
+on the other end, and a delegated driver (agent-to-agent runs) must pass its own identity**
+(e.g. `"agent:dataset-driver"`). The default attests NOTHING (`"agent:unattested"`, from
+`concerns/record_decision.py`), because a default cannot know whether anyone was in the room —
+so a conversation with a real person that never passes `"human"` records decisions whose why
+renders as "confirmed by agent:unattested" instead of as the person's own "Why". That is the
+deliberately visible failure: the wording is intact and passing the argument fixes it, whereas
+a fabricated human attestation is unfixable after the fact. Closed over by the tool in code;
+the LLM cannot set it. `nexus_hash` pins the
 Advisor to one exploration — this is the **counsel mode of an Explorer session**, not a
 standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 `app_tools` is the app's domain-resource seam: additional `@llm.tool` functions
@@ -390,6 +395,7 @@ advisor = Advisor(
     app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,  # NAVIGATOR_APP + advisory register — same user contract, counsel voice
     nexus_hash=explorer.nexus_hash,
     messages=explorer.messages,
+    principal="human",  # a person is on the other end — see Construct above
 )
 
 # later: "let's compare the other wheels again" → toggle back

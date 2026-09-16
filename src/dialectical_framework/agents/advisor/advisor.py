@@ -32,6 +32,8 @@ from dialectical_framework.agents.toolsets import merge_app_tools
 from dialectical_framework.agents.turn_timing import (ClosingOutcome,
                                                        DeferralOutcome,
                                                        TurnTiming)
+from dialectical_framework.concerns.record_decision import \
+    UNATTESTED_PRINCIPAL
 from dialectical_framework.protocols.has_config import SettingsAware
 
 logger = logging.getLogger(__name__)
@@ -64,18 +66,29 @@ class Advisor(SettingsAware):
 
     Usage (fresh start):
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_PERSONA)
+            # principal: WHO is on the other end. Pass "human" when a person
+            # is; a driver passes "agent:<name>". Omit it and recorded
+            # decisions honestly say nobody attested — see `principal` below.
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, principal="human")
             response = await advisor.chat("My son started smoking...")
 
     Usage (post-analysis, rich graph exists):
         with scope(case.sid):
             context = await DialecticalContext().resolve()
-            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, dialectical_context=context)
+            advisor = Advisor(
+                app_preamble=COUNSELOR_PERSONA,
+                dialectical_context=context,
+                principal="human",
+            )
             response = await advisor.chat("I want to talk through what we found...")
 
     Usage (resuming conversation):
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, messages=saved_messages)
+            advisor = Advisor(
+                app_preamble=COUNSELOR_PERSONA,
+                messages=saved_messages,
+                principal="human",
+            )
             response = await advisor.chat("What about the other angle?")
 
     Usage (app-provided domain tools):
@@ -134,17 +147,25 @@ class Advisor(SettingsAware):
         nexus_hash: Optional[str] = None,
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
-        principal: str = "human",
+        principal: str = UNATTESTED_PRINCIPAL,
     ) -> None:
         # principal: WHO confirms decisions in this conversation — a host
         # attestation, fixed for the session (the counterpart doesn't change
-        # mid-conversation). "human" = an actual person; a delegated driver
-        # (agent-to-agent runs) must pass its own identity ("agent:<name>"
-        # or <provider>/<model>) so recorded decisions never claim human
-        # confirmation they didn't get. Closed over by record_decision —
-        # never an LLM-visible parameter. Kept on the instance because the
-        # decision-confirmation repair records under the same attestation as
-        # the tool would have (see _repair_unrecorded_decision).
+        # mid-conversation). Pass "human" when an actual person is on the
+        # other end; a delegated driver (agent-to-agent runs) passes its own
+        # identity ("agent:<name>" or <provider>/<model>). Closed over by
+        # record_decision — never an LLM-visible parameter. Kept on the
+        # instance because the decision-confirmation repair records under the
+        # same attestation as the tool would have (see
+        # _repair_unrecorded_decision).
+        #
+        # It does NOT default to "human", and that is the point: a default is
+        # the framework guessing, and this is the one field where a guess is a
+        # claim about the world — the renderers show a human-attested
+        # rationale as the person's own unattributed "Why". A host that never
+        # thought about the parameter would have had every record claim a
+        # confirmation nobody gave, which `UNATTESTED_PRINCIPAL` (whose
+        # docstring carries the whole argument) exists to stop being possible.
         self._principal = principal
         self._nexus_hash = nexus_hash
         # app: declarative app definition — composition depends on the mode:
@@ -1484,7 +1505,7 @@ class Advisor(SettingsAware):
         return self._conversation._messages
 
 
-def _build_tools(principal: str = "human") -> list:
+def _build_tools(principal: str = UNATTESTED_PRINCIPAL) -> list:
     from dialectical_framework.agents.advisor.tools.anchor import anchor
     from dialectical_framework.agents.advisor.tools.deepen import deepen
     from dialectical_framework.agents.advisor.tools.explore import explore
@@ -1515,7 +1536,9 @@ def _build_tools(principal: str = "human") -> list:
     ]
 
 
-def _build_scoped_tools(nexus_hash: str, principal: str = "human") -> list:
+def _build_scoped_tools(
+    nexus_hash: str, principal: str = UNATTESTED_PRINCIPAL
+) -> list:
     from dialectical_framework.agents.advisor.tools.scoped import \
         build_scoped_tools
 
