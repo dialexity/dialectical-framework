@@ -95,10 +95,10 @@ gets no first-token benefit; that is a host choice, not a framework limit.
 Construction is uniform except for what each is bound to:
 
 ```python
-Analyst(app=None, app_preamble=None, messages=None, app_tools=None)              # Case-scoped (ambient)
-Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None) # bound to one Nexus
+Analyst(app=None, app_preamble=None, messages=None, app_tools=None, advanced=False)              # Case-scoped (ambient)
+Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None, advanced=False) # bound to one Nexus
 Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
-        nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL)
+        nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL, advanced=False)
 ```
 
 **`app` (an `AppSpec`, `agents/app_spec.py`) is the recommended interface**: the app
@@ -110,6 +110,21 @@ declares its custom pieces once — `voicing` (Navigator-side domain flavor),
 `advisor_persona + tool_guide`. The framework owns the composition lore; apps never
 touch the base preambles. One AppSpec constant, passed to every constructor — the
 continuity rule below is then automatic.
+
+**`advanced=True` is the expert register**, for a user who knows the framework: the
+Navigator base becomes `NAVIGATOR_APP_ADVANCED_TOGGLE` (framework vocabulary, short
+hashes, numeric scores, structural tetrad presentation) and the counsel toggle becomes
+`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED` — so the level **carries
+across the toggle** instead of resetting mid-conversation. It is a property of the
+person, not of the app, so it is a per-session constructor flag rather than an AppSpec
+field: one AppSpec serves both registers, and a host with a user-level toggle passes the
+same value to every head that user is looking at. It is refused, loudly, wherever it
+could not be honoured: on the standalone Advisor (that head hides the machinery, so
+there is nothing to unlock) and alongside `app_preamble=` (you own the preamble there —
+compose `AppSpec.navigator_preamble(advanced=True)` /
+`advisor_preamble(scoped=True, advanced=True)` yourself, **and pass `app_tools=` with
+it**). Ignoring the flag is the defect it was added to fix: until 2026-09-16 it existed
+on `AppSpec` and nothing ever passed it, so no app using `app=` could reach it at all.
 
 `app_preamble`/`app_tools` are the manual low-level layer (full preamble control; see
 `agents/apps.py`): `app_preamble` replaces the AppSpec-derived composition entirely,
@@ -460,6 +475,22 @@ explorer = Explorer(
 )
 ```
 
+That is the manual layer, spelled out so the pairing is visible. **An app toggles with
+its own `AppSpec` instead**, and then the pairing is the framework's job — including the
+register level, which must not change under the user mid-conversation:
+
+```python
+advisor  = Advisor(nexus_hash=nx, messages=explorer.messages, app=ASTRO_APP,
+                   principal="human", advanced=user_is_expert)
+explorer = Explorer(nexus_hash=nx, messages=advisor.messages, app=ASTRO_APP,
+                    advanced=user_is_expert)
+```
+
+Do NOT reach for `app_preamble=my_app.navigator_preamble(advanced=True)` to get the
+expert register: `app_preamble` cannot be combined with `app=` (mixing raises), so you
+would drop the spec — and with it `app_tools`, leaving the app's own tools unwired with
+no error at all. `advanced=` exists so that shape is never necessary.
+
 Handover payload: `messages` + `nexus_hash` (+ the preamble pairing above). Constructing
 either agent replaces the system prompt (`messages[0]`) and keeps the rest of the history
 — including tool-use blocks from tools the new head doesn't carry (provider-accepted;
@@ -498,6 +529,16 @@ territory: same vocabulary contract (say "exploration", never "Nexus"), same
 first-person/third-party perspective detection, same score presentation
 (meaning-first). The toggle changes the engine (tool-driving vs counseling) and the
 register — never the user contract.
+
+Under `advanced=True` both sit on `NAVIGATOR_APP_ADVANCED_TOGGLE` instead, and the same
+sentence still holds one level up: the contract is the *expert* one on both sides. That
+pairing needs a trailer the ordinary one does not, because the advisory register body was
+written for the non-expert default — it re-affirms the contextual vocabulary and
+"meaning first, numbers on request" that advanced mode overrode, and later sections win,
+so without a final word the counsel side would silently re-lock the register the host
+just asked for (`"Nexus"` included). `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED`
+is therefore `NAVIGATOR_APP_ADVANCED_TOGGLE + the same register body + that trailer`; the
+body is one shared constant, so the two pairings cannot drift apart.
 
 The Advisor head keeps full analytical power (anchor + explore + deepen +
 audit_feasibility pinned to the nexus — it IS Analyst+Explorer behind one

@@ -457,7 +457,12 @@ directly. Adjust interaction accordingly:
 - Suggest exploration-phase next steps (nexus, wheels) rather than auto-executing — the user drives structural expansion. Analysis tools (expand, find) still follow "act on clear intent."
 """
 
-NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + """
+# The counsel register's BODY, shared by the two pairings composed below. It is
+# extracted rather than written twice because the register text must be
+# IDENTICAL on both sides of the toggle — what differs between an ordinary and
+# an advanced counsel session is the base it sits on (and the trailer that
+# settles which of the two wins where they disagree), never the register itself.
+_ADVISORY_REGISTER = """
 ## Advisory Register (overrides Persona above; for the counsel mode of an exploration session)
 
 The person you're talking with owns this exploration — typically they built
@@ -504,6 +509,47 @@ Show short hashes when referencing specific nodes. Don't lecture the theory —
 use the vocabulary the way colleagues do, always in service of what it means
 for their situation.
 """
+
+# The trailer the ADVANCED pairing needs, and it exists because the register
+# body above was written for the non-expert default: it re-affirms the
+# Contextual Vocabulary rules and "meaning first, numbers on request", which is
+# exactly what NAVIGATOR_APP_ADVANCED_TOGGLE overrides. Later sections win, so
+# without this the register would silently RE-LOCK the expert register a host
+# just asked for — an advanced Explorer toggling into counsel would drop back to
+# translated vocabulary mid-conversation, on the same message history.
+_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE = """
+## Advanced Interaction in Counsel Mode (settles the conflict between the two sections above)
+
+This person knows the framework AND owns this exploration, so both sections
+above hold at once. Where they disagree about HOW to speak,
+Advanced Interaction wins:
+
+- Keep using framework vocabulary, short hashes, and numeric scores (HS, Kc,
+  Mode, Arousal, insight, proactiveness) directly. The Advisory Register's
+  "score presentation (meaning first, numbers on request)" and its deference to
+  the Contextual Vocabulary rules are the non-expert defaults, and they do not
+  apply here — including "Nexus", which Advanced Interaction unlocks.
+- Still lead with what the structure MEANS for their situation. Precision is
+  how you say it, not what the conversation is for: a score with nothing said
+  about what it implies for them is operating the structures, which is the
+  exploration view's job, not this one's.
+- Everything the Advisory Register ADDS is unchanged — the collegial
+  debriefing-shared-work tone, taking the visible history as the only ground
+  truth, not assuming they authored the exploration, and the consent contract:
+  ask before growing or pruning it, and say plainly afterwards what changed.
+"""
+
+# The two counsel pairings. Both keep the Navigator user contract across the
+# toggle; which one a head gets is `AppSpec.advisor_preamble(scoped=True,
+# advanced=...)`, and it must match the Explorer side the host toggled FROM
+# (NAVIGATOR_APP <-> ordinary, NAVIGATOR_APP_ADVANCED_TOGGLE <-> advanced).
+NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER
+
+NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED = (
+    NAVIGATOR_APP_ADVANCED_TOGGLE
+    + _ADVISORY_REGISTER
+    + _ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE
+)
 
 # =============================================================================
 # ADVISORY PERSONAS — app-facing palette (*_PERSONA)

@@ -312,6 +312,7 @@ class Advisor(SettingsAware):
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
         principal: str = UNATTESTED_PRINCIPAL,
+        advanced: bool = False,
     ) -> None:
         # principal: WHO confirms decisions in this conversation — a host
         # attestation, fixed for the session (the counterpart doesn't change
@@ -336,11 +337,20 @@ class Advisor(SettingsAware):
         # counsel toggle (nexus_hash set) keeps the Navigator contract
         # (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide); standalone uses
         # the spec's advisor_persona (machinery hidden). See AppSpec.
+        #
+        # advanced: carries the expert register THROUGH the toggle, so a user who
+        # was reading hashes and numeric scores in the Explorer keeps them here —
+        # same literal history, so a silent drop back to translated vocabulary
+        # would read as the head forgetting who it is talking to. It RAISES for
+        # the standalone Advisor (no nexus_hash): that head's whole contract is
+        # hidden machinery, so there is nothing to unlock and honouring the flag
+        # would mean ignoring it.
         app_preamble, app_tools = resolve_app_layer(
             app,
             app_preamble,
             app_tools,
             preamble_for="advisor_scoped" if nexus_hash else "advisor_unscoped",
+            advanced=advanced,
         )
         if nexus_hash:
             self._validate_nexus(nexus_hash)

@@ -74,6 +74,7 @@ class Explorer:
         messages: Optional[list] = None,
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
+        advanced: bool = False,
     ) -> None:
         self._nexus_hash = nexus_hash
         # app: declarative app definition (Navigator base + voicing +
@@ -81,10 +82,17 @@ class Explorer:
         # head (Analyst, Explorer, Advisor): the Explorer<->Advisor toggle
         # shares literal history (a missing tool breaks capability
         # mid-conversation), and the Analyst thread owes the user the same
-        # domain resources by parity. For advanced-mode preambles compose
-        # manually: app_preamble=my_app.navigator_preamble(advanced=True).
+        # domain resources by parity.
+        #
+        # advanced: the expert register (NAVIGATOR_APP_ADVANCED_TOGGLE) for a
+        # user who knows the framework. Pass the same value to the counsel head
+        # when the host toggles — it carries across, so the two registers of one
+        # session speak at the same level. This comment used to send hosts to
+        # `app_preamble=my_app.navigator_preamble(advanced=True)` instead, which
+        # forced dropping app= (mixing raises) and silently took the app's tools
+        # with it — the flag exists so that trap no longer has to be walked.
         app_preamble, app_tools = resolve_app_layer(
-            app, app_preamble, app_tools, preamble_for="navigator"
+            app, app_preamble, app_tools, preamble_for="navigator", advanced=advanced
         )
         self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)

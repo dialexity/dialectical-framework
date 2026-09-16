@@ -74,13 +74,20 @@ class Analyst:
         messages: Optional[list] = None,
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
+        advanced: bool = False,
     ) -> None:
         # app: declarative app definition — the framework composes the
         # Navigator preamble (NAVIGATOR_APP + voicing + tool_guide) and tool
         # set from it. app_preamble/app_tools remain for manual control;
         # mixing them with app= raises (see app_spec.resolve_app_layer).
+        #
+        # advanced: this user knows the framework — swaps the Navigator base for
+        # NAVIGATOR_APP_ADVANCED_TOGGLE (vocabulary, hashes, numeric scores).
+        # A per-session host toggle, so pass the SAME value to every head the
+        # user is looking at; it raises rather than being ignored where no
+        # AppSpec composes the preamble.
         app_preamble, app_tools = resolve_app_layer(
-            app, app_preamble, app_tools, preamble_for="navigator"
+            app, app_preamble, app_tools, preamble_for="navigator", advanced=advanced
         )
         self._tools = merge_app_tools(_build_tools(), app_tools)
         self._conversation = ConversationFacilitator(tools=self._tools)

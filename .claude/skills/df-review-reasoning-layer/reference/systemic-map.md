@@ -22,7 +22,7 @@ installed via `ConversationFacilitator.set_system_prompt` (`agents/conversation_
 The model sees **one fused system block** — it cannot tell where the preamble ends and the workflow prompt begins.
 
 ```
-[ app_preamble ]              agents/apps.py  (NAVIGATOR_APP / NAVIGATOR_APP_ADVANCED_TOGGLE / COUNSELOR_PERSONA / ...)
+[ app_preamble ]              agents/apps.py  (NAVIGATOR_APP / NAVIGATOR_APP_ADVANCED_TOGGLE / ..._COUNSELOR_REGISTER[_ADVANCED] / COUNSELOR_PERSONA / ...)
    + "\n\n" +
 [ agent SYSTEM_PROMPT ]       agents/{analyst,explorer,advisor}/system_prompts.py
    ↓ set_system_prompt → _messages[0]
@@ -619,6 +619,18 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   and update it in the same change if you rename a section here. `/df-e2e` measures; this skill writes.
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
+- **FOUR Navigator preamble constants, not two, and the fourth is composed of the other three** (`apps.py`, 2026-09-16):
+  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` and
+  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED = NAVIGATOR_APP_ADVANCED_TOGGLE + _ADVISORY_REGISTER
+  + _ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE`. So an edit to `NAVIGATOR_APP` ships in all four, and an edit to the
+  register body ships in both counsel pairings — which is why the body is a SHARED constant (`_ADVISORY_REGISTER`)
+  rather than written twice. **The trailer is not decoration: without it the advanced pairing RE-LOCKS the expert
+  register.** The register body was written for the non-expert default — it re-affirms the Contextual Vocabulary
+  rules, "meaning first, numbers on request", and keeps "Nexus" internal — and later sections win, so
+  `NAVIGATOR_APP_ADVANCED_TOGGLE + body` would have handed an advanced Explorer a counsel head that dropped back to
+  translated vocabulary mid-conversation, on the same message history. `_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE` must
+  therefore stay the LAST section; `tests/test_app_spec.py::TestTheTwoCounselRegistersCannotDrift` pins both the
+  shared body and the trailer's position (by `rfind` against `## Terminology Disclosure`).
 - **The structured-extraction slot is a prompt surface in the USER role, and the model reads it as the person.**
   `_call_with_response_model` appends a user message when history ends on an assistant turn, because Bedrock rejects
   a conversation ending on assistant. That message (`_EXTRACTION_REQUEST`, `conversation_facilitator.py`) is the only
@@ -3420,7 +3432,22 @@ never by prompt admonition. Explorer, by contrast, steers its nexus_hash via pro
 weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_APP_ADVANCED_TOGGLE` (Explorer side) ↔
 `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` (Advisor side). BOTH are `NAVIGATOR_APP + override` — that composition is what
 keeps both registers in Navigator territory (same vocabulary contract, third-party detection, score
-presentation); the toggle changes engine + register, never the user contract. The advisory override also
+presentation); the toggle changes engine + register, never the user contract. **There are TWO such pairings and the
+register level CARRIES across the toggle**, selected by `advanced=` on the head constructor
+(`Analyst`/`Explorer`/`Advisor`) and threaded through `resolve_app_layer` into `navigator_preamble(advanced=)` /
+`advisor_preamble(scoped=True, advanced=)`: ordinary ↔ `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`, advanced ↔
+`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED` (both on `NAVIGATOR_APP_ADVANCED_TOGGLE`, so the sentence
+above holds one level up — the contract is the EXPERT one on both sides). `advanced` is deliberately NOT an AppSpec
+field: it is a per-SESSION property of the person, not of the product, so one AppSpec serves both registers and a
+host passes the SAME flag to every head the person is looking at. **It RAISES rather than being ignored wherever no
+AppSpec composes the preamble** (standalone Advisor, and any `app is None` case), because a silently-dropped flag is
+the defect it was added to fix (2026-09-16): `AppSpec.navigator_preamble(advanced=True)` existed and was unit-tested
+green while `resolve_app_layer` called it with no argument, so the expert register was UNREACHABLE for every app
+plugging in with `app=` — the way the README and both notebooks teach — and the escape hatch the code recommended
+(`app_preamble=my_app.navigator_preamble(advanced=True)`) forced dropping `app=`, which silently unwired `app_tools`
+with it. Same lesson as the deleted unregistered `explore` tool: a parameter green in a unit test can be unreachable
+in production, so the tests go through the CONSTRUCTOR and assert the preamble AND the tools together
+(`tests/test_app_spec.py::TestAdvancedModeIsReachableThroughTheDeclarativePath`). The advisory override also
 mandates **transparent mutation**: anchor/explore/discard on the user-built exploration are consent-first
 and announced (vs the unscoped Advisor's silent graph-building). The ENGINE enforces this too — the scoped
 render swaps SIX sections for `_SCOPED` variants: `_ROLE_SCOPED` (analysis is shared work, not hidden
@@ -3462,7 +3489,7 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   (decision-frame-first, phase shift on a formed leaning, keeper-not-prosecutor after recording) but the
   mechanics (discrimination/saturation/ceremony/re-audit) stay engine-owned in `_DECISION_READINESS`.
   Locked by `TestAdvisoryPersonaBoundary` (no framework terms, no engine-mechanics re-specification).
-  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + "## Advisory Register ..."` (same construction as `NAVIGATOR_APP_ADVANCED_TOGGLE`)
+  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` (same construction as `NAVIGATOR_APP_ADVANCED_TOGGLE`; the advanced pairing is the same body on the advanced base plus a trailer that gets the last word)
   is the advisory-side override: counsel register for a Navigator-built exploration, transparent-mutation
   rule, and a "Terminology Disclosure" section that the engine's "How You Speak" escape hatch honors —
   deferring to `NAVIGATOR_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
@@ -3472,7 +3499,9 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   `NAVIGATOR_APP` whitelist drops "Nexus" (keeps Polarity/Wheel/Cycle/Transformation/Position) and carries the
   explicit "say exploration, never surface Nexus" rule; the Analyst prompt keeps the internal↔user mapping
   (so it still uses "nexus" in reasoning + the `create_nexus`/`expand_nexus` tool names). `NAVIGATOR_APP_ADVANCED_TOGGLE`
-  (experts) is unchanged; the Advisor's terminology fence (in "How You Speak") still bans "nexus" by default
+  (experts) is unchanged — and its counsel pairing's trailer says so EXPLICITLY ("including \"Nexus\", which Advanced
+  Interaction unlocks"), because the register body it sits on keeps "Nexus" internal and would otherwise re-impose
+  that on an expert mid-toggle; the Advisor's terminology fence (in "How You Speak") still bans "nexus" by default
   but is preamble-overridable. Locked by
   `TestNexusExplorationVocabulary` in `tests/test_prompt_review_regressions.py`.
 

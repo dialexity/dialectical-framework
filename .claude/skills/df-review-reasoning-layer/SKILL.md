@@ -99,7 +99,9 @@ co-occurrence hotspots. Then:
       one system message)? Or concern (Stack B: `SYSTEM_PROMPT` + `_*_prompt()` + DTO `Field` descriptions)?
 - [ ] **Read the co-occurring layers, not just the file you're editing.**
     - Agent prompt → open the app preambles it fuses with. For Analyst that means **both `NAVIGATOR_APP` and
-      `NAVIGATOR_APP_ADVANCED_TOGGLE`** (`NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + override`); for Advisor, all five personas. Check the edit
+      `NAVIGATOR_APP_ADVANCED_TOGGLE`** (`NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + override`); for the counsel
+      toggle, **both** `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` and its `_ADVANCED` pairing (same shared
+      `_ADVISORY_REGISTER` body on a different base, plus a trailer that gets the last word); for Advisor, all five personas. Check the edit
       doesn't contradict the preamble's vocabulary / score-presentation rules (esp. the "communicate as MEANING
       not numbers" default vs. `NAVIGATOR_APP_ADVANCED_TOGGLE`'s "show numeric scores").
     - Concern → check the SYSTEM_PROMPT, the `_*_prompt()` user content, AND the DTO field descriptions
@@ -446,7 +448,10 @@ anchors.
       redefine tool selection; advisory personas must carry zero framework terminology; presentation defaults
       belong in the preamble.
 - [ ] **`NAVIGATOR_APP_ADVANCED_TOGGLE` override completeness.** New section in `NAVIGATOR_APP`? Re-check the override list, or
-      expert users inherit non-expert framing.
+      expert users inherit non-expert framing. Same question one layer out for the COUNSEL pairing: a new section in
+      `_ADVISORY_REGISTER` ships in both registers, and if it re-affirms a non-expert default (vocabulary, "meaning
+      first, numbers on request", "Nexus" stays internal) it must be named in `_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE`
+      — later sections win, so an unaddressed one silently re-locks the expert register a host asked for.
 - [ ] **Internal-only strings** (`nexus_intent` is "do not surface to user") must keep that classification when interpolated into another agent's prompt.
 - [ ] **Structural/direction conventions match `docs/graph.md` and `GRAPH_SCHEMA`** — update `GRAPH_SCHEMA` in lockstep (per CLAUDE.md).
 

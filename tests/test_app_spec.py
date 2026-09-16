@@ -162,6 +162,149 @@ class TestAgentsAcceptAppSpec:
         assert "lookup_natal_chart" in [t.__name__ for t in analyst._tools]
 
 
+class TestAdvancedModeIsReachableThroughTheDeclarativePath:
+    """The expert register, asserted where a host actually meets it.
+
+    `AppSpec.navigator_preamble(advanced=True)` was already tested directly and
+    green, while `resolve_app_layer` called it with NO argument — so advanced
+    mode was unreachable for every app that plugs in with `app=`, which is the
+    way the README and both notebooks teach. The documented escape hatch made it
+    worse: `app_preamble=` cannot be mixed with `app=`, so a host had to drop
+    the spec, and `app_tools` then came back None and the app's own tools
+    vanished with no error. Hence every test here goes through a CONSTRUCTOR and
+    checks the preamble AND the tools — the pair the workaround could not hold
+    at once.
+    """
+
+    ADVANCED_MARKER = "## Advanced Interaction (overrides"
+
+    def test_a_navigator_head_reaches_advanced_through_app(self):
+        from dialectical_framework.agents.analyst.analyst import Analyst
+
+        analyst = Analyst(app=FULL_SPEC, advanced=True)
+        prompt = _system_prompt_text(analyst)
+        assert self.ADVANCED_MARKER in prompt, (
+            "advanced=True did not reach navigator_preamble — the flag is "
+            "unreachable through app= again"
+        )
+        assert "Show numeric scores" in prompt
+        assert VOICING in prompt  # the app layer survives the swapped base
+        assert "lookup_natal_chart" in [t.__name__ for t in analyst._tools], (
+            "the app's tools disappeared — this is what the manual "
+            "app_preamble= workaround did silently"
+        )
+
+    def test_the_default_stays_the_default(self):
+        """Without the flag nothing changes, or the test above proves nothing."""
+        from dialectical_framework.agents.analyst.analyst import Analyst
+
+        assert self.ADVANCED_MARKER not in _system_prompt_text(Analyst(app=FULL_SPEC))
+
+    def test_advanced_carries_across_the_counsel_toggle(self):
+        """One session, one register level — the toggle shares literal history.
+
+        Both heads are constructed the way a host toggles them: same AppSpec,
+        same flag. An advanced Explorer whose counsel head dropped back to
+        translated vocabulary would read, mid-conversation, as the head
+        forgetting who it is talking to.
+        """
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.agents.explorer.explorer import Explorer
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.nodes.nexus import Nexus
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            nexus = Nexus(intent="advanced toggle test")
+            nexus.save()
+            nexus.commit()
+
+            explorer = Explorer(
+                nexus_hash=nexus.hash[:7], app=FULL_SPEC, advanced=True
+            )
+            assert self.ADVANCED_MARKER in _system_prompt_text(explorer)
+
+            advisor = Advisor(
+                nexus_hash=nexus.hash[:7],
+                dialectical_context="dump",
+                app=FULL_SPEC,
+                advanced=True,
+            )
+            prompt = _system_prompt_text(advisor)
+            assert self.ADVANCED_MARKER in prompt, (
+                "the counsel register dropped back to the non-expert base"
+            )
+            assert "## Advisory Register" in prompt  # still counsel, not operator
+            assert VOICING in prompt
+            assert "lookup_natal_chart" in [t.__name__ for t in advisor._tools]
+
+    def test_advanced_is_refused_wherever_it_could_not_be_honoured(self):
+        """Three shapes, all of which used to accept the flag and ignore it.
+
+        Ignoring it is the defect this parameter exists to fix, so silence is
+        not an option any of these get.
+        """
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.agents.analyst.analyst import Analyst
+
+        # The standalone Advisor hides the machinery — nothing to unlock.
+        with pytest.raises(ValueError, match="no meaning for a standalone"):
+            Advisor(app=FULL_SPEC, advanced=True)
+        # With a manual preamble the host owns the composition.
+        with pytest.raises(ValueError, match="no app= to compose from"):
+            Analyst(app_preamble="manual", advanced=True)
+        with pytest.raises(ValueError, match="no app= to compose from"):
+            Analyst(advanced=True)
+        # ...and the manual route it points at still composes by hand.
+        assert FULL_SPEC.navigator_preamble(advanced=True)
+        assert FULL_SPEC.advisor_preamble(scoped=True, advanced=True)
+        with pytest.raises(ValueError, match="no meaning for a standalone"):
+            FULL_SPEC.advisor_preamble(scoped=False, advanced=True)
+
+
+class TestTheTwoCounselRegistersCannotDrift:
+    """Both pairings compose the SAME register body on different bases."""
+
+    def test_the_register_body_is_shared_verbatim(self):
+        from dialectical_framework.agents import apps
+
+        body = apps._ADVISORY_REGISTER
+        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER == (
+            apps.NAVIGATOR_APP + body
+        )
+        assert body in apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED
+        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED.startswith(
+            apps.NAVIGATOR_APP_ADVANCED_TOGGLE
+        )
+
+    def test_the_trailer_settles_the_conflict_the_register_would_win(self):
+        """Later sections override earlier ones, and the register body — written
+        for the non-expert default — re-affirms the contextual vocabulary and
+        "meaning first, numbers on request" that Advanced Interaction overrode.
+        So the advanced pairing needs the LAST word, including on "Nexus", which
+        the default counsel register deliberately keeps internal (see
+        test_prompt_review_regressions.py::test_disclosure_defers_to_default_app_nexus_rule).
+        """
+        from dialectical_framework.agents import apps
+
+        advanced = apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED
+        trailer_at = advanced.rfind("## Advanced Interaction in Counsel Mode")
+        assert trailer_at > advanced.rfind("## Terminology Disclosure"), (
+            "the trailer is not the last section — the register body re-locks "
+            "the vocabulary rules a host asked to unlock"
+        )
+        # Collapsed, because these assertions are about what the trailer SAYS
+        # and a line rewrap is not a regression.
+        trailer = " ".join(advanced[trailer_at:].split())
+        assert "Advanced Interaction wins" in trailer
+        assert '"Nexus"' in trailer
+        # What the register ADDS is not overridden: consent still stands.
+        assert "consent contract" in trailer
+        assert "Never grow or prune their exploration silently" in advanced
+
+
 def _system_prompt_text(agent) -> str:
     content = agent._conversation._messages[0].content
     if isinstance(content, str):
