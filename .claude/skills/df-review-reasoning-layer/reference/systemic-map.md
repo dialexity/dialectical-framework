@@ -2360,7 +2360,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   own message, creates/mutates nothing, fail-soft) + `Advisor._repair_unrecorded_decision` (post-reply, both
   `chat` and `chat_stream`, records under the same attested principal when the person confirmed and no SUCCESSFUL
   `record_decision` ran — a failed call still repairs, since an in-band refusal leaves the identical false
-  belief). **The `accepted_cost` ground IS derived** (live since 2026-08-10), and only that one: the check also
+  belief). **On the streaming path the seam was SKIPPABLE by correct-looking host code until 2026-09-16**: it ran
+  after `chat_stream`'s loop, so `if isinstance(event, ResponseComplete): break` — the obvious way to consume a
+  stream, and the shape the only in-tree consumer uses — left the generator suspended at that `yield` and the
+  repair never ran. The failure is the seam's own defect restored: the person is told their decision was noted and
+  nothing is written. Fixed by ORDERING and not by another warning, since a rule every host breaks by default is
+  not a rule: `chat_stream` holds the final event in a local, `continue`s so `submit_stream` runs out under its own
+  power, does its closing work, then yields the event last. Free for the host — the repair sat between the last
+  token and the end of the loop either way. What stays a host obligation is the MID-TURN exit alone, where the
+  frame is suspended before the reply exists and no ordering can reach it. Pinned by
+  `tests/test_turn_finalization.py::TestTheChainOnlyRunsWhenTheHostClosesTheOutermostGenerator`, whose three tests
+  are now: a close propagates, a mid-stream `break` still costs, a `break` on `ResponseComplete` costs nothing.
+  **The `accepted_cost` ground IS derived** (live since 2026-08-10), and only that one: the check also
   asks which mapped tension's pole the stance corresponds to (`chosen_polarity_hash` + `chosen_side`) — a MATCHING
   question with a verifiable answer, not a judgement — and `Advisor._accepted_cost_ground` then resolves the cost
   BY DEFINITION, chose T → `t_minus`, chose A → `a_minus`, because a plus is a goal or an obligation (something to

@@ -49,14 +49,33 @@ structured call produced this one. Text yielded *before* a `ToolStart` is the mo
 saying what it is about to do and is never part of `message` — fine to leave on screen
 as progress, never persisted as counsel.
 
-**A host that stops iterating early must CLOSE the generator.** `chat_stream` is an
-async generator, and an async generator's cleanup runs when it is closed — not when the
-consumer walks away. Two things wait on that close: the turn's recorded wall clock
-(`last_submit_seconds`, which a *newer* turn may have taken ownership of by the time the
-garbage collector arrives, at which point this turn's seconds are lost) and the
-provider's open HTTP response, which stays suspended inside the streaming decoder's
-`async with`. The framework closes every generator it owns; the outermost one is the
-host's, and nothing inside can reach up to it.
+**`ResponseComplete` arrives last, after the turn's closing work.** Breaking on it is
+therefore free and always safe:
+
+```python
+async for event in advisor.chat_stream(msg):
+    ...
+    if isinstance(event, ResponseComplete):
+        break            # safe: everything this turn owed was done before you got it
+```
+
+That ordering is why it is safe. The Advisor's turn does not end at the last token —
+it still has to write the decision record the model confirmed but did not save
+(`_repair_unrecorded_decision`), schedule the pathway weave and record the turn's
+seconds. All of that runs *before* the final event goes out, so a host that stops at
+`ResponseComplete` cannot skip it. You wait no longer than you did before: the work
+sat between the last token and the end of the loop either way.
+
+**A host that stops iterating MID-STREAM must CLOSE the generator.** `chat_stream` is
+an async generator, and an async generator's cleanup runs when it is closed — not when
+the consumer walks away. So a `break` before the reply exists (a real disconnect, a
+cancelled request) leaves the frame suspended, and two things wait on the close that
+never came: the turn's recorded wall clock (`last_submit_seconds`, which a *newer* turn
+may have taken ownership of by the time the garbage collector arrives, at which point
+this turn's seconds are lost) and the provider's open HTTP response, which stays
+suspended inside the streaming decoder's `async with`. The framework closes every
+generator it owns; the outermost one is the host's, and nothing inside can reach up to
+it.
 
 ```python
 async with aclosing(advisor.chat_stream(msg)) as events:   # contextlib.aclosing
@@ -68,7 +87,7 @@ async with aclosing(advisor.chat_stream(msg)) as events:   # contextlib.aclosing
 Consuming to exhaustion needs nothing extra, and neither does an exception — both
 unwind the chain on their own. An ASGI server also closes the generator behind an SSE
 response when the client disconnects. The one shape that leaks is a bare `async for`
-with a `break`.
+that `break`s part-way through a turn.
 
 `chat()` returns the same durable reply with no streaming at all, so a host on `chat()`
 gets no first-token benefit; that is a host choice, not a framework limit.

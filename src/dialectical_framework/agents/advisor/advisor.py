@@ -276,23 +276,45 @@ class Advisor(SettingsAware):
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         """Stream one turn's events.
 
-        **The caller owes this generator a CLOSE, not merely a `break`.** Every
-        `chat_stream` in the tree is an async generator wrapping another one, and an
-        async generator's cleanup runs when it is CLOSED — so a host that stops
-        iterating leaves this frame suspended at its `yield`, and the whole chain
-        below it suspended with it. What is deferred is the turn's recorded seconds
-        (`last_submit_seconds`, which a newer turn may have claimed the slot for by
-        the time the collector arrives) and the provider's open HTTP response. There
-        is no way for the library to reach up and fix that: only the outermost
-        consumer can close the outermost generator. So on disconnect, do
+        `ResponseComplete` is yielded LAST, after this turn's closing work has
+        already run — and that ordering is deliberate rather than incidental. The
+        obvious way to consume a stream is
+
+            async for event in advisor.chat_stream(msg):
+                ...
+                if isinstance(event, ResponseComplete):
+                    break
+
+        and `break` on the final event is not a mistake a host can be told not to
+        make. It used to cost this turn its decision repair: the recording seam ran
+        AFTER the loop, so a host that stopped at `ResponseComplete` left this frame
+        suspended at that `yield` forever and `_repair_unrecorded_decision` never
+        ran — the person had been told their decision was noted and nothing was
+        written. So the event is held back, the closing work runs, and the event
+        goes out after it. The host waits no longer than before: the repair sat
+        between the last event and the loop ending either way; only the final
+        structured object's position in that gap moved. Deltas are still on their
+        screen throughout, which is the standing contract (see `StreamEvent`) —
+        render the deltas, do not wait for `ResponseComplete`.
+
+        **The caller still owes this generator a CLOSE on the MID-STREAM exit.**
+        Every `chat_stream` in the tree is an async generator wrapping another one,
+        and an async generator's cleanup runs when it is CLOSED — so a host that
+        stops iterating before the reply exists (a real disconnect, a `break` on a
+        `TextDelta`) leaves this frame suspended at its `yield` and the whole chain
+        below it suspended with it. What is deferred there is the turn's recorded
+        seconds (`last_submit_seconds`, which a newer turn may have claimed the slot
+        for by the time the collector arrives) and the provider's open HTTP
+        response. There is no way for the library to reach up and fix that: only
+        the outermost consumer can close the outermost generator. So on disconnect,
+        do
 
             async with aclosing(advisor.chat_stream(msg)) as events:
                 async for event in events:
                     ...
 
         or hand it to a host that closes for you — an ASGI server closes the
-        generator behind an SSE response when the client goes away. A bare
-        `async for` with a `break` is the one shape that leaks.
+        generator behind an SSE response when the client goes away.
         """
         require_current_sid()  # unscoped turns silently drop all work
         with agent_scope(self.AGENT_NAME):
@@ -309,6 +331,12 @@ class Advisor(SettingsAware):
             # `event.streamed` is True and `message` is byte-for-byte the deltas
             # they already read, which is the point of streaming at all.
             reply = ""
+            #: The final event, held back rather than passed straight through. See
+            #: the docstring: everything below the loop is this turn's closing work,
+            #: and a host that breaks on `ResponseComplete` — the obvious way to
+            #: consume a stream — would skip all of it. Nothing else about the
+            #: stream changes: this event was already last, and it is still last.
+            final_event: Optional[ResponseComplete] = None
             # `aclosing`, not a bare `async for`: unwinding an `async for` does not
             # close what it iterates, so without this, `submit_stream`'s cleanup on
             # the ABANDONED exit — the turn's seconds, and letting go of the
@@ -326,7 +354,16 @@ class Advisor(SettingsAware):
             ) as rounds:
                 async for event in rounds:
                     if isinstance(event, ResponseComplete):
+                        final_event = event
                         reply = event.message
+                        # `continue`, so `submit_stream` is asked for one more
+                        # event and runs to its own end instead of being closed
+                        # while suspended at its yield. The seconds read below are
+                        # safe either way — it stamps them as this event passes
+                        # through it, not on exit — but running out is still the
+                        # cleaner exit: the provider's connection is let go of by
+                        # exhaustion rather than by a close unwinding a live frame.
+                        continue
                     yield event
             reply_path_s = (
                 deferred_wait_s
@@ -359,6 +396,12 @@ class Advisor(SettingsAware):
                     else None
                 ),
             )
+            # Last, and only now. `None` means the consumer walked away before the
+            # reply existed, so there was no turn to close and nothing to repair —
+            # in that shape this line is never reached at all, because a `break`
+            # above leaves this frame suspended rather than falling through.
+            if final_event is not None:
+                yield final_event
 
     def _record_turn_timing(
         self,

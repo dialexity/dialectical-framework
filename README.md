@@ -104,9 +104,10 @@ case = Case(); case.commit()
 
 with scope(case.sid):
     advisor = Advisor(app_preamble="You are a systems thinking coach...")
-    # `aclosing` because a host that stops early must CLOSE the generator — that
-    # is what releases the provider connection and records the turn's seconds.
-    # See docs/agents.md.
+    # `aclosing` because a host that stops MID-TURN must CLOSE the generator —
+    # that is what releases the provider connection and records the turn's
+    # seconds. Breaking on `ResponseComplete` needs none of it: that event is
+    # yielded after the turn's closing work. See docs/agents.md.
     async with aclosing(
         advisor.chat_stream("Analyze the tension between growth and sustainability")
     ) as events:

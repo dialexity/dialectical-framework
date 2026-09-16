@@ -95,6 +95,15 @@ class ResponseComplete(Generic[T]):
     model narrating what it is about to do, and the reply is what it says
     afterwards; a host may keep it on screen as progress but must not persist it
     as counsel.
+
+    **This is the last event of the turn, and the turn's closing work has already
+    run when it arrives.** So `break`ing here is free — nothing is left suspended
+    and nothing is skipped, whether or not the generator is closed afterwards.
+    The Advisor's turn does not end at the last token (it may still owe a
+    decision record the model confirmed but did not write), which is why the
+    guarantee is stated as an ORDERING rather than left to the host: see
+    `Advisor.chat_stream`. Stopping EARLIER, mid-turn, is the case that still
+    needs `contextlib.aclosing` — see the same docstring.
     """
 
     result: T

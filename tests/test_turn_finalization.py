@@ -19,12 +19,16 @@ suspended inside mirascope's decoder, which holds the HTTP response open in an
 an explicit close nothing releases the connection until the collector gets round to
 the whole response object.
 
-And it brings a THIRD thing, which is not the framework's to guarantee: none of this
-runs until the host closes the outermost generator, because `chat_stream` is an async
-generator wrapping `submit_stream` and cleanup unwinds from the outside in. The last
-class here pins both sides of that — a close propagating all the way down, and what a
-bare `break` actually costs — since the obligation can only be documented, never
-enforced from inside.
+And it brings a THIRD thing, which is only PARTLY the framework's to guarantee: none
+of this runs until the host closes the outermost generator, because `chat_stream` is
+an async generator wrapping `submit_stream` and cleanup unwinds from the outside in.
+The last class here pins all three sides of that: a close propagating all the way
+down, what a bare `break` MID-STREAM still costs, and — the one case that was moved
+out of the host's hands rather than documented at it — a `break` on
+`ResponseComplete`, which is the obvious way to consume a stream and used to skip the
+whole of `chat_stream`'s closing work, decision repair included. That one is now
+unskippable because the final event is yielded AFTER the work; the mid-stream exit
+cannot be, and stays a documented obligation.
 
 And the fix cannot be "write it in a `finally`" alone, because an async generator's
 `finally` runs at CLOSE, not when the consumer walks away — which can be after a
@@ -494,13 +498,21 @@ class _StubAdvisor:
         # top of `chat_stream` returns immediately. Present because the real method
         # reads it — see `TestDeferredPathwayConstruction` for what it holds.
         self._deferred_pathway_task = None
+        # Read by the real `_record_turn_timing`, which only the ResponseComplete
+        # test below reaches; the mid-stream exits never get that far.
+        self._last_closing = None
+        self._last_deferral = None
         self._conversation = facilitator
+        #: Every call the repair seam received. Recorded rather than ignored
+        #: because "did the seam run at all" is the whole question on the exit
+        #: where it used to be silently skipped.
+        self.repairs: list[tuple[str, str]] = []
 
     async def _refresh_context(self) -> float:
         return 0.0
 
-    async def _repair_unrecorded_decision(self, _user, _assistant) -> None:
-        return None
+    async def _repair_unrecorded_decision(self, user, assistant) -> None:
+        self.repairs.append((user, assistant))
 
     chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
@@ -521,9 +533,17 @@ class TestTheChainOnlyRunsWhenTheHostClosesTheOutermostGenerator:
     `docs/agents.md`, the README example) and cannot be anything else — an
     unreachable frame suspended at a `yield` is unreachable in both directions.
 
-    So these two tests are a pair, and the second is as important as the first: it
-    records what a bare `break` actually costs, so nobody has to rediscover it by
+    So the first two tests are a pair, and the second is as important as the first:
+    it records what a bare `break` actually costs, so nobody has to rediscover it by
     watching connections pile up.
+
+    The third is a different claim, and the boundary between them is the point. The
+    obligation is only defensible for exits that happen BEFORE the turn ends — a
+    disconnect, a cancellation. It was never defensible for `break` on the final
+    event, because that host has not walked away from anything: the turn finished, it
+    took what it came for, and it was silently charged the turn's closing work.
+    That case is no longer documented at the host; it is arranged for by yielding
+    `ResponseComplete` last.
     """
 
     async def test_closing_the_agents_generator_reaches_the_connection(self):
@@ -604,4 +624,60 @@ class TestTheChainOnlyRunsWhenTheHostClosesTheOutermostGenerator:
 
         assert facilitator.last_submit_seconds > 0.0
         await asyncio.sleep(_PROVIDER_DELAY)
+        assert connection.released
+
+    async def test_a_break_on_response_complete_costs_the_turn_nothing(self):
+        """The exit that used to lose the decision record.
+
+        Deliberately a bare `async for` with no `aclosing`, because that is the shape
+        under test: a host that reads the deltas, takes the final structured object
+        and stops. Nothing about it is a misuse, and it used to leave this frame
+        suspended at the `yield` that handed over `ResponseComplete` — so
+        `_repair_unrecorded_decision` never ran, and a person who had confirmed a
+        decision was told it was noted while nothing was written.
+
+        What is asserted is the state AT HANDOVER, not the state after the loop:
+        after the loop is where the old behaviour also looked fine on a fast test,
+        because the collector reaches an unreachable generator eventually and
+        "eventually" is not a guarantee anything can be written against. It is
+        snapshotted rather than asserted in place because raising inside the loop
+        leaves the generator suspended, and the teardown error THAT causes
+        (a `ContextVar` token reset from the wrong context) buries the real message.
+        """
+        connection = _Connection()
+        stream = _Stream(
+            connection, chunks=[TextChunk(delta="a"), TextChunk(delta="b")]
+        )
+        facilitator = _facilitator(stream)
+        advisor = _StubAdvisor(facilitator)
+        seen: list = []
+        repairs_at_handover: list = []
+        timing_at_handover = None
+
+        with scope("sid-test"):
+            async for event in advisor.chat_stream("hello"):
+                seen.append(event)
+                if isinstance(event, ResponseComplete):
+                    repairs_at_handover = list(advisor.repairs)
+                    timing_at_handover = advisor.last_turn_timing
+                    break
+
+        assert repairs_at_handover == [("hello", seen[-1].message)], (
+            "the host had the final event in hand and the repair seam had not run "
+            "— which is the defect: the closing work sits below a `yield` the host "
+            "is entitled to break on"
+        )
+        assert timing_at_handover is not None, (
+            "the turn's seconds are recorded in the same place as the repair, so "
+            "they are lost by the same mechanism"
+        )
+        assert isinstance(seen[-1], ResponseComplete), (
+            "holding the event back is a delay, not a reordering — it must still "
+            "be the last thing the host sees"
+        )
+        assert facilitator.last_submit_seconds > 0.0
+        # No `aclose`, no wait for the collector: `chat_stream` asked `submit_stream`
+        # for one more event, so the whole chain ran out under its own power and the
+        # provider's connection was let go of on the way.
+        assert stream.exhausted
         assert connection.released
