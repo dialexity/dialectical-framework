@@ -2709,6 +2709,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   composite (NI held out), the floor is still **not shown**: +0.514, ICC +0.280 so deff-corrected
   `[−0.133, +1.161]`, and resolution needs ~68 pairs rather than the published n≈55 — `tests/e2e/rounds.md`,
   `### a15-pooled`.
+  **And the follow-up read the same 24 pairs against a nuisance variable this bench has never cancelled — LENGTH
+  — which retires the floor question rather than sizing it (`read_length_confound.py`, free; `### a15-length`).**
+  Position bias is cancelled by design (`judge.py::_x_is_a`); nothing equalises how much an arm SAYS. The per-pair
+  assistant-word gap explains **53%** of the endpoint (+3.27 rubric steps per 1,000 words, t=+5.02), +0.514 falls
+  to **+0.095 [−0.21, +0.40]** length-matched, and **every** adjusted interval spans zero — while the slope is
+  archive-wide, positive in **29 of 36** (stem, arm-pair) sets (p=0.0003; +1.14 [+0.88, +1.40] pooled within-set
+  over 530 pairs) including sets whose mean delta is negative. Two things this does NOT license. The adjusted
+  figure is a **bound**, not a corrected verdict: length is either a confounder the judge pays for or a mediator
+  the gain arrives through, and separating them needs a same-arm placebo the archive has **zero** of — designed
+  (the two `decide` transcripts of one replicate, ~12 judge calls) and not run. And it cuts against the framework
+  as readily as for it: A2 is the SHORTER arm in every marquee set, so adjustment moves A2 UP (`r21` +0.372 →
+  +0.521), printed and not adopted.
   **The THIRD trade was repaid at the same seam, 2026-09-14 (`Advisor._audit_adopted_pathways`), and the honest
   difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
   `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s

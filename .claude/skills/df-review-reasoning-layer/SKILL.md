@@ -674,6 +674,28 @@ anchors.
   replicate means: at the 3 replicates a round produces, the replicate-mean interval carries t(2)=4.303 and
   resolves nothing whatever the data say, which reports a df problem as a null result. Inflate the standard
   error by sqrt(deff) and take df from the effective n.
+- **A pairwise judge carries a LENGTH nuisance variable as well as position and set size, and this bench
+  cancels only one of the three.** Position is cancelled by DESIGN (`judge.py::_x_is_a` shows each pair both
+  ways); nothing equalises how much an arm SAYS, and the judge is shown both transcripts at once. Measured off
+  the archive for free (`read_length_confound.py`): on the 24 poolable `A1.5 vs A1` pairs the per-pair word gap
+  explains **53% of the endpoint** (slope +3.27 rubric steps per 1,000 words, t=+5.02), the raw +0.514 falls to
+  **+0.095 [−0.21, +0.40]** at gap zero, and the 6 pairs where the OTHER arm was longer read −0.98 against +1.01
+  for the 18 where the arm under test was. It is not a property of that pair either: **29 of 36 (stem, arm-pair)
+  sets are positive** (sign test p=0.0003; pooled within-set +1.14 [+0.88, +1.40] over 530 pairs), including sets
+  whose mean delta is negative, so it is not "the better arm writes more". Three rules. **(1) Quote the mean
+  length gap beside any judged delta** — it is free, it comes off transcripts already paid for, and a delta
+  reported without it has left its largest known nuisance variable unlooked-at. **(2) An adjustment that cannot
+  separate a CONFOUNDER from a MEDIATOR yields a BOUND, not an estimate**: length is either something the judge
+  pays for (adjusting removes bias) or the channel the gain arrives through (adjusting deletes the effect), and
+  telling them apart needs a same-arm placebo where content is held and only length moves. This archive contains
+  ZERO same-arm comparisons, so print the raw figure as the finding and the adjusted one as the caveat, and adopt
+  neither. **(3) Run it even when the direction is unflattering, which is what makes it trustworthy** — A2 is the
+  SHORTER arm in every marquee set, so adjusting moves A2's numbers UP (`r21` +0.372 → +0.521), and a tool whose
+  only recorded effect flatters its author is not evidence. **And drop dead cells FIRST when regressing against
+  any transcript PROPERTY:** an arm that never ran leaves an empty transcript, at once the shortest possible and
+  the worst-scoring possible — one point at the extreme of both axes, which is how you manufacture a slope.
+  Applying `invalid_cells` the way `drop_invalid` does took one set from **20 pairs at +1.82 (t=+3.48) to 16 at
+  +1.02 (t=+1.00)**, so four dead rows were most of that set's slope.
 - **An endpoint correction that flips a published result in the FLATTERING direction is a flag, not a
   fix.** Holding the NI dimensions out of the headline is right — `a15-floor` established it — and doing it
   in code moved the archive's marquee pooled read from **+0.325 [−0.003, +0.653] UNRESOLVED** to **+0.372

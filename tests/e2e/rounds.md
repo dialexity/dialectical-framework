@@ -5545,6 +5545,12 @@ few to catch a ~2% rate.
 1. **One scenario, one tier, 12 pairs.** No delta can be classified depreciating or durable.
 2. **The 26% verbosity gap is unhandled** and it lands on exactly the rows that carry the only resolved
    composite in the report. A length-matched re-run is the outstanding fix, not more replicates.
+   **MEASURED 2026-09-17 (`### a15-length`), and it is bigger than this limit assumed — but the outstanding fix
+   is now a same-arm PLACEBO, not a re-run.** The word gap is a live covariate across the whole archive (positive
+   slope in 29 of 36 sets, p=0.0003), and on this round's own sets it swings the readings: `A1.5 v A1` +0.565 raw
+   against **+0.190** length-matched at a +106.2-word gap, while `A2 v A1.5` −0.194 raw against **−0.107** at
+   −95.2 (A2 is the shorter arm, so the adjustment goes A2's way here). None of that is adopted, because a slope
+   cannot tell a confounder from a mediator and the archive holds zero same-arm comparisons.
 3. **A2 is degraded** — 4/6 unwoven, 3/6 decisions flagged incoherent, 1/6 records complete. Every A2 row
    above understates the framework by the report's own rule.
 4. **The floor is measured and null, not measured and positive.** `structural +0.32 [−0.39, +1.03]` at
@@ -6027,3 +6033,106 @@ becoming unresolved — nothing published here rests on the uncorrected interval
    changing those four counts would pool silently.
 4. **Nothing here is about A2 or a live graph.** This is the floor between a static graph dump and the method
    text, and `a15-floor`'s limit 5 stands unchanged.
+
+### a15-length: the confound behind the floor question, measured for free — and it is archive-wide (2026-09-17, FREE)
+
+**The task, and why it was answered without paying for it.** The section above recommended *"a judge-only
+length-matched re-judge of the 24 archived transcript pairs"*, on `weave-offturn`'s limit 2 — *"a length-matched
+re-run is the outstanding fix, not more replicates"*. Before spending a judge call on removing the confound, the
+standing rule is to measure how big it is, and that costs nothing: every transcript is already saved, so the
+per-pair word gap can be regressed against the endpoint off disk. `read_length_confound.py` does that, and the
+answer turned out to make the re-judge a much smaller question than it looked.
+
+**Why length and not something else.** Position bias is cancelled by DESIGN in this bench — `judge.py::_x_is_a`
+shows each pair in both orders — and length never was. Nothing equalises how much an arm says, and the judge is
+shown both transcripts at once, so if it pays for words then any arm that happens to write more collects
+structural points it did not earn. That is bias, not variance: no number of replicates removes it.
+
+**THE READING, on the same 24 poolable `A1.5 vs A1` pairs the section above reports. The word gap explains 53% of
+the endpoint.** Slope **+3.268 rubric steps per 1,000 words**, CI [+1.925, +4.612], t=+5.02, r=+0.73. Raw
+endpoint **+0.514**; length-matched at gap zero **+0.095**, flat [−0.213, +0.404] (residual ICC −0.17, so deff<=1
+and the flat row stands). Mean gap +128 words. The splits say the same thing three more ways: median-gap split at
++114 words reads **−0.287** below against **+1.315** above; the **6 pairs where A1 was the longer transcript read
+−0.981** while the 18 where A1.5 was longer read **+1.012**. Sensitivity across both available slopes: own slope
++0.095 [−0.213, +0.404], archive-wide slope +0.368 [−0.008, +0.744] (residual ICC +0.16, deff-corrected
+[−0.104, +0.841]). **Every length-matched interval spans zero.** So the floor question's positive mean and the
+verbosity gap are the same observation twice, and the honest summary is that `A1.5 vs A1` is unresolved AND its
+point estimate is not separable from how much more A1.5 said.
+
+**AND THE SLOPE IS NOT A PROPERTY OF THIS PAIR — IT IS EVERYWHERE.** Swept over the whole archive (`--sweep`),
+**29 of 36 readable (stem, arm-pair) sets have a POSITIVE slope** — exact two-sided sign test **p=0.0003** —
+median **+0.967 per 1,000 words**, |t|>2 in 11 of them, and pooled within-set over **530 pairs in 36 sets:
++1.137, CI [+0.876, +1.398], t=+8.53**. The pooling is WITHIN set, which is what makes it more than "the better
+arm writes more": a set where one arm is both better and longer contributes nothing on that account, and sets
+whose mean delta is negative are in the positive column too. This is a property of the judge, or of what length
+carries, and not of any one round.
+
+**SIZING, corrected again, and this is the number that retires the 55-pair idea for good.** By `report.py`'s own
+`(2.8·sd/effect)²` on the replicate unit: raw **17 replicates (68 pairs)**, at the archive-wide slope **18
+replicates (72 pairs)**, and at this set's own slope **55 replicates — 220 pairs**. The archive currently holds
+24. So the honest range for "resolve the floor question" runs from four more rounds to **eighteen**, depending on
+which slope is the real one, and the build has not been frozen for two consecutive rounds in this series.
+
+**RECOMMENDATION: still do not run a 68-pair round, and the re-judge is now optional rather than the next step.**
+The free half answered the question it was meant to gate: +0.514 does not survive length adjustment under any
+slope available, so four rounds of generation were never worth arguing about on this endpoint. What a re-judge
+would add is not a bigger n — it is the one thing this reading CANNOT produce, below.
+
+**THE LIMIT THAT BELONGS BESIDE EVERY NUMBER ABOVE: confounder or mediator, and the archive cannot tell.** A
+slope is a correlation. Length is either a CONFOUNDER (the judge pays for words, and the adjusted figure is the
+honest one) or a MEDIATOR (the graph makes the arm say more useful things and length is how the gain arrives, in
+which case adjusting for it deletes the effect being measured). Separating them needs a comparison where content
+is held constant and only length moves, and **the archive contains zero same-arm comparisons across every
+stem** — no placebo exists. So the adjusted figure is a **BOUND on how much of a win could be verbosity, never
+the win**, and the tool prints it beside the raw one and adopts neither. **The placebo is designed and not run:
+judge the two `decide` transcripts of one (arm, replicate) against each other** — same arm, same script, two
+samples — 6 A1-A1 plus 6 A1.5-A1.5 pairs, ~12 judge calls. It needs its own small script, because
+`runner.judge_pairs` cannot express a same-arm cross-branch pair, and it must obey this file's recorded judge
+discipline: the trim or match must not be positional, the raw first-vs-second split must be reported, and an
+unpaired per-item rating is preferred wherever the question allows one.
+
+**THE DIRECTION IS NOT THE FLATTERING ONE, WHICH IS THE STRONGEST REASON TO TRUST THE INSTRUMENT.** A2 is the
+SHORTER arm in every marquee set — −229.2 and −229.9 words against A1.7 in `r21`/`r22`, −120.1 and −84.4 in the
+two `ladder-return` stems — so adjusting there moves A2's numbers UP: `r21` +0.372 raw against **+0.521**
+adjusted, `r22` +0.153 against **+0.388**. Printed next to the raw figures and **not adopted**, for the same
+reason the structural side effect above is not adopted: switching to the reading that flatters the framework
+after seeing that it does is the forbidden move, and it is worse when the person switching wrote the switch.
+
+**THE DEAD-CELL DROP IS LOAD-BEARING AND IT IS NOT INHERITED CAUTION.** An arm that never ran leaves an empty
+transcript, which is at once the shortest possible and the worst-scoring possible: **one point at the extreme of
+BOTH axes, which is how you manufacture a slope.** Applying `invalid_cells` the way `drop_invalid` does — the
+loose `(arm, tier, replicate)` key, since a run invalid in one branch is invalid for every comparison of that
+cell — took `r22-strong-pooled-rejudge` from **20 pairs at +1.82 (t=+3.48) to 16 at +1.02 (t=+1.00)**, i.e. four
+dead rows were most of that set's slope, and moved the archive figure from +1.193 to +1.137 (median +1.074 →
++0.967, |t|>2 from 12 to 11). Any future regression against a transcript PROPERTY inherits this hazard, whichever
+property it is.
+
+**BRANCH RECOVERY, because the covariate needs the exact pair of transcripts a comparison saw.** `Comparison`
+records no `branch` (`session_label` was added for this class of complaint and `branch` was not), and the two
+`decide` transcripts of one (arm, replicate) are DIFFERENT runs: A1.5 rep 1 is 1,781 words in `wobble_a` and
+2,033 in `wobble_b` against A1's 1,753 and 1,650, so the gap is +28 in one and +383 in the other — assigning them
+the wrong way round scrambles the covariate on the very rows that carry the signal. `_align` REPLAYS
+`runner.judge_pairs`' deterministic loop rather than assuming a pattern and refuses unless every recorded field of
+every comparison agrees. What makes that more than a hope: **half the rows name their own branch**, because a
+wobble session's label IS the branch, so when the replayed `wobble_a`/`wobble_b` rows line up with the recorded
+labels the interleaving is confirmed and the `decide` rows sitting between them are pinned by construction. A
+stem that fails any of it is DROPPED with a reason. The refusals are deliberately two different sentences:
+**"predates `session_label` — nothing pins the replay"** (8 old stems — an archive too old for the check) reads as
+an archive limit, where "session_label disagrees at replay position N" reads as a broken instrument, and
+conflating them is how a tool gets distrusted for working correctly.
+
+**LIMITS.**
+1. **Confounder vs mediator is unresolved and no number here can resolve it.** See above; this is the whole
+   reason nothing is adopted.
+2. **The 24-pair reading is one scenario, one tier, 6 replicates** (`cofounder_equity`, weak) — the same base as
+   the section above, so the two share every limit it lists.
+3. **The archive slope is pooled across sets with different arms, tiers and scenarios.** It is the right
+   comparator for "is this set's slope unusual" and the wrong one for "what would this pair's judge have done" —
+   which is why the two adjusted figures are printed as a RANGE and the width is what to quote.
+4. **A slope fitted on ~12-24 points is free to be steep by luck.** This set's +3.268 is 2.9x the archive's
+   +1.137, and the sizing spread (17 against 55 replicates) is entirely a consequence of which one is believed.
+5. **8 stems cannot be read at all** because they predate `session_label`, so the sweep's 36 sets are the readable
+   archive and not the whole of it.
+6. **`assistant_words` counts the ARM's words only** — the simulator's turns move with the simulator, not the
+   arm — and words are a proxy for whatever the judge actually responds to (structure, specificity, hedging). A
+   confound measured through one proxy is bounded by that proxy.

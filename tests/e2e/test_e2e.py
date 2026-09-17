@@ -67,7 +67,8 @@ from e2e.models import (
     TurnRecord,
     WobbleScore,
 )
-from e2e import probe_readside_reach, round_trend, status
+from e2e import (probe_readside_reach, read_length_confound, round_trend,
+                 status)
 from e2e.report import (
     Deltas,
     drop_invalid,
@@ -11442,6 +11443,363 @@ class TestR24MechanismDistinctionResult:
         assert "the point estimate is *below* the pooled baseline rate" in block
         # And the sequence win must be reported as replicating, since it did.
         assert "r20's headline result replicates" in block
+
+
+class TestTheLengthConfoundReader:
+    """`read_length_confound.py` — the covariate the bench never cancelled.
+
+    Position bias is cancelled by DESIGN (`judge.py::_x_is_a`); length never was,
+    and on the 24 archived `A1.5 vs A1` pairs the per-pair word gap explains 53%
+    of the endpoint. What is pinned here is not those figures — they live in the
+    module docstring and move with the archive, which is gitignored — but the
+    four ways this instrument can lie: a branch recovered from judging order that
+    was not actually confirmed, a dead cell sitting at the extreme of both axes,
+    a non-inferiority row leaking into the structural composite, and a negative
+    residual ICC being spent as precision.
+    """
+
+    PAIR = (Arm.A2.value, Arm.A1_7.value)
+    #: (replicate, branch, hi words by session, lo words by session, delta by
+    #: session). Two sessions a cell, so the branch is what tells the two
+    #: `decide` comparisons of one replicate apart — the whole reason `_align`
+    #: exists.
+    CELLS = (
+        (1, "wobble_a", {"decide": 300, "wobble_a": 120},
+         {"decide": 200, "wobble_a": 130}, {"decide": 1, "wobble_a": -1}),
+        (1, "wobble_b", {"decide": 260, "wobble_b": 140},
+         {"decide": 180, "wobble_b": 100}, {"decide": 1, "wobble_b": 1}),
+        (2, "wobble_a", {"decide": 240, "wobble_a": 110},
+         {"decide": 260, "wobble_a": 150}, {"decide": -1, "wobble_a": -1}),
+    )
+    #: The same cells with every delta at zero — a set with NO length effect,
+    #: which is what makes the dead cell's contribution readable as manufacture
+    #: rather than as a shift.
+    FLAT = tuple(
+        (replicate, branch, hi, lo, dict.fromkeys(delta, 0))
+        for replicate, branch, hi, lo, delta in CELLS
+    )
+    #: The shape that manufactures a slope: an arm that never ran, so its
+    #: transcript is at once the shortest possible and the worst-scoring.
+    DEAD = (
+        3, "wobble_a", {"decide": 0, "wobble_a": 0},
+        {"decide": 400, "wobble_a": 200}, {"decide": -2, "wobble_a": -2},
+    )
+
+    @staticmethod
+    def _session(label: str, words: int, errored: bool, arm: str) -> SessionRecord:
+        return SessionRecord(
+            label=label,
+            turns=[
+                TurnRecord(
+                    index=0,
+                    user="u",
+                    assistant=" ".join(["word"] * words),
+                    error="turn died" if errored else None,
+                    # A2 with no tool calls is `collapsed_to_a1`, i.e. already
+                    # invalid — so without this every fixture here would be
+                    # dropped by the dead-cell rule and the tests would pass on
+                    # empty row lists.
+                    tool_calls=["anchor"] if arm == Arm.A2.value else [],
+                )
+            ],
+        )
+
+    @classmethod
+    def _payload(
+        cls,
+        cells,
+        *,
+        vintage: bool = False,
+        dead: tuple = (),
+        mislabel: bool = False,
+        swap: tuple[int, int] | None = None,
+        dimensions=("entanglement",),
+    ) -> dict:
+        runs, comparisons = [], []
+        for replicate, branch, hi, lo, delta in cells:
+            for arm, words in ((cls.PAIR[0], hi), (cls.PAIR[1], lo)):
+                runs.append(
+                    RunRecord(
+                        arm=arm,
+                        tier="weak",
+                        model="m",
+                        scenario_key="probe",
+                        replicate=replicate,
+                        branch=branch,
+                        sessions=[
+                            cls._session(
+                                # The one thing the recorded labels can catch:
+                                # a wobble session whose label is not the branch.
+                                "wobble_a" if mislabel and label != "decide" else label,
+                                count,
+                                (arm, replicate) in dead,
+                                arm,
+                            )
+                            for label, count in words.items()
+                        ],
+                    )
+                )
+            for label in hi:
+                comparisons.append(
+                    Comparison(
+                        scenario_key="probe",
+                        tier="weak",
+                        replicate=replicate,
+                        arm_a=Arm.A2,
+                        arm_b=Arm.A1_7,
+                        x_arm=Arm.A2,
+                        session_label=(
+                            ""
+                            if vintage
+                            else ("wobble_a" if mislabel and label != "decide" else label)
+                        ),
+                        scores={
+                            d: (3 + delta[label], 3) for d in dimensions
+                        },
+                    )
+                )
+        if swap:
+            i, j = swap
+            comparisons[i], comparisons[j] = comparisons[j], comparisons[i]
+        return {
+            "runs": [r.model_dump(mode="json") for r in runs],
+            "comparisons": [c.model_dump(mode="json") for c in comparisons],
+        }
+
+    def _rows(self, cells, **kwargs):
+        rows, reason = read_length_confound._align(
+            self._payload(cells, **kwargs), self.PAIR
+        )
+        return rows, reason
+
+    def test_the_branch_is_recovered_and_the_gap_follows_it(self):
+        """The two `decide` transcripts of one replicate are DIFFERENT runs.
+
+        Rep 1 has a +100 gap in `wobble_a` and +80 in `wobble_b`. Assigning them
+        the wrong way round does not look wrong anywhere downstream — it just
+        moves the covariate onto the wrong row — so this is the assertion the
+        whole file rests on.
+        """
+        rows, reason = self._rows(self.CELLS)
+        assert reason == ""
+        # rep 2 reuses the `wobble_a` label and is kept apart by its replicate,
+        # so the row identity is (replicate, branch) and not the branch alone.
+        assert [(r["replicate"], r["branch"], r["gap"]) for r in rows] == [
+            (1, "wobble_a", 100),
+            (1, "wobble_a", -10),
+            (1, "wobble_b", 80),
+            (1, "wobble_b", 40),
+            (2, "wobble_a", -20),
+            (2, "wobble_a", -40),
+        ]
+
+    def test_a_stem_that_predates_session_label_is_refused_not_guessed(self):
+        """Five archived stems record empty labels, and nothing pins their replay.
+
+        Deliberately a different refusal from an order that failed: saying
+        "session_label disagrees" about a field the run never wrote reads as a
+        broken instrument instead of an archive too old for one.
+        """
+        rows, reason = self._rows(self.CELLS, vintage=True)
+        assert rows == []
+        assert reason == "predates `session_label` — nothing pins the replay"
+
+    def test_a_judging_order_that_does_not_replay_is_refused(self):
+        """Swapped WITHIN one replicate, so every other recorded coordinate still
+        agrees and only the session label catches it — which is the order failure
+        that could actually happen if `judge_pairs`' loop changed."""
+        rows, reason = self._rows(self.CELLS, swap=(1, 2))
+        assert rows == []
+        assert reason == "session_label disagrees at replay position 1"
+
+    def test_a_wobble_label_that_disagrees_with_its_branch_is_refused(self):
+        """The check that makes order-recovery more than a hope.
+
+        Half the rows name their own branch, because a wobble session's label IS
+        the branch. Here the `wobble_b` cell runs a session labelled `wobble_a`
+        and the comparisons agree with the session, so only the branch cross-check
+        can catch it — and it must, because that is the evidence pinning the
+        `decide` rows sitting between them.
+        """
+        rows, reason = self._rows(self.CELLS, mislabel=True)
+        assert rows == []
+        assert reason == "branch 'wobble_b' does not match session 'wobble_a'"
+
+    def test_a_dead_cell_is_dropped_and_it_would_have_manufactured_the_slope(self):
+        """An arm that never ran is one point at the extreme of BOTH axes.
+
+        Empty transcript (shortest possible) scoring worst possible: exactly how
+        a slope is made out of nothing. The fixture is a set with NO length effect
+        at all, so the second half reads as manufacture rather than as a shift —
+        on the real archive the same rule took `r22-strong-pooled-rejudge` from 20
+        pairs at +1.82 to 16 at +1.02, which is why the drop is load-bearing and
+        not inherited caution.
+        """
+        cells = self.FLAT + (self.DEAD,)
+        kept, reason = self._rows(cells, dead=((self.PAIR[0], 3),))
+        assert reason == ""
+        assert [r["replicate"] for r in kept] == [1, 1, 1, 1, 2, 2], (
+            "the cell whose turns all errored is still in the regression"
+        )
+        without = read_length_confound._regress(kept)
+        assert without["slope"] == pytest.approx(0.0)
+
+        # The SAME extreme point with no invalidity marker: what the reader would
+        # have regressed on without the drop. Note the cell is in the replay
+        # either way — the drop is `invalid_cells`, not the `error` skip.
+        undropped, reason = self._rows(cells)
+        assert reason == ""
+        assert len(undropped) == 8
+        with_dead = read_length_confound._regress(undropped)
+        assert with_dead["slope"] * 1000 > 3.0, (
+            "one dead cell no longer turns a flat set into a length effect "
+            "larger than the whole archive's +1.14 per 1,000 words, so this "
+            "fixture stopped demonstrating the hazard the drop exists for"
+        )
+
+    def test_the_non_inferiority_rows_are_held_out_of_the_composite(self):
+        """The composite is STRUCTURAL. An NI row moving is not a structural win.
+
+        Pinned here because the reader builds its own delta rather than reusing
+        `Deltas`, so nothing else in the suite notices if the held-out set drifts.
+        """
+        dimensions = (NON_INFERIORITY_DIMENSIONS[0], "entanglement")
+        rows, reason = self._rows(self.CELLS, dimensions=dimensions)
+        assert reason == ""
+        structural, _ = self._rows(self.CELLS, dimensions=("entanglement",))
+        assert [r["delta"] for r in rows] == [r["delta"] for r in structural]
+
+        ni_only, reason = self._rows(
+            self.CELLS, dimensions=(NON_INFERIORITY_DIMENSIONS[0],)
+        )
+        assert reason == ""
+        assert ni_only == [], "an NI-only comparison contributed a structural delta"
+
+    def test_a_negative_residual_icc_cannot_buy_precision(self):
+        """`read_pooled`'s rule applies to the adjusted column too, one-way.
+
+        A design effect below 1 says the replicates are LESS alike than chance,
+        which is not evidence that the interval is narrower than it looks — it is
+        the flat interval standing. Only a deff above 1 widens.
+        """
+        anti = [
+            {"replicate": 1, "stem": "s", "gap": 0, "delta": d}
+            for d in (+2.0, -2.0, +2.0, -2.0)
+        ] + [
+            {"replicate": 2, "stem": "s", "gap": 0, "delta": d}
+            for d in (+2.0, -2.0, +2.0, -2.0)
+        ]
+        mean, flat, corrected, icc = read_length_confound._adjusted(anti, 0.0)
+        assert icc <= 0
+        assert corrected is None, "a negative ICC was spent as precision"
+        assert flat[0] < mean < flat[1]
+
+        alike = [
+            {"replicate": 1, "stem": "s", "gap": 0, "delta": d}
+            for d in (+2.0, +1.9, +2.1, +2.0)
+        ] + [
+            {"replicate": 2, "stem": "s", "gap": 0, "delta": d}
+            for d in (-2.0, -1.9, -2.1, -2.0)
+        ]
+        _, flat, corrected, icc = read_length_confound._adjusted(alike, 0.0)
+        assert icc > 0 and corrected is not None
+        assert corrected[1] - corrected[0] > flat[1] - flat[0], (
+            "clustering must widen the interval, never narrow it"
+        )
+
+    def test_the_slope_is_subtracted_PAIR_BY_PAIR_and_the_spread_moves_with_it(self):
+        """Subtracting `slope x mean_gap` from the mean gives the same MEAN, so the
+        mean is not what pins this. The spread is: a set whose deltas are entirely
+        explained by length adjusts to a constant, and its interval collapses.
+
+        Which is also the shape that makes the interval readable at all — the
+        adjusted column's own CI is computed on the adjusted values, so a reader
+        quoting it is quoting the residual spread and not the raw one.
+        """
+        rows = [
+            {"replicate": r, "stem": "s", "gap": gap, "delta": 0.005 * gap}
+            for r, gap in enumerate((-400, -100, 100, 400), start=1)
+        ]
+        raw_mean, raw_ci, _, _ = read_length_confound._adjusted(rows, 0.0)
+        mean, ci, _, _ = read_length_confound._adjusted(rows, 0.005)
+        assert raw_mean == pytest.approx(mean), "the MEAN cannot distinguish the two"
+        assert mean == pytest.approx(0.0)
+        assert ci[1] - ci[0] == pytest.approx(0.0, abs=1e-9)
+        assert raw_ci[1] - raw_ci[0] > 1.0
+
+    def test_a_refusal_counts_in_words_a_person_reads(self):
+        """"1 pairs" is the shape `find_polarities`' label was fixed for. The
+        singular is reachable in both refusal messages, so the count branches."""
+        assert read_length_confound._pairs(1) == "1 pair"
+        assert read_length_confound._pairs(4) == "4 pairs"
+
+    def _write(self, tmp_path, monkeypatch, stem, payload):
+        import json
+
+        (tmp_path / f"{stem}.json").write_text(json.dumps(payload))
+        monkeypatch.setattr(read_length_confound, "RESULTS", tmp_path)
+
+    def test_the_pair_read_states_what_it_cannot_settle(self, tmp_path, monkeypatch):
+        """A slope cannot tell a confounder from a mediator, and the archive holds
+        no same-arm comparison to break the tie. So the adjusted figure is a BOUND,
+        and the output has to say so next to the number rather than leave a reader
+        to know it."""
+        self._write(tmp_path, monkeypatch, "probe-stem", self._payload(self.CELLS))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert read_length_confound.read(["probe-stem"], self.PAIR) == 0
+        text = out.getvalue()
+        assert "LENGTH-MATCHED READS" in text
+        assert "none is the endpoint" in text
+        assert "WHAT THIS DOES NOT SHOW" in text
+        assert "bound on how much of the win could be verbosity" in text
+        # Both slopes are printed, because one of them is fitted on a dozen points.
+        assert "this set's own slope" in text and "archive-wide slope" in text
+        assert "Quote the WIDTH of the range." in text
+
+    def test_a_refused_stem_says_so_and_exits_nonzero(self, tmp_path, monkeypatch):
+        self._write(
+            tmp_path, monkeypatch, "old-stem",
+            self._payload(self.CELLS, vintage=True),
+        )
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert read_length_confound.read(["old-stem"], self.PAIR) == 2
+        assert "REFUSED old-stem" in out.getvalue()
+        assert "Do not fall back on a pattern." in out.getvalue()
+
+    def test_the_sweep_prints_the_adjusted_column_without_adopting_it(
+        self, tmp_path, monkeypatch
+    ):
+        """A2 is the SHORTER arm in every marquee set, so adjustment moves its
+        numbers UP. Printing that is the point — a tool written by whoever quotes
+        it must not hide the flattering direction — but printing is all it does,
+        so no verdict word may appear beside the column."""
+        self._write(tmp_path, monkeypatch, "probe-stem", self._payload(self.CELLS))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert read_length_confound.sweep() == 0
+        text = out.getvalue()
+        assert "adj@0" in text
+        assert "is NOT a re-headline" in text
+        assert "sign test p=" in text and "POOLED WITHIN-SET" in text
+        assert "ARCHIVE_SLOPE_PER_WORD" in text, (
+            "the constant must be reprinted, or drift hides behind it"
+        )
+        for verdict in ("wins", "confirms", "proves", "resolved", "significant"):
+            assert verdict not in text.lower(), (
+                f"the sweep reads {verdict!r} as a conclusion about a column it "
+                "only prints"
+            )
+
+    def test_the_archive_constant_is_a_slope_per_word(self):
+        """It is quoted per 1,000 words everywhere and stored per word.
+
+        A factor-of-1000 slip would leave every adjusted figure looking sane and
+        every one of them wrong, which is why the units are pinned rather than
+        the value.
+        """
+        assert 0.0005 < read_length_confound.ARCHIVE_SLOPE_PER_WORD < 0.005
 
 
 # --- probe free-guard re-collection ------------------------------------------
