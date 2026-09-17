@@ -6091,6 +6091,13 @@ samples — 6 A1-A1 plus 6 A1.5-A1.5 pairs, ~12 judge calls. It needs its own sm
 discipline: the trim or match must not be positional, the raw first-vs-second split must be reported, and an
 unpaired per-item rating is preferred wherever the question allows one.
 
+> **RAN, SAME DAY, AND IT REFUTED THE ADJUSTMENT — see `### placebo-w1`.** 32 same-arm pairs give **−0.133 per
+> 1,000 words, CI [−0.569, +0.303]**, excluding +1.137, +3.268 and the +0.569 consequential threshold. With the arm
+> held, words buy nothing, so the slope above travels with the ARM and adjusting for it deletes real effect: the
+> **RAW +0.514 is the estimate** and the length-matched +0.095 is an over-correction. Everything this section
+> measures about the slope stands; its RECOMMENDATION does not — the floor question is unresolved for want of n
+> (`### a15-pooled`, ~68 pairs), not retired by length.
+
 **THE DIRECTION IS NOT THE FLATTERING ONE, WHICH IS THE STRONGEST REASON TO TRUST THE INSTRUMENT.** A2 is the
 SHORTER arm in every marquee set — −229.2 and −229.9 words against A1.7 in `r21`/`r22`, −120.1 and −84.4 in the
 two `ladder-return` stems — so adjusting there moves A2's numbers UP: `r21` +0.372 raw against **+0.521**
@@ -6123,7 +6130,8 @@ conflating them is how a tool gets distrusted for working correctly.
 
 **LIMITS.**
 1. **Confounder vs mediator is unresolved and no number here can resolve it.** See above; this is the whole
-   reason nothing is adopted.
+   reason nothing is adopted. **(Resolved by `### placebo-w1` the same day, against the adjustment: with the arm
+   held the slope is −0.133 [−0.569, +0.303], so this one is a mediator and the raw figure stands.)**
 2. **The 24-pair reading is one scenario, one tier, 6 replicates** (`cofounder_equity`, weak) — the same base as
    the section above, so the two share every limit it lists.
 3. **The archive slope is pooled across sets with different arms, tiers and scenarios.** It is the right
@@ -6136,3 +6144,85 @@ conflating them is how a tool gets distrusted for working correctly.
 6. **`assistant_words` counts the ARM's words only** — the simulator's turns move with the simulator, not the
    arm — and words are a proxy for whatever the judge actually responds to (structure, specificity, hedging). A
    confound measured through one proxy is bounded by that proxy.
+
+### placebo-w1: the same-arm placebo — the length adjustment is REFUTED, so the raw deltas stand (2026-09-17)
+
+**PRE-REGISTERED before any judge call**, in `probe_same_arm_placebo.py`'s docstring: population, the 32-pair
+selection, all four verdict bands including the null one, the power figures, the secondary endpoint, and the
+wave-2 pooling rule. Nothing below was chosen after seeing a score.
+
+**THE QUESTION `a15-length` LEFT OPEN, AND WHY IT WAS ANSWERABLE AFTER ALL.** That section closed on "confounder
+or mediator, and the archive cannot tell", because a slope is a correlation and the archive holds **zero**
+comparisons of an arm against itself. The comparison was there to be built out of transcripts already paid for.
+Every multi-session scenario runs two BRANCHES off one opening, so one (arm, tier, scenario, replicate) cell holds
+**two independent samples of the same `decide` script** — same prompt, same model, same simulator beats, same
+build. Expected true delta zero; length varying by generation noise alone. That is a placebo, and there were
+**174** of them (203 raw, deduplicated by transcript fingerprint because the re-judged stems re-save identical
+transcripts under new stems).
+
+**WAVE 1: 32 pairs, sized before the bar was registered.** The 12 marquee cells whole (`weave-offturn` and
+`feasibility-offturn`, A1 and A1.5 — the 6+6 the placebo was originally scoped as), plus largest-|gap| enrichment
+capped at **2 per stem** so one noisy round cannot become the fit. Enrichment is on the COVARIATE, which cannot
+bias a slope, and there was no outcome to select on: the archive had never judged a same-arm pair. Gap sd **766
+words**; at the archive's own measured residual sd (0.838) that is se(slope) **0.197 per 1,000 words**, so power
+**1.00** at +1.137 and **0.82** at the +0.569 registered as consequential. Side A is the first BRANCH NAME, never
+the longer transcript — assigning A = longer would make every gap positive and turn the slope question into an
+intercept question.
+
+**THE READING: −0.133 rubric steps per 1,000 words, CI [−0.569, +0.303]** (32 pairs, t=−0.65, r=−0.12, residual sd
+0.860 against the archive's 0.838, residual ICC by stem +0.09 so deff 1.08 and the corrected interval decides).
+The interval excludes the archive's **+1.137**, the marquee set's **+3.268**, and the **+0.569** consequential
+threshold, while containing zero. Registered verdict: **CONFOUND REFUTED.** Every arm's own slope is small or
+negative (A1 −0.94 on 8, A1.5 −0.14 on 6, A1.7 +0.55 on 4, A2 −0.27 on 14).
+
+**WHAT IT MEANS FOR THE FLOOR QUESTION, and it is not the flattering reading of the last section.** With the arm
+held constant, **words buy nothing**, so the cross-arm slope travels with the ARM and not with the judge's
+appetite for verbosity. Adjusting for it therefore removes the effect rather than a bias: `A1.5 vs A1`'s
+**+0.514 raw is the estimate**, and the length-matched **+0.095** is an over-correction. `a15-length`'s
+recommendation — "+0.514 does not survive length adjustment under any slope available, so four rounds of
+generation were never worth arguing about" — **does not survive the placebo.** The floor question goes back to
+being what `a15-pooled` said it was: unresolved and a SIZING problem (~68 pairs), not a confounded one. The
+instrument is unchanged and still correct; what changed is that its adjusted column is no longer a bound on bias.
+
+**CHECKS, all three registered in advance.** Exchangeability: mean composite delta **−0.000** [−0.310, +0.310],
+inside the registered ±0.30 — the two branch runs are interchangeable exactly as the design assumes, which is the
+premise the whole probe rests on and a threshold it could have missed. Tie rate **31.8%** (122 of 384 dimension
+scores) against the archive's cross-arm **26.7%**: inside the 15-point margin, so no attenuation withholding was
+triggered. The guard was asymmetric on purpose — compression biases toward REFUTED, so it can withhold a
+refutation and never a confirmation. Position: the split came out exactly **16/16** as the even arm groups
+guarantee.
+
+**A BONUS THIS DESIGN GIVES FOR FREE, and it is the bench's first clean one: slot bias −0.181.** Over exchangeable
+pairs the true difference is zero in expectation, so whatever the X-minus-Y mean is, it IS the slot. Same sign as
+the +0.35 to +0.40 Y-slot advantage `judge._x_is_a` was built against, at about half the size — the mechanism is
+confirmed against a population where nothing else can explain the number.
+
+**SECONDARY: the length response reproduces in SHAPE and not in LEVEL.** The 12 cross-arm per-dimension slopes
+were frozen into the probe before it ran (`conversational_fit` **−0.638**, `warmth` +0.07, and every substance
+dimension positive up to `actionability` **+1.764** — so the cross-arm effect was never a blanket halo; this judge
+discounts length exactly where its rubric says to). Wave 1's vector correlates at **r=+0.79** (leave-one-dimension-
+out +0.76 to +0.83, so no single leverage point makes it), `conversational_fit` **−0.588** in the placebo too —
+but the mapping is **placebo = 0.39 × cross-arm − 0.51**. The ORDERING of which dimensions respond to length is a
+judge property that survives with no manipulation; the LEVEL is not, and **a near-uniform offset across all 12
+dimensions is what an arm effect travelling with length looks like**, not a judge habit. Registered as
+non-decisive, and it is read that way: the primary is what refutes.
+
+**WAVE 2 WAS NOT RUN, and the reason is the pre-registration and not the result.** It was registered as
+conditional on wave 1 being INDETERMINATE, with the pooled read final. Wave 1 decided, so the remaining 142 pairs
+stay unjudged. Pooling was registered before wave 1 ran precisely so it could not become a rescue.
+
+**LIMITS.**
+1. **It holds the ARM, not the CONTENT.** A within-arm coupling where a run with more to say both says more and
+   deserves more would appear here as a positive slope — it did not, which is why this reads as a refutation — but
+   the stronger design (a transcript against a length-trimmed copy of itself) is out of reach for a conversation:
+   dropping middle turns breaks it and trimming the tail tests the ending. Provenance-identical is what was bought.
+2. **32 pairs, one judge, one instrument.** The refutation is of "the judge pays +1.137 per 1,000 words", which
+   power 1.00 makes a real exclusion; a slope of, say, +0.3 is inside the interval and not ruled out.
+3. **Words remain a proxy** for whatever the judge responds to (structure, specificity, hedging), the same limit
+   `a15-length` records. A placebo measured through one proxy is bounded by that proxy.
+4. **A2 supplies 14 of the 32** and the marquee arms 14, so the composite is not evenly spread across arms. Per-arm
+   slopes are printed as descriptive only; none has the n to carry a slope alone.
+5. **The output lives in `results/placebo/`, deliberately.** Every archive reader globs `results/*.json`
+   non-recursively, and a same-arm comparison saved as an ordinary stem would enter `read_pooled`, `across_runs`,
+   `noise_floor` and `read_length_confound` itself as a legitimate arm pair — the placebo pooled into the numbers
+   it exists to interpret. Pinned by a free test.

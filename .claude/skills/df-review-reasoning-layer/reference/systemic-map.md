@@ -2720,12 +2720,31 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   assistant-word gap explains **53%** of the endpoint (+3.27 rubric steps per 1,000 words, t=+5.02), +0.514 falls
   to **+0.095 [−0.21, +0.40]** length-matched, and **every** adjusted interval spans zero — while the slope is
   archive-wide, positive in **29 of 36** (stem, arm-pair) sets (p=0.0003; +1.14 [+0.88, +1.40] pooled within-set
-  over 530 pairs) including sets whose mean delta is negative. Two things this does NOT license. The adjusted
-  figure is a **bound**, not a corrected verdict: length is either a confounder the judge pays for or a mediator
-  the gain arrives through, and separating them needs a same-arm placebo the archive has **zero** of — designed
-  (the two `decide` transcripts of one replicate, ~12 judge calls) and not run. And it cuts against the framework
-  as readily as for it: A2 is the SHORTER arm in every marquee set, so adjustment moves A2 UP (`r21` +0.372 →
-  +0.521), printed and not adopted.
+  over 530 pairs) including sets whose mean delta is negative. It cuts against the framework as readily as for it:
+  A2 is the SHORTER arm in every marquee set, so adjustment moves A2 UP (`r21` +0.372 → +0.521), printed and not
+  adopted.
+  **THE PLACEBO RAN ON 2026-09-17 AND IT REFUTED THE ADJUSTMENT, NOT THE RESULT
+  (`probe_same_arm_placebo.py`; `### placebo-w1`).** The archive had **zero** same-arm comparisons, which is why
+  the read above stopped at "the adjusted figure is a bound". The comparison was there to be built: the two
+  `decide` transcripts of one (arm, tier, scenario, replicate) come from the two BRANCH runs, so they are the same
+  script sampled twice — expected true delta zero, length varying by generation noise — and 174 such pairs were
+  sitting in transcripts already paid for. 32 pre-registered pairs (the 12 marquee A1/A1.5 cells whole, plus
+  largest-|gap| enrichment capped at 2 per stem; gap sd 766 words; power **1.00** at +1.14 and **0.82** at the
+  +0.57 registered as consequential) judged on the same instrument give **−0.13 per 1,000 words, CI [−0.57,
+  +0.30]** — excluding +1.14, +3.27 and +0.57 while containing zero, with mean composite delta **−0.000** so the
+  branches are exchangeable as assumed. **With the arm held, words buy nothing: the cross-arm slope travels with
+  the ARM, so the RAW +0.514 is the estimate and the length-matched +0.095 is an over-correction that deletes real
+  effect.** The floor question is therefore NOT retired by length — it goes back to being a sizing problem (~68
+  pairs, `### a15-pooled`). Two further readings. The per-dimension response reproduces in SHAPE and not in LEVEL:
+  r=**+0.79** over 12 dimensions (+0.76 to +0.83 leave-one-out) at `placebo = 0.39 × cross-arm − 0.51`, with
+  `conversational_fit` negative in both — this judge discounts length where its rubric says to and pays on
+  substance, and a near-uniform offset across every dimension is an arm effect travelling with length rather than
+  a judge habit. And the same-arm pairs are this bench's first CLEAN read on position, since the true delta is zero
+  in expectation: **−0.181** on an exactly 16/16 split, the same sign as the +0.35 to +0.40 Y-slot advantage
+  `judge._x_is_a` was built against, at about half the size. **The transferable rule: when a nuisance covariate
+  turns up with a slope, look for the population where the MANIPULATION is absent before adjusting anything — and
+  keep the placebo's output in a SUBDIRECTORY, because every archive reader globs `results/*.json` non-recursively
+  and a same-arm comparison saved as an ordinary stem pools into the very numbers it exists to interpret.**
   **The THIRD trade was repaid at the same seam, 2026-09-14 (`Advisor._audit_adopted_pathways`), and the honest
   difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
   `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s

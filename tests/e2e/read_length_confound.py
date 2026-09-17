@@ -53,17 +53,41 @@ took `r22-strong-pooled-rejudge` from 20 pairs at +1.82 (t=+3.48) to 16 at +1.02
 from +1.19 to +1.14. Any future regression against a transcript PROPERTY inherits
 this hazard, whichever property it is.
 
-THE ONE THING THIS CANNOT SETTLE, AND IT MUST BE SAID BESIDE EVERY NUMBER ABOVE.
-A slope is a correlation, and length is either a CONFOUNDER (the judge pays for
-words) or a MEDIATOR (the graph makes the arm say more useful things, and length
-is how the gain arrives). Adjusting for a confounder removes bias; adjusting for
-a mediator removes the effect. The archive cannot tell them apart, because it
-contains no comparison of an arm against ITSELF — 0 same-arm pairs across every
-stem — so there is no placebo where content is held constant and only length
-moves. What would settle it: a same-arm pair (the two `decide` transcripts of one
-replicate are the same script sampled twice), or a re-judge where the two sides
-are matched for length. Until one of those runs, read the adjusted figure as a
-BOUND on how much of a win could be verbosity, never as the win.
+SETTLED BY THE PLACEBO — DO NOT ADOPT THE ADJUSTED FIGURES. A slope is a
+correlation, and length was either a CONFOUNDER (the judge pays for words) or a
+MEDIATOR (the graph makes the arm say more useful things, and length is how the
+gain arrives). Adjusting for a confounder removes bias; adjusting for a mediator
+removes the effect, and the archive could not tell them apart because it holds no
+comparison of an arm against ITSELF.
+
+`probe_same_arm_placebo.py` built that comparison and it came out REFUTED. The two
+`decide` transcripts of one (arm, tier, scenario, replicate) are the same script
+sampled twice — same prompt, same model, same simulator, expected true delta zero,
+length varying by generation noise alone. Judged on this very instrument, 32
+pre-registered same-arm pairs (gap sd 766 words, power 1.00 at the figure below,
+0.82 at half of it) give a slope of **-0.13 per 1,000 words, CI [-0.57, +0.30]**,
+against the +1.14 pooled here and the +3.27 on the marquee set. The interval
+excludes both — and excludes even the +0.57 registered as the consequential
+threshold — while containing zero. With the manipulation removed, **words buy
+nothing.** Mean composite delta came out -0.000, so the two branches are
+exchangeable as the design assumes.
+
+So the cross-arm slope travels with the ARM, not with the judge's appetite for
+words: the RAW figures are the estimate, and the adjusted ones are neither the
+honest read nor a bound on bias — they are an over-correction that would delete
+real effect. What the per-dimension vectors add: the ORDERING of which dimensions
+respond to length does reproduce (r=+0.79 over 12 dimensions, +0.76 to +0.83
+leave-one-out, `conversational_fit` negative in both), but only at
+`placebo = 0.39 x cross-arm - 0.51` — the shape is a judge property, the LEVEL is
+not, and a near-uniform offset across all 12 dimensions is what an arm effect
+travelling with length looks like rather than a judge habit.
+
+What the placebo still cannot do, and it belongs beside the sentence above: it
+holds the ARM, not the CONTENT. A within-arm coupling where a run with more to say
+both says more and deserves more would show up here as a positive slope — it did
+not, which is why this reads as a refutation, but a content-identical trim is out
+of reach for a conversation (dropping middle turns breaks it; trimming the tail
+tests the ending) and provenance-identical is what was bought.
 
 WHICH DIRECTION IT CUTS IS NOT ALWAYS THE FLATTERING ONE, AND THAT IS THE
 STRONGEST REASON TO TRUST THE INSTRUMENT. A2 is the SHORTER arm in every marquee
@@ -407,12 +431,14 @@ def read(stems: list[str], pair: tuple[str, str]) -> int:
               f"{pair[0]} longer in {len(longer)}, mean {st.fmean(longer):+.3f}")
 
     print()
-    print("  WHAT THIS DOES NOT SHOW: whether the judge PAYS for words (a")
-    print("  confound, and the adjusted figure is then the honest one) or whether")
-    print("  the arm SAYS more because it has more to say (a mediator, and")
-    print("  adjusting deletes the effect). No same-arm comparison exists in this")
-    print("  archive, so nothing here can separate them — read the adjusted number")
-    print("  as a bound on how much of the win could be verbosity.")
+    print("  DO NOT ADOPT THE ADJUSTED FIGURE. Whether the judge PAYS for words")
+    print("  (a confound) or the arm SAYS more because it has more to say (a")
+    print("  mediator) is not visible in any cross-arm slope — and")
+    print("  `probe_same_arm_placebo.py` settled it on 32 same-arm pairs, where the")
+    print("  manipulation is absent and only length moves: slope -0.13 per 1,000")
+    print("  words, CI [-0.57, +0.30], excluding both the +1.14 pooled here and the")
+    print("  +3.27 marquee slope. Words buy nothing once the arm is held, so the")
+    print("  RAW delta is the estimate and adjusting would delete real effect.")
     return 0
 
 
@@ -493,10 +519,14 @@ def sweep() -> int:
 
     _print_refusals(refused)
     print()
-    print("  The `adj@0` column is NOT a re-headline of any of these rounds. It is")
-    print("  printed because the direction is informative: A2 is the SHORTER arm in")
-    print("  every marquee set, so adjustment moves its numbers UP, and a tool that")
-    print("  hid that would be hiding the flattering direction.")
+    print("  The `adj@0` column is NOT a re-headline of any of these rounds, and")
+    print("  after the placebo it is not a bound on bias either: 32 same-arm pairs")
+    print("  put the manipulation-free slope at -0.13 [-0.57,+0.30] per 1,000 words")
+    print("  (`probe_same_arm_placebo.py`), so this slope travels with the ARM and")
+    print("  subtracting it deletes real effect. It is still printed because the")
+    print("  direction is informative: A2 is the SHORTER arm in every marquee set,")
+    print("  so adjustment moves its numbers UP, and a tool that hid that would be")
+    print("  hiding the flattering direction.")
     return 0
 
 

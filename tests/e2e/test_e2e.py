@@ -11739,11 +11739,16 @@ class TestTheLengthConfoundReader:
         (tmp_path / f"{stem}.json").write_text(json.dumps(payload))
         monkeypatch.setattr(read_length_confound, "RESULTS", tmp_path)
 
-    def test_the_pair_read_states_what_it_cannot_settle(self, tmp_path, monkeypatch):
-        """A slope cannot tell a confounder from a mediator, and the archive holds
-        no same-arm comparison to break the tie. So the adjusted figure is a BOUND,
-        and the output has to say so next to the number rather than leave a reader
-        to know it."""
+    def test_the_pair_read_says_not_to_adopt_the_adjusted_figure(
+        self, tmp_path, monkeypatch
+    ):
+        """A slope cannot tell a confounder from a mediator, and the tie was broken
+        AGAINST the adjustment: `probe_same_arm_placebo.py` measured -0.13 [-0.57,
+        +0.30] per 1,000 words with the arm held, excluding every cross-arm slope
+        this tool prints. So the adjusted column is not a corrected verdict and not
+        a bound on bias either, and the output has to say that next to the number
+        rather than leave a reader to know it — this pin used to require the
+        earlier, weaker sentence, and changing it is the point."""
         self._write(tmp_path, monkeypatch, "probe-stem", self._payload(self.CELLS))
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
@@ -11751,8 +11756,10 @@ class TestTheLengthConfoundReader:
         text = out.getvalue()
         assert "LENGTH-MATCHED READS" in text
         assert "none is the endpoint" in text
-        assert "WHAT THIS DOES NOT SHOW" in text
-        assert "bound on how much of the win could be verbosity" in text
+        assert "DO NOT ADOPT THE ADJUSTED FIGURE" in text
+        assert "probe_same_arm_placebo.py" in text
+        assert "Words buy nothing once the arm is held" in text
+        assert "bound" not in text.lower(), "the bound framing is superseded"
         # Both slopes are printed, because one of them is fitted on a dozen points.
         assert "this set's own slope" in text and "archive-wide slope" in text
         assert "Quote the WIDTH of the range." in text
@@ -11833,4 +11840,21 @@ class TestPlusTakeUpProbeGuardsRunInTheDefaultSuite(_PlusTakeUpGuards):
     manipulation check. It renders both arms and asserts the baseline actually
     subtracts the fix, so a silent no-op patch — which would produce a null that
     reads as evidence — fails here, in the default suite, without a provider call.
+    """
+
+
+from e2e.probe_same_arm_placebo import \
+    TestThePreRegistrationIsAuditable as _SameArmPlaceboGuards
+
+
+class TestSameArmPlaceboGuardsRunInTheDefaultSuite(_SameArmPlaceboGuards):
+    """The same-arm placebo's free guards, re-collected.
+
+    Two of these protect things that would be invisible if they broke. Side A is
+    assigned by BRANCH NAME: if that ever became "the longer transcript", every
+    gap would turn positive and the slope question would silently become an
+    intercept question. And the placebo's output must stay in `results/placebo/`,
+    because a same-arm comparison saved as an ordinary stem enters every
+    `results/*.json` sweep as a legitimate arm pair — the placebo pooled into the
+    numbers it exists to interpret.
     """

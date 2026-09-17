@@ -704,11 +704,28 @@ anchors.
   whose mean delta is negative, so it is not "the better arm writes more". Three rules. **(1) Quote the mean
   length gap beside any judged delta** — it is free, it comes off transcripts already paid for, and a delta
   reported without it has left its largest known nuisance variable unlooked-at. **(2) An adjustment that cannot
-  separate a CONFOUNDER from a MEDIATOR yields a BOUND, not an estimate**: length is either something the judge
-  pays for (adjusting removes bias) or the channel the gain arrives through (adjusting deletes the effect), and
-  telling them apart needs a same-arm placebo where content is held and only length moves. This archive contains
-  ZERO same-arm comparisons, so print the raw figure as the finding and the adjusted one as the caveat, and adopt
-  neither. **(3) Run it even when the direction is unflattering, which is what makes it trustworthy** — A2 is the
+  separate a CONFOUNDER from a MEDIATOR is not an estimate — and here the PLACEBO settled it against the
+  adjustment.** Length is either something the judge pays for (adjusting removes bias) or the channel the gain
+  arrives through (adjusting deletes the effect), and only a comparison with the manipulation ABSENT can say
+  which. `probe_same_arm_placebo.py` built one out of transcripts already paid for: the two `decide` runs of one
+  (arm, tier, scenario, replicate) are the same script sampled twice, so the true delta is zero in expectation
+  while length varies by generation noise. 32 pre-registered pairs, judged on the same instrument, gave
+  **−0.13 per 1,000 words, CI [−0.57, +0.30]** — excluding the +1.14 archive slope, the +3.27 marquee slope AND
+  the +0.57 registered as consequential, with mean delta −0.000 confirming exchangeability. **With the arm held,
+  words buy nothing, so the RAW delta is the estimate and the adjusted column is an over-correction.** Two
+  transferable lessons rather than one. First, **when a nuisance covariate has a slope, look for the population
+  where the manipulation is missing before you adjust anything** — an unused branch structure had 174 such pairs
+  sitting in this archive, free apart from the judging, and the earlier read had written off the question as
+  unanswerable. Second, **a nuisance can reproduce in SHAPE and not in LEVEL, and only the level was the
+  problem**: the ordering of which dimensions respond to length does reproduce (r=+0.79 over 12, +0.76 to +0.83
+  leave-one-out, `conversational_fit` negative in both — this judge discounts length exactly where its rubric
+  says to and pays on substance), but at `placebo = 0.39 × cross-arm − 0.51`, and a near-uniform offset across
+  every dimension is what an arm effect travelling with length looks like, not a judge habit. Two design rules if
+  you build one: **assign the sides by BRANCH NAME, never by length** (side A = the longer transcript makes every
+  gap positive and turns the slope question into an intercept question), and **write the output to a
+  SUBDIRECTORY** — every archive reader globs `results/*.json` non-recursively, and a same-arm comparison saved as
+  an ordinary stem enters them all as a legitimate arm pair, pooling the placebo into the numbers it exists to
+  interpret. **(3) Run it even when the direction is unflattering, which is what makes it trustworthy** — A2 is the
   SHORTER arm in every marquee set, so adjusting moves A2's numbers UP (`r21` +0.372 → +0.521), and a tool whose
   only recorded effect flatters its author is not evidence. **And drop dead cells FIRST when regressing against
   any transcript PROPERTY:** an arm that never ran leaves an empty transcript, at once the shortest possible and
