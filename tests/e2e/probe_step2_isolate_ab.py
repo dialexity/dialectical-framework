@@ -4,15 +4,15 @@ Does step 2 of thesis extraction need the source text in its history?
 WHAT IS BEING DECIDED
 =====================
 `ThesisExtraction._step2_identify_candidates` fans out over step 1's content
-items with `self._conversation.isolate()`, and `isolate()` COPIES the message
-list — which at that point holds step 1's prompt, and step 1's prompt holds the
-whole `<source_text>`. So a window sends its source once for step 1 and then
-again for every one of its `count + 2` gate calls.
+items, one gate call per item, and each of those calls inherits step 1's history
+— which holds step 1's prompt, and step 1's prompt holds the whole
+`<source_text>`. So a window sends its source once for step 1 and then again for
+every one of its `count + 2` gate calls.
 
 `probe_ingest_cost.py` priced that: **step 2 is 207,047 tokens, 75% of
 everything the document's SIZE costs**, plus a cache-write surcharge nobody
-reads. Switching step 2 to a FRESH facilitator would cut ~7 full-text sends per
-extraction to 1 — the single biggest token win left on the ingestion path.
+reads. Cutting ~7 full-text sends per extraction to 1 is the single biggest token
+win left on the ingestion path.
 
 It was never taken, on purpose, because it is a REASONING change: step 2 decides
 whether an item is assertable/substantive/atomic and decomposes compound items,
@@ -21,23 +21,36 @@ This probe answers that and nothing else.
 
 THE DESIGN, AND WHY IT IS PAIRED
 ================================
-Step 1 runs ONCE per document, and both arms then judge the SAME content items:
+Step 1 runs ONCE per document, and every arm then judges the SAME content items:
 
-    arm A (today)      `conversation.isolate()`  — system prompt + step 1's
-                       prompt (the whole source) + step 1's answer, per call
-    arm B (candidate)  fresh `ConversationFacilitator` with the SAME system
-                       prompt and NO history — the item and nothing else
+    arm A (today)      step 1's whole history — system prompt + step 1's prompt
+                       (the whole source) + step 1's answer, per call
+    arm B (rejected)   a fresh conversation with the SAME system prompt and NO
+                       history — the item and nothing else
+    arm C (candidate)  arm A's exact three messages with the source window
+                       replaced by a sentinel saying it was elided: system
+                       prompt + step 1's request without its source + step 1's
+                       ANSWER
 
 Pairing matters more than sample size here. Step 1 is itself stochastic, and if
 each arm ran its own step 1 the arms would be judging different items and any
 difference would be unattributable. This way the ONLY variable is what step 2
 can see.
 
-**The gate is stochastic, so a raw A-vs-B disagreement rate means nothing on its
-own.** Every arm therefore runs `REPS` times and the report prints three
-numbers: A-vs-A, B-vs-B (the noise floors) and A-vs-B. An arm effect exists only
-if the cross rate clears both floors. This is the whole reason the probe repeats
-rather than running once per arm.
+**The gate is stochastic, so a raw cross-arm disagreement rate means nothing on
+its own.** Every arm therefore runs `REPS` times and the report prints a
+self-consistency floor per arm alongside the two cross-arm rates. An arm effect
+exists only if the cross rate clears both of the floors it sits between. This is
+the whole reason the probe repeats rather than running once per arm.
+
+WHY ARM B IS STILL RUN AFTER BEING REJECTED
+===========================================
+It is the positive control, and it is the reason a null on arm C can be believed.
+The 2026-09-11 run found a specific, directional effect in arm B — `is_substantive`
+flipping A-false-to-B-true, 5 times, 0 the other way — so if THIS run does not
+reproduce it, the instrument is not sensitive today and "arm C looks fine" is not
+a finding. Arm B gets no judge calls; the decision is A against C, and B is here
+to show the gate can be moved at all.
 
 WHAT IS MEASURED
 ================
@@ -47,23 +60,34 @@ WHAT IS MEASURED
 - **candidate yield** — how many atomic theses survive, per arm.
 - **self-containment**, two ways: a mechanical leading-deixis count (a candidate
   starting "This/It/They..." has lost its referent) and a blinded judge. Both were
-  expected to carry the signal and NEITHER DID — see RESULTS. They stay as
-  regression guards; the finding came from the gate fields.
+  expected to carry the signal for arm B and NEITHER DID — see RESULTS. They stay
+  as regression guards; that finding came from the gate fields.
 - The judge is **blinded and its labels alternate by rep**, and its raw
   first-vs-second split is reported, because alternating alone would convert a
   positional preference into a fake 50/50 between the arms instead of exposing it.
   It turned out to be biased, which is why that control is not optional.
 
-The gate metric is read over `is_assertable` and `is_substantive` ONLY.
-`is_atomic` is on the DTO and read by no code, so a flip in it cannot reach a
-candidate list; it is reported separately. Mixing it in materially changed the
-verdict on the first pass.
+The gate metric is read over `is_assertable` and `is_substantive` ONLY, because
+those two are what `_step2_identify_candidates` branches on. `is_atomic` is on the
+DTO and read by no code, so it is reported separately; mixing it in materially
+changed the verdict on the first pass.
+
+**But "read by no code" is not "harmless", and that distinction was missed until
+2026-09-17.** The FIELD is unread; the DECOMPOSITION it describes is the output —
+the same call returns `atomic_theses`, and `candidates.extend(result.atomic_theses)`
+is the whole of what step 2 produces. A call that says `is_atomic=false` has split
+the item, so an `is_atomic` disagreement is a report that the two arms cut the item
+differently. The instrument that catches that is CANDIDATE YIELD, not the gate
+rate, and the two must be read together: arm B's 22 one-directional `is_atomic`
+flips in this run came with 180 candidates against arm A's 153 while its deciding
+rate was 0.0%. So a run in which only `is_atomic` moves is a run in which the
+preregistered endpoint is blind and the yield line is the finding.
 
 The documents are chosen for this question rather than for size: one whose
-sentences are self-contained (the control — if B is fine anywhere it is here),
-one narrative with referents spread across sentences, one technical with terms
-defined once and used later. If dropping the source hurts, it should hurt those
-two and not the first.
+sentences are self-contained (the control — if a stripped arm is fine anywhere it
+is here), one narrative with referents spread across sentences, one technical with
+terms defined once and used later. If dropping the source hurts, it should hurt
+those two and not the first.
 
 THE COST FIGURE IS PROJECTED, AND HAS TO BE
 ===========================================
@@ -71,33 +95,44 @@ The documents above are ~1k chars, because the reasoning question needs referent
 that fit in one readable page. At that size the source is a SMALL part of a step-2
 prompt (system prompt + item + instructions dominate), so the measured saving is
 around 1.4x and says nothing about production. The saving is size-dependent by
-construction: arm B's prefill per call is FIXED, while arm A's carries the source.
+construction: arms B and C send a FIXED prefill per call, while arm A's carries
+the source.
 
 So the probe measures the per-call decomposition and projects it to one real
-window (`CHUNK_SIZE`, 40,000 chars). The projection is labelled an ESTIMATE and
-assumes ~4 chars/token; it is there to check the recorded ~7x is the right order,
-not to replace `probe_ingest_cost`'s direct measurement of it.
+window (`CHUNK_SIZE`, 40,000 chars) by replacing each document's own source term
+with a full window's worth. The projection is labelled an ESTIMATE and assumes
+~4 chars/token; it is there to check the recorded ~7x is the right order, not to
+replace `probe_ingest_cost`'s direct measurement of it.
 
-PREREGISTERED READING
-=====================
-TAKE the change if (a) B's PROJECTED prefill at window size is under 40% of A's,
-and (b) no reasoning regression: cross-arm gate flips do not clear the noise
-floors, B's leading-deixis count is no worse than A's, and the judge does not
-prefer A on faithfulness in a majority of comparisons. Anything else: DON'T TAKE,
-and the print says which endpoint failed.
+PREREGISTERED READING (for arm C; arm B was decided on 2026-09-11)
+==================================================================
+TAKE arm C if (a) its PROJECTED prefill at window size is under 40% of arm A's,
+and (b) no reasoning regression: cross-arm gate flips against A do not clear the
+noise floors, C's leading-deixis count is no worse than A's, and the judge does
+not prefer A on faithfulness in a majority of comparisons. Anything else: DON'T
+TAKE, and the print says which endpoint failed.
 
-This probe measures; it does not change `_step2_identify_candidates`. It asserts
-only that its own instrument is wired and that arm A still mirrors the real
-function (`_the_real_function_still_matches_arm_a`) — because the day the real
-one stops using `isolate()`, this file's arm A is measuring nothing.
+**And one endpoint that only a three-arm run can have: arm B must reproduce its
+known effect.** If A-vs-B does not clear the floors in this run, the report says
+so and no conclusion about arm C is drawn either way — a null from a blunt
+instrument is not a null.
+
+Every arm here is a real code path, not a reimplementation: all three go through
+`ThesisExtraction._step2_conversation`, arms A and C by flipping
+`settings.extraction_step2_carries_source` around the call.
+`_the_arms_are_the_shipped_code_paths` asserts that the real fan-out still goes
+through that seam and that its default is arm A — because the day step 2 stops
+calling it, this file measures nothing.
 
 Run: `poetry run pytest tests/e2e/probe_step2_isolate_ab.py -s --real-llm`
-Env:  DIALEXITY_PROBE_S2_REPS (default 2)
+Env:  DIALEXITY_PROBE_S2_REPS (default 4)
 
 RESULTS (2026-09-11, REPS=5, haiku-4-5 work / sonnet-5 judge, 3 documents)
 =========================================================================
-**VERDICT: DON'T TAKE as a straight swap.** The saving is real and large; the
-gate's keep/drop decision moves, deterministically and in ONE direction.
+This run had arms A and B only.
+
+**VERDICT: DON'T TAKE arm B as a straight swap.** The saving is real and large;
+the gate's keep/drop decision moves, deterministically and in ONE direction.
 
 COST — endpoint PASSES.
     per call:  A ~1,860 prefill tokens   B ~1,358   (B is size-independent)
@@ -118,12 +153,21 @@ Without the source, step 2 admits items that with the source it rejects.
 That is a coherent mechanism rather than a curiosity. "Substantive" is not a
 property of a sentence in isolation: an item that merely restates something the
 document established earlier is not substantive, and NOTHING IN THE ITEM ITSELF
-SAYS SO. Arm B cannot see the earlier text, so it admits it. The effect
-concentrates where that reading predicts — per-document cross-arm flips were
-technical 43.3%, self-contained 16.7%, narrative 0.0% — the technical document
-being the one that defines terms once and then references them. Candidate yield
-shows the same thing from the other end: on that document A kept 8-11 and B kept
-13-16.
+SAYS SO. Arm B cannot see the earlier text, so it admits it. Candidate yield shows
+the same thing from the other end: on the technical document — the one that defines
+terms once and then references them — A kept 8-11 and B kept 13-16.
+
+**CORRECTION, 2026-09-17.** This paragraph used to support that mechanism with
+"per-document cross-arm flips were technical 43.3%, self-contained 16.7%,
+narrative 0.0%", presented as the concentration of the deciding-field effect. Those
+were the ALL-THREE-FIELDS rates, so they are dominated by `is_atomic` and they
+cannot be the five deciding flips: 43.3% of that document's 30 comparisons is 13,
+more than the whole run's deciding disagreement. The claim that the effect
+concentrates on the technical document rests on the candidate-yield sentence above
+and on nothing else, and the report now prints both metrics per document, labelled,
+so the substitution cannot be made again. The verdict on arm B is unaffected — it
+was read from the aggregate 5.6% against two 0.0% floors, and both directions of
+the five flips are recorded above.
 
 TWO OF THIS PROBE'S OWN INSTRUMENTS CARRIED NO SIGNAL, which is worth more than
 the trouble they saved:
@@ -144,12 +188,70 @@ and the arms looked further apart (12.2%). All of that lived in `is_atomic` — 
 field this DTO returns and no code reads. Mixing it into the decision metric
 invented an instability that cannot reach a candidate list.
 
-WHAT THIS LEAVES OPEN (untested here, and the obvious next move): the gate needs
-SOME sense of what the document already established, but there is no reason it
-needs the whole source to get it. Feeding step 2 the other content items from
-step 1, or a short digest, would plausibly keep the substance judgement at close
-to arm B's price. That is a third arm, not a variation on these two, and nobody
-has measured it.
+That run left one thing open, and arm C is it: the gate needs SOME sense of what
+the document already established, but there is no reason it needs the whole source
+to get it. Step 1's ANSWER is that sense — the other content items, which are what
+the document established, at a fixed and tiny price.
+
+RESULTS (2026-09-17, REPS=4, haiku-4-5 work / sonnet-5 judge, 3 documents)
+=========================================================================
+Three arms, 72 gate calls each, 131.5s. **VERDICT: DON'T TAKE arm C.** One
+endpoint failed, and it is the judge on faithfulness. The default stays `True`.
+
+COST — endpoint PASSES, and it is the smallest of the three savings.
+    per call:  A ~1,846-1,877   B ~1,352-1,366   C ~1,610-1,706
+    projected at CHUNK_SIZE: C is 13.9-14.6% of A, **6.8-7.2x**; B is 11.7%, 8.5x
+    on all three documents, reproducing 2026-09-11 to the tenth of a percent.
+    Measured at these document sizes C is only 1.1x. Do not quote that.
+    72/72 calls reported usage in every arm; cache writes were 0 everywhere, which
+    is expected — a step-2 prompt is ~1.9k tokens and the minimum cacheable prefix
+    on haiku-4.5 is 4,096.
+
+REASONING — the deciding fields moved NOWHERE, including the control:
+    A-vs-A 0.0% (0/108)   B-vs-B 0.0% (0/108)   C-vs-C 0.0% (0/108)
+    A-vs-B 0.0% (0/72)   <- positive control, DID NOT REPRODUCE
+    A-vs-C 0.0% (0/72)
+So the gate's keep/drop decision is not what moved this time, and per the
+preregistered rule the A-vs-C 0.0% is NOT evidence for arm C: the instrument that
+found arm B's `is_substantive` effect on 2026-09-11 found nothing today, on the
+same three documents with one fewer rep. Two candidate reasons, neither tested:
+five reps against four, and the effect was five items out of ninety to begin with.
+
+WHAT DID MOVE IS THE DECOMPOSITION, and this is the run that made the point above
+about `is_atomic` being unread but not harmless:
+    A-vs-B  30.6% (22/72), every one `is_atomic` A_true_other_false
+    A-vs-C   8.3% (6/72), `is_atomic` 3 each way — symmetric, so not directional
+    candidates  A 153   B 180 (+18%)   C 144 (-6%)
+Arm B, with no history at all, calls items non-atomic and splits them, and yields
+18% more candidates than A while agreeing with A on every keep/drop. That is a
+second, independent reason to leave arm B rejected, and it is one the deciding-field
+metric could not see. Arm C's own 6 flips go both ways and its yield is 6% below A.
+
+JUDGE — the failing endpoint, and this time the control is clean.
+    faithful   A 9   C 2   tie 1     <- FAILS (A in 9 of 12; 9 of 11 decided, 82%)
+    atomic     A 6   C 2   tie 4
+    self_contained  A 0   C 0   tie 12
+    positional control: first set shown 9, second 10, tie 17 — **47%, unbiased**
+The 2026-09-11 run could dismiss a judge lean as position (62% to whatever was
+shown first). This one cannot: the labels alternated AND the raw split is even, so
+the 9-2 is about the sets. Read it with two cautions. The notes are mixed rather
+than consistent — the judge accuses BOTH arms of inventing claims in different
+reps ("Set X invents an unstated claim", "Set Y contains a fabricated/inverted
+claim") — and `self_contained` was a 12-way tie, so the criterion the whole
+elision was expected to threaten found nothing at all.
+
+DEIXIS — 0 of 153, 0 of 180, 0 of 144. Third consecutive null for that instrument
+across three runs and two arms. It is a regression guard and nothing more; do not
+add reps hoping to move it.
+
+WHAT THIS SETTLES AND WHAT IT DOES NOT. Settled: arm C is not a default. The knob
+stays, `True`, opt-in, for a caller who has measured their own corpus and accepts a
+~7x cheaper ingest against a faithfulness lean — the code path is real, tested
+(`tests/test_thesis_extraction_step2_source.py`) and shape-identical to arm A.
+NOT settled: whether the 9-2 is arm C being less faithful or the judge preferring
+the longer of two sets (A yielded 6% more candidates, and the judge saw both sets
+whole). A length-matched re-judge is the obvious next instrument and is NOT built.
+Nothing here supports a third variant on top of arm C.
 """
 
 from __future__ import annotations
@@ -159,7 +261,8 @@ import inspect
 import logging
 import os
 import time
-from typing import Literal, Optional
+from contextlib import contextmanager
+from typing import Iterator, Literal, Optional
 
 import pytest
 from pydantic import BaseModel, Field
@@ -186,11 +289,19 @@ COUNT = 4
 
 INTENT = "What tensions does this material hold?"
 
+#: Arm order is the report order and the comparison order: A is the incumbent,
+#: every cross-arm rate is measured against it.
+ARMS = ("A", "B", "C")
+
+#: The pairs actually compared. B is here as the positive control (its effect is
+#: known), C is the decision.
+PAIRS = ("A-vs-B", "A-vs-C")
+
 # --- The documents, chosen for the failure mode under test ---------------------
 
 #: Control. Every sentence stands alone, so step 2 has no reason to want the
-#: source. If B degrades HERE, the gate is using the source for something other
-#: than resolving referents.
+#: source. If a stripped arm degrades HERE, the gate is using the source for
+#: something other than resolving referents.
 _SELF_CONTAINED = """\
 Concentrating release authority in one team makes the schedule predictable and
 makes every delay theirs alone; distributing it removes the bottleneck and removes
@@ -351,7 +462,89 @@ Judge set X against set Y on three things:
 Answer "tie" on any criterion where the sets are comparable."""
 
 
-# --- The two arms -------------------------------------------------------------
+# --- The arms -----------------------------------------------------------------
+
+
+@contextmanager
+def _carrying_source(container, carries: bool) -> Iterator[None]:
+    """Point DI settings at one arm's value of the knob under test.
+
+    Same shape as `using_model` and for the same reason: `settings` is a DI
+    singleton read at call time, so the only honest way to run two arms in one
+    process is to flip it around each call. `using_model` nests INSIDE this, and
+    must — it copies whatever instance is current, so the inner override carries
+    this flag along with the model.
+    """
+    previous = container.settings()
+    container.settings.override(
+        previous.model_copy(update={"extraction_step2_carries_source": carries})
+    )
+    try:
+        yield
+    finally:
+        container.settings.reset_override()
+        container.settings.override(previous)
+
+
+async def _gate_calls(
+    concern: ThesisExtraction, items: list[ContentItemDto]
+) -> list[CandidateCheckDto]:
+    """One gate call per item, through the concern's own seam.
+
+    This is `_step2_identify_candidates`' fan-out with the collection step left
+    off: the real function returns only the merged candidate list, and the whole
+    analysis here is per-item gate decisions.
+    """
+    tasks = [
+        concern._step2_conversation(items).submit(
+            response_model=CandidateCheckDto,
+            user_content=concern._step2_prompt(item.content, item.content_type),
+        )
+        for item in items
+    ]
+    return list(await asyncio.gather(*tasks))
+
+
+async def _arm_fresh(
+    concern: ThesisExtraction, items: list[ContentItemDto]
+) -> list[CandidateCheckDto]:
+    """Arm B — REJECTED on 2026-09-11, kept as the positive control.
+
+    Unlike arms A and C this is not reachable through any setting, so it stays a
+    local construction. The system prompt is KEPT; only step 1's history goes.
+    Dropping the system prompt too would be a different and much larger change,
+    and it is not the one that was priced.
+    """
+
+    def fresh() -> ConversationFacilitator:
+        conversation = ConversationFacilitator()
+        conversation.set_system_prompt(te.SYSTEM_PROMPT)
+        return conversation
+
+    tasks = [
+        fresh().submit(
+            response_model=CandidateCheckDto,
+            user_content=concern._step2_prompt(item.content, item.content_type),
+        )
+        for item in items
+    ]
+    return list(await asyncio.gather(*tasks))
+
+
+async def _run_arm(
+    arm: str,
+    container,
+    concern: ThesisExtraction,
+    items: list[ContentItemDto],
+) -> list[CandidateCheckDto]:
+    """Dispatch one arm, with the knob set to whatever that arm means."""
+    if arm == "B":
+        with using_model(container, DEFAULT_TIER_WEAK):
+            return await _arm_fresh(concern, items)
+    carries = arm == "A"
+    with _carrying_source(container, carries):
+        with using_model(container, DEFAULT_TIER_WEAK):
+            return await _gate_calls(concern, items)
 
 
 async def _step1(text: str) -> tuple[ThesisExtraction, list[ContentItemDto]]:
@@ -373,45 +566,6 @@ async def _step1(text: str) -> tuple[ThesisExtraction, list[ContentItemDto]]:
     return concern, items
 
 
-async def _arm_isolate(
-    concern: ThesisExtraction, items: list[ContentItemDto]
-) -> list[CandidateCheckDto]:
-    """Arm A — what ships today. Byte-for-byte `_step2_identify_candidates`."""
-    tasks = [
-        concern._conversation.isolate().submit(
-            response_model=CandidateCheckDto,
-            user_content=concern._step2_prompt(item.content, item.content_type),
-        )
-        for item in items
-    ]
-    return list(await asyncio.gather(*tasks))
-
-
-async def _arm_fresh(
-    concern: ThesisExtraction, items: list[ContentItemDto]
-) -> list[CandidateCheckDto]:
-    """Arm B — the candidate change.
-
-    The system prompt is KEPT; only step 1's history goes. Dropping the system
-    prompt too would be a different and much larger change, and it is not the
-    one that was priced.
-    """
-
-    def fresh() -> ConversationFacilitator:
-        conversation = ConversationFacilitator()
-        conversation.set_system_prompt(te.SYSTEM_PROMPT)
-        return conversation
-
-    tasks = [
-        fresh().submit(
-            response_model=CandidateCheckDto,
-            user_content=concern._step2_prompt(item.content, item.content_type),
-        )
-        for item in items
-    ]
-    return list(await asyncio.gather(*tasks))
-
-
 def _candidates(checks: list[CandidateCheckDto]) -> list[str]:
     """The concern's own collection rule: gate, then dedup preserving order."""
     out: list[str] = []
@@ -421,11 +575,11 @@ def _candidates(checks: list[CandidateCheckDto]) -> list[str]:
     return list(dict.fromkeys(out))
 
 
-def _decisions(checks: list[CandidateCheckDto]) -> list[tuple[bool, bool, bool]]:
+def _decisions(checks: list[CandidateCheckDto]) -> list[tuple[bool, ...]]:
     return [(c.is_assertable, c.is_substantive, c.is_atomic) for c in checks]
 
 
-def _gate(checks: list[CandidateCheckDto]) -> list[tuple[bool, bool]]:
+def _gate(checks: list[CandidateCheckDto]) -> list[tuple[bool, ...]]:
     """Only the fields that DECIDE anything.
 
     `_candidates` — and `_step2_identify_candidates`, which it mirrors — keeps an
@@ -438,29 +592,39 @@ def _gate(checks: list[CandidateCheckDto]) -> list[tuple[bool, bool]]:
 
 
 def _flip_rate(
-    left: list[tuple[bool, bool, bool]], right: list[tuple[bool, bool, bool]]
+    left: list[tuple[bool, ...]], right: list[tuple[bool, ...]]
 ) -> tuple[int, int]:
     """Per-item decisions that differ, over items compared."""
     pairs = list(zip(left, right))
     return sum(1 for a, b in pairs if a != b), len(pairs)
 
 
-def _the_real_function_still_matches_arm_a() -> None:
-    """Arm A must be what ships, or this probe compares two of its own inventions.
+def _the_arms_are_the_shipped_code_paths() -> None:
+    """Arms A and C must be what ships, or this probe compares two inventions.
 
     Checked structurally rather than by calling `_step2_identify_candidates`,
     which returns only the merged candidate list and would hide the per-item gate
-    decisions the whole analysis rests on.
+    decisions the whole analysis rests on. Three things have to hold: the real
+    fan-out goes through the same seam these arms call, its prompt call has the
+    shape they copy, and the knob's DEFAULT is arm A — otherwise "arm A" here is
+    not the incumbent and every cross-arm rate below is measured against nothing.
     """
     source = inspect.getsource(te.ThesisExtraction._step2_identify_candidates)
-    assert "self._conversation.isolate()" in source, (
-        "step 2 no longer fans out over `isolate()`, so arm A is not the shipped"
-        " behaviour and this probe measures nothing. Re-read the change before"
-        " trusting any number below."
+    assert "self._step2_conversation(content_items)" in source, (
+        "step 2 no longer fans out over `_step2_conversation`, so the arms below"
+        " are not shipped behaviour and this probe measures nothing. Re-read the"
+        " change before trusting any number here."
     )
     assert "self._step2_prompt(item.content, item.content_type)" in source, (
-        "step 2's prompt call changed shape; arm A copies it verbatim and must be"
+        "step 2's prompt call changed shape; the arms copy it verbatim and must be"
         " updated with it."
+    )
+    from dialectical_framework.settings import Settings
+
+    default = Settings.model_fields["extraction_step2_carries_source"].default
+    assert default is True, (
+        "the knob's default has moved, so arm A is no longer the incumbent."
+        " Re-label the arms before reading any comparison below."
     )
 
 
@@ -469,13 +633,15 @@ def _the_real_function_still_matches_arm_a() -> None:
 @pytest.mark.timeout(3600)
 # Deliberately NOT @traced — serializing `di_container` HANGS (CLAUDE.md).
 async def test_probe_step2_isolate_ab(di_container):
-    _the_real_function_still_matches_arm_a()
+    _the_arms_are_the_shipped_code_paths()
 
     logging.getLogger("dialectical_framework").setLevel(logging.WARNING)
 
     print(f"\nwork model:  {DEFAULT_TIER_WEAK}")
     print(f"judge model: {DEFAULT_TIER_STRONG}")
     print(f"documents:   {len(DOCUMENTS)}   reps per arm: {REPS}   count: {COUNT}")
+    print(f"arms:        A carries the source, B carries nothing,"
+          f" C carries step 1's answer only")
     if REPS < 2:
         print(
             "  NOTE: REPS < 2, so there is NO noise floor and a cross-arm"
@@ -483,22 +649,22 @@ async def test_probe_step2_isolate_ab(di_container):
         )
 
     # Accumulators, per arm.
-    prefill: dict[str, int] = {"A": 0, "B": 0}
-    cache_writes: dict[str, int] = {"A": 0, "B": 0}
-    calls: dict[str, int] = {"A": 0, "B": 0}
-    measured: dict[str, int] = {"A": 0, "B": 0}
-    yielded: dict[str, list[int]] = {"A": [], "B": []}
-    deixis: dict[str, int] = {"A": 0, "B": 0}
-    total_candidates: dict[str, int] = {"A": 0, "B": 0}
-    cross_flips = [0, 0]
-    within: dict[str, list[int]] = {"A": [0, 0], "B": [0, 0]}
-    #: The same three comparisons over the DECIDING fields only. `is_atomic` is
-    #: returned and never read, so these are the rates the verdict is read from.
-    cross_gate = [0, 0]
-    within_gate: dict[str, list[int]] = {"A": [0, 0], "B": [0, 0]}
+    prefill: dict[str, int] = {arm: 0 for arm in ARMS}
+    cache_writes: dict[str, int] = {arm: 0 for arm in ARMS}
+    calls: dict[str, int] = {arm: 0 for arm in ARMS}
+    measured: dict[str, int] = {arm: 0 for arm in ARMS}
+    yielded: dict[str, list[int]] = {arm: [] for arm in ARMS}
+    deixis: dict[str, int] = {arm: 0 for arm in ARMS}
+    total_candidates: dict[str, int] = {arm: 0 for arm in ARMS}
+    within: dict[str, list[int]] = {arm: [0, 0] for arm in ARMS}
+    #: The same comparisons over the DECIDING fields only. `is_atomic` is returned
+    #: and never read, so these are the rates the verdict is read from.
+    within_gate: dict[str, list[int]] = {arm: [0, 0] for arm in ARMS}
+    cross_flips: dict[str, list[int]] = {pair: [0, 0] for pair in PAIRS}
+    cross_gate: dict[str, list[int]] = {pair: [0, 0] for pair in PAIRS}
     #: Which field moved and which way, so a flip can be attributed rather than
-    #: just counted. Keyed field -> "A_true_B_false" / "A_false_B_true".
-    directions: dict[str, int] = {}
+    #: just counted. Keyed pair -> field -> direction.
+    directions: dict[str, dict[str, int]] = {pair: {} for pair in PAIRS}
     judge_wins = {"self_contained": [], "faithful": [], "atomic": []}
     #: The judge's RAW choices, before unblinding. A judge that mostly picks the
     #: first set shown has a positional bias, and alternating the labels by rep
@@ -510,8 +676,13 @@ async def test_probe_step2_isolate_ab(di_container):
     #: figure against a KNOWN document size, which the aggregate cannot give.
     by_doc: dict[str, dict[str, list[int]]] = {}
     #: Cross-arm flips per document, printed separately because the prediction is
-    #: about WHICH documents move: the self-contained control should not.
-    flips_by_doc: dict[str, list[int]] = {}
+    #: about WHICH documents move: the self-contained control should not. BOTH
+    #: metrics are kept per document, because the 2026-09-11 results section
+    #: recorded the all-three-fields per-document rates in a paragraph explaining
+    #: the DECIDING-field effect, and the two are nowhere near each other (43.3%
+    #: against a total of five deciding flips in that whole run).
+    flips_by_doc: dict[str, dict[str, list[int]]] = {}
+    gate_flips_by_doc: dict[str, dict[str, list[int]]] = {}
 
     started = time.monotonic()
 
@@ -525,20 +696,20 @@ async def test_probe_step2_isolate_ab(di_container):
             print("  NOTE: step 1 found nothing; this document contributes nothing.")
             continue
 
-        per_rep: dict[str, list[list[CandidateCheckDto]]] = {"A": [], "B": []}
-        per_rep_candidates: dict[str, list[list[str]]] = {"A": [], "B": []}
-        by_doc[name] = {"A": [0, 0], "B": [0, 0]}
-        flips_by_doc[name] = [0, 0]
+        per_rep: dict[str, list[list[CandidateCheckDto]]] = {arm: [] for arm in ARMS}
+        per_rep_candidates: dict[str, list[list[str]]] = {arm: [] for arm in ARMS}
+        by_doc[name] = {arm: [0, 0] for arm in ARMS}
+        flips_by_doc[name] = {pair: [0, 0] for pair in PAIRS}
+        gate_flips_by_doc[name] = {pair: [0, 0] for pair in PAIRS}
 
         for rep in range(REPS):
-            for arm, runner in (("A", _arm_isolate), ("B", _arm_fresh)):
-                with using_model(di_container, DEFAULT_TIER_WEAK):
-                    with call_census() as census:
-                        checks = await runner(concern, items)
+            for arm in ARMS:
+                with call_census() as census:
+                    checks = await _run_arm(arm, di_container, concern, items)
                 # `CallRecord.prefill_tokens`' definition: everything the provider
                 # processed, however it was billed. Cache writes are counted in —
-                # `isolate()`'s copied source is what pays that surcharge, so
-                # excluding them would understate exactly what is under test.
+                # the copied source is what pays that surcharge, so excluding them
+                # would understate exactly what is under test.
                 arm_prefill = (
                     census.uncached_input_tokens
                     + census.cache_read_tokens
@@ -558,34 +729,39 @@ async def test_probe_step2_isolate_ab(di_container):
                 total_candidates[arm] += len(found)
                 deixis[arm] += sum(1 for c in found if _opens_with_deixis(c))
 
-            differing, compared = _flip_rate(
-                _decisions(per_rep["A"][rep]), _decisions(per_rep["B"][rep])
-            )
-            cross_flips[0] += differing
-            cross_flips[1] += compared
-            flips_by_doc[name][0] += differing
-            flips_by_doc[name][1] += compared
+            for pair in PAIRS:
+                other = pair.split("-vs-")[1]
+                differing, compared = _flip_rate(
+                    _decisions(per_rep["A"][rep]), _decisions(per_rep[other][rep])
+                )
+                cross_flips[pair][0] += differing
+                cross_flips[pair][1] += compared
+                flips_by_doc[name][pair][0] += differing
+                flips_by_doc[name][pair][1] += compared
 
-            gate_differing, gate_compared = _flip_rate(
-                _gate(per_rep["A"][rep]), _gate(per_rep["B"][rep])
-            )
-            cross_gate[0] += gate_differing
-            cross_gate[1] += gate_compared
+                gate_differing, gate_compared = _flip_rate(
+                    _gate(per_rep["A"][rep]), _gate(per_rep[other][rep])
+                )
+                cross_gate[pair][0] += gate_differing
+                cross_gate[pair][1] += gate_compared
+                gate_flips_by_doc[name][pair][0] += gate_differing
+                gate_flips_by_doc[name][pair][1] += gate_compared
 
-            for a_check, b_check in zip(per_rep["A"][rep], per_rep["B"][rep]):
-                for field in ("is_assertable", "is_substantive", "is_atomic"):
-                    a_value = getattr(a_check, field)
-                    b_value = getattr(b_check, field)
-                    if a_value != b_value:
-                        way = "A_true_B_false" if a_value else "A_false_B_true"
-                        directions[f"{field} {way}"] = (
-                            directions.get(f"{field} {way}", 0) + 1
-                        )
+                for a_check, other_check in zip(per_rep["A"][rep], per_rep[other][rep]):
+                    for field in ("is_assertable", "is_substantive", "is_atomic"):
+                        a_value = getattr(a_check, field)
+                        other_value = getattr(other_check, field)
+                        if a_value != other_value:
+                            way = "A_true_other_false" if a_value else "A_false_other_true"
+                            key = f"{field} {way}"
+                            directions[pair][key] = directions[pair].get(key, 0) + 1
 
-            # Blinded, with the label assignment alternating by rep.
+            # Blinded, with the label assignment alternating by rep. The judge
+            # decides A against C; arm B is the positive control and is decided by
+            # the gate fields, which is where its effect was found.
             a_is_x = rep % 2 == 0
-            set_x = per_rep_candidates["A" if a_is_x else "B"][rep]
-            set_y = per_rep_candidates["B" if a_is_x else "A"][rep]
+            set_x = per_rep_candidates["A" if a_is_x else "C"][rep]
+            set_y = per_rep_candidates["C" if a_is_x else "A"][rep]
             with using_model(di_container, DEFAULT_TIER_STRONG):
                 judge_conversation = ConversationFacilitator()
                 judge_conversation.set_system_prompt(_JUDGE_SYSTEM)
@@ -598,7 +774,7 @@ async def test_probe_step2_isolate_ab(di_container):
                 if choice == "tie":
                     return "tie"
                 chose_x = choice == "x"
-                return "A" if chose_x == a_is_x else "B"
+                return "A" if chose_x == a_is_x else "C"
 
             judge_wins["self_contained"].append(unblind(verdict.self_contained_winner))
             judge_wins["faithful"].append(unblind(verdict.faithful_winner))
@@ -608,10 +784,17 @@ async def test_probe_step2_isolate_ab(di_container):
                 judge_positional[raw] += 1
             judge_notes.append(f"{name} rep{rep}: {verdict.note}")
 
+            counts = "  ".join(
+                f"{arm} {len(per_rep_candidates[arm][rep]):2d}" for arm in ARMS
+            )
             print(
-                f"  rep{rep}: A {len(per_rep_candidates['A'][rep]):2d} candidate(s)"
-                f"   B {len(per_rep_candidates['B'][rep]):2d}"
-                f"   gate flips A-vs-B {differing}/{compared}"
+                # "field flips", NOT "gate flips": this counter is over all three
+                # fields. Reading it as the keep/drop rate is the misreading that
+                # put a 43.3% into the 2026-09-11 mechanism paragraph when that
+                # run's whole deciding-field disagreement was five items.
+                f"  rep{rep}: candidates {counts}"
+                f"   field flips A-vs-B {flips_by_doc[name]['A-vs-B'][0]:2d}"
+                f" A-vs-C {flips_by_doc[name]['A-vs-C'][0]:2d} (cumulative)"
                 f"   judge self-contained -> {unblind(verdict.self_contained_winner)}"
             )
 
@@ -619,7 +802,7 @@ async def test_probe_step2_isolate_ab(di_container):
         # meaning, more comparisons from the same calls — and the floor is what the
         # verdict is read against, so it is the number that can least afford to rest
         # on one pair that happened to agree.
-        for arm in ("A", "B"):
+        for arm in ARMS:
             for i in range(REPS):
                 for j in range(i + 1, REPS):
                     differing, compared = _flip_rate(
@@ -649,72 +832,83 @@ async def test_probe_step2_isolate_ab(di_container):
     print("\nCOST (the thing being bought)")
     # Read this line first: a call that reported no usage is UNMEASURED, not zero,
     # so a shortfall here caps how much the prefill figures can be trusted.
-    print(f"  calls reporting usage   A {measured['A']}/{calls['A']}"
-          f"   B {measured['B']}/{calls['B']}")
-    print(f"  arm A prefill {prefill['A']:>10,} tokens over {calls['A']:3d} call(s)"
-          f"   (cache writes {cache_writes['A']:,})")
-    print(f"  arm B prefill {prefill['B']:>10,} tokens over {calls['B']:3d} call(s)"
-          f"   (cache writes {cache_writes['B']:,})")
+    print("  calls reporting usage   " + "   ".join(
+        f"{arm} {measured[arm]}/{calls[arm]}" for arm in ARMS))
+    for arm in ARMS:
+        print(f"  arm {arm} prefill {prefill[arm]:>10,} tokens over {calls[arm]:3d}"
+              f" call(s)   (cache writes {cache_writes[arm]:,})")
     if prefill["A"]:
-        measured_share = prefill["B"] / prefill["A"]
-        print(f"  arm B is {measured_share:.1%} of arm A  ->"
-              f"  {1 / measured_share:.1f}x cheaper AT THESE DOCUMENT SIZES,"
-              f" which is not the regime that matters")
+        for arm in ("B", "C"):
+            measured_share = prefill[arm] / prefill["A"]
+            print(f"  arm {arm} is {measured_share:.1%} of arm A  ->"
+                  f"  {1 / measured_share:.1f}x cheaper AT THESE DOCUMENT SIZES,"
+                  f" which is not the regime that matters")
     else:
         print("  arm A reported NO prefill — the census is not wired; ignore this run.")
 
-    # The projection. Arm B's per-call prefill is size-INDEPENDENT; arm A's carries
-    # the source, so the ratio is a function of document size and the ~1k-char
-    # documents above understate it by roughly the ratio of their size to a window.
-    projected: list[float] = []
+    # The projection. Arms B and C send a size-INDEPENDENT prefill per call; arm A's
+    # carries the source, so the ratio is a function of document size and the
+    # ~1k-char documents above understate it by roughly the ratio of their size to a
+    # window. Arm A's per-call figure is projected by swapping its own document's
+    # source term for a full window's worth — a direct substitution rather than a
+    # difference between arms, so it does not assume what the other arms carry.
+    projected: dict[str, list[float]] = {"B": [], "C": []}
     print(f"\n  projected to one real window (CHUNK_SIZE = {CHUNK_SIZE:,} chars,"
           f" ~4 chars/token) — ESTIMATE, not a measurement:")
     for name, document in DOCUMENTS.items():
         arms = by_doc.get(name)
-        if not arms or not arms["A"][1] or not arms["B"][1]:
+        if not arms or not all(arms[arm][1] for arm in ARMS):
             continue
-        a_per_call = arms["A"][0] / arms["A"][1]
-        b_per_call = arms["B"][0] / arms["B"][1]
-        # What arm A carries and arm B does not: the source plus step 1's answer.
-        # Only the source scales with document size, so the answer is held fixed and
-        # the source term replaced with a full window's worth.
-        source_est = len(document) / 4
-        history_est = max(0.0, (a_per_call - b_per_call) - source_est)
-        projected_a = b_per_call + CHUNK_SIZE / 4 + history_est
-        share = b_per_call / projected_a
-        projected.append(share)
-        print(f"    {name:<15} A {a_per_call:8,.0f}/call  B {b_per_call:8,.0f}/call"
-              f"  ->  at window size B is {share:5.1%} of A ({1 / share:4.1f}x)")
+        per_call = {arm: arms[arm][0] / arms[arm][1] for arm in ARMS}
+        projected_a = per_call["A"] + (CHUNK_SIZE - len(document)) / 4
+        shares = []
+        for arm in ("B", "C"):
+            share = per_call[arm] / projected_a
+            projected[arm].append(share)
+            shares.append(f"{arm} {share:5.1%} ({1 / share:4.1f}x)")
+        print(f"    {name:<15} A {per_call['A']:8,.0f}/call ->"
+              f" {projected_a:9,.0f} at window size;"
+              f"  B {per_call['B']:6,.0f}  C {per_call['C']:6,.0f}/call"
+              f"  ->  " + "  ".join(shares))
 
-    projected_share = max(projected) if projected else None
+    projected_share = max(projected["C"]) if projected["C"] else None
 
     print("\nREASONING (the thing at risk)")
     print("  DECIDING fields only (is_assertable + is_substantive) — the verdict"
           " reads from these:")
-    print(f"    A-vs-A  {show(within_gate['A'])}   <- noise floor")
-    print(f"    B-vs-B  {show(within_gate['B'])}   <- noise floor")
-    print(f"    A-vs-B  {show(cross_gate)}   <- arm effect, if any")
+    for arm in ARMS:
+        print(f"    {arm}-vs-{arm}  {show(within_gate[arm])}   <- noise floor")
+    for pair in PAIRS:
+        label = "positive control" if pair == "A-vs-B" else "THE DECISION"
+        print(f"    {pair}  {show(cross_gate[pair])}   <- {label}")
     print("  all three fields, `is_atomic` included (reported, not decisive):")
-    print(f"    A-vs-A  {show(within['A'])}")
-    print(f"    B-vs-B  {show(within['B'])}")
-    print(f"    A-vs-B  {show(cross_flips)}")
-    if directions:
-        print("  which field moved, and which way:")
-        for key in sorted(directions, key=lambda k: -directions[k]):
-            print(f"    {key:<34} {directions[key]:3d}")
+    for arm in ARMS:
+        print(f"    {arm}-vs-{arm}  {show(within[arm])}")
+    for pair in PAIRS:
+        print(f"    {pair}  {show(cross_flips[pair])}")
+    for pair in PAIRS:
+        if directions[pair]:
+            print(f"  which field moved, and which way ({pair}):")
+            for key in sorted(directions[pair], key=lambda k: -directions[pair][k]):
+                print(f"    {key:<40} {directions[pair][key]:3d}")
     # WHICH documents move is the prediction, not just how many: if dropping the
     # source matters it should show on the narrative and technical ones and NOT on
     # the self-contained control. Flips spread evenly across all three would mean
     # something other than lost context is moving the gate.
-    for name, pair in flips_by_doc.items():
-        print(f"              per-doc {name:<15} {show(pair)}")
-    print(f"  candidates  A {total_candidates['A']:3d} total  {yielded['A']}")
-    print(f"              B {total_candidates['B']:3d} total  {yielded['B']}")
-    print(f"  opens with unresolved deixis   A {deixis['A']:3d}   B {deixis['B']:3d}"
-          f"   (of {total_candidates['A']} / {total_candidates['B']})")
+    # BOTH metrics per document, labelled, because these are the numbers that get
+    # quoted into a mechanism story and the two differ by an order of magnitude.
+    for name in flips_by_doc:
+        for pair in PAIRS:
+            print(f"              per-doc {name:<15} {pair}"
+                  f"   deciding {show(gate_flips_by_doc[name][pair])}"
+                  f"   all three {show(flips_by_doc[name][pair])}")
+    for arm in ARMS:
+        print(f"  candidates  {arm} {total_candidates[arm]:3d} total  {yielded[arm]}")
+    print("  opens with unresolved deixis   " + "   ".join(
+        f"{arm} {deixis[arm]:3d} (of {total_candidates[arm]})" for arm in ARMS))
     for criterion, votes in judge_wins.items():
-        tally = {arm: votes.count(arm) for arm in ("A", "B", "tie")}
-        print(f"  judge {criterion:<15} A {tally['A']}  B {tally['B']}  tie {tally['tie']}")
+        tally = {arm: votes.count(arm) for arm in ("A", "C", "tie")}
+        print(f"  judge {criterion:<15} A {tally['A']}  C {tally['C']}  tie {tally['tie']}")
     # Read this before the three lines above. Lopsided here means the judge is
     # rating POSITION, and the alternating labels have spread that evenly across
     # the arms — which looks like "no arm effect" and is really "no signal".
@@ -729,6 +923,26 @@ async def test_probe_step2_isolate_ab(di_container):
 
     # --- Preregistered verdict ----------------------------------------------
 
+    floors = [f for f in (rate(within_gate[arm]) for arm in ARMS) if f is not None]
+
+    # The instrument's own sensitivity, checked BEFORE the verdict on arm C, because
+    # a null from a blunt instrument is not a null. Arm B's effect is known and
+    # directional; if it does not reappear, nothing below is evidence.
+    control = rate(cross_gate["A-vs-B"])
+    control_floors = [f for f in (rate(within_gate["A"]), rate(within_gate["B"]))
+                      if f is not None]
+    sensitive = (
+        control is not None and control_floors and control > max(control_floors)
+    )
+    print("\nINSTRUMENT SENSITIVITY (arm B is the positive control)")
+    if sensitive:
+        print(f"  A-vs-B {control:.1%} clears its floors {max(control_floors):.1%}"
+              f" — the known effect reproduced, so a null on arm C is readable.")
+    else:
+        print("  A-vs-B did NOT clear its floors in this run. The 2026-09-11 effect"
+              " did not reproduce, so this instrument was not sensitive today and"
+              " NO conclusion about arm C follows from the gate rate below.")
+
     failures: list[str] = []
     # Read against the PROJECTION, per the note at the top of this file: the
     # measured ratio here is a floor set by the documents' size, and judging the
@@ -737,36 +951,34 @@ async def test_probe_step2_isolate_ab(di_container):
         failures.append("cost: no prefill recorded")
     elif projected_share >= 0.40:
         failures.append(
-            f"cost: even projected to a full window, arm B is {projected_share:.1%}"
+            f"cost: even projected to a full window, arm C is {projected_share:.1%}"
             f" of arm A — not under 40%"
         )
 
-    cross = rate(cross_gate)
-    floors = [f for f in (rate(within_gate["A"]), rate(within_gate["B"]))
-              if f is not None]
+    cross = rate(cross_gate["A-vs-C"])
     if cross is not None and floors and cross > max(floors):
         failures.append(
-            f"gate: cross-arm flips {cross:.1%} clear the noise floor"
+            f"gate: A-vs-C flips {cross:.1%} clear the noise floor"
             f" {max(floors):.1%} — step 2's keep/drop decision DOES move"
             f" without the source"
         )
-    # Arm B being less self-consistent than arm A is its own finding, separate from
+    # Arm C being less self-consistent than arm A is its own finding, separate from
     # the arms disagreeing: it means dropping the source leaves the gate sitting on
     # a boundary it then samples across, so the same document ingests differently
     # run to run. Worth failing on even if the cross-arm rate is inside the floor.
-    floor_a, floor_b = rate(within_gate["A"]), rate(within_gate["B"])
-    if floor_a is not None and floor_b is not None and floor_b > floor_a:
+    floor_a, floor_c = rate(within_gate["A"]), rate(within_gate["C"])
+    if floor_a is not None and floor_c is not None and floor_c > floor_a:
         failures.append(
-            f"stability: arm B disagrees with ITSELF {floor_b:.1%} of the time"
+            f"stability: arm C disagrees with ITSELF {floor_c:.1%} of the time"
             f" against arm A's {floor_a:.1%} — the source is stabilising the gate"
         )
-    if deixis["B"] > deixis["A"]:
+    if deixis["C"] > deixis["A"]:
         failures.append(
-            f"self-containment: B lost {deixis['B'] - deixis['A']} more candidate(s)"
+            f"self-containment: C lost {deixis['C'] - deixis['A']} more candidate(s)"
             f" to unresolved referents"
         )
     faithful_a = judge_wins["faithful"].count("A")
-    faithful_b = judge_wins["faithful"].count("B")
+    faithful_c = judge_wins["faithful"].count("C")
     if faithful_a * 2 > len(judge_wins["faithful"]):
         failures.append(
             f"faithfulness: the judge preferred A in {faithful_a} of"
@@ -776,7 +988,7 @@ async def test_probe_step2_isolate_ab(di_container):
     # split with many ties passes it. That is the threshold as written and it stays
     # as written — but the tie-excluded split is the more informative number, so it
     # is REPORTED and deliberately not promoted to an endpoint after the fact.
-    faithful_decided = faithful_a + faithful_b
+    faithful_decided = faithful_a + faithful_c
     if faithful_decided:
         lean = faithful_a / faithful_decided
         note = (
@@ -790,25 +1002,33 @@ async def test_probe_step2_isolate_ab(di_container):
 
     print()
     if failures:
-        print("VERDICT: DON'T TAKE — " + str(len(failures)) + " endpoint(s) failed")
+        print(f"VERDICT: DON'T TAKE arm C — {len(failures)} endpoint(s) failed")
         for failure in failures:
             print(f"  - {failure}")
+    elif not sensitive:
+        print(
+            "VERDICT: NO CALL — every arm-C endpoint passed, but the positive"
+            " control did not reproduce, so passing is not evidence. Re-run with"
+            " more reps before flipping the default."
+        )
     else:
         print(
-            "VERDICT: TAKE — the saving is real and no reasoning endpoint moved."
-            " Switch `_step2_identify_candidates` to a fresh facilitator."
+            "VERDICT: TAKE arm C — the saving is real, the instrument was"
+            " sensitive enough to catch arm B, and no reasoning endpoint moved."
+            " Flip `extraction_step2_carries_source` to False by default."
         )
     print("Record these numbers in this file's RESULTS section.")
 
     # Instrument wiring only. The verdict above is a MEASUREMENT and must not be
     # an assertion: a probe that fails when the answer is "don't take" cannot
     # report that answer.
-    assert calls["A"] > 0 and calls["B"] > 0, "an arm made no calls at all"
-    assert calls["A"] == calls["B"], (
-        f"arms made different call counts ({calls['A']} vs {calls['B']}) — they are"
-        f" not judging the same items and nothing below is paired"
+    assert all(calls[arm] > 0 for arm in ARMS), "an arm made no calls at all"
+    assert len({calls[arm] for arm in ARMS}) == 1, (
+        f"arms made different call counts ({calls}) — they are not judging the"
+        f" same items and nothing above is paired"
     )
-    assert prefill["A"] > prefill["B"], (
-        "arm A did not prefill more than arm B, so `isolate()` is not carrying the"
-        " source and the premise of this whole probe is wrong"
+    assert prefill["A"] > prefill["C"] > prefill["B"], (
+        f"prefill is not ordered A > C > B ({prefill}), so the arms are not"
+        f" carrying what they are supposed to carry and the premise of this whole"
+        f" probe is wrong"
     )

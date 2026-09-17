@@ -119,6 +119,57 @@ class Settings(BaseModel):
     # and the band must exist on every record for the round to be able to read it.
     automatic_feasibility_audit: bool = Field(default=False, description="Score the pathway a recorded decision is grounded on automatically, off the turn, instead of leaving it to the model to elect the audit_feasibility tool. A MODE, not a feature switch: the tool stays available when this is off, so feasibility is always reachable by asking. Off by default — it cost +46% A2 cell wall and one 284.5s wait, and the engine prompt now names the closing and the wobble turn as moments to elect the tool. Turn on for benches that need the band on every record.")
 
+    # What the step-2 thesis gate sees. ON by default = the behaviour that has
+    # always run, because this is a REASONING change and the default may only
+    # move on a measurement.
+    #
+    # `ThesisExtraction` reads a source in two steps: step 1 extracts content
+    # items from the window, step 2 checks each item, one call per item, fanned
+    # out over `isolate()`. `isolate()` copies step 1's history, and step 1's
+    # request has the whole window inside `<source_text>` — so every one of those
+    # calls re-sends the document. Measured on a 120 KB ingest
+    # (`tests/e2e/probe_ingest_cost.py`): 207,047 tokens across 24 calls, 75% of
+    # everything the size of the document costs on that path, and all 184,438
+    # cache-write tokens with 0 reads, since the entries are written by
+    # CONCURRENT siblings and an entry is readable only after the call that wrote
+    # it returns. Turning this off cuts size-driven prefill ~4x and takes the
+    # pure-loss cache surcharge with it.
+    #
+    # What it costs is a judgement call, which is why it is a knob and not an
+    # edit: `_step2_prompt` is fully self-contained (it names the item and its
+    # type and asks four questions about it), and the sibling items still travel
+    # in step 1's ANSWER, so the source is the only thing dropped.
+    #
+    # OFF WAS MEASURED AND IS NOT ADOPTED. `probe_step2_isolate_ab.py` ran it as
+    # arm C against arm A on 2026-09-17, 72 gate calls per arm over three
+    # documents: the saving projects to **6.8-7.2x** at `CHUNK_SIZE`, the gate's
+    # keep/drop decision did not move at all (A-vs-C 0.0% of 72, on 0.0% floors),
+    # and it FAILED on the one endpoint that did move — a blinded judge preferred
+    # arm A on faithfulness in 9 of 12 comparisons (9 of 11 decided), with a clean
+    # 47% positional control, so unlike the earlier run's 62% that lean cannot be
+    # dismissed as position. What it is NOT is a demonstration that the gate reads
+    # items differently; the two candidate readings, neither tested, are arm C
+    # being less faithful and the judge preferring the longer set (arm A yielded 6%
+    # more candidates). Turn it off only against your own corpus.
+    #
+    # THE SIBLING ITEMS ARE KEPT ON EVIDENCE, not out of caution. A stricter arm
+    # that dropped step 1's history ENTIRELY — a fresh conversation with the same
+    # system prompt and nothing else — was measured and REJECTED TWICE. On
+    # 2026-09-11 (commit 52194e0) both self-consistency floors were 0.0% while the
+    # arms disagreed on 5.6% of gate decisions, and all five flips were the same
+    # field the same way, `is_substantive` false with the history and true without
+    # it: "substantive" means the item adds something to THIS document, and nothing
+    # in an item says that about itself, so a gate with no context admits
+    # restatements. On 2026-09-17 that effect did NOT reproduce, and a second one
+    # appeared in its place — 22 of 72 items came back `is_atomic` true-with-history
+    # and false-without, all one direction, and the no-history arm yielded **18%
+    # more candidates** than arm A. `is_atomic` is read by no code but the same call
+    # returns `atomic_theses`, which IS the output, so a gate with no context also
+    # cuts items finer. Either way the answer is the same: the gate needs what the
+    # document ESTABLISHED, which is step 1's answer, and that is what the OFF arm
+    # keeps while dropping the passage itself.
+    extraction_step2_carries_source: bool = Field(default=True, description="Let the step-2 thesis gate see the source window it was extracted from, by carrying step 1's history into each gated call. On by default (current behaviour), and it stays the default on a measurement: off was A/B'd and lost on faithfulness (tests/e2e/probe_step2_isolate_ab.py). Off sends the system prompt, step 1's answer and the gate's own self-contained question, cutting the ~4x size-driven prefill cost of the ingest path; the extracted items still travel, only the raw passage is elided.")
+
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -220,6 +271,7 @@ class Settings(BaseModel):
             advisor_max_perspectives_per_exploration=int(os.getenv("DIALEXITY_ADVISOR_MAX_PERSPECTIVES_PER_EXPLORATION", 2)),
             audit_transformations=os.getenv("DIALEXITY_AUDIT_TRANSFORMATIONS", "false").lower() == "true",
             automatic_feasibility_audit=os.getenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "false").lower() == "true",
+            extraction_step2_carries_source=os.getenv("DIALEXITY_EXTRACTION_STEP2_CARRIES_SOURCE", "true").lower() == "true",
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

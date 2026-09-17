@@ -60,6 +60,18 @@ _EXTRACTION_REQUEST = (
 )
 
 
+def _is_system_message(message: Any) -> bool:
+    """Whether `message` is the conversation's system message.
+
+    Both spellings are accepted because both reach `self._messages`: Mirascope's
+    own message objects carry `.role`, and a caller replaying a serialized
+    conversation hands back plain dicts.
+    """
+    if isinstance(message, dict):
+        return message.get("role") == "system"
+    return getattr(message, "role", None) == "system"
+
+
 def _tool_output_text(output: Any) -> str:
     """The tool's own return value as text, not the envelope's repr.
 
@@ -288,9 +300,7 @@ class ConversationFacilitator(SettingsAware):
 
         if not self._messages:
             self._messages.append(system_msg)
-        elif hasattr(self._messages[0], "role") and self._messages[0].role == "system":
-            self._messages[0] = system_msg
-        elif isinstance(self._messages[0], dict) and self._messages[0].get("role") == "system":
+        elif _is_system_message(self._messages[0]):
             self._messages[0] = system_msg
         else:
             self._messages.insert(0, system_msg)
@@ -305,7 +315,7 @@ class ConversationFacilitator(SettingsAware):
         self._messages.append(llm.messages.assistant(content, model_id=None, provider_id=None))
         return self
 
-    def isolate(self) -> ConversationFacilitator:
+    def isolate(self, *, keep_history: bool = True) -> ConversationFacilitator:
         """
         Create an isolated copy with current messages snapshot.
 
@@ -319,9 +329,24 @@ class ConversationFacilitator(SettingsAware):
                 for item in items
             ]
             results = await asyncio.gather(*tasks)
+
+        `keep_history=False` carries the system prompt and NOTHING else, for the
+        caller that wants the isolation and the tools but not the transcript.
+        It exists because a fan-out over an isolated copy multiplies whatever the
+        history holds by the width of the fan: `ThesisExtraction`'s step-2 gate
+        is one call per extracted item, each of which inherited step 1's request
+        with the whole source window inside it, and that one line is 75% of what
+        the size of a document costs on the ingest path. The alternative — a
+        fresh `ConversationFacilitator()` at the call site — silently drops
+        `tools`, which is correct for that concern (it has none) and a trap for
+        the next caller. Rebuild whatever the isolated call does need with
+        `set_system_prompt` / `add_user_message` / `add_assistant_message`.
         """
         isolated = ConversationFacilitator(tools=self._tools)
-        isolated._messages = [*self._messages]  # Copy messages
+        if keep_history:
+            isolated._messages = [*self._messages]  # Copy messages
+        elif self._messages and _is_system_message(self._messages[0]):
+            isolated._messages = [self._messages[0]]
         return isolated
 
     @observe()

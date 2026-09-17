@@ -92,6 +92,16 @@ A valid thesis candidate must be:
 Respond with structured output matching the requested format."""
 
 
+#: Stands in for the source window in the step-2 arm that does not carry it (see
+#: `ThesisExtraction._step2_conversation`). It has to SAY the passage is missing:
+#: without it the rebuilt transcript reads as a request to extract from text that
+#: is not there, which invites the gate to treat the items as unsupported.
+_SOURCE_ELIDED = (
+    "[The source passage is not repeated here. What was read out of it is in the"
+    " reply below.]"
+)
+
+
 # --- Step 1 DTOs: Extract Assertable Content ---
 
 
@@ -279,12 +289,19 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
         """Extract assertable content from source text."""
         result = await self._conversation.submit(
             response_model=ExtractedContentDto,
-            user_content=self._step1_prompt(),
+            user_content=self._step1_prompt(self._text),
         )
         return result.items
 
-    def _step1_prompt(self) -> str:
-        """Build prompt for content extraction."""
+    def _step1_prompt(self, source_text: str) -> str:
+        """Build prompt for content extraction.
+
+        `source_text` is a parameter rather than a read of `self._text` so that
+        the step-2 arm which elides the window (`_step2_conversation`) can
+        rebuild THIS prompt byte-for-byte with `_SOURCE_ELIDED` in the source's
+        place. Substituting into the finished string instead would be a second,
+        brittle definition of where the source sits inside it.
+        """
         focus_guidance = f"\nFocus on: {self._focus}" if self._focus else ""
         rule_out = ""
         if self._not_like_these:
@@ -293,7 +310,7 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
             )
 
         return f"""<source_text>
-{self._text}
+{source_text}
 </source_text>
 
 STEP 1: Extract Assertable Content
@@ -314,7 +331,7 @@ Extract up to {self._count + 2} most important content items.
 
         # Process all items in parallel
         tasks = [
-            self._conversation.isolate().submit(
+            self._step2_conversation(content_items).submit(
                 response_model=CandidateCheckDto,
                 user_content=self._step2_prompt(item.content, item.content_type),
             )
@@ -330,6 +347,55 @@ Extract up to {self._count + 2} most important content items.
 
         # Deduplicate while preserving order
         return list(dict.fromkeys(candidates))
+
+    def _step2_conversation(
+        self, content_items: list[ContentItemDto]
+    ) -> ConversationFacilitator:
+        """The conversation ONE step-2 gate call runs in — the arm this A/B moves.
+
+        Both arms send the same three messages in the same roles, and differ in
+        exactly one thing: whether the step-1 request still has the source window
+        inside it.
+
+        ON (`settings.extraction_step2_carries_source`, the default and what has
+        always run) is a plain `isolate()`: the system prompt, step 1's request
+        with the whole window in `<source_text>`, step 1's answer. The fan-out is
+        one call per extracted item, so the window is re-sent once per item —
+        207,047 tokens on a 120 KB ingest, 75% of everything that document's size
+        costs, and every one of the 184,438 cache-write tokens on the path with 0
+        reads, because the siblings write concurrently and an entry is readable
+        only after the call that wrote it returns (`probe_ingest_cost.py`).
+
+        OFF rebuilds the same shape with `_SOURCE_ELIDED` where the window was.
+        The three things that make this surgical rather than a different prompt:
+        `_step2_prompt` is self-contained (it names the item and its type and asks
+        four questions about it, and never refers to the source); the sibling
+        items are step 1's ANSWER, so they still travel; and the turn structure
+        the model reads — asked to extract, answered, now asked about one item —
+        is unchanged, so the arm difference is the passage and nothing else.
+
+        Keeping step 1's answer is the load-bearing part and it is kept on
+        evidence. Dropping the history entirely was measured first and REJECTED:
+        both self-consistency floors were 0.0% while the arms disagreed on 5.6%
+        of gate decisions, every flip being `is_substantive` false-with-context
+        and true-without (commit 52194e0). An item that merely restates what the
+        document established earlier is not substantive, and nothing in the item
+        says so about itself — so the gate needs what the document established,
+        which is step 1's answer, not the document.
+
+        Reconstructing step 1's answer rather than reading it back out of the real
+        history is exact, not an approximation: history stores
+        `_assistant_history_text(result)`, which for a DTO with no `message` field
+        is `str(result)`, and `ExtractedContentDto(items=content_items)` is the
+        same model holding the same items.
+        """
+        if self.settings.extraction_step2_carries_source:
+            return self._conversation.isolate()
+
+        isolated = self._conversation.isolate(keep_history=False)
+        isolated.add_user_message(self._step1_prompt(_SOURCE_ELIDED))
+        isolated.add_assistant_message(str(ExtractedContentDto(items=content_items)))
+        return isolated
 
     def _step2_prompt(self, content: str, content_type: str) -> str:
         """Build prompt for candidate validation."""

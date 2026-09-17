@@ -93,8 +93,10 @@ The model sees **one fused system block** — it cannot tell where the preamble 
     critical path — the wrong direction for a latency complaint. So when reading `cache_read=0`, ask
     whether the prefix was too SHORT (correct, nothing to do) or whether it was written and orphaned
     (a real charge); the two are indistinguishable without the `cache_write` column, which is why the
-    probe now prints it per stage. The free fix is the step-2 `isolate()` A/B, which removes the window
-    from those requests and the surcharge with it.
+    probe now prints it per stage. The fix that would have removed the window from those requests — and this
+    surcharge with it, for free — was the step-2 `isolate()` A/B, and that A/B has now been run twice and
+    DECLINED both times on reasoning grounds (see the ingestion entry below). So this surcharge stands, has no
+    owner, and is not a to-do: it is the standing price of a fan-out that copies a long history.
   - **Priced on the bench, r26, 64 live A2 turns: median 0.300s = 1.49% of the median reply path, and
     0.7% of all reply-path seconds in the round.** Never above 1.6s on any of the 11 slow turns. The
     refresh is not a latency concern and this is no longer an argument, it is a measurement.
@@ -1926,6 +1928,9 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
 - **`AntitheticalThesisDetection`** (`MERGE_THRESHOLD=0.7`, `SUGGEST_THRESHOLD=0.1`): HS≥0.7 auto-merges two
   theses into one Polarity; 0.1–0.7 suggests; ≤0.1 drops.
 - **ThesisExtraction Step-2 candidate gate** (`is_assertable & is_substantive`, with all-rejected safety net).
+  The third field on the same DTO, `is_atomic`, is read by NOTHING — but the call's `atomic_theses` is what gets
+  extended onto the candidate list, so the gate has two outputs and only one branch condition. An A/B endpoint
+  restricted to the branch condition is blind to the decomposition; pair it with candidate yield.
 - **`_select_deep_wheels`** (`explorer/explorer.py`, `max_deep_wheels`): caps which wheels get
   transformations+synthesis — layer desc, then raw `CausalityProbabilityEstimation` desc (unestimated last).
   The Advisor's `run_exploration` feeds it from the **silent-explore depth budget**
@@ -3230,7 +3235,8 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   four and a fifth caller inherits it. **Measured saving NOT taken, on purpose:** switching
   `_step2_identify_candidates` off `isolate()` to a fresh facilitator would cut ~7 full-text sends per extraction
   to 1 — the single biggest token win left on this path — but removing the source from step 2's history is a
-  REASONING change, and it needs an A/B before anyone takes it. Locked by `tests/test_surface_theses_sweep.py`
+  REASONING change, so it needed an A/B first; that A/B has since been run TWICE and taken neither time, and the
+  lever is CLOSED rather than pending (below). Locked by `tests/test_surface_theses_sweep.py`
   (prompt-level coverage, document order under a deliberately slow first window, per-window classification
   provenance, the cap, the zero-candidate retry, and that `ThesisExtraction.resolve` is never reached from the
   sweep), `tests/test_thesis_extraction_split.py`, and `tests/test_statement_deduplication_bound.py`.
@@ -3252,18 +3258,43 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   **5.6% (5/90)** of items, and all five are the SAME field moving the SAME way (`is_substantive`: A false, B
   true; zero the other way). Without the source, step 2 ADMITS items that with the source it rejects, because
   "substantive" is not a property of a sentence in isolation — an item restating what the document established
-  earlier is not substantive and nothing in the item says so. The effect concentrates exactly where that reading
-  predicts (per-document flips: technical 43.3%, self-contained 16.7%, narrative 0.0%; the technical document is
-  the one defining terms once and referencing them later). **What stays open is a THIRD arm nobody has measured:
-  feed step 2 the other step-1 content items, or a short digest, instead of the whole source** — the gate needs
-  what the document established, not the document. Two methodological lessons from the same run, both of which
-  changed its verdict: (a) the metric must read `is_assertable`/`is_substantive` ONLY, because `is_atomic` is on
-  the DTO and read by no code — including it invented an instability in arm B (6.7% vs A's 0.0%) that cannot
-  reach a candidate list; (b) a blinded judge needs its raw first-vs-second split REPORTED, not just its labels
-  alternated — this one put 62% of decided calls on whichever set came first, and alternating alone would have
-  laundered that into a fake 50/50 between the arms. An apparent 7-2 faithfulness lean toward arm A at REPS=2
-  vanished under both corrections. (3) **It also pays a cache write surcharge nobody reads** (~46,110 token-equivalents; see
-  the caching CORRECTION near the top of this file), which the same change removes for free. **And a null worth
+  earlier is not substantive and nothing in the item says so. The effect concentrates where that reading predicts,
+  on the technical document that defines terms once and references them later: it kept 8-11 candidates per rep
+  under arm A and 13-16 under arm B. (**CORRECTION, 2026-09-17:** that concentration claim used to cite
+  "per-document flips: technical 43.3%, self-contained 16.7%, narrative 0.0%". Those were the rates over all
+  three DTO fields, not the deciding two, and were arithmetically impossible as stated — 43.3% of that document's
+  30 comparisons is 13, more than the whole run's 5 deciding flips. The verdict is unaffected, since it was read
+  off the 5.6% aggregate against two 0.0% floors, but the concentration now rests on the yield sentence alone,
+  and the probe prints both metrics per document so the two cannot be confused again.) **The THIRD arm has now
+  been measured too, and also NOT taken (2026-09-17, same probe, 72 gate calls per arm over the same three
+  documents):** give step 2 step 1's request and answer, with only the `<source_text>` window replaced by a
+  sentinel saying the passage is not repeated. It projects **6.8-7.2x** cheaper at `CHUNK_SIZE`, and the gate's
+  keep/drop decision **did not move at all** — 0.0% of 72, against three within-arm floors of 0.0%. It failed on
+  the one endpoint that did move: a blinded judge preferred the source-carrying arm on **faithfulness in 9 of 12
+  comparisons** (9 of 11 decided), and this time the positional control was a clean **47%**, so that lean cannot
+  be dismissed as position the way the earlier run's 62% could. Two readings remain untested — the elided arm
+  really is less faithful, or the judge preferred the longer set (arm A yielded 6% more candidates) — so the
+  honest next instrument is a length-matched re-judge, NOT built. Both arms ship behind
+  `settings.extraction_step2_carries_source` (default `True`, pinned by a test on the default and by the probe's
+  own structural guard); the elided arm is an opt-in for someone with different economics who can check their own
+  corpus. **The lever is closed, not pending.** Three methodological lessons from these runs, each of which
+  changed a verdict: (a) the decision metric must read `is_assertable`/`is_substantive` ONLY, because those are
+  what `_step2_identify_candidates` branches on; (b) **but "read by no code" is not "harmless", and this was
+  stated wrongly here until 2026-09-17** — the corollary used to be that an `is_atomic` flip "cannot reach a
+  candidate list", which is false, because the same call's `atomic_theses` IS the candidate list, so the field is
+  unread while the DECOMPOSITION it describes is the output. A pure-`is_atomic` disagreement means the arms cut
+  the item differently, and the instrument that catches it is **candidate yield**, not the gate rate: arm B
+  agreed with arm A on every keep/drop in the 2026-09-17 run (0.0% of 72) while producing **18% more
+  candidates**, all 22 of its `is_atomic` disagreements in one direction. So carry an unblinded yield count
+  beside any endpoint restricted to a branch condition; (c) a blinded judge needs its raw first-vs-second split
+  REPORTED, not just its labels alternated — 62% in the first run, 47% in the second, and alternating alone would
+  have laundered the first into a fake 50/50 between the arms. An apparent 7-2 faithfulness lean toward arm A at
+  REPS=2 vanished under both corrections. A fourth, cheaper lesson: the 2026-09-17 run's positive control
+  (arm B's known `is_substantive` effect) did NOT reproduce, so its A-vs-C agreement is evidence of an
+  insensitive instrument and not of equivalence — always say which it is. (3) **It also pays a cache write
+  surcharge nobody reads** (~46,110 token-equivalents; see
+  the caching CORRECTION near the top of this file), which the declined change would have removed for free and
+  which therefore stands. **And a null worth
   keeping: latency is not the problem on this path** — 85-98s for 120 KB at 5-11x parallelism with only 1.3-3.9s
   of wall clock outside any provider call, so there is no orchestration gap to close in ingestion. The probe's
   own first draft printed a cache note that its own numbers three lines above contradicted; the general lesson

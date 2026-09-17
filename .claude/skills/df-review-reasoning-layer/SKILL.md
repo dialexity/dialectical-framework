@@ -148,20 +148,36 @@ co-occurrence hotspots. Then:
       history, the cost question is how much history it copies, not whether caching will absorb it; see the
       caching CORRECTION in [reference/systemic-map.md](reference/systemic-map.md).
 - [ ] **Trimming a fan-out's copied history is a REASONING change, and "the prompt already contains the item"
-      does not make it safe.** Dropping the source from `ThesisExtraction`'s step-2 branches is worth 8.5x at
-      `CHUNK_SIZE` and was still rejected: with both self-consistency floors at 0.0%, the arms disagreed on 5.6%
-      of items and every disagreement was `is_substantive` flipping the same way — the gate ADMITS what it would
-      otherwise reject, because "substantive" means "adds something to THIS document" and no item states that
-      about itself. Generalize: **ask which of a call's judgements are properties of the item and which are
-      properties of the item's place in the source**; only the first survive losing the history
-      (`tests/e2e/probe_step2_isolate_ab.py`).
+      does not make it safe.** Dropping the source from `ThesisExtraction`'s step-2 branches has now been
+      measured TWICE and taken NEITHER time, so treat this as a closed lever and not an outstanding
+      optimization. The no-history arm (system prompt only) is worth 8.5x at `CHUNK_SIZE` and was rejected
+      because, with both self-consistency floors at 0.0%, the arms disagreed on 5.6% of items and every
+      disagreement was `is_substantive` flipping the same way — the gate ADMITS what it would otherwise reject,
+      because "substantive" means "adds something to THIS document" and no item states that about itself. The
+      elided-source arm (step 1's request and answer kept, the window replaced by a sentinel) keeps the sibling
+      items for exactly that reason, is worth 6.8-7.2x, moved no keep/drop decision at all (0.0% of 72 on 0.0%
+      floors) — and was still rejected, because a blinded judge with a clean 47% positional control preferred the
+      source-carrying arm on faithfulness in 9 of 12 comparisons. Generalize: **ask which of a call's judgements
+      are properties of the item and which are properties of the item's place in the source**; only the first
+      survive losing the history. Both arms remain shipped behind `extraction_step2_carries_source` (default
+      `True`) so a corpus with different economics can opt in (`tests/e2e/probe_step2_isolate_ab.py`,
+      `tests/test_thesis_extraction_step2_source.py`).
 - [ ] **An A/B over LLM judgements needs a self-consistency floor per arm, a decision metric restricted to fields
       code actually READS, and a positional control on any judge.** All three changed the verdict of the probe
-      above. `is_atomic` is on `CandidateCheckDto` and read nowhere, and counting it invented an instability in
-      the candidate arm (6.7% against 0.0%) that cannot reach a candidate list. The judge put 62% of its decided
-      calls on whichever set was shown first, so alternating labels without REPORTING the raw split would have
-      laundered a positional bias into a fake 50/50 between arms — an apparent 7-2 lean died under both fixes.
-      A cross-arm rate with no within-arm floor beside it is not a finding.
+      above. The judge put 62% of its decided calls on whichever set was shown first in one run (and 47%, clean,
+      in the next), so alternating labels without REPORTING the raw split would have laundered a positional bias
+      into a fake 50/50 between arms — an apparent 7-2 lean died under that fix. A cross-arm rate with no
+      within-arm floor beside it is not a finding, and a run whose positive control fails to reproduce is not
+      evidence of agreement, only of an insensitive instrument.
+- [ ] **"Read by no code" is not "harmless" — a field can be unread while the thing it DESCRIBES is the
+      output.** Restricting the decision metric to `is_assertable & is_substantive` was right (they are what
+      `_step2_identify_candidates` branches on) but the corollary drawn from it was wrong for a year: `is_atomic`
+      is read nowhere, yet the same call's `atomic_theses` IS the candidate list, so the two move together and a
+      pure-`is_atomic` disagreement means the arms CUT the item differently. The instrument that catches that is
+      **candidate yield**, not the gate rate — the no-history arm agreed with the default on every keep/drop and
+      still produced 18% more candidates. So when a preregistered endpoint covers only the branch condition,
+      carry a second, unblinded count of what the call actually emits, and say plainly which one the verdict
+      rests on.
 
 ---
 
