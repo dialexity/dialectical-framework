@@ -26,6 +26,35 @@ A run with NO recorded `build` block is never poolable without `--force`: absent
 provenance reads as ABSENT, not as "same build as the other one". Every pre-r21
 stem in this archive is in that category.
 
+`prompt_sha` IS NOT ENOUGH, AND A15 IS THE CASE THAT PROVED IT
+==============================================================
+The prompt check watches the prompt SURFACE. It cannot see an arm whose input is
+a BUILT ARTIFACT. A1.5 is exactly that arm — its whole context is a pre-built
+graph dumped as static text — and across `a15-floor` -> `weave-offturn` that dump
+went from **9,841 chars, `woven=0 transformations=0`** to **~26,000 chars,
+`woven=5 transformations=42`**, because `abe386d` moved pathway construction off
+the turn. Same `prompt_sha` on both, so the prompt gate passes them, and pooling
+the two would average two different arms and call it 24 pairs of one. So the
+recorded `static_context_provenance` of each arm under test must agree across
+stems too, and it is a REFUSAL and not a warning for the same reason the prompt
+check is: a gate you can read past is a gate for a reader who already knows.
+
+THE DIMENSION-GROUP PROBLEM, WHICH `a15-floor` CORRECTED BY HAND
+===============================================================
+Three of the twelve judged dimensions (`NON_INFERIORITY_DIMENSIONS`: warmth,
+actionability, conversational_fit) are the base model's home turf. They are
+reported as a bound the framework arm must not fall through, and they are NEVER
+part of a superiority headline. `Deltas.composite` blends all twelve, so
+`a15-floor` recomputed its own table by hand and every headline it printed
+changed — and on `A1.5 vs A1` that matters more than usual, because
+`actionability +1.25` is an NI row and the largest mover in the set.
+
+So the primary line here is the STRUCTURAL composite over the judged dimensions
+that are not NI, and the NI group is printed under it as a bound with no verdict
+word attached. The blended-all-twelve number is not printed at all: it is not the
+endpoint of anything, and the only thing it has ever been used for is being
+quoted by mistake.
+
 THE UNIT PROBLEM, WHICH POOLING MAKES WORSE
 ===========================================
 The pre-registered endpoint is the flat mean over judged PAIRS, and 4 pairs come
@@ -38,10 +67,31 @@ and the replicate-level interval is tighter: [-0.003, +0.653] flat against
 [+0.031, +0.619] by replicate. That is the opposite of the usual clustering
 story, and it is why this script prints BOTH and treats the flat one as primary:
 switching to the unit that happens to exclude zero, after seeing that it does, is
-exactly the move the pre-registration exists to forbid. If a later run shows a
-POSITIVE ICC, the flat interval becomes the anti-conservative one and the
-replicate level must become primary — the script prints the ICC on every read so
-that switch is a visible, argued decision rather than a silent one.
+exactly the move the pre-registration exists to forbid.
+
+AND THE POSITIVE CASE IS NOT HYPOTHETICAL, WHICH THIS FILE USED TO IMPLY
+=======================================================================
+Swept over the archive on 2026-09-17: of 37 saved (stem, arm-pair) sets with a
+computable ICC, **17 are POSITIVE**, up to +0.697 — r21 is the minority case, not
+the rule. So the flat interval is anti-conservative in nearly half of everything
+here, and the "if a later run shows a positive ICC" this section used to say was
+describing sets that already existed. Two mitigations, both in the printout:
+
+- When ICC > 0 the primary row is the flat interval with the DESIGN EFFECT priced
+  in (`_deff_ci`) — standard error inflated by sqrt(deff), df from the effective
+  n — and not the replicate-mean row. At the 3 replicates a single round produces,
+  the replicate-mean interval carries t(2)=4.303 and resolves nothing whatever the
+  data say, so making it primary would report a df problem as a null result.
+- Sizing inherits it. `report.py` prints "needs n≈N pairs" from
+  `(2.8*sd/effect)**2`, which assumes independence; at deff 1.84 the real figure
+  is 1.84x that, and the archive's published n≈55 for `A1.5 vs A1` was computed
+  without it (and on the blended composite, see below).
+
+What the sweep did NOT find is a laundered win: applying the correction to all 37
+sets changes the verdict on **2**, and both are recorded framework LOSSES that
+become unresolved. Nothing published here rests on the uncorrected interval in
+the flattering direction, which is the one thing worth checking before believing
+a correction discovered by whoever wrote it.
 """
 from __future__ import annotations
 
@@ -53,7 +103,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from tests.e2e.models import Arm, Comparison, RunRecord  # noqa: E402
+from tests.e2e.models import (NON_INFERIORITY_DIMENSIONS, Arm,  # noqa: E402
+                              Comparison, RunRecord)
 from tests.e2e.read_prereg import verdict_for  # noqa: E402
 from tests.e2e.report import drop_invalid, load_records  # noqa: E402
 
@@ -89,6 +140,29 @@ def _ci(values: list[float]) -> tuple[float, float] | None:
     return (mean - half, mean + half)
 
 
+def _deff_ci(values: list[float], deff: float) -> tuple[float, float]:
+    """The flat interval with the correlation priced in, not assumed away.
+
+    Same mean — clustering does not bias the mean, only its precision. The
+    standard error is inflated by sqrt(design effect) and the t multiplier is
+    taken from the EFFECTIVE n, so a set of 24 pairs in 6 replicates at ICC
+    +0.28 is read as the ~13 independent pairs it is worth.
+
+    Never narrower than the uncorrected interval: `deff < 1` happens whenever the
+    ICC is negative, and letting a negative ICC BUY precision would turn the
+    archive's most common case into free resolution. Below 1 this returns the
+    plain interval, which is what the ICC <= 0 branch already treats as primary.
+    """
+    plain = _ci(values)
+    if plain is None or deff <= 1:
+        return plain if plain is not None else (float("nan"), float("nan"))
+    se = st.stdev(values) / math.sqrt(len(values))
+    effective = max(2, round(len(values) / deff))
+    half = _t95(effective - 1) * se * math.sqrt(deff)
+    mean = st.fmean(values)
+    return (mean - half, mean + half)
+
+
 def _icc(groups: dict[object, list[float]]) -> tuple[float, float] | None:
     """One-way ANOVA ICC and the design effect, or None if it is undefined."""
     sizes = [len(v) for v in groups.values() if v]
@@ -107,6 +181,33 @@ def _icc(groups: dict[object, list[float]]) -> tuple[float, float] | None:
         return None
     icc = (msb - msw) / (msb + (k - 1) * msw)
     return icc, 1 + (k - 1) * icc
+
+
+def _built_inputs(payload: dict, arms: tuple[str, ...]) -> dict[str, set[str]]:
+    """Recorded `static_context_provenance` per arm, for the arms under test.
+
+    Read off the CELLS rather than rebuilt, because the question is what the arm
+    was actually handed in that run — and read as a set per arm, because a stem
+    whose own cells disagree is already a heterogeneous arm before any pooling.
+
+    Arms with no static context (A1, A2 — they build or lack a graph live) record
+    None and are simply absent here. Absent is not a mismatch: there is no built
+    artifact to differ.
+
+    The comparison is on the recorded RECIPE (`perspectives=5 woven=5
+    transformations=42 decisions=1`) and deliberately not on `static_context_chars`.
+    Two builds of the same recipe differ in length by a few percent because the
+    text is generated — `weave-offturn` and `feasibility-offturn` are 26,312 and
+    25,348 chars of the identical recipe — so gating on the exact size would
+    refuse every pool that has ever existed, which is the same as having no gate.
+    """
+    out: dict[str, set[str]] = defaultdict(set)
+    for record in payload.get("runs") or []:
+        provenance = record.get("static_context_provenance")
+        arm = record.get("arm")
+        if provenance and arm in arms:
+            out[arm].add(provenance)
+    return dict(out)
 
 
 def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
@@ -148,10 +249,23 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
         # remembering it.
         keys = sorted({c.get("scenario_key", "?") for c in payload["comparisons"]})
         print(f"  {'':34} scenarios: {', '.join(keys) or 'NONE'}")
+        built = _built_inputs(payload, pair)
+        for arm in sorted(built):
+            for provenance in sorted(built[arm]):
+                print(f"  {'':34} {arm} static context: {provenance}")
+
+    # The second gate, which the prompt check cannot stand in for: an arm whose
+    # input is a built artifact can change completely without a prompt byte
+    # moving. See the A1.5 case in the module docstring.
+    built_by_arm: dict[str, set[str]] = defaultdict(set)
+    for payload in payloads.values():
+        for arm, provenances in _built_inputs(payload, pair).items():
+            built_by_arm[arm] |= provenances
+    drifted = sorted(arm for arm, seen in built_by_arm.items() if len(seen) > 1)
 
     distinct = {s for s in shas.values() if s}
     missing = [stem for stem, s in shas.items() if not s]
-    poolable = len(distinct) == 1 and not missing
+    poolable = len(distinct) == 1 and not missing and not drifted
 
     print()
     if poolable:
@@ -162,6 +276,10 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
             reason.append(f"provenance ABSENT in {', '.join(missing)}")
         if len(distinct) > 1:
             reason.append(f"{len(distinct)} distinct prompt_sha values")
+        if drifted:
+            reason.append(
+                f"static context DIFFERS across stems for {', '.join(drifted)}"
+            )
         print(f"  NOT POOLABLE: {'; '.join(reason)}")
         if not force:
             print()
@@ -172,10 +290,8 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
         print("  !! FORCED — this number is NOT an ordinary pooled endpoint.")
 
     # -- the endpoint ---------------------------------------------------------
-    per_replicate: dict[tuple[str, int], list[float]] = defaultdict(list)
-    by_scenario: dict[str, list[float]] = defaultdict(list)
-    flat: list[float] = []
-    kept_total = dropped_total = 0
+    rows: list[tuple[str, Comparison]] = []
+    dropped_total = 0
     for stem, payload in payloads.items():
         runs = [RunRecord.model_validate(r) for r in payload["runs"]]
         comparisons = [Comparison.model_validate(c) for c in payload["comparisons"]]
@@ -184,20 +300,52 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
         for c in kept:
             if (c.arm_a, c.arm_b) != (hi, lo) or not c.scores:
                 continue
-            cell = st.fmean([a - b for a, b in c.scores.values()])
+            rows.append((stem, c))
+
+    def gather(
+        dimensions: tuple[str, ...],
+    ) -> tuple[list[float], dict[str, list[float]], dict[tuple[str, int], list[float]]]:
+        """Cells over ONE dimension group, in all three units.
+
+        Parameterised rather than written twice because the structural composite
+        and the NI bound must be the same arithmetic on different columns; two
+        copies is how a group ends up silently using a different unit from the
+        block it is printed under.
+        """
+        flat: list[float] = []
+        by_scenario: dict[str, list[float]] = defaultdict(list)
+        per_replicate: dict[tuple[str, int], list[float]] = defaultdict(list)
+        for stem, c in rows:
+            deltas = [a - b for d, (a, b) in c.scores.items() if d in dimensions]
+            if not deltas:
+                continue
+            cell = st.fmean(deltas)
             flat.append(cell)
             by_scenario[c.scenario_key].append(cell)
             # Replicate numbers restart per stem, so the key must carry the stem
             # or r21's rep 3 and r22's rep 3 collapse into one cluster.
             per_replicate[(stem, c.replicate)].append(cell)
-            kept_total += 1
+        return flat, dict(by_scenario), dict(per_replicate)
+
+    judged = tuple(sorted({d for _, c in rows for d in c.scores}))
+    structural = tuple(d for d in judged if d not in NON_INFERIORITY_DIMENSIONS)
+    ni_judged = tuple(d for d in judged if d in NON_INFERIORITY_DIMENSIONS)
+    flat, by_scenario, per_replicate = gather(structural)
 
     print()
     print("=" * 74)
-    print(f"ENDPOINT — {hi.value} vs {lo.value}")
+    print(f"ENDPOINT — {hi.value} vs {lo.value} — STRUCTURAL composite")
     print("=" * 74)
+    print(
+        f"  {len(judged)} judged dimension(s): {len(structural)} structural, "
+        f"{len(ni_judged)} non-inferiority"
+    )
+    if ni_judged:
+        # Named, not just counted. `a15-floor` published a headline that had
+        # `actionability` inside it, and the reader could not have known.
+        print(f"  held OUT of this composite: {', '.join(ni_judged)}  (bound below)")
     if len(flat) < 2:
-        print(f"  only {len(flat)} judged pair(s) — no interval")
+        print(f"  only {len(flat)} judged pair(s) on the structural group — no interval")
         return 1
     print(f"  invalid cells dropped: {dropped_total}")
 
@@ -254,9 +402,79 @@ def read(stems: list[str], pair: tuple[str, str], force: bool = False) -> int:
         else:
             print(
                 "  !! ICC > 0: the flat interval is now ANTI-conservative — it\n"
-                "  treats correlated pairs as independent. The replicate-level\n"
-                "  row is the honest one and the write-up must say so."
+                "  treats correlated pairs as independent."
             )
+            # And here is the correction to READ, rather than a demand to fall
+            # back on the replicate means. At 3 replicates the replicate-level
+            # interval carries t(2)=4.303 and resolves nothing whatever the data
+            # say, so offering only that row means every positive-ICC set reads
+            # "unresolved" for a reason that is about df and not about the arms.
+            # The design effect keeps every pair and prices the correlation:
+            # inflate the standard error by sqrt(deff) and take df from the
+            # EFFECTIVE n. It lands between the two rows above and it is the one
+            # the write-up should quote.
+            corrected = _deff_ci(flat, deff)
+            print(
+                f"  FLAT, deff-corrected (primary) {st.fmean(flat):+.3f}  "
+                f"95%CI [{corrected[0]:+.3f},{corrected[1]:+.3f}]  "
+                f"effective n={len(flat) / deff:.1f} of {len(flat)}"
+            )
+            print(f"          -> {verdict_for(corrected)}")
+            print(
+                "  Sizing must carry it too: the pairs a round needs are the\n"
+                f"  independence-assuming figure times {deff:.2f}."
+            )
+
+    if ni_judged:
+        # The reconciliation an older write-up needs, and the guard against this
+        # correction being read as a re-headline. Published rounds quote the
+        # blended-twelve composite, because that is what `Deltas.composite`
+        # computed when they were written; on r21+r22 the blend reads
+        # +0.325 [-0.003,+0.653] UNRESOLVED and the structural endpoint reads
+        # +0.372 [+0.008,+0.737], which is a WIN by eight thousandths. Switching
+        # to whichever reading excludes zero, AFTER seeing that it does, is the
+        # move pre-registration exists to forbid — the more so when the switch is
+        # in the flattering direction and the person switching wrote the switch.
+        # So a disagreement is printed as something to argue about, never as a
+        # corrected verdict.
+        blended, _, _ = gather(judged)
+        blended_ci = _ci(blended) if len(blended) > 1 else None
+        if verdict_for(blended_ci) != verdict_for(ci):
+            ci_b = (
+                "n/a"
+                if blended_ci is None
+                else f"[{blended_ci[0]:+.3f},{blended_ci[1]:+.3f}]"
+            )
+            print()
+            print("  !! THIS STEM READS DIFFERENTLY UNDER THE OLDER BLENDED COMPOSITE:")
+            print(
+                f"     all {len(judged)} dimensions blended: {st.fmean(blended):+.3f} "
+                f"95%CI {ci_b}"
+            )
+            print(f"     -> {verdict_for(blended_ci)}")
+            print("     A published write-up of this stem quotes THAT number. The")
+            print("     structural line above is the better endpoint and it is NOT")
+            print("     licence to re-headline a finished round: say both, and say")
+            print("     which one was pre-registered.")
+
+        ni_flat, _, _ = gather(ni_judged)
+        ni_ci = _ci(ni_flat) if len(ni_flat) > 1 else None
+        print()
+        print("=" * 74)
+        print(f"NON-INFERIORITY BOUND — {'/'.join(ni_judged)} — NOT the endpoint")
+        print("=" * 74)
+        ci_s = "n/a" if ni_ci is None else f"[{ni_ci[0]:+.3f},{ni_ci[1]:+.3f}]"
+        print(
+            f"  FLAT                           {st.fmean(ni_flat):+.3f}  "
+            f"95%CI {ci_s}  n={len(ni_flat)}"
+        )
+        # No verdict word here, deliberately. On these three dimensions the
+        # question is whether the arm FALLS THROUGH a floor, and `verdict_for`
+        # answers a different one ("does the interval exclude zero"). Printing
+        # FRAMEWORK WINS off an NI gain is the blend error with an extra step.
+        print("  Read as a floor: does the lower end fall through the margin the")
+        print("  round pre-registered? A gain here is not a win and does not")
+        print("  belong in a headline — it is the base model's own home turf.")
     return 0
 
 

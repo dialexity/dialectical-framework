@@ -657,6 +657,31 @@ anchors.
   shipping. Register the CONSEQUENTIAL threshold, then state plainly whether the run can see it; a
   design that can only confirm effects larger than the ones you would act on will keep returning
   INDETERMINATE on real wins.
+- **"Same build" checked on the PROMPT is not the same build when an arm's input is GENERATED.** Every
+  pooling guard in this bench compares `prompt_sha`, and A1.5's entire context is a pre-built graph dumped
+  as static text — a framework ARTIFACT, not a prompt. Between `a15-floor` and `weave-offturn` that dump
+  went from **9,841 chars `woven=0 transformations=0`** to **~26,000 chars `woven=5 transformations=42`**
+  because `abe386d` moved pathway construction off the turn, with the same `prompt_sha` on both. Pooling
+  them would have averaged two different arms and reported one arm at twice the n. So whenever the thing
+  under test is fed something the framework BUILDS, that artifact's provenance is part of the build
+  identity and belongs in the gate (`read_pooled.py` now refuses on it) — and compare the recorded RECIPE,
+  not the byte size, or regeneration noise refuses every pool that could ever exist.
+- **An interval over pairs that share a replicate assumes independence, and in this archive that is
+  usually false.** 4 judged pairs come from one replicate (2 sessions × 2 branches off one opening), and
+  swept over every saved set, **17 of 37 have a POSITIVE intra-replicate ICC, up to +0.697** — so the flat
+  interval is anti-conservative nearly half the time, and `report.py`'s `n≈N pairs` is an UNDER-estimate by
+  the design effect (on `A1.5 vs A1`: published n≈55, actually ~68). Price it rather than falling back on
+  replicate means: at the 3 replicates a round produces, the replicate-mean interval carries t(2)=4.303 and
+  resolves nothing whatever the data say, which reports a df problem as a null result. Inflate the standard
+  error by sqrt(deff) and take df from the effective n.
+- **An endpoint correction that flips a published result in the FLATTERING direction is a flag, not a
+  fix.** Holding the NI dimensions out of the headline is right — `a15-floor` established it — and doing it
+  in code moved the archive's marquee pooled read from **+0.325 [−0.003, +0.653] UNRESOLVED** to **+0.372
+  [+0.008, +0.737] WINS**, by eight thousandths, in a correction written by the person who would quote it.
+  Print both, name which one was pre-registered, and leave the adoption to someone else; switching to the
+  reading that excludes zero after seeing that it does is the move pre-registration exists to forbid. The
+  check that makes the correction believable is the opposite one: applied across all 37 sets, the
+  design-effect fix changed 2 verdicts and both were recorded LOSSES becoming unresolved.
 - **Two runs of one instrument are not two measurements of one rate.** Same 16 tensions, same weak
   tier, same auditor model, baseline prompt verified byte-identical to the pre-fix commit, four hours
   apart: minus misparentage went **3.1% → 9.4% (p=0.0406)** while the plus endpoint reproduced

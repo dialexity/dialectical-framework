@@ -2697,6 +2697,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   writes off the MODEL's tool list. Neither is possible; a field is. Note what did NOT get closed — the fields
   postdate `feasibility-offturn`, so its 284.5s turn stays a leading explanation and every one of its 144 turns
   reads `not recorded`.
+  **A third consequence of this commit surfaced 2026-09-17 and it is about MEASUREMENT, not latency: `abe386d`
+  silently changed what a comparison arm is FED.** A1.5's whole input is a pre-built graph dumped as static text,
+  so the drain loop's `transformations 0 → 42` took that dump from **9,841 chars `woven=0 transformations=0`** to
+  **~26,000 chars `woven=5 transformations=42`** — with `prompt_sha` unchanged, because no prompt byte moved.
+  Every pooling guard in the bench compares `prompt_sha`, so the archive's three `A1.5 vs A1` stems (36 pairs, one
+  `prompt_sha`) would have pooled two different arms; only the 24 pairs after the rebuild may be. `read_pooled.py`
+  now refuses on disagreeing `static_context_provenance`. **The general rule, for any future work that changes what
+  the framework BUILDS: an artifact the framework generates and then feeds to something under test is part of the
+  build identity, and a prompt-surface check cannot see it.** Read on the 24 legitimate pairs and on the structural
+  composite (NI held out), the floor is still **not shown**: +0.514, ICC +0.280 so deff-corrected
+  `[−0.133, +1.161]`, and resolution needs ~68 pairs rather than the published n≈55 — `tests/e2e/rounds.md`,
+  `### a15-pooled`.
   **The THIRD trade was repaid at the same seam, 2026-09-14 (`Advisor._audit_adopted_pathways`), and the honest
   difference from the weave is that this one was a COST trade rather than a latency trade.** The eager
   `TransformationAudit` pass was turned off because 2 provider calls per Transformation is 40% of `explore`'s

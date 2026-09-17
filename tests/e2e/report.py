@@ -2020,6 +2020,19 @@ def render_report(
                             f"   On the primary endpoint instead ({ceff:.2f}, sd "
                             f"{csd:.2f}): n≈{cneeded} pairs."
                         )
+                    # Both figures assume the pairs are INDEPENDENT, and 4 of them
+                    # come from one replicate. Swept 2026-09-17: 17 of 37 saved
+                    # (stem, arm-pair) sets have a POSITIVE intra-replicate ICC, up
+                    # to +0.697, so this is usually an UNDER-estimate rather than a
+                    # conservative one. `read_pooled.py` prints the design effect
+                    # and the multiplier. Said here rather than corrected here
+                    # because the ICC needs replicate structure this table does not
+                    # carry, and a sizing figure quietly recomputed on a different
+                    # basis from the round that quoted it is worse than a caveat.
+                    add("   Both figures assume INDEPENDENT pairs. Multiply by the")
+                    add("   design effect from read_pooled.py — nearly half the")
+                    add("   archive's sets are positively correlated within a")
+                    add("   replicate, where these are under-estimates.")
             add("")
         # Where the delta lives. A gap concentrated in one session is a targeted
         # defect (r3: A2's earned_confidence was -1.50 in `decide` against

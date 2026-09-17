@@ -5949,3 +5949,81 @@ lived on the turn before it. `feasibility-offturn`'s own numbers are unaffected 
 the fields postdate the run, so every one of its 144 turns reads `not recorded` here, which is the honest state
 and the reason the row prints its own denominator. **This closes the instrument, not the finding** — the 284.5s
 turn is re-checkable on the next run and not on this one.
+
+### a15-pooled: the floor question read on the 24 pairs that may be pooled — still not shown, and the pooling tool had two holes (2026-09-17, FREE)
+
+**The question, not a round.** `a15-floor` left `A1.5 vs A1 structural +0.32 [−0.39, +1.03]` with *"resolving
+the blended endpoint at 80% power needs n≈55 pairs against the 12 that ran"*, and the cheap move before
+contemplating a 55-pair round is to count what the archive already holds. No cell was generated and no judge
+ran; every number here comes from saved JSON.
+
+**The archive holds 36 A1.5-vs-A1 pairs across three stems, all on one `prompt_sha` — and only 24 of them may
+be pooled.** `a15-floor`, `weave-offturn` and `feasibility-offturn` are 12 each and every one records
+`prompt_sha da4fae4`, so the pooling gate as it stood would have computed all 36. It should not have.
+**A1.5's whole input is a pre-built graph dumped as static text, and that dump changed**: `a15-floor` built
+**9,841 chars, `perspectives=6 woven=0 transformations=0 decisions=2`**, and after `abe386d` moved pathway
+construction off the turn `weave-offturn` built **26,312 chars, `perspectives=5 woven=5 transformations=42
+decisions=1`** (`feasibility-offturn`: 25,348 chars, identical recipe). A prompt-surface check cannot see this,
+because no prompt byte moved — so A1.5 in `a15-floor` is a different arm from A1.5 afterwards, and pooling the
+three stems would have averaged two arms and called it 36 pairs of one. `read_pooled.py` now refuses on
+disagreeing `static_context_provenance` as flatly as it refuses on `prompt_sha`, comparing the recorded RECIPE
+and not the size, since two builds of one recipe differ by a few percent of generated text and gating on that
+refuses every pool that can exist.
+
+**Two corrections had to land before the 24 could be read at all.** First, the endpoint: `a15-floor` established
+that the NI dimensions do not belong in a headline and then recomputed its own table BY HAND, so two rounds
+later the tool still blended all twelve — and on this pair that matters more than usual, since `actionability
++1.25` was the largest mover in `a15-floor` and is an NI row. The structural composite is now what the script
+computes, with the three NI dimensions named, held out, and printed below as a bound carrying no verdict word.
+Second, the unit. This file's own rule says a positive intra-replicate ICC makes the flat interval
+anti-conservative; swept across the archive, **17 of 37 saved (stem, arm-pair) sets are positive, up to +0.697**,
+so the case the rule treated as hypothetical is nearly half of everything here. The primary row on a positive
+ICC is now the flat interval with the **design effect** priced in — sqrt(deff) on the standard error, df from
+the effective n — and not the replicate-mean row, which at 3 replicates carries t(2)=4.303 and would report a
+df problem as a null result.
+
+**THE READING. A1.5 vs A1, structural composite, 24 pairs over 6 replicates, `cofounder_equity`, weak tier:
++0.514.** Flat `[+0.062, +0.966]` excludes zero — and the ICC is **+0.280, design effect 1.839**, so the flat
+row is the one this file forbids quoting. Corrected: **`[−0.133, +1.161]`, effective n 13.1 of 24 — UNRESOLVED**.
+The replicate-mean row agrees (`[−0.263, +1.291]`), which is worth more than either number: the conclusion does
+not depend on which correction you prefer. **The floor is still not shown, now on twice the pairs and a better
+endpoint.** The NI bound is **+0.139 [−0.157, +0.434]** — `a15-floor`'s resolved `actionability +1.25` did not
+survive the rebuild at all, which independently confirms that the arm changed rather than the estimate wobbling.
+
+**What resolution would actually cost, corrected: ~17 replicates ≈ 68 pairs**, by `report.py`'s own
+`(2.8·sd/effect)²` on the replicate unit (sd 0.741, effect 0.514) — or 35 pairs × deff 1.84 = 64 by the other
+route. Not 55. The published n≈55 was computed on the blended composite AND on an independence assumption these
+data contradict, which is how a sizing figure ends up understating by ~25%. At 3 replicates a round, that is
+**four more rounds in the identical shape with the build frozen** — and no two consecutive rounds in this series
+have had a frozen build (`abe386d`, then `11948d2`, each rewriting `advisor.py`).
+
+**RECOMMENDATION: do not run it. Do the free thing this round log already named instead.** `weave-offturn`'s
+limit 2 says *"a length-matched re-run is the outstanding fix, not more replicates"*, and the verbosity gap is
+still unhandled on the pooled pair: A1.5 averages **296 and 299 assistant words against A1's 270 and 262**
+(+9.6% and +14.1%) across the two poolable stems. (The often-quoted **26%** is A1.5 vs **A2**, not vs A1 — worth
+correcting, because it has been read as the size of THIS confound.) A judge-only length-matched re-judge of the
+24 archived transcript pairs costs no cells, and if +0.514 survives it, four rounds of generation become worth
+arguing about. If it does not, they were never worth spending.
+
+**A SIDE EFFECT, FLAGGED AND NOT ADOPTED.** The structural correction also moves the archive's marquee pooled
+read. `r21+r22`, A2 vs A1.7: the published blend is **+0.325 [−0.003, +0.653] UNRESOLVED** — the "three
+thousandths from a win" this file is careful about — and the structural endpoint is **+0.372 [+0.008, +0.737], a
+WIN by eight thousandths** (ICC −0.192 there, so the flat row is the conservative one and stands). That is
+**not** a re-headline. The blend is what r21+r22 pre-registered and what every write-up quotes; switching to the
+reading that excludes zero after seeing that it does is the forbidden move, and it is worse when the switch
+flatters the framework and the person switching wrote the switch. `read_pooled.py` now prints both with a note
+naming which was pre-registered whenever the two verdicts disagree. Whether the structural endpoint should be
+adopted retroactively is a question for a reader who is not me. As a check on the correction as a whole: applied
+to all 37 archived sets, the design-effect fix changes **2** verdicts, and both are recorded framework LOSSES
+becoming unresolved — nothing published here rests on the uncorrected interval in the flattering direction.
+
+**LIMITS.**
+1. **One scenario, one tier, 6 replicates.** Everything above is `cofounder_equity` at the weak tier.
+2. **The verbosity gap is unhandled** and it lands on the arm with the positive mean, which is the whole reason
+   the recommendation is a re-judge and not a round.
+3. **"The same arm" is only as fine as the recorded recipe.** `weave-offturn` and `feasibility-offturn` agree on
+   `perspectives=5 woven=5 transformations=42 decisions=1` and differ by 964 chars of generated text; the gate
+   cannot tell that apart from a difference that matters, and a future build that changes the dump without
+   changing those four counts would pool silently.
+4. **Nothing here is about A2 or a live graph.** This is the floor between a static graph dump and the method
+   text, and `a15-floor`'s limit 5 stands unchanged.

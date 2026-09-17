@@ -9244,6 +9244,36 @@ class TestPooledReadRefusesToLaunderABuild:
         naive = 1.96 * st.stdev([1.0, 1.0, 1.0, 1.0, 2.0]) / (5**0.5)
         assert half > naive * 1.3
 
+    def test_a_negative_icc_cannot_buy_precision(self):
+        """`deff < 1` is the archive's most common case (20 of 37 saved sets).
+
+        Letting it shrink the interval would hand every one of them free
+        resolution, which is the opposite of what the correction is for.
+        """
+        from e2e.read_pooled import _ci, _deff_ci
+
+        values = [0.5, -0.3, 1.2, 0.1, 0.9, -0.6]
+        assert _deff_ci(values, 0.42) == _ci(values)
+        assert _deff_ci(values, 1.0) == _ci(values)
+
+    def test_a_positive_icc_widens_the_interval_it_is_read_beside(self):
+        """The correction has to move the number, or printing it is decoration.
+
+        Widened twice over: sqrt(deff) on the standard error AND a smaller df,
+        because 24 correlated pairs are not 24 independent ones on either count.
+        """
+        from e2e.read_pooled import _ci, _deff_ci
+
+        values = [0.5, -0.3, 1.2, 0.1, 0.9, -0.6, 1.4, 0.2]
+        plain = _ci(values)
+        corrected = _deff_ci(values, 1.84)
+        assert plain is not None
+        assert corrected[0] < plain[0] and corrected[1] > plain[1]
+        # The mean is untouched: clustering costs precision, not location.
+        import statistics as st
+
+        assert st.fmean(corrected) == pytest.approx(st.fmean(plain))
+
     def test_the_icc_sign_decides_which_unit_is_conservative(self):
         """The whole reason both rows are printed. Negative ICC => flat is
         conservative (r21's case); positive => flat is anti-conservative."""
@@ -9266,6 +9296,277 @@ class TestPooledReadRefusesToLaunderABuild:
 
         source = inspect.getsource(read_pooled.read)
         assert "per_replicate[(stem, c.replicate)]" in source
+
+    @staticmethod
+    def _twelve() -> tuple[str, ...]:
+        """The twelve a DECISION scenario is judged on, in `dimensions_for`'s
+        composition — six counsel, three decision, three non-inferiority."""
+        return COUNSEL_DIMENSIONS + DECISION_DIMENSIONS + NON_INFERIORITY_DIMENSIONS
+
+    @staticmethod
+    def _stem(prompt_sha: str, provenance: str | None) -> dict:
+        """One minimal stem: same prompt, and an A1.5 cell whose built input can
+        be varied independently of it. That independence is the whole point."""
+        return {
+            "build": {"git_sha": "a" * 40, "dirty": False, "prompt_sha": prompt_sha},
+            "runs": [
+                {
+                    "arm": "A1.5",
+                    "model": "a-model",
+                    "tier": "weak",
+                    "replicate": 1,
+                    "branch": "decide",
+                    "scenario_key": "cofounder_equity",
+                    "static_context_provenance": provenance,
+                }
+            ],
+            "comparisons": [],
+        }
+
+    def test_a_built_input_that_changed_is_refused_even_on_one_prompt_sha(
+        self, capsys, monkeypatch
+    ):
+        """The real `a15-floor` -> `weave-offturn` case.
+
+        A1.5's whole input is a pre-built graph dump, and `abe386d` took it from
+        `woven=0 transformations=0` to `woven=5 transformations=42` without moving
+        a prompt byte. The prompt gate passes both, so pooling them would average
+        two different arms and report it as one arm with twice the n.
+        """
+        from e2e import read_pooled
+
+        tmp = {
+            "floor": self._stem("b" * 40, "perspectives=6 woven=0 transformations=0"),
+            "woven": self._stem("b" * 40, "perspectives=5 woven=5 transformations=42"),
+        }
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: tmp[p.stem])
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        code = read_pooled.read(["floor", "woven"], ("A1.5", "A1"))
+        out = capsys.readouterr().out
+        assert code == 2, "a changed built input was pooled anyway"
+        assert "static context DIFFERS across stems for A1.5" in out
+        assert "FRAMEWORK WINS" not in out
+
+    def test_the_same_built_recipe_still_pools(self, capsys, monkeypatch):
+        """The gate must not be a blanket refusal of every A1.5 pool.
+
+        `weave-offturn` and `feasibility-offturn` record the identical recipe and
+        differ in `static_context_chars` (26,312 vs 25,348) only because the text
+        is generated. Gating on the size would refuse every pool that can exist.
+        """
+        from e2e import read_pooled
+
+        recipe = "perspectives=5 woven=5 transformations=42"
+        tmp = {"one": self._stem("b" * 40, recipe), "two": self._stem("b" * 40, recipe)}
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: tmp[p.stem])
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        read_pooled.read(["one", "two"], ("A1.5", "A1"))
+        out = capsys.readouterr().out
+        assert "POOLABLE" in out and "NOT POOLABLE" not in out
+
+    def test_an_arm_with_no_built_input_is_not_a_mismatch(self, capsys, monkeypatch):
+        """A1 and A2 record no static context. Absent must read as "nothing built
+        to differ", not as a difference — otherwise the gate refuses every pool of
+        the arms it was not written about."""
+        from e2e import read_pooled
+
+        tmp = {"one": self._stem("b" * 40, None), "two": self._stem("b" * 40, None)}
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: tmp[p.stem])
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        read_pooled.read(["one", "two"], ("A2", "A1.7"))
+        out = capsys.readouterr().out
+        assert "POOLABLE" in out and "NOT POOLABLE" not in out
+
+    def test_the_headline_composite_holds_the_ni_dimensions_out(
+        self, capsys, monkeypatch
+    ):
+        """`a15-floor`'s correction, in the tool instead of by hand.
+
+        Built so the two groups disagree in SIGN: the three NI dimensions are
+        +2 and the nine structural ones are -1. A blended composite reads
+        positive; the structural endpoint reads negative. If this ever prints a
+        win, the NI rows are back inside the headline.
+        """
+        from e2e import read_pooled
+        from e2e.read_prereg import LOSES, WINS
+
+        scores = {
+            d: ((3.0, 1.0) if d in NON_INFERIORITY_DIMENSIONS else (1.0, 2.0))
+            for d in self._twelve()
+        }
+        stem = self._stem("b" * 40, None)
+        stem["comparisons"] = [
+            {
+                "arm_a": "A1.5",
+                "arm_b": "A1",
+                "tier": "weak",
+                "replicate": rep,
+                "scenario_key": "cofounder_equity",
+                "session_label": "decide",
+                "x_arm": "A1.5",
+                "scores": scores,
+            }
+            for rep in (1, 2, 3, 4)
+        ]
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: stem)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        assert read_pooled.read(["one"], ("A1.5", "A1")) == 0
+        out = capsys.readouterr().out
+        endpoint, bound = out.split("NON-INFERIORITY BOUND")
+        assert "STRUCTURAL composite" in endpoint
+        assert "-1.000" in endpoint, "the structural composite is not -1.0"
+        assert WINS not in endpoint
+        # And the NI group is reported, without a verdict word to be quoted.
+        assert "+2.000" in bound
+        assert WINS not in bound and LOSES not in bound
+
+    def _clustered_stem(self, cell_by_replicate: dict[int, float]) -> dict:
+        """A stem whose structural cell is a chosen constant within a replicate.
+
+        Two comparisons per replicate, because the ICC is undefined at one — and
+        because a design effect is a statement about pairs SHARING a replicate,
+        which a design with one pair per replicate does not have.
+        """
+        stem = self._stem("b" * 40, None)
+        stem["comparisons"] = [
+            {
+                "arm_a": "A2",
+                "arm_b": "A1.7",
+                "tier": "weak",
+                "replicate": rep,
+                "scenario_key": "cofounder_equity",
+                "session_label": label,
+                "x_arm": "A2",
+                "scores": {
+                    d: (3, 1) if d in NON_INFERIORITY_DIMENSIONS else (3 + cell, 3)
+                    for d in self._twelve()
+                },
+            }
+            for rep, cell in cell_by_replicate.items()
+            for label in ("decide", "wobble_a")
+        ]
+        return stem
+
+    def test_the_corrected_row_appears_only_when_the_icc_is_positive(
+        self, capsys, monkeypatch
+    ):
+        """Tight clusters far apart: pairs inside a replicate agree, replicates
+        do not. That is the case the flat interval overstates, and the corrected
+        row is what the write-up is told to quote instead of it."""
+        from e2e import read_pooled
+
+        stem = self._clustered_stem({1: 2, 2: 0, 3: -2})
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: stem)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        assert read_pooled.read(["one"], ("A2", "A1.7")) == 0
+        out = capsys.readouterr().out
+        assert "ICC > 0" in out
+        assert "FLAT, deff-corrected (primary)" in out
+        assert "effective n=" in out
+
+    def test_the_corrected_row_is_absent_when_pairs_are_not_alike(
+        self, capsys, monkeypatch
+    ):
+        """r21's case. A negative ICC means the flat interval is already the
+        conservative one, and printing a second "corrected" row there would
+        invite someone to quote whichever of the two reads better."""
+        from e2e import read_pooled
+
+        # Wide spread WITHIN each replicate, replicate means coinciding.
+        stem = self._clustered_stem({1: 2, 2: -2, 3: 2})
+        stem["comparisons"][1]["scores"] = {
+            d: (3, 1) if d in NON_INFERIORITY_DIMENSIONS else (1, 3)
+            for d in self._twelve()
+        }
+        stem["comparisons"][3]["scores"] = {
+            d: (3, 1) if d in NON_INFERIORITY_DIMENSIONS else (5, 3)
+            for d in self._twelve()
+        }
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: stem)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        assert read_pooled.read(["one"], ("A2", "A1.7")) == 0
+        out = capsys.readouterr().out
+        assert "ICC <= 0" in out
+        assert "deff-corrected" not in out
+
+    def test_a_verdict_that_only_the_old_blend_produced_is_flagged_not_adopted(
+        self, capsys, monkeypatch
+    ):
+        """The r21+r22 case, which is why this warning exists.
+
+        Built so the blend WINS on the NI group alone while the structural
+        endpoint is unresolved. The tool must print both and refuse to present
+        the change as a corrected verdict — switching to the reading that
+        excludes zero after seeing that it does is the forbidden move, and it is
+        worse when the switch flatters the framework.
+        """
+        from e2e import read_pooled
+        from e2e.read_prereg import UNRESOLVED, WINS
+
+        stem = self._stem("b" * 40, None)
+        stem["comparisons"] = [
+            {
+                "arm_a": "A1.5",
+                "arm_b": "A1",
+                "tier": "weak",
+                "replicate": rep,
+                "scenario_key": "cofounder_equity",
+                "session_label": "decide",
+                "x_arm": "A1.5",
+                "scores": {
+                    d: (
+                        (5, 1)
+                        if d in NON_INFERIORITY_DIMENSIONS
+                        else (2, 1) if rep % 2 else (1, 2)
+                    )
+                    for d in self._twelve()
+                },
+            }
+            for rep in range(1, 7)
+        ]
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: stem)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        assert read_pooled.read(["one"], ("A1.5", "A1")) == 0
+        out = capsys.readouterr().out
+        endpoint = out.split("NON-INFERIORITY BOUND")[0]
+        assert UNRESOLVED in endpoint, "the structural endpoint should not resolve"
+        assert "READS DIFFERENTLY UNDER THE OLDER BLENDED COMPOSITE" in endpoint
+        assert WINS in endpoint.split("OLDER BLENDED COMPOSITE")[1]
+        assert "NOT" in endpoint.split("OLDER BLENDED COMPOSITE")[1]
+
+    def test_the_ni_names_are_printed_and_not_just_counted(self, capsys, monkeypatch):
+        """`a15-floor` published a headline with `actionability` inside it and the
+        reader could not have known which rows were in there."""
+        from e2e import read_pooled
+
+        stem = self._stem("b" * 40, None)
+        stem["comparisons"] = [
+            {
+                "arm_a": "A1.5",
+                "arm_b": "A1",
+                "tier": "weak",
+                "replicate": rep,
+                "scenario_key": "cofounder_equity",
+                "session_label": "decide",
+                "x_arm": "A1.5",
+                "scores": {d: (2.0, 1.0) for d in self._twelve()},
+            }
+            for rep in (1, 2)
+        ]
+        monkeypatch.setattr(read_pooled, "load_records", lambda p: stem)
+        monkeypatch.setattr(read_pooled.Path, "exists", lambda self: True)
+
+        read_pooled.read(["one"], ("A1.5", "A1"))
+        out = capsys.readouterr().out
+        assert "held OUT of this composite: actionability" in out
+        assert "warmth" in out.split("held OUT of this composite")[1]
 
 
 class TestR22PreRegistration:
