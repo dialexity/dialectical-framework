@@ -66,6 +66,37 @@ WHAT IS MEASURED
   first-vs-second split is reported, because alternating alone would convert a
   positional preference into a fake 50/50 between the arms instead of exposing it.
   It turned out to be biased, which is why that control is not optional.
+- **Whether the judge is rating faithfulness or LENGTH** (added 2026-09-17, after
+  the faithfulness endpoint failed in a run where arm A also happened to yield 6%
+  more candidates — a lean toward the fuller set would look exactly like a lean
+  toward arm A). Two extra comparisons per rep, through the same judge:
+  a **length control**, one arm's set against a randomly trimmed copy of ITSELF,
+  where provenance is identical on both sides and only the count differs, so
+  "tie" is the clean result and any lean to the fuller side is the judge rating
+  size; and a **length-matched re-judge**, A against C with the counts equalised.
+  The control is the cleaner instrument of the two — trimming for the matched
+  comparison discards real claims and which ones is luck, so a lean that
+  disappears under it has been perturbed, not refuted. The trim is random rather
+  than positional (a tail trim would drop whatever the document says last and get
+  read as unfaithfulness) and seeded on document+rep so a surprising result
+  reproduces instead of re-rolling. `self_contained` is expected to favour the
+  fuller set there and is not evidence: the judge is asked for it as a COUNT
+  first, and a trimmed set has a smaller one by construction — that lean is a
+  sign the judge is reading the question, and faithfulness is the line that
+  matters because nothing about it scales with size. Both are DIAGNOSTIC and
+  neither is an endpoint: an instrument built after seeing a result cannot retire
+  the endpoint it was built to question, only say whether that endpoint deserves
+  a rerun under a corrected design.
+- **Per-claim support, UNPAIRED** (added 2026-09-17 after the paired judge
+  returned both verdicts on two runs of the same code and model). One arm's set,
+  the source, and one verdict per claim — supported / distorted / invented. No
+  second set to be longer than, no position to prefer, no tie to hide in, and the
+  output is a RATE over hundreds of claims rather than a preference over twelve
+  comparisons. Read against one arm's own rep-to-rep swing, because a gap between
+  arms smaller than how much a single arm moves by itself is not a difference.
+  A verdict list that does not line up with the set is DISCARDED rather than
+  truncated, and the count of discards is printed: a rate computed over a
+  misaligned list is a made-up number.
 
 The gate metric is read over `is_assertable` and `is_substantive` ONLY, because
 those two are what `_step2_identify_candidates` branches on. `is_atomic` is on the
@@ -244,14 +275,88 @@ DEIXIS — 0 of 153, 0 of 180, 0 of 144. Third consecutive null for that instrum
 across three runs and two arms. It is a regression guard and nothing more; do not
 add reps hoping to move it.
 
-WHAT THIS SETTLES AND WHAT IT DOES NOT. Settled: arm C is not a default. The knob
-stays, `True`, opt-in, for a caller who has measured their own corpus and accepts a
-~7x cheaper ingest against a faithfulness lean — the code path is real, tested
-(`tests/test_thesis_extraction_step2_source.py`) and shape-identical to arm A.
-NOT settled: whether the 9-2 is arm C being less faithful or the judge preferring
-the longer of two sets (A yielded 6% more candidates, and the judge saw both sets
-whole). A length-matched re-judge is the obvious next instrument and is NOT built.
-Nothing here supports a third variant on top of arm C.
+That run left the faithfulness result open: whether the 9-2 was arm C being less
+faithful, or the judge preferring the longer of two sets (A yielded 6% more
+candidates, and the judge saw both sets whole). Two more runs and two new
+instruments answered that, and the answer is that the PAIRED JUDGE cannot settle
+it.
+
+RESULTS (runs 2 and 3, same day, same code, same models, REPS=4)
+===============================================================
+Run 2 added the length controls; run 3 added the per-claim support check. Both
+re-ran every endpoint unchanged. **The protocol returned a different verdict each
+time: DON'T TAKE, then TAKE, then NO CALL.** That is the headline, and it is a
+finding about the instrument rather than about arm C.
+
+WHAT IS STABLE ACROSS ALL THREE RUNS — and it is most of what matters:
+    cost         C projects to 13.9-15.0% of A at `CHUNK_SIZE`, **6.7-7.2x**, on
+                 every document in every run. B is 11.7%, 8.5x, every time.
+    keep/drop    A-vs-C **0.0% in all three runs (0/72, 0/72, 0/72)** against
+                 within-arm floors that were 0.0% every time. 216 paired gate
+                 comparisons and not one disagreement on what step 2 keeps.
+    deixis       0 candidates in every arm in every run. Fourth null.
+    yield        NOT stable, and the run-1 claim that A yields 6% more than C does
+                 not hold up: A/C were 153/144, then 163/165, then 120/116. The
+                 totals themselves swing 35% run to run. So the length asymmetry
+                 that motivated the confound worry is itself noise.
+
+WHAT IS NOT STABLE is the paired judge, in three separate ways:
+    faithful     run 1  A 9  C 2  tie  1   -> endpoint FAILS
+                 run 2  A 5  C 1  tie  6   -> endpoint passes
+                 run 3  A 5  C 3  tie  4   -> endpoint passes
+                 pooled A 19 C 6 tie 11 -> the endpoint FAILS pooled (19*2 > 36),
+                 and excluding ties the lean is 76% (82%, 83%, 62% per run).
+    ties         1, then 6, then 4 out of 12. The endpoint counts ties against
+                 detection, so its pass/fail is decided by how often the judge
+                 shrugs — which is the least stable thing it does.
+    position     its raw first-vs-second split was 62%, then 47%, then **73%**.
+                 Alternating the labels neutralises that on AVERAGE (six
+                 comparisons each way), so it inflates variance rather than
+                 favouring an arm — but a judge whose position preference swings
+                 that far is not measuring a 5-3 difference.
+    control      arm B's known `is_substantive` effect reproduced in run 2 only
+                 (5.6%, 4/72, all four the same direction as 2026-09-11). Runs 1
+                 and 3 got 0.0%. The effect is five-items-in-ninety small, so this
+                 instrument is at the edge of its resolution on 4 reps.
+
+THE TWO CONFOUND-FREE INSTRUMENTS BOTH FIND NOTHING:
+    counts equalised (A vs C, trimmed to the same size): run 2 A 3 / C 4 / tie 5,
+        run 3 A 4 / C 4 / tie 4.
+    length control (one arm against a trimmed copy of ITSELF): the judge preferred
+        the fuller set on faithfulness 2 of 8 comparisons then 1 of 6 — 3 decided
+        calls in 14, so a sign of a size preference and nowhere near a measurement
+        of one. `self_contained` stayed a total tie there, which is the sanity
+        check: it is asked as a count, so a length-rating judge should have leaned
+        fuller, and it did not.
+    per-claim support (run 3, unpaired, the one instrument with a denominator in
+        the hundreds): **A 43.3% unsupported (52/120), C 45.7% (53/116)** — a
+        2.4pp gap inside arm A's own 38pp rep-to-rep swing, and not close to
+        significant on those counts. Same direction as the paired judge, far too
+        small to be what the paired judge was reporting.
+
+A SEPARATE FINDING, ARM-INDEPENDENT AND BIGGER THAN THE ARM QUESTION: that
+per-claim check says **~44% of everything step 2 emits is not cleanly supported by
+its own source** — 36 distorted and 16 invented of arm A's 120 claims, and the
+same shape for arm C. One judge, one prompt, unvalidated, and "distorted" will be
+catching legitimate compression, so this is a lead and not a number to quote. But
+it is measured on the shipped default path and it dwarfs anything the arms differ
+by. It is recorded in CLAUDE.md as an open question about extraction, not about
+this setting.
+
+WHAT THIS SETTLES. Arm C stays a knob and NOT a default, and the reason is now
+different from run 1's: not that arm C is less faithful, but that three runs of a
+preregistered protocol produced three verdicts, so there is no stable positive
+result to move a reasoning default on. The conservative reading also happens to be
+the cheap one to hold: every stable measurement is either neutral (keep/drop,
+deixis, both confound-free faithfulness instruments) or in arm A's favour by a
+small amount (the paired judge's 76% of decided comparisons). Nobody should flip
+this default on a run that says TAKE; pool it against these three first.
+
+WHAT WOULD SETTLE IT, and none of it is built: more reps (the arm-B control needs
+enough resolution to reproduce reliably before any null here is readable), more
+runs of the per-claim check, which has exactly one behind it, and a
+`CHUNK_SIZE`-sized document so the cost figure stops being a projection. Nothing
+here supports a third variant on top of arm C.
 """
 
 from __future__ import annotations
@@ -260,6 +365,7 @@ import asyncio
 import inspect
 import logging
 import os
+import random
 import time
 from contextlib import contextmanager
 from typing import Iterator, Literal, Optional
@@ -460,6 +566,130 @@ Judge set X against set Y on three things:
    ("X enables Y") counts as ONE claim and must not be split.
 
 Answer "tie" on any criterion where the sets are comparable."""
+
+
+async def _judge(
+    container, document: str, set_x: list[str], set_y: list[str]
+) -> JudgeDto:
+    """One judge call. Every comparison in this probe goes through here.
+
+    Shared rather than inlined per comparison because two of the three callers
+    are CONTROLS on the third, and a control is only a control while it is the
+    same instrument: a different system prompt, a different criteria list or a
+    different model would make its "tie" unreadable against the other's lean.
+    """
+    with using_model(container, DEFAULT_TIER_STRONG):
+        conversation = ConversationFacilitator()
+        conversation.set_system_prompt(_JUDGE_SYSTEM)
+        return await conversation.submit(
+            response_model=JudgeDto,
+            user_content=_judge_prompt(document, set_x, set_y),
+        )
+
+
+# --- Faithfulness without a comparison ----------------------------------------
+# The paired judge above cannot settle faithfulness, and two runs of it proved
+# that rather than argued it: 2026-09-17 run 1 said A 9 / C 2 / tie 1 and failed
+# the endpoint, run 2 said A 5 / C 1 / tie 6 and passed it, on the same code and
+# the same model. The DIRECTION held (82% and 83% of decided comparisons went to
+# A) and the tie rate is what moved, so the endpoint's pass/fail was decided by
+# how often the judge shrugged. A paired judge also has two nuisance variables
+# built in — set size and set position — and the controls found both.
+#
+# So this instrument drops the pairing. One arm's set, one source, one verdict per
+# claim: is this stated in the source or not. There is no other set to be longer
+# than and no position to prefer, the output is a RATE rather than a preference,
+# and ties are not expressible. Cost is the same order as the paired judge (one
+# call per arm per rep) because the claims are batched into one call, not asked
+# one at a time.
+
+_SUPPORT_SYSTEM = """\
+You are checking candidate theses against the source document they were extracted
+from. Judge each thesis on its own and against the source only. You are not
+comparing lists and there is no second list. Being incomplete is not a fault here:
+a thesis that states less than the source does is still supported.
+"""
+
+
+class ClaimVerdictDto(BaseModel):
+    """One thesis, checked against the source."""
+
+    thesis: str = Field(description="The thesis being judged, copied verbatim")
+    verdict: Literal["supported", "distorted", "invented"] = Field(
+        description="supported = the source states this, in these or other words; "
+        "distorted = the source says something related but this changes its "
+        "meaning, direction or strength; invented = the source does not support it"
+    )
+
+
+class SupportDto(BaseModel):
+    verdicts: list[ClaimVerdictDto] = Field(
+        description="One entry per thesis, in the order given"
+    )
+
+
+def _support_prompt(source: str, candidates: list[str]) -> str:
+    listed = "\n".join(f"{i + 1}. {c}" for i, c in enumerate(candidates))
+    return f"""<source>
+{source}
+</source>
+
+<theses>
+{listed}
+</theses>
+
+Return one verdict per thesis, in the order given, copying each thesis verbatim:
+- supported — the source states this, in these words or others.
+- distorted — the source says something related, but this changes its meaning,
+  its causal direction, or its strength.
+- invented — the source does not support this.
+
+Judge only whether the source backs the thesis. Do not judge wording, overlap
+with other theses, or whether anything is missing."""
+
+
+async def _support(
+    container, document: str, candidates: list[str]
+) -> Optional[list[str]]:
+    """Per-claim support verdicts for one set, or None if they cannot be aligned.
+
+    A returned list shorter or longer than the set means the model dropped or
+    merged entries, and a rate computed over a misaligned list is a made-up
+    number — so the call is discarded and the report says how many were.
+    """
+    if not candidates:
+        return []
+    with using_model(container, DEFAULT_TIER_STRONG):
+        conversation = ConversationFacilitator()
+        conversation.set_system_prompt(_SUPPORT_SYSTEM)
+        result = await conversation.submit(
+            response_model=SupportDto,
+            user_content=_support_prompt(document, candidates),
+        )
+    if len(result.verdicts) != len(candidates):
+        return None
+    return [v.verdict for v in result.verdicts]
+
+
+# --- Length as a confound ------------------------------------------------------
+
+
+def _trimmed(candidates: list[str], keep: int, seed: str) -> list[str]:
+    """A subset of `keep` candidates, chosen at random, in the original order.
+
+    RANDOM and not positional: a set trimmed from the tail loses whatever the
+    document said last, so a positional trim would test coverage of the ending
+    and get read as length. Order is restored after sampling because the sets
+    otherwise arrive in document order, and scrambling one side would introduce a
+    second difference into a comparison whose whole point is having one.
+
+    Seeded on the document and rep so a re-run trims identically: a surprising
+    verdict has to be reproducible rather than re-rollable.
+    """
+    if keep >= len(candidates):
+        return list(candidates)
+    kept = sorted(random.Random(seed).sample(range(len(candidates)), keep))
+    return [candidates[i] for i in kept]
 
 
 # --- The arms -----------------------------------------------------------------
@@ -672,6 +902,36 @@ async def test_probe_step2_isolate_ab(di_container):
     #: not detect it. This is the control that detects it.
     judge_positional = {"x": 0, "y": 0, "tie": 0}
     judge_notes: list[str] = []
+    #: The 2026-09-17 open question, instrumented. Arm A yielded 6% more
+    #: candidates than arm C and the judge above saw both sets whole, so its
+    #: faithfulness lean toward A could be a preference for the longer set. Two
+    #: extra comparisons per rep separate the two:
+    #:   `length_*`  — the SAME arm's set against a randomly trimmed copy of
+    #:                 itself. Provenance is identical on both sides and only the
+    #:                 count differs, so "tie" is the clean result and any lean to
+    #:                 the fuller side is the judge rating length. This is the
+    #:                 cleaner of the two instruments.
+    #:   `matched_*` — A against C with the counts equalised. Closer to the real
+    #:                 question but not clean: trimming removes real claims, and
+    #:                 which ones it removes is luck.
+    matched_wins = {"self_contained": [], "faithful": [], "atomic": []}
+    matched_positional = {"x": 0, "y": 0, "tie": 0}
+    length_wins = {"self_contained": [], "faithful": [], "atomic": []}
+    length_positional = {"x": 0, "y": 0, "tie": 0}
+    #: How often each arm was the longer one, and by how much. The direction
+    #: matters: a length-preferring judge helps whichever arm happened to be
+    #: fuller, so it only confounds the A lean while A is usually the fuller one.
+    longer_arm_counts = {"A": 0, "C": 0, "equal": 0}
+    trimmed_amounts: list[int] = []
+    #: Per-claim support, unpaired: arm -> verdict -> count, plus the per-rep
+    #: unsupported rate so the spread is visible and the arms' difference can be
+    #: read against it. `dropped` counts calls whose verdict list did not line up
+    #: with the set and were therefore discarded.
+    support: dict[str, dict[str, int]] = {
+        arm: {"supported": 0, "distorted": 0, "invented": 0} for arm in ("A", "C")
+    }
+    support_rates: dict[str, list[float]] = {"A": [], "C": []}
+    support_dropped = 0
     #: Per-document, per-arm (prefill, calls). The projection needs the per-call
     #: figure against a KNOWN document size, which the aggregate cannot give.
     by_doc: dict[str, dict[str, list[int]]] = {}
@@ -760,15 +1020,14 @@ async def test_probe_step2_isolate_ab(di_container):
             # decides A against C; arm B is the positive control and is decided by
             # the gate fields, which is where its effect was found.
             a_is_x = rep % 2 == 0
-            set_x = per_rep_candidates["A" if a_is_x else "C"][rep]
-            set_y = per_rep_candidates["C" if a_is_x else "A"][rep]
-            with using_model(di_container, DEFAULT_TIER_STRONG):
-                judge_conversation = ConversationFacilitator()
-                judge_conversation.set_system_prompt(_JUDGE_SYSTEM)
-                verdict = await judge_conversation.submit(
-                    response_model=JudgeDto,
-                    user_content=_judge_prompt(document, set_x, set_y),
-                )
+            a_set = per_rep_candidates["A"][rep]
+            c_set = per_rep_candidates["C"][rep]
+            verdict = await _judge(
+                di_container,
+                document,
+                a_set if a_is_x else c_set,
+                c_set if a_is_x else a_set,
+            )
 
             def unblind(choice: str) -> str:
                 if choice == "tie":
@@ -776,13 +1035,84 @@ async def test_probe_step2_isolate_ab(di_container):
                 chose_x = choice == "x"
                 return "A" if chose_x == a_is_x else "C"
 
-            judge_wins["self_contained"].append(unblind(verdict.self_contained_winner))
-            judge_wins["faithful"].append(unblind(verdict.faithful_winner))
-            judge_wins["atomic"].append(unblind(verdict.atomic_winner))
-            for raw in (verdict.self_contained_winner, verdict.faithful_winner,
-                        verdict.atomic_winner):
-                judge_positional[raw] += 1
+            def record(into: dict, positional: dict, dto: JudgeDto, name_of) -> None:
+                """Tally one judge verdict, unblinded, plus its raw split."""
+                for criterion, choice in (
+                    ("self_contained", dto.self_contained_winner),
+                    ("faithful", dto.faithful_winner),
+                    ("atomic", dto.atomic_winner),
+                ):
+                    into[criterion].append(name_of(choice))
+                    positional[choice] += 1
+
+            record(judge_wins, judge_positional, verdict, unblind)
             judge_notes.append(f"{name} rep{rep}: {verdict.note}")
+
+            # The unpaired per-claim check. Both arms in one gather: they are
+            # independent calls and this is the one place in the probe where two
+            # provider calls can overlap without either arm's cost measurement
+            # seeing the other (the census closed before the judge ran).
+            a_support, c_support = await asyncio.gather(
+                _support(di_container, document, a_set),
+                _support(di_container, document, c_set),
+            )
+            for arm, verdicts in (("A", a_support), ("C", c_support)):
+                if verdicts is None:
+                    support_dropped += 1
+                    continue
+                for one in verdicts:
+                    support[arm][one] += 1
+                if verdicts:
+                    unsupported = sum(1 for v in verdicts if v != "supported")
+                    support_rates[arm].append(unsupported / len(verdicts))
+
+            # The two length controls. `keep` is the smaller set's size, so the
+            # fuller arm is the one that gets trimmed and the other is untouched —
+            # trimming both would throw away claims for nothing.
+            keep = min(len(a_set), len(c_set))
+            if len(a_set) > len(c_set):
+                longer = "A"
+            elif len(c_set) > len(a_set):
+                longer = "C"
+            else:
+                longer = None
+            longer_arm_counts[longer or "equal"] += 1
+            fuller = a_set if longer == "A" else c_set
+            trimmed = _trimmed(fuller, keep, f"{name}-{rep}") if longer else None
+
+            # (1) The re-judge with the counts equal. Same blinding as above, so
+            #     its tally is directly comparable to the endpoint's.
+            a_matched = trimmed if longer == "A" else a_set
+            c_matched = trimmed if longer == "C" else c_set
+            matched = await _judge(
+                di_container,
+                document,
+                a_matched if a_is_x else c_matched,
+                c_matched if a_is_x else a_matched,
+            )
+            record(matched_wins, matched_positional, matched, unblind)
+
+            # (2) The judge's length preference itself, measured on one arm's own
+            #     output against a trimmed copy of it. Skipped when the counts
+            #     already matched: there is no length difference to have an
+            #     opinion about, and feeding it two identical sets would only
+            #     measure how often it ties.
+            if longer is not None:
+                trimmed_amounts.append(len(fuller) - keep)
+                fuller_is_x = rep % 2 == 0
+
+                def unblind_length(choice: str) -> str:
+                    if choice == "tie":
+                        return "tie"
+                    return "fuller" if (choice == "x") == fuller_is_x else "trimmed"
+
+                length = await _judge(
+                    di_container,
+                    document,
+                    fuller if fuller_is_x else trimmed,
+                    trimmed if fuller_is_x else fuller,
+                )
+                record(length_wins, length_positional, length, unblind_length)
 
             counts = "  ".join(
                 f"{arm} {len(per_rep_candidates[arm][rep]):2d}" for arm in ARMS
@@ -909,17 +1239,80 @@ async def test_probe_step2_isolate_ab(di_container):
     for criterion, votes in judge_wins.items():
         tally = {arm: votes.count(arm) for arm in ("A", "C", "tie")}
         print(f"  judge {criterion:<15} A {tally['A']}  C {tally['C']}  tie {tally['tie']}")
+    def positional(split: dict) -> str:
+        seen = split["x"] + split["y"]
+        return (f"first-shown {split['x']}   second {split['y']}"
+                f"   tie {split['tie']}"
+                + (f"   ({split['x'] / seen:.0%} to the first"
+                   f" — 50% is unbiased)" if seen else ""))
+
     # Read this before the three lines above. Lopsided here means the judge is
     # rating POSITION, and the alternating labels have spread that evenly across
     # the arms — which looks like "no arm effect" and is really "no signal".
-    decided = judge_positional["x"] + judge_positional["y"]
-    print(f"  judge positional control   first-set-shown {judge_positional['x']}"
-          f"   second {judge_positional['y']}   tie {judge_positional['tie']}"
-          + (f"   ({judge_positional['x'] / decided:.0%} to the first set"
-             f" — 50% is unbiased)" if decided else ""))
+    print(f"  judge positional control   {positional(judge_positional)}")
     print("\n  judge notes:")
     for note in judge_notes:
         print(f"    {note}")
+
+    # --- Is the judge rating faithfulness, or length? -------------------------
+    # Built 2026-09-17, after the run above failed its faithfulness endpoint while
+    # arm A also happened to yield 6% more candidates. Diagnostic only; see the
+    # note at the verdict.
+    print("\nLENGTH AS A CONFOUND (does the judge prefer the fuller set?)")
+    print(f"  which arm was longer   A {longer_arm_counts['A']}"
+          f"   C {longer_arm_counts['C']}"
+          f"   equal {longer_arm_counts['equal']} (control skipped)")
+    if trimmed_amounts:
+        print(f"  candidates trimmed off the fuller set   {trimmed_amounts}"
+              f"   (max {max(trimmed_amounts)})")
+    if not length_wins["faithful"]:
+        print("  every comparison had equal counts, so there was nothing to"
+              " control for and the endpoint above cannot be reading length.")
+    else:
+        print("  same arm on both sides, only the count differs — 'tie' is the"
+              " clean result:")
+        for criterion, votes in length_wins.items():
+            tally = {k: votes.count(k) for k in ("fuller", "trimmed", "tie")}
+            # `self_contained` is asked as two COUNTS before it is asked as a
+            # winner, and a trimmed set has a smaller count by construction. So a
+            # lean to `fuller` there is expected and is not evidence of a length
+            # bias; it is evidence the judge is reading the question. Faithfulness
+            # is the line that matters, and nothing about it scales with size.
+            aside = "   <- expected: it is asked as a count" if (
+                criterion == "self_contained") else ""
+            print(f"    {criterion:<15} fuller {tally['fuller']}"
+                  f"  trimmed {tally['trimmed']}  tie {tally['tie']}{aside}")
+        print(f"    positional control   {positional(length_positional)}")
+    print("  A against C with the counts equalised (the real comparison, but"
+          " trimming discards real claims and which ones is luck):")
+    for criterion, votes in matched_wins.items():
+        tally = {arm: votes.count(arm) for arm in ("A", "C", "tie")}
+        print(f"    {criterion:<15} A {tally['A']}  C {tally['C']}"
+              f"  tie {tally['tie']}")
+    print(f"    positional control   {positional(matched_positional)}")
+
+    # --- Faithfulness with nothing to compare against -------------------------
+    print("\nPER-CLAIM SUPPORT (unpaired: no other set, no position, no ties)")
+    if support_dropped:
+        print(f"  {support_dropped} call(s) DISCARDED for a verdict list that did"
+              f" not line up with the set — those claims are not in the counts")
+    for arm in ("A", "C"):
+        counts = support[arm]
+        total = sum(counts.values())
+        if not total:
+            print(f"  arm {arm}   nothing measured")
+            continue
+        unsupported = counts["distorted"] + counts["invented"]
+        print(f"  arm {arm}   {unsupported / total:5.1%} not supported"
+              f" ({unsupported}/{total})"
+              f"   distorted {counts['distorted']}  invented {counts['invented']}")
+        # Per-rep spread, because the arms' difference has to be read against how
+        # much one arm varies from rep to rep. A gap smaller than that is nothing.
+        spread = support_rates[arm]
+        if spread:
+            print(f"           per-rep  "
+                  + " ".join(f"{r:.0%}" for r in spread)
+                  + f"   (min {min(spread):.0%}, max {max(spread):.0%})")
 
     # --- Preregistered verdict ----------------------------------------------
 
@@ -1000,6 +1393,57 @@ async def test_probe_step2_isolate_ab(di_container):
             note += ".\n  This leans A while passing the endpoint as written."
         print(note)
 
+    # The faithfulness reading, across all three instruments. DIAGNOSTIC, and
+    # deliberately not an endpoint: this probe's discipline is that a reasoning
+    # default moves on a preregistered measurement, and an instrument built after
+    # seeing a result cannot retire the endpoint it was built to question. What it
+    # can do is say whether that endpoint deserves a rerun under a better design.
+    fuller_wins = length_wins["faithful"].count("fuller")
+    trimmed_wins = length_wins["faithful"].count("trimmed")
+    length_decided = fuller_wins + trimmed_wins
+    matched_a = matched_wins["faithful"].count("A")
+    matched_c = matched_wins["faithful"].count("C")
+
+    def unsupported_rate(arm: str) -> Optional[float]:
+        total = sum(support[arm].values())
+        if not total:
+            return None
+        return (support[arm]["distorted"] + support[arm]["invented"]) / total
+
+    print("\n  faithfulness reading (diagnostic, cannot change the verdict below):")
+    print(f"    paired judge, the endpoint:  A {faithful_a}  C {faithful_c}"
+          f"  tie {len(judge_wins['faithful']) - faithful_a - faithful_c}")
+    if length_decided:
+        # Say the DENOMINATOR out loud. A 2-0 on eight comparisons is a sign, not
+        # a measurement, and the previous wording let it read as one.
+        print(f"    length control:  the judge preferred the fuller of two"
+              f" identical-provenance sets {fuller_wins} time(s) to"
+              f" {trimmed_wins}, on {len(length_wins['faithful'])} comparison(s)"
+              f" of which {length_decided} were decided")
+    else:
+        print("    length control:  no comparison had unequal counts, so the"
+              " judge's size preference was not measured at all this run")
+    print(f"    counts equalised:  A {matched_a}  C {matched_c}"
+          f"  tie {len(matched_wins['faithful']) - matched_a - matched_c}")
+    rate_a, rate_c = unsupported_rate("A"), unsupported_rate("C")
+    if rate_a is None or rate_c is None:
+        print("    per-claim support:  not measured")
+    else:
+        # The only one of the four with a denominator in the hundreds, and the
+        # only one with no nuisance variable. Read against arm A's own rep-to-rep
+        # spread: a gap smaller than how much one arm moves by itself is nothing.
+        gap = rate_c - rate_a
+        own = support_rates["A"]
+        swing = (max(own) - min(own)) if len(own) > 1 else None
+        line = (f"    per-claim support:  A {rate_a:.1%} unsupported,"
+                f" C {rate_c:.1%}  ->  C is {abs(gap) * 100:.1f}pp"
+                f" {'worse' if gap > 0 else 'better'}")
+        if swing is not None:
+            line += (f", against arm A's own rep-to-rep swing of"
+                     f" {swing * 100:.1f}pp"
+                     f" — {'INSIDE' if abs(gap) <= swing else 'OUTSIDE'} it")
+        print(line)
+
     print()
     if failures:
         print(f"VERDICT: DON'T TAKE arm C — {len(failures)} endpoint(s) failed")
@@ -1012,9 +1456,20 @@ async def test_probe_step2_isolate_ab(di_container):
             " more reps before flipping the default."
         )
     else:
+        # A TAKE is PROVISIONAL until it reproduces, and this is not a threshold
+        # invented to dislike an answer: the same endpoints on the same code and
+        # the same model gave DON'T TAKE and then TAKE on two 2026-09-17 runs, so
+        # a single run of this protocol is demonstrably not decisive. The tie rate
+        # is what moved (1 tie, then 6) while the judge's lean among decided
+        # comparisons held at 82-83% both times, so the faithfulness endpoint's
+        # pass/fail turns on how often the judge shrugs. Pool the runs recorded in
+        # this file's RESULTS sections before touching the default.
         print(
-            "VERDICT: TAKE arm C — the saving is real, the instrument was"
-            " sensitive enough to catch arm B, and no reasoning endpoint moved."
+            "VERDICT: TAKE arm C on THIS RUN — the saving is real, the instrument"
+            " was sensitive enough to catch arm B, and no reasoning endpoint moved."
+            "\n  PROVISIONAL: this protocol has already returned both answers on"
+            " different runs. Pool this run with the RESULTS sections above and"
+            " check the per-claim support line before flipping anything."
             " Flip `extraction_step2_carries_source` to False by default."
         )
     print("Record these numbers in this file's RESULTS section.")

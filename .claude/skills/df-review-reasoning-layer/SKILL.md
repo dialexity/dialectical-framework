@@ -155,20 +155,32 @@ co-occurrence hotspots. Then:
       disagreement was `is_substantive` flipping the same way — the gate ADMITS what it would otherwise reject,
       because "substantive" means "adds something to THIS document" and no item states that about itself. The
       elided-source arm (step 1's request and answer kept, the window replaced by a sentinel) keeps the sibling
-      items for exactly that reason, is worth 6.8-7.2x, moved no keep/drop decision at all (0.0% of 72 on 0.0%
-      floors) — and was still rejected, because a blinded judge with a clean 47% positional control preferred the
-      source-carrying arm on faithfulness in 9 of 12 comparisons. Generalize: **ask which of a call's judgements
-      are properties of the item and which are properties of the item's place in the source**; only the first
-      survive losing the history. Both arms remain shipped behind `extraction_step2_carries_source` (default
-      `True`) so a corpus with different economics can opt in (`tests/e2e/probe_step2_isolate_ab.py`,
-      `tests/test_thesis_extraction_step2_source.py`).
+      items for exactly that reason, is worth 6.7-7.2x, and moved no keep/drop decision at all — 0.0% in each of
+      three runs, 216 paired comparisons, on 0.0% floors. It is still not the default, and **the reason matters
+      if you reopen this: not that it lost, but that the protocol never settled.** The same preregistered
+      endpoints returned don't-take, take and no-call on three same-day runs. Generalize the mechanism anyway:
+      **ask which of a call's judgements are properties of the item and which are properties of the item's place
+      in the source**; only the first survive losing the history. Both arms remain shipped behind
+      `extraction_step2_carries_source` (default `True`) so a corpus with different economics can opt in
+      (`tests/e2e/probe_step2_isolate_ab.py`, `tests/test_thesis_extraction_step2_source.py`).
 - [ ] **An A/B over LLM judgements needs a self-consistency floor per arm, a decision metric restricted to fields
       code actually READS, and a positional control on any judge.** All three changed the verdict of the probe
-      above. The judge put 62% of its decided calls on whichever set was shown first in one run (and 47%, clean,
-      in the next), so alternating labels without REPORTING the raw split would have laundered a positional bias
-      into a fake 50/50 between arms — an apparent 7-2 lean died under that fix. A cross-arm rate with no
-      within-arm floor beside it is not a finding, and a run whose positive control fails to reproduce is not
-      evidence of agreement, only of an insensitive instrument.
+      above. Its judge put 62%, then 47%, then 73% of decided calls on whichever set was shown first, so
+      alternating labels without REPORTING the raw split would have laundered a positional bias into a fake
+      50/50 between arms — an apparent 7-2 lean died under that fix. A cross-arm rate with no within-arm floor
+      beside it is not a finding, and a run whose positive control fails to reproduce is not evidence of
+      agreement, only of an insensitive instrument (that control reproduced in 1 of 3 runs here, which is the
+      honest statement of the instrument's resolution).
+- [ ] **A PAIRWISE judge carries two nuisance variables — set SIZE and set POSITION — so prefer an UNPAIRED
+      per-item rating whenever the question allows one.** Both bit the probe above. Control size directly by
+      judging one arm's set against a randomly trimmed copy of ITSELF (identical provenance makes "tie" the clean
+      answer; trim randomly, not from the tail, or you are testing coverage of the ending). Then drop the pairing
+      where you can: `_support` rates every candidate against the source alone — no other set to be longer than,
+      no position to prefer, no tie to hide in, and a denominator in the hundreds instead of twelve. It found a
+      2.4pp difference inside a 38pp within-arm swing where the paired judge had been reporting a lopsided
+      preference across three runs. **And an endpoint that counts ties against detection is decided by the
+      judge's tie rate**, which was the least stable thing it did (1, 6, 4 of 12) — pool runs before moving a
+      default, and treat any single-run verdict as provisional.
 - [ ] **"Read by no code" is not "harmless" — a field can be unread while the thing it DESCRIBES is the
       output.** Restricting the decision metric to `is_assertable & is_substantive` was right (they are what
       `_step2_identify_candidates` branches on) but the corollary drawn from it was wrong for a year: `is_atomic`

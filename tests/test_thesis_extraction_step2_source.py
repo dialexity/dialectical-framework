@@ -18,12 +18,15 @@ question — must be byte-identical, or the A/B measures a rewritten prompt.
 The default is ON (the behaviour that has always run), and one test pins that
 default rather than the behaviour under it: this is a reasoning setting, so the
 default may only move on a measurement, and a silent flip would move it on an
-edit. **The measurement was run and it kept the default** (2026-09-17,
-`tests/e2e/probe_step2_isolate_ab.py`): the OFF arm changed no keep/drop decision
-and projects 6.8-7.2x cheaper, but a blinded judge with a clean positional control
-preferred the ON arm on faithfulness in 9 of 12 comparisons. So OFF is a supported,
-tested, opt-in path and NOT a recommendation — which is exactly why the tests below
-pin both arms equally.
+edit. **The measurement was run three times and never settled, so the default
+stands** (2026-09-17, `tests/e2e/probe_step2_isolate_ab.py`): the OFF arm changed
+no keep/drop decision in any run (0 of 216 paired comparisons) and projects
+6.7-7.2x cheaper, but the same preregistered endpoints returned don't-take, take
+and no-call on three runs, because the blinded judge's tie rate and positional
+bias both swing more than the difference it is being asked to detect. Two
+confound-free instruments found nothing either way. So OFF is a supported, tested,
+opt-in path that has NOT been shown to cost anything and has NOT earned a default
+flip — which is exactly why the tests below pin both arms equally.
 
 The rejected third possibility is pinned here too, by absence: dropping step 1's
 ANSWER as well was measured and rejected TWICE (`tests/e2e/probe_step2_isolate_ab.py`)
@@ -136,7 +139,7 @@ class TestTheDefaultIsTheBehaviourThatHasAlwaysRun:
         The arm below it is a reasoning change, so the default may only move on a
         measurement. Without this assertion it could move on an edit, and every
         number recorded against "arm A" would silently start describing the other
-        arm. The measurement exists and it went the other way — the probe's
+        arm. The measurement exists and did not license a flip — the probe's
         `_the_arms_are_the_shipped_code_paths` asserts this same default from the
         other side, so the two cannot drift.
         """

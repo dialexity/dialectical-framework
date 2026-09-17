@@ -140,17 +140,26 @@ class Settings(BaseModel):
     # type and asks four questions about it), and the sibling items still travel
     # in step 1's ANSWER, so the source is the only thing dropped.
     #
-    # OFF WAS MEASURED AND IS NOT ADOPTED. `probe_step2_isolate_ab.py` ran it as
-    # arm C against arm A on 2026-09-17, 72 gate calls per arm over three
-    # documents: the saving projects to **6.8-7.2x** at `CHUNK_SIZE`, the gate's
-    # keep/drop decision did not move at all (A-vs-C 0.0% of 72, on 0.0% floors),
-    # and it FAILED on the one endpoint that did move — a blinded judge preferred
-    # arm A on faithfulness in 9 of 12 comparisons (9 of 11 decided), with a clean
-    # 47% positional control, so unlike the earlier run's 62% that lean cannot be
-    # dismissed as position. What it is NOT is a demonstration that the gate reads
-    # items differently; the two candidate readings, neither tested, are arm C
-    # being less faithful and the judge preferring the longer set (arm A yielded 6%
-    # more candidates). Turn it off only against your own corpus.
+    # OFF WAS MEASURED THREE TIMES AND IS NOT ADOPTED, and the reason is not that
+    # it lost. `probe_step2_isolate_ab.py` ran it as arm C against arm A on
+    # 2026-09-17, 72 gate calls per arm per run over three documents, and its
+    # preregistered endpoints returned a DIFFERENT VERDICT EACH TIME on the same
+    # code and the same models: don't take, take, no call. What is stable is that
+    # the saving projects to **6.7-7.2x** at `CHUNK_SIZE` and that the gate's
+    # keep/drop decision does not move at all — A-vs-C 0.0% in all three runs, 216
+    # paired comparisons, against within-arm floors of 0.0%. What is not stable is
+    # the blinded judge on faithfulness: it leaned toward arm A every run (pooled
+    # 19-6 with 11 ties, 76% of decided comparisons) but its tie rate went 1, 6, 4
+    # of 12 and its positional control went 62%, 47%, 73%, so its pass/fail turns
+    # on how often it shrugs. The two instruments built to remove that confound
+    # both find NOTHING: equalising the two sets' sizes gives A 3 / C 4 then
+    # A 4 / C 4, and an unpaired per-claim support check — every candidate rated
+    # against the source on its own, no second set to be longer than — puts arm A
+    # at 43.3% not-supported and arm C at 45.7%, a 2.4pp gap inside arm A's own
+    # 38pp rep-to-rep swing. So the honest state is: no reasoning cost has been
+    # demonstrated, and no stable positive result exists to move a reasoning
+    # default on either. It stays ON because every stable measurement is neutral
+    # and the only lean there is favours ON. Turn it off against your own corpus.
     #
     # THE SIBLING ITEMS ARE KEPT ON EVIDENCE, not out of caution. A stricter arm
     # that dropped step 1's history ENTIRELY — a fresh conversation with the same
@@ -160,15 +169,17 @@ class Settings(BaseModel):
     # field the same way, `is_substantive` false with the history and true without
     # it: "substantive" means the item adds something to THIS document, and nothing
     # in an item says that about itself, so a gate with no context admits
-    # restatements. On 2026-09-17 that effect did NOT reproduce, and a second one
-    # appeared in its place — 22 of 72 items came back `is_atomic` true-with-history
+    # restatements. That effect reproduced in ONE of the three 2026-09-17 runs
+    # (5.6%, 4 of 72, all four the same direction as before), which is what an
+    # effect of five items in ninety looks like at this many reps. A second one
+    # appeared alongside it — 22 of 72 items came back `is_atomic` true-with-history
     # and false-without, all one direction, and the no-history arm yielded **18%
     # more candidates** than arm A. `is_atomic` is read by no code but the same call
     # returns `atomic_theses`, which IS the output, so a gate with no context also
     # cuts items finer. Either way the answer is the same: the gate needs what the
     # document ESTABLISHED, which is step 1's answer, and that is what the OFF arm
     # keeps while dropping the passage itself.
-    extraction_step2_carries_source: bool = Field(default=True, description="Let the step-2 thesis gate see the source window it was extracted from, by carrying step 1's history into each gated call. On by default (current behaviour), and it stays the default on a measurement: off was A/B'd and lost on faithfulness (tests/e2e/probe_step2_isolate_ab.py). Off sends the system prompt, step 1's answer and the gate's own self-contained question, cutting the ~4x size-driven prefill cost of the ingest path; the extracted items still travel, only the raw passage is elided.")
+    extraction_step2_carries_source: bool = Field(default=True, description="Let the step-2 thesis gate see the source window it was extracted from, by carrying step 1's history into each gated call. On by default (current behaviour), and it stays the default because three A/B runs never produced a stable result to move it on: the cost saving and the gate's keep/drop decisions replicate, the judge on faithfulness does not (tests/e2e/probe_step2_isolate_ab.py). Off sends the system prompt, step 1's answer and the gate's own self-contained question, cutting the ~4x size-driven prefill cost of the ingest path; the extracted items still travel, only the raw passage is elided.")
 
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")

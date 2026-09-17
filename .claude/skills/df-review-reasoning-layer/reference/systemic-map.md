@@ -3266,18 +3266,28 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   30 comparisons is 13, more than the whole run's 5 deciding flips. The verdict is unaffected, since it was read
   off the 5.6% aggregate against two 0.0% floors, but the concentration now rests on the yield sentence alone,
   and the probe prints both metrics per document so the two cannot be confused again.) **The THIRD arm has now
-  been measured too, and also NOT taken (2026-09-17, same probe, 72 gate calls per arm over the same three
-  documents):** give step 2 step 1's request and answer, with only the `<source_text>` window replaced by a
-  sentinel saying the passage is not repeated. It projects **6.8-7.2x** cheaper at `CHUNK_SIZE`, and the gate's
-  keep/drop decision **did not move at all** — 0.0% of 72, against three within-arm floors of 0.0%. It failed on
-  the one endpoint that did move: a blinded judge preferred the source-carrying arm on **faithfulness in 9 of 12
-  comparisons** (9 of 11 decided), and this time the positional control was a clean **47%**, so that lean cannot
-  be dismissed as position the way the earlier run's 62% could. Two readings remain untested — the elided arm
-  really is less faithful, or the judge preferred the longer set (arm A yielded 6% more candidates) — so the
-  honest next instrument is a length-matched re-judge, NOT built. Both arms ship behind
-  `settings.extraction_step2_carries_source` (default `True`, pinned by a test on the default and by the probe's
-  own structural guard); the elided arm is an opt-in for someone with different economics who can check their own
-  corpus. **The lever is closed, not pending.** Three methodological lessons from these runs, each of which
+  been measured too, THREE TIMES, and also NOT taken (2026-09-17, same probe, 72 gate calls per arm per run over
+  the same three documents):** give step 2 step 1's request and answer, with only the `<source_text>` window
+  replaced by a sentinel saying the passage is not repeated. It projects **6.7-7.2x** cheaper at `CHUNK_SIZE`,
+  and the gate's keep/drop decision **did not move at all in any run** — 0.0%, 0.0%, 0.0%, 216 paired
+  comparisons, against within-arm floors of 0.0% throughout. **The reason it is not the default is not that it
+  lost; it is that the protocol never settled.** The same preregistered endpoints returned DON'T TAKE, then TAKE,
+  then NO CALL, on the same code and models. The blinded judge leaned toward the source-carrying arm every run
+  (pooled 19-6 with 11 ties, 76% of decided) but its tie rate went 1, 6, 4 of 12 and its positional control went
+  62%, 47%, 73% — and since the endpoint counts ties against detection, its pass/fail was decided by how often
+  the judge shrugged. **Two instruments built to strip the size confound both found nothing:** equalising the two
+  sets' sizes gave A 3 / C 4 then A 4 / C 4, and an UNPAIRED per-claim support check (every candidate rated
+  against the source alone) put arm A at 43.3% not-supported against arm C's 45.7%, a 2.4pp gap inside arm A's
+  own 38pp rep-to-rep swing. The run-1 observation that motivated the worry — arm A yielding 6% more candidates
+  — did not replicate either (153/144, then 163/165, then 120/116; the totals swing 35% run to run). Both arms
+  ship behind `settings.extraction_step2_carries_source` (default `True`, pinned by a test on the default and by
+  the probe's own structural guard); the elided arm is an opt-in for someone with different economics who can
+  check their own corpus. **The lever is closed, not pending — and closed on absence of evidence, which is worth
+  knowing before anyone reruns it.** One finding from that work is NOT about the arms and is larger than they
+  are: the per-claim check rated **~44% of everything step 2 emits as distorted or invented relative to its own
+  source, on the shipped default path** (36 + 16 of 120 claims). One judge, one prompt, one run, unvalidated,
+  and "distorted" will be catching legitimate compression — a lead recorded in CLAUDE.md, not a number to quote,
+  but it dwarfs anything the arms differ by. Three methodological lessons from these runs, each of which
   changed a verdict: (a) the decision metric must read `is_assertable`/`is_substantive` ONLY, because those are
   what `_step2_identify_candidates` branches on; (b) **but "read by no code" is not "harmless", and this was
   stated wrongly here until 2026-09-17** — the corollary used to be that an `is_atomic` flip "cannot reach a
@@ -3287,11 +3297,19 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   agreed with arm A on every keep/drop in the 2026-09-17 run (0.0% of 72) while producing **18% more
   candidates**, all 22 of its `is_atomic` disagreements in one direction. So carry an unblinded yield count
   beside any endpoint restricted to a branch condition; (c) a blinded judge needs its raw first-vs-second split
-  REPORTED, not just its labels alternated — 62% in the first run, 47% in the second, and alternating alone would
+  REPORTED, not just its labels alternated — 62%, 47%, 73% across the four runs, and alternating alone would
   have laundered the first into a fake 50/50 between the arms. An apparent 7-2 faithfulness lean toward arm A at
-  REPS=2 vanished under both corrections. A fourth, cheaper lesson: the 2026-09-17 run's positive control
-  (arm B's known `is_substantive` effect) did NOT reproduce, so its A-vs-C agreement is evidence of an
-  insensitive instrument and not of equivalence — always say which it is. (3) **It also pays a cache write
+  REPS=2 vanished under both corrections. (d) **A pairwise judge has TWO nuisance variables, size and position,
+  so prefer an unpaired per-item rating when the question allows one.** Control size by judging one set against a
+  randomly trimmed copy of ITSELF — identical provenance makes "tie" the clean answer, and the trim must be
+  random rather than from the tail or it tests coverage of the ending instead. Better still, drop the pairing:
+  the per-claim check has no other set to be longer than, no position to prefer, no tie to hide in, and a
+  denominator in the hundreds. It is what showed the paired judge's three-run lean to be worth 2.4pp against a
+  38pp within-arm swing. (e) **An endpoint that counts ties against detection is decided by the judge's TIE RATE**,
+  which was the least stable thing it did (1, 6, 4 of 12) — so pool runs before moving a default and treat any
+  single-run verdict as provisional. (f) The positive control (arm B's known `is_substantive` effect) reproduced
+  in only 1 of 3 runs, so two of those runs' A-vs-C agreement is evidence of an insensitive instrument and not of
+  equivalence — always say which it is. (3) **It also pays a cache write
   surcharge nobody reads** (~46,110 token-equivalents; see
   the caching CORRECTION near the top of this file), which the declined change would have removed for free and
   which therefore stands. **And a null worth
