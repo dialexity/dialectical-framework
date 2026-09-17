@@ -356,6 +356,19 @@ Think of the structural layer as a **tree growing downward**:
 - **Immutable after commit**: Structure frozen for integrity
 - **Content-addressed**: Same structure = same hash = same identity
 
+**Nothing records which hashing recipe produced a node.** The three properties
+above are guarantees about content, not about the algorithm: `compute_hash()` is
+sha256 over the node's structure parts plus `intent` plus `committed_at`, and no
+field anywhere stores which version of that recipe ran. If the recipe ever
+changes — a new field entering a hash, a formatting change to `intent`, an added
+normalisation — then identical content hashes differently from what a database
+already holds, dedup silently stops matching, and already-committed parents keep
+naming children by the old hashes, so their Merkle claim stops verifying. There
+is no marker to detect the mix, refuse it, or migrate on. Reviewed 2026-09-17 and
+left unbuilt on purpose (no recipe change is planned), but it is the kind of gap
+that can only be closed *before* the recipe moves — see CLAUDE.md's Graph Node
+Lifecycle section for what closing it would take.
+
 | Node | Role in Structure |
 |------|-------------------|
 | Statement | Atomic leaves (statements) |
