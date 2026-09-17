@@ -15,17 +15,28 @@ was delivered are the same second to the budget and opposite seconds to them.
 
 The reply path is narrower than the tool list suggests, and the code says so:
 
-- `Advisor.chat` (`advisor.py:205`) awaits `_conversation.submit(...)`, so every
-  tool round the MODEL elects runs before the reply text exists. Those are
-  on-path, and `TurnRecord.tool_calls` is exactly their record.
-- `_repair_unrecorded_decision` runs at `advisor.py:206`, AFTER the reply — its
-  own comment says "so the person's reply is never delayed by the repair". Its
+- `Advisor.chat` awaits `_conversation.submit(...)`, so every tool round the
+  MODEL elects runs before the reply text exists. Those are on-path, and
+  `TurnRecord.tool_calls` is exactly their record.
+- `_repair_unrecorded_decision` runs after that submit, so its
   `DecisionConfirmationCheck` call and its `_ensure_pathways_before_closing` are
-  therefore off-path already. Confirmed by call sites: the seam is called from
-  nowhere else (`advisor.py:290`, `advisor.py:329`, both inside the repair).
+  off the GENERATION path. The seam is called from nowhere else — both call
+  sites are inside the repair.
 
 So on-path cost is model-elected tool rounds; everything else is off-path or
 overhead. This probe splits the archive on that line.
+
+READ THE OFF-PATH COLUMN AS A LABEL, NOT AS FREE SECONDS
+========================================================
+This driver — like every bench under `tests/e2e` — calls `Advisor.chat`, and
+`chat` does NOT return until the repair finishes. So every off-path second in
+the MEASURED block below is a second the caller spent blocked with the reply
+already in hand. `Advisor.chat_stream` is the entry point where the boundary is
+real, and nothing in this archive used it.
+
+That matters most exactly where the numbers are largest: the 387.7s in the
+off-path tail was 387.7s of somebody waiting. Only `off path` on `chat_stream`
+means "seconds the person did not wait". See `TurnTiming.off_path_s`.
 
 WHAT IT CANNOT DO, STATED UP FRONT
 ==================================
@@ -41,9 +52,11 @@ exactly this reason).
 `reply_path_s`, `off_path_s` and per-round `tool_seconds`, so any run recorded
 after it reports the split instead of having it inferred. This probe prefers the
 measured fields when a run has them and falls back to attribution when it does
-not, because the 32 archive files that already exist never will — and the
+not, because the archive files written before that date never will — and the
 fallback's answer to "is the 530s concentrated on the reply path or spread across
-off-path work" is still worth having for them.
+off-path work" is still worth having for them. (There were 32 such files when
+this was written and the split is now roughly 177 attributed to 37 measured A2
+runs; the header line prints the live counts, so read those, not these.)
 
 The two paths are labelled MEASURED and ATTRIBUTED in the output. Never average
 them together.
@@ -127,6 +140,19 @@ def _turns(run: RunRecord) -> int:
 
 
 def _all_turns(run: RunRecord) -> list:
+    """Every turn of a run, sessions flattened.
+
+    ARCHIVE-WIDE COUNTS IN THE COMMENTS BELOW GO STALE, because the archive
+    grows with every lane. They were recounted on 2026-09-17 (1528 timed turns;
+    304 predate `retry_seconds`, 48 predate `context_render_s`, 148 error turns
+    carry no timing key at all). To recount rather than trust them, walk the
+    archive the way `read_turn_timing._turns` does — it is the same traversal as
+    this function, plus the top-level `run["turns"]` key the older stems use, and
+    missing that key is what produced the earlier undercount.
+
+    Every count PRINTED by this probe is computed live and needs no such caveat.
+    Only the prose figures are snapshots.
+    """
     return [t for s in run.sessions for t in s.turns]
 
 
@@ -216,7 +242,7 @@ def _report_measured(runs: list[RunRecord]) -> None:
             continue
         reply = [t.reply_path_s for t in turns]
         # Presence-checked like every other field, and NOT `or 0.0`. Nothing in
-        # the archive needs it — all 184 timed turns carry an off path, and
+        # the archive needs it — all 1528 timed turns carry an off path, and
         # `TurnTiming.off_path_s` is non-Optional so this driver cannot write one
         # without the other — but an arm that timed its reply path and not its
         # off path would otherwise publish "off path 0% of the turn" as a
@@ -251,9 +277,10 @@ def _report_measured(runs: list[RunRecord]) -> None:
         # is generation plus whatever the framework does that nothing times yet,
         # which is the only honest label for it.
         # A turn can publish a split and still predate `context_render_s`: 20 of
-        # the 116 measured turns do (both 2026-08-26 stems), which is why this
+        # the 292 measured turns do (both 2026-08-26 stems), which is why this
         # field gets its own subset rather than sharing `turns` (archive-wide it is
-        # 24 of 184). Zero-filling them
+        # 48 of 1528 — recounted 2026-09-17; see the note above `_all_turns`).
+        # Zero-filling them
         # counted a missing field as "the refresh did not fire" and printed 72%
         # where the turns that recorded it say 86% — against a >90% endpoint r26
         # pre-registered and then could not test. The denominator is printed for
@@ -300,11 +327,13 @@ def _report_measured(runs: list[RunRecord]) -> None:
         # it as another term would double-count the same seconds. The question it
         # answers is the one r26 could not — of the wait, how much was working?
         # Same vintage trap as the refresh above, and much larger: 84 of the weak
-        # tier's 116 measured turns predate these two fields, 152 of 184
-        # archive-wide (r26 and both 2026-08-26 stems). Counting them in the
-        # denominator reported "on 3/116 turns" where the turns that recorded the
-        # field are 32 — understating how often a turn retries by ~4x, and
-        # publishing it as if it were clean data.
+        # tier's 292 measured turns predate these two fields, 304 of 1528
+        # archive-wide (r26 and both 2026-08-26 stems; recounted 2026-09-17).
+        # Counting them in the denominator once reported "on 3/116 turns" where
+        # the turns that recorded the field were 32 — understating how often a
+        # turn retries by ~4x, and publishing it as if it were clean data. (Those
+        # two figures are the defect as caught, on the archive as it stood then;
+        # the live counts move with every lane and are printed, not quoted.)
         with_retry = [t for t in turns if t.retry_seconds is not None]
         wasted = [t.retry_seconds for t in with_retry]
         retried = [t for t in with_retry if t.retry_count]

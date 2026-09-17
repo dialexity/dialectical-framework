@@ -10,7 +10,7 @@ Five of `TurnRecord`'s timing fields defaulted to zero — `reply_path_s`,
 wrote those defaults whenever `arm.last_turn_timing` was None. None is exactly what
 an arm publishes when its turn RAISED, because timing is assembled after the reply.
 So a failed turn would have been archived as a turn that took no time — the case is
-MECHANICAL, not observed: all 62 error turns in the archive predate these fields,
+MECHANICAL, not observed: all 148 error turns in the archive predate these fields,
 so nothing was ever actually recorded that way. What it would have cost is
 specific, which is why the fix is worth its tests. A crashed turn would have
 entered every split column as instant; `retry_count=0` would have claimed a clean
@@ -23,7 +23,7 @@ is not a gap, it is a claim.
 Resist one tempting sharpening of that argument, which stood here for a day: "and
 a crash lands in the tool-heavy turns, so the turns most able to move a median
 would have entered it as instant". The archive cannot be asked — `driver.py`'s
-`except` branch sets `tool_calls = []`, so every one of the 62 error turns records
+`except` branch sets `tool_calls = []`, so every one of the 148 error turns records
 zero tool calls by construction. The fix needs no such premise: a wrong split is
 wrong on an ordinary turn too.
 
@@ -423,7 +423,7 @@ class TestReadersDropUnmeasuredTurnsAndSaySo:
         every median computed over zeros and a `reply path 0% of wall clock` line
         under it.
 
-        No such record is in the archive (all 62 error turns predate the field
+        No such record is in the archive (all 148 error turns predate the field
         entirely), so this guards a file the bench could still be handed, not one
         it has — which is exactly why a test has to hold it: nothing else would
         notice.
@@ -954,9 +954,12 @@ class TestReadersHandleTheArchivesMIXEDVintages:
     """A turn can publish a split and still be missing later fields.
 
     This is the case that breaks readers on REAL data while a synthetic
-    same-vintage sample stays green, and it is not rare: of 184 timed turns in
-    the archive, 152 predate `retry_seconds`/`retry_count` and 24 predate
-    `context_render_s`. So `reply_path_s is not None` does NOT license arithmetic
+    same-vintage sample stays green, and it is not rare: of 1528 timed turns in
+    the archive, 304 predate `retry_seconds`/`retry_count` and 48 predate
+    `context_render_s` (recounted 2026-09-17; the archive grows, so recount
+    rather than quote — walk it the way `read_turn_timing._turns` does, including
+    the top-level `run["turns"]` key the older stems use).
+    So `reply_path_s is not None` does NOT license arithmetic
     on the others — a presence check per field is the actual contract, and
     deleting one raises `TypeError` inside `statistics.median` rather than
     printing a wrong number.

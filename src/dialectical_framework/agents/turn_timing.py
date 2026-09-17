@@ -166,10 +166,24 @@ class TurnTiming:
     tool round the model elected — because `Advisor.chat` refreshes the prompt and
     then awaits `submit()` before it holds any text at all.
 
-    `off_path_s` is work done after the reply was handed over — the decision
-    repair and the pathway seam. `Advisor` already treats that boundary as load
-    bearing ("so the person's reply is never delayed by the repair"), and this is
-    that same boundary made observable rather than asserted in a comment.
+    `off_path_s` is work done after the reply EXISTS — the decision repair and
+    the pathway seam. `Advisor` already treats that boundary as load bearing
+    ("so the person's reply is never delayed by the repair"), and this is that
+    same boundary made observable rather than asserted in a comment.
+
+    Read "off path" as off the GENERATION path, not necessarily off the person's
+    clock, and which one you get depends on the entry point:
+
+    - `chat_stream()` really does hand the reply over first: the chunks are
+      already on screen, so these seconds are genuinely free.
+    - `chat()` does NOT. It cannot return until the repair finishes, so its
+      `off_path_s` is time the caller spends blocked with the reply in hand but
+      undelivered. The measured worst case is a 387.7s repair on a turn whose
+      reply took 14.3s (see the comment above the repair in `Advisor.chat_stream`).
+
+    Both entry points populate this field identically, so an archive mixing them
+    cannot be read as "seconds the person did not wait" without first checking
+    which call produced each turn. `tests/e2e` benches all use `chat()`.
 
     The invariant worth preserving when adding fields:
     `TurnRecord.duration_s == reply_path_s + off_path_s`, which held to 0%

@@ -4,8 +4,14 @@ Mixin for nodes that can be built incrementally before committing.
 This mixin is for container nodes that need children added incrementally
 before being finalized:
 - Ideas: add Statements
-- Cycle, Wheel: add Transitions
-- Transformation: add Transitions for each position
+- Perspective: add the Polarity and the four aspect Statements
+- Synthesis: add S+ / S-
+- Wheel: add Transitions (its edges)
+- Transformation: add Transitions for each of its six positions
+
+Cycle is NOT in that list, despite being the obvious candidate: it holds its
+members as an ordered field of hashes (`set_perspectives`), not as children to
+attach, so it commits atomically like any other node. Neither is Transition.
 
 The pattern follows git's staging area concept:
 - save() persists with hash=None (HEAD state, mutable)
@@ -33,18 +39,21 @@ class IncrementalBuildMixin(PersistableMixin):
     """
     Mixin for nodes that support incremental building before commit.
 
-    Used by: Ideas, Cycle, Wheel, Transformation
+    Used by: Ideas, Perspective, Synthesis, Wheel, Transformation.
+    NOT Cycle and NOT Transition — see the module docstring for why.
 
     Lifecycle:
-        1. Create node: cycle = Cycle(intent="...")
-        2. Save as HEAD: cycle.save()  # hash=None, saved_at=now, persisted
-        3. Add children: cycle.set_perspectives([pp1, pp2])
-        4. Commit: cycle.commit()  # committed_at set, hash computed, saved_at cleared
+        1. Create node: ideas = Ideas(intent="...")
+        2. Save as HEAD: ideas.save()  # hash=None, saved_at=now, persisted
+        3. Add children: ideas.statements.connect(statement)
+        4. Commit: ideas.commit()  # committed_at set, hash computed, saved_at cleared
 
     After commit(), the node behaves like any other committed node.
 
-    Subclasses should implement:
-        - _get_committed_children(): Returns iterator of child nodes for hash computation
+    Subclasses MUST implement:
+        - _get_commit_dependents(): Returns iterator of child nodes to verify
+          before hashing. The base raises NotImplementedError, so a container
+          that skips it fails at commit(), not at construction.
     """
 
     # These will be provided by the actual node class
@@ -74,14 +83,22 @@ class IncrementalBuildMixin(PersistableMixin):
 
     def _get_commit_dependents(self) -> Iterator[BaseNode]:
         """
-        Get all committed children for hash computation.
+        Get the children that must already be committed before this node can be.
 
         Override in subclasses to return the appropriate children:
-        - Cycle/Wheel: yields Transitions
-        - Transformation: yields Transitions for each position
+        - Ideas: yields Statements
+        - Perspective: yields the Polarity and the four aspects
+        - Synthesis: yields S+ and S-
+        - Wheel: yields Transitions (its edges)
+        - Transformation: yields the Transition at each of its six positions
+
+        These are the nodes commit() checks for is_committed. They are not
+        necessarily the same set that ends up in the hash — that is
+        _collect_structure_hash_parts()'s job, and e.g. Wheel folds in its
+        cycle hash without yielding the Cycle here.
 
         Yields:
-            Child nodes that should be included in hash computation
+            Child nodes that must be committed first
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement _get_commit_dependents()"

@@ -503,6 +503,13 @@ class Advisor(SettingsAware):
                 + context_render_s
                 + self._conversation.last_submit_seconds
             )
+            # Recorded as off-path because it is off the GENERATION path — but on
+            # THIS entry point it is not off the caller's clock. `return` is below
+            # the repair, so the caller sits blocked with the reply already in
+            # hand: measured at 387.7s of repair on a 14.3s reply. Use
+            # `chat_stream` if that boundary has to be real; here it is only a
+            # label. Every `tests/e2e` bench uses this method, so its whole
+            # archive of `off_path_s` figures is on the blocking path.
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, result.message)
             self._record_turn_timing(
@@ -654,10 +661,10 @@ class Advisor(SettingsAware):
     ) -> None:
         """Publish where this turn's seconds went.
 
-        The split matters more than either number: `reply_path_s` is time the
-        person spent waiting, `off_path_s` is time spent after they had their
-        reply. Those are the same second to a cost budget and opposite seconds to
-        a UX decision, and until this existed only the sum was ever recorded —
+        The split matters more than either number: `reply_path_s` is time spent
+        producing the reply, `off_path_s` is time spent after the reply exists.
+        Those are the same second to a cost budget and opposite seconds to a UX
+        decision, and until this existed only the sum was ever recorded —
         at the granularity of a whole multi-session cell, which is why
         `probe_reply_path_latency.py` had to regress the split out of 187 runs
         instead of reading it.
@@ -666,6 +673,10 @@ class Advisor(SettingsAware):
         it owns the loop, and a second clock around the same awaits could only
         disagree with the first. Retry waste comes from there for the same
         reason — the sleeps happen many frames below this method.
+
+        Both entry points record the same two fields, and only `chat_stream`
+        earns the reading that `off_path_s` is off the person's clock too. See
+        `TurnTiming` for what the difference costs a reader.
         """
         retries = self._conversation.last_submit_retries
         self.last_turn_timing = TurnTiming(

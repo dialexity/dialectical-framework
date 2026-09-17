@@ -58,7 +58,8 @@ calls NO tool, so part of its cost is prompt shape rather than work. And its wor
 TOOL-FREE turn is 645.7s — a turn that elected nothing and still took 10.7
 minutes, which `TurnTiming.generation_retry_seconds` attributes in prose to a
 retry ladder but which **this stem cannot confirm, because it predates
-`retry_seconds`** (152 of the archive's 184 timed turns do). Hence the retry rows
+`retry_seconds`** (304 of the archive's 1528 timed turns do, recounted
+2026-09-17). Hence the retry rows
 below, and hence their `not recorded`: whether A2's tail is depth or a retry
 pathology is the question the UX arc turns on, and no archived stem can answer it
 yet. A2 stems that DO record retry (`timing-after-one-round`, 16 turns) put 20.0s
@@ -357,8 +358,8 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
     tool_free = [
         float(t["reply_path_s"]) for t in timed if not t.get("tool_seconds")
     ]
-    # Retry gets its OWN denominator, and it is not pedantry: `TurnRecord` records
-    # that 152 of the archive's 184 timed turns predate these fields, so pooling
+    # Retry gets its OWN denominator, and it is not pedantry: 304 of the
+    # archive's 1528 timed turns predate these fields, so pooling
     # them against `timed` would report a stem as retry-free when it simply never
     # measured retry. `or 0.0` is forbidden here for the same reason — it is the
     # coercion the record's own comment names as reinstating the bug in the reader.
@@ -417,6 +418,12 @@ def _stats(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "untimed turns (dropped)": untimed,
         "median turn": _median(durations),
         "median reply path": _median(replies),
+        # "off path" means off the GENERATION path. It does NOT mean the person
+        # was free during it: the bench calls `chat()`, which cannot return until
+        # the repair finishes, so on every stem in this archive these seconds are
+        # spent blocked with the reply in hand. Only `chat_stream()` earns the
+        # other reading. See `TurnTiming.off_path_s`; the worst case archived is
+        # a 387.7s repair on a 14.3s reply.
         "median off path": _median(offs),
         # Its own count row, for the same reason the probe prints its own
         # denominator: this field is younger than the archive, and 0 of 16 turns

@@ -433,7 +433,7 @@ class TurnRecord(BaseModel):
     #: They defaulted to zero until 2026-09-01 (`retry_count` to `0`, the rest to
     #: `0.0`; `first_delta_s` arrived with the fix and was never zero-filled), and
     #: that default was the same lie `last_submit_seconds` used to tell one layer
-    #: down. No archived record shows it — all 62 error turns in the archive
+    #: down. No archived record shows it — all 148 error turns in the archive
     #: predate the fields entirely, and none of them carries a timing key at all —
     #: so this is the mechanism, not an observation: a crashed turn would have
     #: entered every split column as instant; `retry_count=0` would have claimed
