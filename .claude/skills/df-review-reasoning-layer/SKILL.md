@@ -462,13 +462,25 @@ anchors.
       *the graph discards; the reply amends.* Same shape as the `record_decision` pair — prose without a call
       and a call without prose are both failures, so state both halves.
 - [ ] **Never accept a machinery-leak claim measured only on tool-electing turns, and never accept a null
-      measured on the whole term list.** Leaks run at roughly 1 turn in 6 on turns that elect NO tool, off the
-      standing context dump alone (`probe_leak_reply_reuse.py`, 7/40 replies), so a fix judged against
-      tool-heavy turns is judged against the loudest cases only. And `perspective`/`transformation` are both
-      banned and ordinary advisory English: leave them in and they fire on both arms of every comparison,
-      collapsing the discordant count and manufacturing a null. Score twice — whole list for comparability,
-      hard terms only for discrimination. The reply-path latency work is NOT a suspect here (reuse on vs off:
-      4/20 vs 2/20 leaking, p=0.688).
+      measured on the whole term list.** Leaks show up on turns that elect NO tool, off the standing context
+      dump alone (`probe_leak_reply_reuse.py`), so a fix judged against tool-heavy turns is judged against the
+      loudest cases only. And four banned terms — `perspective`, `transformation`, `wheel`, `thesis` — are also
+      ordinary advisory English: leave them in and they fire on both arms of every comparison, collapsing the
+      discordant count and manufacturing a null. Score twice — `score_machinery_leak` for the contract,
+      `score_machinery_leak_unambiguous` for discrimination. The reply-path latency work is NOT a suspect here
+      (reuse on vs off: 4/20 vs 2/20 leaking, p=0.688).
+- [ ] **Never accept a leak RATE without checking the detector against the prompt it claims to measure.** This
+      one was inflated for months while its own comment said "verbatim from `_HOW_YOU_SPEAK`": it counted
+      `accepted cost` (51 of 181 archived snippets, ordinary English, banned nowhere), `adopted pathway`, and a
+      bare `the framework` ("help you build the framework"); it matched substrings, so **"synthesis" counted as
+      "thesis"**; and `lowered.find(term)` stopped at the first hit per term per turn. Corrected 2026-09-17:
+      **8.4% → 5.2% of 1645 archived replies**, and the old "1 turn in 6" was a 40-reply targeted probe read as
+      an archive rate. The shape claim survived and sharpened — the leak is **machinery-as-actor (47%) and bare
+      position labels (30%)**, not vocabulary, and `polarity`/`tetrad`/`dialectic` never leak at all. So: a
+      fix that adds banned words to the prompt is aimed at the wrong 2%, and `test_the_term_list_is_verbatim_from_the_prompt`
+      now fails if the two drift again. Two levers stay unavailable — `_dump_one_perspective`'s `T{idx}+ [[hash]]`
+      labels are load-bearing for `record_decision`'s `accepted_cost` ground, and a post-hoc rewrite pass works
+      on `chat()` and is impossible on `chat_stream()`, which would split the two entry points on a PRODUCT claim.
 - [ ] **The internal model describes positions, never the person.** A+ is "the obligation that falls on the
       T-sayer" (`docs/theory/generative-rules.md` Rule 3.1) — an obligation, not an incapacity. "Structurally
       blind" appears nowhere in `docs/theory/`; it was an application gloss, and it converted straight into

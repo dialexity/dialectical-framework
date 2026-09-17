@@ -50,7 +50,11 @@ if str(E2E_DIR.parent) not in sys.path:  # `python tests/e2e/read_reply_hygiene.
     sys.path.insert(0, str(E2E_DIR.parent))
 
 from e2e.models import SessionRecord
-from e2e.scoring import score_internal_prompt_echo, score_machinery_leak
+from e2e.scoring import (
+    score_internal_prompt_echo,
+    score_machinery_leak,
+    score_machinery_leak_unambiguous,
+)
 
 RESULTS = E2E_DIR / "results"
 
@@ -95,6 +99,10 @@ def _stats(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str
 
     leak_turns = _turns_with(score_machinery_leak)
     echo_turns = _turns_with(score_internal_prompt_echo)
+    # Printed beside the contract number, never instead of it: four banned terms
+    # are also ordinary advisory English, so the two rows together say whether a
+    # leak count is disclosure or vocabulary. See `_AMBIGUOUS_TERMS`.
+    hard_turns = _turns_with(score_machinery_leak_unambiguous)
 
     outcomes: collections.Counter[str] = collections.Counter()
     swallowed = 0
@@ -131,6 +139,7 @@ def _stats(payload: dict[str, Any]) -> tuple[dict[str, Any], list[str], list[str
             "replies scored": replies,
             "empty replies": empty_replies,
             "turns leaking machinery": f"{leak_turns}/{replies}",
+            "  of those, unambiguous": f"{hard_turns}/{replies}",
             "machinery leak hits": len(leaks),
             "turns echoing the framework": f"{echo_turns}/{replies}",
             "internal-prompt echo hits": len(echoes),

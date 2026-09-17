@@ -798,15 +798,22 @@ def validity_rows() -> list[tuple[str, float, int, float, int]]:
 
     PAIRED within a run, which is the only form of this split worth printing. The
     unpaired version — every clean cell in the archive against every leaky one —
-    reads -0.36 vs -0.66 and looks like leaks explain most of the loss, but the
-    two groups are not drawn from the same runs: the cleanest cells come from the
-    latest builds, which also fixed everything else. Comparing inside a run holds
-    the build fixed, and the effect drops to +0.25 with an interval covering zero
-    (12/14 sets, sign test p=0.79). Leaks are a real defect and a poor
+    looks like leaks explain part of the loss, but the two groups are not drawn
+    from the same runs: the cleanest cells come from the latest builds, which also
+    fixed everything else. Comparing inside a run holds the build fixed, and the
+    effect lands at +0.204 with an interval covering zero ([-0.05,+0.46], 12/19
+    sets positive, sign test p=0.36). Leaks are a real defect and a poor
     explanation for the composite.
 
     A cell counts as leaky if its A2 record shows any `score_machinery_leak` or
     `score_internal_prompt_echo` hit in any session.
+
+    Re-measured 2026-09-17 when `score_machinery_leak` was corrected (see its
+    docstring). The conclusion did not move; the magnitudes did, and in the
+    direction that strengthens it — the unpaired gap fell from -0.36-vs--0.66 to
+    -0.188-vs--0.278, because most of the old "leaky" group was cells saying
+    `accepted cost`, a phrase no prompt bans. Any figure in this docstring
+    predating that date is not comparable.
     """
     rows: list[tuple[str, float, int, float, int]] = []
     for stem in _stems():
@@ -1738,7 +1745,7 @@ def _explanations() -> None:
     _summarise(
         "  clean - leaky",
         [c - l for _s, c, _cn, l, _ln in rows],
-        "does not resolve. The unpaired split (-0.36 clean vs -0.66 leaky) is\n"
+        "does not resolve. The unpaired split (-0.188 clean vs -0.278 leaky) is\n"
         "     confounded with build date; held inside a run, leaks do not account for\n"
         "     the composite. Fix them because they are defects, not for the score.",
     )

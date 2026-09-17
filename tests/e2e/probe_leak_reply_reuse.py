@@ -38,17 +38,20 @@ HOW IT CONTROLS WHAT THE BENCH COULD NOT
 
 WHAT IT MEASURES
 ================
-`score_machinery_leak` over each reply — the same scorer, unchanged, so the number
-is comparable to the archive's. Reported as **turns leaking**, not hits: hits are
-±40-char windows and both a machinery term and a position label can match inside
-one sentence, so one leaking sentence can report as three.
+`score_machinery_leak` over each reply — the canonical scorer, so both arms are
+judged identically. Reported as **turns leaking**, not hits: hits are ±40-char
+windows and both a machinery term and a position label can match inside one
+sentence, so one leaking sentence can report as three. Note that the scorer was
+corrected on 2026-09-17 (three unbanned phrases dropped, word boundaries added,
+repeat hits no longer collapsed), so a number from this probe is comparable
+BETWEEN ITS OWN ARMS but not to any leak figure published before that date.
 
 Scored TWICE: once on the scorer's full term list, and once on HARD machinery only
-(see `_SOFT_TERMS`). Two of the banned terms are also ordinary advisory English,
+(see `_SOFT_TERMS`). Four of the banned terms are also ordinary advisory English,
 and if one of them fires in both arms of every pair the discordant count goes to
 zero and this probe prints a null it manufactured itself — indistinguishable from
-a real one. The hard-only cut is the discriminating instrument; the full cut is the
-one that stays comparable to the archive.
+a real one. The hard-only cut is the discriminating instrument; the full cut is
+the contract.
 
 The paired statistic is **McNemar's** — only the DISCORDANT pairs carry
 information. A pair where both arms leak, or neither does, says nothing about the
@@ -87,7 +90,12 @@ from e2e.config import DEFAULT_TIER_WEAK
 from e2e.driver import E2E_PERSONA, E2E_PRINCIPAL
 from e2e.models import SessionRecord, TurnRecord
 from e2e.modelctx import using_model
-from e2e.scoring import _MACHINERY_TERMS, _POSITION_LABEL, score_machinery_leak
+from e2e.scoring import (
+    _AMBIGUOUS_TERMS,
+    _MACHINERY_HARD_RE,
+    _POSITION_LABEL,
+    score_machinery_leak,
+)
 
 from dialectical_framework.agents.advisor.advisor import Advisor
 from dialectical_framework.agents.conversation_facilitator import \
@@ -156,16 +164,15 @@ MESSAGES: list[str] = [
 #: here than it did for the seconds — this needs to be run wide, not deep.
 REPS = max(1, int(os.getenv("DIALEXITY_PROBE_LEAK_REPS", "4")))
 
-#: Banned terms that are ALSO ordinary English an advisor says with no framework
-#: behind them. A hit on one of these is ambiguous evidence, and — being
+#: The soft/hard split this probe used to own now lives in the scorer, as
+#: `_AMBIGUOUS_TERMS` and `score_machinery_leak_unambiguous` — same reasoning,
+#: one definition. A hit on an ambiguous term is ambiguous evidence, and — being
 #: high-base-rate — it can fire in both arms of every pair, drive the discordant
 #: count to zero, and turn this probe into a null-generator. So the pairs are also
-#: scored with these two removed. This is NOT a softening of the contract: the
-#: prompt bans them outright and `score_machinery_leak` still counts them. It is
-#: this probe buying back the discrimination the base rate would eat.
-_SOFT_TERMS = ("perspective", "transformation")
-#: Derived from the scorer's own list so the two cannot drift apart.
-_HARD_TERMS = tuple(t for t in _MACHINERY_TERMS if t not in _SOFT_TERMS)
+#: scored with those removed. This is NOT a softening of the contract: the prompt
+#: bans them outright and `score_machinery_leak` still counts them. It is this
+#: probe buying back the discrimination the base rate would eat.
+_SOFT_TERMS = _AMBIGUOUS_TERMS
 
 _REUSE_OFF = lambda self, response, response_model, *, text=None: None  # noqa: E731
 
@@ -225,8 +232,9 @@ def _system_prompt_chars(facilitator: ConversationFacilitator) -> int:
 
 
 def _leak_hits(reply: str) -> list[str]:
-    """`score_machinery_leak` over a one-turn session — the scorer UNCHANGED, so
-    the count is comparable to the archive's."""
+    """`score_machinery_leak` over a one-turn session — the canonical scorer, not a
+    local reimplementation, so both arms are judged by the same rule as the
+    tripwire and the report."""
     session = SessionRecord(
         label="probe", turns=[TurnRecord(index=0, user="probe", assistant=reply)]
     )
@@ -242,8 +250,7 @@ def _hard_terms(reply: str) -> list[str]:
     that sits next to a hard one — filtering on the window would drop real hits.
     Returns the terms themselves, since which kind leaked is what decides the fix.
     """
-    lowered = reply.lower()
-    found = [term for term in _HARD_TERMS if term in lowered]
+    found = sorted({m.group(0).lower() for m in _MACHINERY_HARD_RE.finditer(reply)})
     found.extend(sorted({m.group(0) for m in _POSITION_LABEL.finditer(reply)}))
     return found
 

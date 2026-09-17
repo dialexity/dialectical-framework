@@ -1317,9 +1317,39 @@ grammatical subject of every sent sentence, and no report in the opening
 sentence). Note for anyone re-measuring this class: the canonical detector is
 `scoring.score_machinery_leak`, and "opposition"/"pathway" are **not** in
 `_MACHINERY_TERMS` — counting them inflates the leak rate ~2× (my first pass
-said 5/48 A2 turns; the canonical scorer says 8 hits, of which 3 are the actor
+said 5/48 A2 turns; the canonical scorer said 8 hits, of which 3 are the actor
 form and the rest are `accepted cost`, which the person's own decision record
 legitimately names).
+
+**Corrected 2026-09-17.** That last clause was the whole bug and this note
+recorded it without acting on it: `accepted cost` is not banned by any prompt, so
+the canonical scorer was counting it and 4 of those 8 hits were never
+violations. `accepted cost`, `adopted pathway` and the bare noun `the framework`
+have been removed from `_MACHINERY_TERMS`, word boundaries added ("synthesis" was
+matching "thesis"), and every occurrence is now counted rather than the first per
+term per turn. Archive-wide the rate went **8.4% → 5.2% of replies**. Every leak
+figure in the rounds above this line uses the old scorer and is not comparable to
+one measured after this date; the actor-form counts (the "3 of 8" here) are, since
+that shape was and is caught.
+
+**The correction is NOT one-directional, which is the part worth carrying.** Over
+the same 1645 archived A2 replies: 70 stopped leaking, **16 started**, 69 leak
+under both, net 139 → 85. The 16 are actor forms a substring search for `the
+framework` could never see — "the system flagged", "the record says", "the
+analysis surfaced" — now caught by `_MACHINERY_ACTOR`. So the scorer got LOOSER on
+ordinary English and STRICTER on the shape that is actually the defect. Do not
+describe this as a relaxed threshold.
+
+**It also fired `test_the_judge_and_rubric_r21_was_measured_against_are_unchanged`,
+which is the guard working, and the exception is recorded rather than waived.**
+That guard requires that no scorer r21 was measured against has MOVED, and one
+has. The re-argument: `judge.py` does not import `score_machinery_leak` and no
+leak hit enters a judge prompt or a dimension score, so r21's judged numbers and
+the rubric (`judge.py`, `scenarios.py`, both still byte-additive) are untouched.
+What moved is the machinery-silence tripwire's endpoint, and it moved in both
+directions as above. The guard now admits exactly these 24 lines, matched as three
+ordered blocks (`TestR23…._LEAK_CORRECTION`); every other deletion in the three
+files still fails, and a regrouped diff fails too.
 
 #### `claim2-weak-r15-voice` — the voice fixes hold, and they uncovered the floor
 

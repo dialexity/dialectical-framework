@@ -846,13 +846,26 @@ def score_menu(sessions: list[SessionRecord]) -> MenuScore:
     return score
 
 
-#: Framework vocabulary the silent Advisor must never say to the person.
-#: Verbatim from `_HOW_YOU_SPEAK` in `advisor/system_prompts.py`, which bans
-#: exactly this list "unless the app preamble explicitly grants terminology
-#: disclosure" — the bench persona grants nothing, so any hit is a violation.
-#: Position labels are matched with punctuation/word boundaries because bare
-#: "T+" also appears in ordinary prose ("cost+benefit"), and `A-` would
-#: otherwise match every hyphenated "a-".
+#: Framework vocabulary the silent Advisor must never say to the person — the
+#: parenthesised list in `_HOW_YOU_SPEAK` (`advisor/system_prompts.py`), which
+#: bans it "unless the app preamble explicitly grants terminology disclosure";
+#: the bench persona grants nothing, so any hit is a violation.
+#:
+#: This tuple is kept in sync with that prompt BY HAND and it had drifted, while
+#: the comment here claimed to be verbatim. Until 2026-09-17 it also carried
+#: `accepted cost`, `adopted pathway` and a bare `the framework`, none of which
+#: any prompt bans — and they dominated the archive: of 181 snippets over 438 A2
+#: sessions, `accepted cost` was 51 and `the framework` 56, against 8 for
+#: `antithesis`, 2 for `wheel`, 1 for `nexus` and 0 for `polarity`. Every one of
+#: the 51 `accepted cost` hits read as ordinary English, which `rounds.md` had
+#: already noted ("the person's own decision record legitimately names" it)
+#: without removing it. So the headline leak rate was mostly a phrase the
+#: contract permits. They are gone from the score; `the framework` survives only
+#: in the ACTOR form the prompt does ban, via `_MACHINERY_ACTOR` below.
+#:
+#: `tetrad` and `dialectic` were the opposite drift — plainly framework
+#: terminology, absent from the prompt's list. They were added to the PROMPT
+#: rather than dropped here, so this comment's "verbatim" claim is now true.
 _MACHINERY_TERMS = (
     "thesis",
     "antithesis",
@@ -863,13 +876,89 @@ _MACHINERY_TERMS = (
     "transformation",
     "tetrad",
     "dialectic",
-    "the framework",
-    "accepted cost",
-    "adopted pathway",
 )
+
+#: Banned terms that are also ordinary English an advisor says with no framework
+#: behind them: "from my perspective", "a digital transformation", "reinventing
+#: the wheel", "the thesis of the business case". Every archived `perspective`
+#: hit (14/14) was one of these, and most `thesis` hits were ordinary business
+#: English.
+#:
+#: They stay in `score_machinery_leak`, because the prompt bans them by name and
+#: softening the contract is not a scorer's call. But a leak count made mostly of
+#: these is measuring vocabulary rather than disclosure, so
+#: `score_machinery_leak_unambiguous` reports the count without them. Print both
+#: or neither — one alone is a claim about the other.
+_AMBIGUOUS_TERMS = ("thesis", "perspective", "transformation", "wheel")
+
+def _term_pattern(terms: tuple[str, ...]) -> re.Pattern[str]:
+    """One word-bounded alternation over `terms`, inflections included.
+
+    Word-bounded so "synthesis" stops counting as "thesis" — the substring bug
+    that produced most of the archive's `thesis` hits. (`lowered.find(term)` had
+    no boundary guard, and also stopped at the FIRST hit per term per turn, so a
+    reply that said "nexus" four times counted once.) Inflections are listed
+    explicitly rather than left to a trailing `s?`, because "polarities" is the
+    banned word and a bare `s?` would not reach it.
+    """
+    inflected = {
+        "thesis": r"theses|thesis",
+        "antithesis": r"anti-?theses|anti-?thesis",
+        "polarity": r"polarit(?:y|ies)",
+        "nexus": r"nexus(?:es)?",
+        "dialectic": r"dialectical|dialectics?",
+    }
+    # Longest first: "antithesis" must claim the match before "thesis" can, or
+    # the lookbehind is the only thing standing between one banned word and two
+    # reported hits.
+    ordered = sorted(terms, key=len, reverse=True)
+    alts = "|".join(inflected.get(t, rf"{t}s?") for t in ordered)
+    return re.compile(rf"(?<![A-Za-z])(?:{alts})(?![A-Za-z])", re.I)
+
+
+_MACHINERY_TERM_RE = _term_pattern(_MACHINERY_TERMS)
+_MACHINERY_HARD_RE = _term_pattern(
+    tuple(t for t in _MACHINERY_TERMS if t not in _AMBIGUOUS_TERMS)
+)
+
+#: The machinery as the grammatical subject of a finding — the shape
+#: `_HOW_YOU_SPEAK` bans by worked example ("…found four strong oppositions",
+#: "…flagged this as avoidance"). Anchored on the machinery NOUN, so it catches
+#: "the framework found" and not the prompt's other banned form, the subjectless
+#: "five distinct tensions surfaced". That second one turns on the grammatical
+#: subject, which a regex cannot read: "you found the tension between them" is
+#: exactly what the prompt ASKS for and matches any pattern loose enough to
+#: catch it. The prompt's mechanical check covers it; this score does not claim
+#: to.
+_MACHINERY_ACTOR = re.compile(
+    r"(?<![A-Za-z])(?:the|this|these|its|my|our)\s+"
+    r"(?:frameworks?|systems?|analys[ei]s|apparatus|engine|pipeline|"
+    r"models?|processes|process|tool(?:s|ing)?|records?|audits?)\s+"
+    r"(?:\w+ly\s+)?"
+    r"(?:found|finds?|flagg?e?d?|flags|surfaced|surfaces|identified|identifies|"
+    r"shows?|showed|says?|said|caught|catches|sees?|saw|suggests?|"
+    r"indicates?|indicated|picked up|is showing|has flagged)"
+    r"(?![A-Za-z])",
+    re.I,
+)
+
+#: Position labels are matched with punctuation/word boundaries because bare
+#: "T+" also appears in ordinary prose ("cost+benefit"), and `A-` would
+#: otherwise match every hyphenated "a-".
 _POSITION_LABEL = re.compile(
     r"(?<![A-Za-z0-9])(T[+-]|A[+-]|S[+-]|Ac[+-]|Re[+-])(?![A-Za-z0-9])"
 )
+
+
+def _leak_hits(session: SessionRecord, terms: re.Pattern[str]) -> list[str]:
+    """Every match of `terms`, the actor form, and a bare position label."""
+    hits: list[str] = []
+    for turn in session.turns:
+        text = turn.assistant or ""
+        for pattern in (terms, _MACHINERY_ACTOR, _POSITION_LABEL):
+            for match in pattern.finditer(text):
+                hits.append(text[max(0, match.start() - 40) : match.end() + 40].strip())
+    return hits
 
 
 def score_machinery_leak(session: SessionRecord) -> list[str]:
@@ -892,20 +981,29 @@ def score_machinery_leak(session: SessionRecord) -> list[str]:
     Returns the offending snippets rather than a count, because the fix depends
     on which kind: a bare label leaking is a formatting slip, "the framework
     flagged" is the machinery narrating itself.
+
+    Counts the terms the prompt bans BY NAME, four of which are also ordinary
+    English — see `_AMBIGUOUS_TERMS`, and read this number beside
+    `score_machinery_leak_unambiguous`. Figures published before 2026-09-17 are
+    not comparable to it: they included three phrases no prompt bans, matched
+    substrings, and counted one hit per term per turn however often it recurred.
     """
-    hits: list[str] = []
-    for turn in session.turns:
-        text = turn.assistant or ""
-        lowered = text.lower()
-        for term in _MACHINERY_TERMS:
-            start = lowered.find(term)
-            if start != -1:
-                hits.append(text[max(0, start - 40) : start + len(term) + 40].strip())
-        for match in _POSITION_LABEL.finditer(text):
-            hits.append(
-                text[max(0, match.start() - 40) : match.end() + 40].strip()
-            )
-    return hits
+    return _leak_hits(session, _MACHINERY_TERM_RE)
+
+
+def score_machinery_leak_unambiguous(session: SessionRecord) -> list[str]:
+    """`score_machinery_leak` without the terms that are also ordinary English.
+
+    The number to quote when the question is "did the machinery leak", rather
+    than "did the reply use a banned word". `perspective`, `transformation`,
+    `wheel` and `thesis` are banned outright, so they belong in the contract
+    score — but an advisor saying "from my perspective" has disclosed nothing,
+    and in the archive that sense was all of it (14/14).
+
+    This is NOT the contract. A hit dropped here is still a prompt violation;
+    it is just not evidence that a person saw the machinery.
+    """
+    return _leak_hits(session, _MACHINERY_HARD_RE)
 
 
 #: The framework's own extraction prompt, quoted back at the person. Matches the

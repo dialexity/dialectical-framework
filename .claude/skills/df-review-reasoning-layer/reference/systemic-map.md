@@ -866,9 +866,12 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   nothing — they are being **paid for in conversation quality**, which is exactly what `ceiling-not-floor` forbids,
   so a prompt change that buys structure at the cost of fit/warmth/closure is moving the wrong way even when its
   own subscale improves. Two explanations REFUTED, so neither is re-proposed as the cause. (a) *Validity defects* —
-  unpaired, clean A2 cells read -0.36 against leaky -0.66, but the groups differ by BUILD DATE (the cleanest cells
-  are the newest builds, which fixed everything else too); paired inside each run the effect is **+0.25, CI
-  [-0.04,+0.54], 8 of 14 sets, p=0.79**. Fix leaks because they are defects, not for the score. (b) *`explore`
+  unpaired, clean A2 cells read -0.188 against leaky -0.278, but the groups differ by BUILD DATE (the cleanest cells
+  are the newest builds, which fixed everything else too); paired inside each run the effect is **+0.204, CI
+  [-0.05,+0.46], 12 of 19 sets, sign test p=0.36**. Fix leaks because they are defects, not for the score.
+  (Re-measured 2026-09-17 when `score_machinery_leak` was corrected; the unpaired split used to read -0.36 vs
+  -0.66, and most of that old "leaky" group was cells saying `accepted cost`, a phrase no prompt bans. The
+  conclusion held and the gap shrank, so the refutation is stronger than when it was published.) (b) *`explore`
   non-election* — the POOLED correlation with the composite is real (**+0.556 over n=25**) and it is entirely
   BETWEEN-MODEL: split by model it is **-0.017 over haiku's 18 sets (share 0.00-0.67) and -0.256 over Sonnet's 7
   (share 0.67-1.00)**, whose share ranges barely touch. So the pooled figure says the stronger model both elects
@@ -1365,22 +1368,53 @@ real outage surfaces in seconds. Pinned by `test_llm_transport_resilience.py`.
    the leak rate roughly 2×. Locked by `test_prompt_review_regressions.py::TestAdvisorFloorGuarantee::
    test_machinery_as_actor_examples_are_not_quotable` and `test_subject_and_opening_checks_are_mechanical`,
    measured by `test_machinery_silence_weak_tier.py` (xfail, non-strict).
-   **A tool result is not required — reading the DUMP is enough, and the floor is about 1 turn in 6.**
+   **A tool result is not required — reading the DUMP is enough.**
    `probe_leak_reply_reuse.py` held a hand-built 5-perspective graph fixed and asked four
-   narration-inviting questions across 20 matched pairs; 7 of 40 replies on turns that elected **no tool at
-   all** said a banned term (`nexus`, `thesis`, `antithesis`, `wheel`, `the framework`), one handing over
-   "the main wheel is 63.9% probable" — a number that exists only in the context dump. So refine the r14
+   narration-inviting questions across 20 matched pairs; replies on turns that elected **no tool at
+   all** said banned terms, one handing over "the main wheel is 63.9% probable" — a number that exists only
+   in the context dump. So refine the r14
    claim above: having a tool result to narrate raises the rate and explains WHERE the sentence lands, but
    the standing dump supplies the vocabulary on its own, and no prompt fix should be judged against
    tool-electing turns alone. The same run retires a plausible mechanical suspect: **the removed second
    extraction round was never a hygiene filter** (leaking turns 4/20 with reply reuse against 2/20 without,
    6 discordant pairs, p=0.688) — the two configurations leak at one rate in *different* vocabulary, reuse
    reading the dump aloud and the extraction round narrating method, so latency work on the reply path is
-   not where this class is won or lost. Method rule for measuring it: score the arms TWICE, once on
-   `_MACHINERY_TERMS` whole and once with `perspective`/`transformation` removed. Those two are banned and
-   are also ordinary advisory English; the mirror of this section's `opposition`/`pathway` warning is that a
+   not where this class is won or lost. Method rule for measuring it: score the arms TWICE, once with
+   `score_machinery_leak` and once with `score_machinery_leak_unambiguous`. Four banned terms
+   (`perspective`, `transformation`, `wheel`, `thesis`) are also ordinary advisory English; the mirror of
+   this section's `opposition`/`pathway` warning is that a
    high-base-rate canonical term saturates both arms, drives the discordant count to zero, and MANUFACTURES
    a null that reads exactly like a real one.
+   **THE DETECTOR WAS THE DEFECT, and its own comment was the false claim (corrected 2026-09-17).**
+   `_MACHINERY_TERMS` said it was "verbatim from `_HOW_YOU_SPEAK`, which bans exactly this list" and it was
+   not: it carried `accepted cost` (51 of 181 archived snippets, ordinary English, banned nowhere and already
+   noted as legitimate in `rounds.md` without being removed), `adopted pathway`, and a bare `the framework`
+   ("help you build the framework"). It matched substrings, so **"synthesis" counted as "thesis"**, and
+   `lowered.find(term)` stopped at the first hit per term per turn. So the rule above ("check the canonical
+   detector before claiming a term leaked") needed its own converse: **check the detector against the PROMPT
+   before believing its rate.** Corrected to word-bounded terms with explicit inflections, the actor form
+   only for `the framework` (`_MACHINERY_ACTOR`), every occurrence counted, and `tetrad`/`dialectic` added to
+   the PROMPT rather than dropped from the scorer — so the "verbatim" claim is now true and
+   `test_the_term_list_is_verbatim_from_the_prompt` fails if the two drift again.
+   **Two-directional, not a relaxation:** over 1645 archived A2 replies 70 stopped leaking and **16 started**
+   (actor forms a substring search for `the framework` never saw — "the system flagged", "the record says"),
+   net **139 → 85 replies, 8.4% → 5.2%**. The old "about 1 turn in 6" was `probe_leak_reply_reuse`'s 7/40 on
+   narration-inviting questions read as an archive rate.
+   **What the corrected measurement says the leak IS** (`probe_leak_shape.py`, free, 438 sessions / 126
+   snippets): **machinery-as-actor 59 (47%)** and **bare position labels 38 (30%)**; BARE TERM 29, ECHOED 1;
+   `nexus` 1, `wheel` 1, `polarity` 0, `tetrad` 0, `dialectic` 0. **It is not vocabulary**, so adding banned
+   words to the prompt aims at the wrong 2%, and both real shapes were ALREADY banned by worked example —
+   this is a compliance failure, not a missing rule. The one gap found and closed: the prompt banned the
+   labels without ever saying what they ARE, while the dump hands the model `T1+ [[hash]]`; `_HOW_YOU_SPEAK`
+   now says **"Those labels are addresses, not vocabulary"** (pinned by
+   `test_position_labels_are_addressed_as_addresses_in_the_prompt`). Two levers stay unavailable and should
+   not be re-proposed: `_dump_one_perspective`'s `T{idx}+ [[hash]]` labels are load-bearing for
+   `record_decision`'s `accepted_cost` ground (its own warning comment says so), and a post-hoc rewrite pass
+   would work on `chat()` and be structurally impossible on `chat_stream()`, splitting the two entry points
+   on a PRODUCT claim. This edit also fired
+   `test_the_judge_and_rubric_r21_was_measured_against_are_unchanged` — the guard working; the exception is
+   named and argued in `TestR23…._LEAK_CORRECTION` rather than waived, on the ground that `judge.py` does not
+   import this scorer and no leak hit enters a dimension score.
    **Blind spot in the measurement, not in the prompt: PREAMBLE text is never scored.** On the streaming
    path the reply is the deltas yielded after the last tool result, so text the model writes *before* a
    `ToolStart` — narrating what it is about to do, exactly the sentence-after-reading-a-tool-result site

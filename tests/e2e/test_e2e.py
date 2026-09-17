@@ -4454,6 +4454,113 @@ class TestMachineryLeak:
         assert "framework" in hits[0]
         assert len(hits[0]) > len("the framework")
 
+    @pytest.mark.parametrize(
+        "term",
+        ["thesis", "antithesis", "polarity", "perspective", "nexus", "wheel",
+         "transformation", "tetrad", "dialectic"],
+    )
+    def test_the_term_list_is_verbatim_from_the_prompt(self, term):
+        """The comment on `_MACHINERY_TERMS` claims to be verbatim from
+        `_HOW_YOU_SPEAK`, and until 2026-09-17 it was not — it carried three
+        phrases no prompt bans, which were 107 of 181 archived snippets. This
+        test is what makes the claim checkable instead of aspirational."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert term in scoring._MACHINERY_TERMS
+        idx = SYSTEM_PROMPT.find("framework terminology")
+        window = " ".join(SYSTEM_PROMPT[idx : idx + 300].split())
+        assert term in window, f"scorer bans {term!r}, the prompt does not"
+
+    @pytest.mark.parametrize(
+        "unbanned",
+        [
+            # Ordinary English the prompt never bans, and the single largest
+            # contributor to the old leak rate: 51 of 181 archived snippets were
+            # `accepted cost`, every one of them legitimate.
+            "The accepted cost here is six months of slower decisions.",
+            "That's the adopted pathway most founders take.",
+            # A bare noun, as opposed to the actor form below.
+            "Do you need help building the framework for that decision?",
+            "I can help you think through the framework you already have.",
+        ],
+    )
+    def test_phrases_the_prompt_does_not_ban_are_not_leaks(self, unbanned):
+        assert scoring.score_machinery_leak(self._session(unbanned)) == []
+
+    @pytest.mark.parametrize(
+        "actor",
+        [
+            "The framework found five genuine oppositions to what you want.",
+            "The system flagged that the rationale leans into the upside.",
+            "The record says you already committed to this.",
+            "The analysis surfaced five different readings.",
+        ],
+    )
+    def test_the_actor_form_is_still_a_leak(self, actor):
+        """`the framework` left the term list, so the shape that actually leaks —
+        47% of archived snippets — has to be caught by `_MACHINERY_ACTOR`
+        instead. If this passes and the previous test also passes, the scorer is
+        distinguishing the ban from the noun."""
+        assert scoring.score_machinery_leak(self._session(actor))
+
+    @pytest.mark.parametrize(
+        "clean",
+        [
+            # `lowered.find("thesis")` matched inside all three of these, and
+            # "synthesis" is a word the Advisor is meant to use about the work.
+            "The synthesis you landed on is the part that holds.",
+            "That's a hypothesis worth testing before you commit.",
+            "Photosynthesis is not the metaphor I'd reach for.",
+        ],
+    )
+    def test_a_banned_term_inside_a_longer_word_is_not_a_leak(self, clean):
+        assert scoring.score_machinery_leak(self._session(clean)) == []
+
+    @pytest.mark.parametrize(
+        "inflected",
+        ["Consider the polarities here.", "Both perspectives hold.",
+         "Which wheels are turning?", "The nexuses overlap."],
+    )
+    def test_inflections_of_a_banned_term_are_caught(self, inflected):
+        """"polarities" is the banned word; the boundary guard that kills
+        "synthesis" must not also kill the plural."""
+        assert scoring.score_machinery_leak(self._session(inflected))
+
+    def test_every_occurrence_is_counted_not_just_the_first(self):
+        """`lowered.find(term)` stopped at the first hit, so a reply that said
+        `nexus` four times counted as one — an undercount inside an overcount."""
+        hits = scoring.score_machinery_leak(
+            self._session("The nexus, then the nexus again, and the nexus once more.")
+        )
+        assert len(hits) == 3
+
+    def test_antithesis_is_one_hit_not_two(self):
+        """Ordered longest-first, so "antithesis" claims the match before
+        "thesis" can and one banned word does not report as two."""
+        hits = scoring.score_machinery_leak(self._session("Consider the antithesis."))
+        assert len(hits) == 1
+
+    def test_the_unambiguous_cut_drops_ordinary_english_and_keeps_the_rest(self):
+        """`score_machinery_leak` is the contract; the unambiguous cut is the
+        evidence that a person actually saw the machinery. A term dropped here is
+        still a prompt violation — see the docstring."""
+        soft = self._session("From my perspective, that's a real transformation.")
+        assert scoring.score_machinery_leak(soft)
+        assert scoring.score_machinery_leak_unambiguous(soft) == []
+
+        hard = self._session("The framework found the nexus. That's the T+ side.")
+        assert scoring.score_machinery_leak_unambiguous(hard)
+
+    def test_position_labels_are_addressed_as_addresses_in_the_prompt(self):
+        """The dump hands the model `T1+ [[hash]]` and 30% of archived snippets
+        are a bare `T+` in the prose, so the prompt has to say the labels are
+        addresses rather than only that they are banned."""
+        from dialectical_framework.agents.advisor.system_prompts import \
+            SYSTEM_PROMPT
+
+        assert "addresses, not vocabulary" in SYSTEM_PROMPT
+
     def test_the_report_flags_it_as_validity(self):
         run = _run(Arm.A2, "weak", tool_calls=["anchor"])
         run.sessions[0].turns[0].assistant = "**T+: Solo leadership** — yes."
@@ -10203,6 +10310,69 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
             assert fragment in prose_arm, f"A1/A1.7 lost: {fragment[:80]!r}…"
             assert fragment in advisor_arm, f"A2 lost: {fragment[:80]!r}…"
 
+    #: The one admitted deletion from `scoring.py` since `1ca4083`: the 2026-09-17
+    #: correction of `score_machinery_leak`. Every other deleted or rewritten line
+    #: in any of the three files still fails, so this is an exception with a
+    #: name, not a loosened rule — extending it means writing the re-argument
+    #: below for whatever is being added.
+    #:
+    #: WHAT WAS WRONG. The comment claimed the term list was "verbatim from
+    #: `_HOW_YOU_SPEAK`, which bans exactly this list". It was not: it carried
+    #: `accepted cost`, `adopted pathway` and a bare `the framework`, none of them
+    #: banned by any prompt, and they were 107 of 181 archived snippets. It also
+    #: matched substrings ("synthesis" counted as "thesis") and used
+    #: `lowered.find`, which stops at the first hit per term per turn.
+    #:
+    #: WHY r21's INFERENCE SURVIVES. `judge.py` does not import this scorer and no
+    #: leak hit enters a judge prompt or a dimension score, so r21's judged numbers
+    #: are untouched — the rubric is `judge.py` and `scenarios.py`, both still
+    #: byte-additive. What DID move is the machinery-silence tripwire's endpoint
+    #: (`assert not leaks`), and the move is two-directional rather than a
+    #: relaxation: over the same 1645 archived replies, 70 stopped leaking, **16
+    #: started** — the actor forms a substring search for `the framework` never
+    #: saw ("the system flagged", "the record says", "the analysis surfaced").
+    #: Net 139 → 85 replies. So any leak figure predating 2026-09-17 is not
+    #: comparable in EITHER direction and must be re-measured, which
+    #: `probe_leak_shape.py` does for free.
+    #: Three ORDERED blocks — the false comment, the three unbanned phrases, and
+    #: the body — matched whole rather than as a set of permitted lines. A set
+    #: would admit `"""` or `return hits` deleted anywhere in the file. The
+    #: three-way split is `difflib`'s grouping of one contiguous edit; if a future
+    #: change regroups it, this fails loudly, which is the intended failure mode.
+    #: Lines are post-`_normalize`, so "bench persona" reads "e2e persona".
+    _LEAK_CORRECTION = (
+        (
+            "#: Framework vocabulary the silent Advisor must never say to the person.",
+            "#: Verbatim from `_HOW_YOU_SPEAK` in `advisor/system_prompts.py`, which bans",
+            '#: exactly this list "unless the app preamble explicitly grants terminology',
+            '#: disclosure" — the e2e persona grants nothing, so any hit is a violation.',
+            "#: Position labels are matched with punctuation/word boundaries because bare",
+            '#: "T+" also appears in ordinary prose ("cost+benefit"), and `A-` would',
+            '#: otherwise match every hyphenated "a-".',
+        ),
+        (
+            '"the framework",',
+            '"accepted cost",',
+            '"adopted pathway",',
+        ),
+        (
+            '"""',
+            "hits: list[str] = []",
+            "for turn in session.turns:",
+            'text = turn.assistant or ""',
+            "lowered = text.lower()",
+            "for term in _MACHINERY_TERMS:",
+            "start = lowered.find(term)",
+            "if start != -1:",
+            "hits.append(text[max(0, start - 40) : start + len(term) + 40].strip())",
+            "for match in _POSITION_LABEL.finditer(text):",
+            "hits.append(",
+            "text[max(0, match.start() - 40) : match.end() + 40].strip()",
+            ")",
+            "return hits",
+        ),
+    )
+
     def test_the_judge_and_rubric_r21_was_measured_against_are_unchanged(self):
         """What r23 actually gates is the JUDGE, and the judge is frozen.
 
@@ -10227,6 +10397,10 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
         `REVERSAL_COFOUNDER` is the first scenario admitted under this reading
         (added 2026-08-20, +0 deletions). Verify with
         `git diff tests/e2e/scenarios.py | grep '^-'` — empty is the bar.
+
+        ONE DELETION IS ADMITTED, and it is admitted by re-argument rather than by
+        widening the rule — see `_LEAK_CORRECTION` below for the exact 24 lines and
+        the argument. This guard fired on it, which is the guard working.
         """
         import difflib
         import subprocess
@@ -10261,6 +10435,12 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
                 ).get_opcodes()
                 if tag in ("replace", "delete")
             ]
+            if name == "scoring.py":
+                touched = [
+                    (tag, lines)
+                    for tag, lines in touched
+                    if tuple(l.strip() for l in lines) not in self._LEAK_CORRECTION
+                ]
             assert not touched, (
                 f"tests/e2e/{name} CHANGED lines present at {self.PROMPT_SHA} "
                 f"(not merely added to): {touched[0][0]} "
