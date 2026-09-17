@@ -44,6 +44,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   import-time default render (settings defaults), kept for back-compat + regression tests.
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
+  **There are THREE render shapes, and the third is DERIVED from the names, not passed:**
+  `read_only = not (set(tool_names) & _WRITE_TOOL_NAMES)`, because the toolset is already this function's
+  single source of truth and a second parameter could disagree with the tools the head actually holds.
+  It composes with the scoped shape (a pinned, read-only counsel head is legal). See the read-only
+  subsection under the authority matrix in §5.
   The dump is **re-read every turn** by `Advisor._refresh_context`, and the system prompt is **rewritten
   only when the rendered dump changed**. Read this history before touching it, because the design has
   flipped twice:
@@ -3519,6 +3524,35 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ (consent-first, prompt-enforced) | ✅ sid-wide (incl. Decisions) | full case (render at construction) |
 | Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + unattached PPs (quality-floored) + Decisions (Case-wide) + a count of other explorations' tensions — the render scope now MATCHES the write scope to its left, which it did not until 2026-09-15 |
+| Advisor(read_only=True) | ❌ | ❌ | ❌ | ❌ **and the seam declines too** | ❌ | same as the row it narrows (full case, or one nexus with `nexus_hash=`) — reading is untouched |
+
+**`Advisor(read_only=True)` is the one row where the framework's OWN initiative had to be gated as well,
+and that is the transferable part.** Every ❌ above it is a tool the model does not get; this row also has
+to stop `_repair_unrecorded_decision`, which writes a Decision the model never recorded and schedules the
+off-turn weave (perspectives, cycles, wheels). Gated at that ONE method rather than at the two turn loops —
+it is the single place every caller passes through, tests included — and both `TurnTiming` outcome fields
+stay `None`, which `ClosingOutcome` already documents as "the seam did not run"; it is deliberately given
+no enum member, because reading it as `NO_CLOSING` would turn "nobody asked" into "the answer was no".
+`_settle_deferred_work` and `_refresh_context` still run (ONE WRITER PER SID, and the refresh is a read).
+**`audit_feasibility` and `discard` are WRITES for this purpose** — the first spends two provider calls
+writing a FeasibilityEstimation plus a critique Rationale, the second soft-marks a node out of every active
+query. `app_tools` are still merged, deliberately: the framework cannot tell a host's chart lookup from a
+host's write, so the flag governs the FRAMEWORK's surface and refusing them would push those apps onto
+`app_preamble=` — the trap `advanced` fell into. `principal` is accepted and ignored (nothing recorded,
+nothing attested; unlike `advanced`, ignoring it changes nothing a person can see, so it does not raise).
+**The prompt side is the review lesson: gating the toolset does NOT gate the prompt.** Only the tool DOCS
+and two name-gated sections (`_DECISION_READINESS` on `record_decision`, the two feasibility passages on
+`audit_feasibility`) follow the names; `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`, `_DEFAULT_ARC`,
+`_TOOLS_INTRO_SCOPED` and `_SCORE_READING` all still instruct absent tools. Closed with three forks mirroring
+the existing `*_SCOPED` ones (`_EAGER_READ_ONLY`, `_TOOLS_INTRO_READ_ONLY`, `_REJECTION_HANDLING_READ_ONLY`),
+two literal heading swaps in `_CONVERSATION_USE` (phase labels named after the tool that produces the phase),
+`_DEFAULT_ARC` dropped for the reason it is dropped when scoped (the arc IS the building sequence), and ONE
+new `_READ_ONLY_MANDATE` placed LAST among the instruction sections so **later sections win** over what
+`_SCORE_READING` and `_CONVERSATION_USE` still say — those two deliberately NOT forked, because their tool
+references sit mid-paragraph inside reasoning about what the scores MEAN, which is where prompt drift lives.
+Tests: `tests/test_advisor_read_only.py`, whose `TestTheTwoListsAreOne` is the only thing holding
+`_WRITE_TOOL_NAMES` (prompt) and `_build_read_only_tools` (toolset) together, and `TestTheGateHasOneSite`
+the only thing stopping a "read-only means do nothing" edit from taking the settle and the refresh.
 
 `Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head

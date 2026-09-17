@@ -24,6 +24,9 @@ rejected anchors — but never members of OTHER explorations), and
 record_decision persists confirmed decisions (Case-level, unguarded by the
 pin). Only `ingest` is excluded — bulk extraction belongs to the unscoped
 flow.
+
+`read_only=True` is the one configuration that keeps less than all of that: the
+pinned `sync` plus `inspect_node`/`read_digest`, and no write tool built at all.
 """
 
 from __future__ import annotations
@@ -38,7 +41,9 @@ from dialectical_framework.concerns.record_decision import \
 
 
 def build_scoped_tools(
-    nexus_hash: str, principal: str = UNATTESTED_PRINCIPAL
+    nexus_hash: str,
+    principal: str = UNATTESTED_PRINCIPAL,
+    read_only: bool = False,
 ) -> list:
     """
     Build the tool set for an exploration-pinned Advisor (counsel mode).
@@ -50,16 +55,18 @@ def build_scoped_tools(
     identity, closed over the same way) reaches record_decision — see
     tools/record_decision.py. It defaults to no attestation rather than to
     "human", which is a claim only a host can make.
+
+    `read_only=True` returns the READING tools alone — the pinned `sync`,
+    `inspect_node`, `read_digest` — and nothing else is built, so `principal`
+    reaches nobody. Same enforcement mechanism as the pin itself: what the head
+    cannot do is what it was never handed, not what a prompt asked it to avoid.
+    See `Advisor.__init__` for what the flag is for and what it costs.
     """
-    from dialectical_framework.agents.advisor.tools.anchor import anchor
-    from dialectical_framework.agents.advisor.tools.record_decision import \
-        build_record_decision
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
         read_digest
 
-    record_decision = build_record_decision(principal)
     pinned_hash = nexus_hash
 
     @llm.tool
@@ -70,6 +77,19 @@ def build_scoped_tools(
 
         concern = DialecticalContext(nexus_hash=pinned_hash)
         return await concern.resolve()
+
+    if read_only:
+        # Returned before anything else is even imported: `discard` and
+        # `audit_feasibility` below are guarded by scope refusals, and a reader
+        # coming to this file should not have to check whether those guards
+        # happen to make them safe. They do not — both write.
+        return [sync, inspect_node, read_digest]
+
+    from dialectical_framework.agents.advisor.tools.anchor import anchor
+    from dialectical_framework.agents.advisor.tools.record_decision import \
+        build_record_decision
+
+    record_decision = build_record_decision(principal)
 
     @llm.tool
     async def discard(

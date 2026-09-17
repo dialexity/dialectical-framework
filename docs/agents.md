@@ -354,7 +354,8 @@ it drives toward the choice and keeps the recorded decision, while the convergen
 mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
-nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL)`. `dialectical_context` is an
+nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
+read_only=False)`. `dialectical_context` is an
 optional pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the
 system prompt — use it when a rich graph already exists at conversation start. `principal` is
 the host's attestation of WHO confirms decisions in this conversation, and it is the one
@@ -374,6 +375,24 @@ standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 built-in set. The engine prompt carries no docs for them (their tool-schema docstrings
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
+
+`read_only=True` is the **third surface**, and it is a narrowing of the two above rather
+than a mode of its own: the head keeps `sync`, `inspect_node` and `read_digest`, and no
+write tool is built at all. Nothing it does changes the graph — no tension anchored, no
+pathway built or deepened, no feasibility scored, no decision recorded — and the closing
+seam declines to run, so the framework does not write on its own initiative either. It
+composes with `nexus_hash=`, giving a counsel-mode head pinned to one exploration and
+unable to alter it. Use it for a second reader on a Case someone else is working, a shared
+or public view of an exploration, a support seat, or any host that wants counsel without
+granting write access. Enforced by the TOOLSET, not by prompt — the same division of labour
+as the nexus pin. Two things it costs, and both are worth stating to whoever picks it:
+a person who states a decision in this conversation gets **no record of it** (the seam that
+catches the model not calling `record_decision` is exactly what is switched off — measured
+0/6 at the weak tier), and the graph never deepens, so counsel stays at whatever depth it
+was handed. `principal` is accepted and ignored (nothing is recorded, so nothing is
+attested); `app_tools` are still merged, deliberately — the framework cannot tell a host's
+chart lookup from a host's write, so this flag governs the framework's surface and the host
+owns its own.
 
 **Tools (10)** — coarse, composed super-tools that hide the machinery:
 
@@ -410,6 +429,9 @@ displays it.
 - The **unscoped** Advisor is a standalone app, not a mode of the navigator. The
   **exploration-pinned** Advisor (`nexus_hash=...`) is the opposite: a mode of the
   Explorer session, reached by handover, never started cold.
+- A **read-only** head (`read_only=True`) is the one to reach for when the seat is not the
+  one doing the work — a viewer, a second reader, a support agent. The conversation looks
+  identical; the graph is untouched, and nothing said in it is recorded.
 
 ---
 

@@ -68,9 +68,15 @@ class _StubAdvisor:
         principal: str = UNATTESTED_PRINCIPAL,
         nexus_hash: str | None = None,
         automatic_feasibility_audit: bool = True,
+        # Mirrors the real class, and defaulted the same way. The seam declines
+        # outright on a read-only head, so a stub defaulting the other way would
+        # turn every test in this file green by never running the repair —
+        # `tests/test_advisor_read_only.py` is what passes True.
+        read_only: bool = False,
     ) -> None:
         self._principal = principal
         self._nexus_hash = nexus_hash
+        self._read_only = read_only
         # Settings reach the real class through DI (`SettingsAware`), which wants
         # a live container these DB-free tests do not build. A per-instance
         # stand-in keeps the audit MODE switchable per test — and it defaults to

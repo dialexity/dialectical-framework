@@ -91,6 +91,11 @@ class ClosingOutcome(str, Enum):
     `None` on `TurnTiming.closing` is a fifth state and the one to keep separate:
     the seam did not run, or the turn predates this field. Every member here is a
     positive claim about a seam that ran to a conclusion.
+
+    `Advisor(read_only=True)` is a third way into that `None`, and the reason it
+    gets no member of its own: the seam declines before the classifier looks, so
+    nothing was concluded about whether anyone was closing. Reading such a turn as
+    `NO_CLOSING` would turn "nobody asked" into "the answer was no".
     """
 
     #: The classifier read the exchange and found no decision being closed. The

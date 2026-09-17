@@ -139,6 +139,21 @@ insight you offer.
 Your response to the person never waits on the machinery — speak from what
 you have."""
 
+_EAGER_READ_ONLY = """## Thinking Eagerly, Speaking Freely
+
+Whatever structural understanding exists was built elsewhere. Here you read it
+and counsel from it; you cannot add to it. So the eagerness goes into READING —
+pull the detail behind any insight you offer rather than paraphrasing the summary
+you were handed.
+
+When someone shares a situation, a decision, a conflict, a position, and nothing
+in your understanding speaks to it, answer from your own judgment and say what
+you see. Do not offer to work it up, map it, or look into it: nothing you can
+call would, and an offer you cannot keep costs more than a plain answer.
+
+Your response to the person never waits on the machinery — speak from what
+you have."""
+
 _INTERNAL_MODEL = """## How Dialectical Understanding Works (Your Internal Model)
 
 Every position carries an unpriced obligation — whether personal conviction,
@@ -601,6 +616,12 @@ name the tools themselves, but their EFFECTS on the exploration are the
 person's business: announce additions and removals in plain language, per
 the consent rules in the app preamble above."""
 
+_TOOLS_INTRO_READ_ONLY = """## Internal Tools
+
+Your internal tools READ the understanding that already exists; not one of them
+changes it. Use them eagerly and silently; never mention them. Nothing is added
+or removed while you are here, so there is nothing to announce either."""
+
 # Per-tool documentation, keyed by the @llm.tool function __name__.
 # The tools section renders ONLY the docs of tools actually wired, so the
 # prompt never documents a tool the agent doesn't have.
@@ -869,6 +890,18 @@ woven-in the framing is:
 If their correction reveals a genuinely different tension, offer to `anchor`
 the new framing. The exploration should reflect what they stand behind —
 nothing appears or disappears from it without them knowing."""
+
+_REJECTION_HANDLING_READ_ONLY = """**When the person rejects a framing:** You cannot retract it. Nothing you have
+changes what is on record, and the framing will still be there whatever you say —
+so the correction lives entirely in your own reading: drop the frame, and carry
+what changed forward in plain words. "So it isn't the control question — it's
+that you'd be the only one who can catch the mistake." Naming what changed, in
+their terms, is what makes the next framing land instead of reading as a fresh
+start.
+
+Do not offer to remove it and do not imply it has been removed. If their
+correction reveals a genuinely different tension, say what you now see and
+counsel from that — the record catching up is not this conversation's to do."""
 
 _DEFAULT_ARC = """## Default Arc
 
@@ -1265,6 +1298,27 @@ numbers in an exploration-pinned session and forbids them otherwise.
    new vs what you already knew — don't re-present old insights as new
    discoveries."""
 
+_READ_ONLY_MANDATE = """## What Is Not Available Here
+
+This surface reads. Every tool you have looks something up; not one of them
+writes, adds, removes, retracts, deepens, scores or records anything, and nothing
+said in this conversation is being written down as a decision. Later sections of
+this prompt win over earlier ones and this one is last on purpose: wherever a
+section above tells you to build, weave, deepen, retract, assess or record, that
+instruction is not yours to follow. Read what is there and say what you see.
+
+Two consequences, and both are about honesty rather than capability:
+
+- **Never promise the change you cannot make.** Not "let me map that", not "I'll
+  check whether that's workable", not "I've noted that down". Someone told their
+  decision was recorded, by a surface that records nothing, has been misled about
+  the one thing they were most entitled to rely on.
+- **A gap is a finding you state, not a task you take on.** When the
+  understanding you were handed has no reading of what they just raised — no
+  tension that fits it, no recipe for it, no view on whether it can be pulled off
+  — say so plainly and answer from your own judgment. That is a complete answer
+  here, not a partial one."""
+
 _CONTEXT_SLOT = """## Current Understanding
 
 {dialectical_context}"""
@@ -1285,6 +1339,26 @@ in — everything you weave lands in this exploration, there is nowhere else.
 Anchored tensions the person chooses not to weave in remain valid candidates
 outside it."""
 
+
+#: Every tool name that CHANGES something — the graph, an estimation, or the
+#: decision ledger. Anything else is a lookup. `audit_feasibility` belongs here
+#: on the strength of its own comment in `advisor/tools/scoped.py`: it writes a
+#: FeasibilityEstimation plus a critique Rationale and spends two provider calls
+#: doing it, so it is a write tool by both tests however much it reads like one.
+#: Used to derive the READ-ONLY render below — app tools are never in this set,
+#: so a host's own lookup tool does not make a read-only surface look writable
+#: (and it cannot shadow one of these: `merge_app_tools` raises).
+_WRITE_TOOL_NAMES = frozenset(
+    {
+        "ingest",
+        "anchor",
+        "explore",
+        "deepen",
+        "audit_feasibility",
+        "record_decision",
+        "discard",
+    }
+)
 
 DEFAULT_TOOL_NAMES = [
     "ingest",
@@ -1310,9 +1384,18 @@ def system_prompt(
     Unscoped (default): the full engine. Scoped (nexus pinned): adds a Scope
     section, renders only the wired tools' docs, and swaps eager-building
     guidance for counsel-from-existing-structure guidance.
+
+    A tool set with no write tool in it (`Advisor(read_only=True)`) renders a
+    THIRD shape, in both modes: the sections that instruct building are replaced
+    by their read-only counterparts and a closing mandate says so outright. That
+    is derived from the names rather than passed as a flag, because the toolset is
+    already this function's single source of truth for what renders — a separate
+    parameter could disagree with the tools the agent actually holds, and the
+    disagreement would be invisible.
     """
     names = tool_names if tool_names is not None else DEFAULT_TOOL_NAMES
     scoped = scoped_nexus_hash is not None
+    read_only = not (set(names) & _WRITE_TOOL_NAMES)
 
     tool_docs = []
     for name in names:
@@ -1368,7 +1451,7 @@ def system_prompt(
         else "",
     )
     eager = _decision_note(
-        _EAGER_SCOPED if scoped else _EAGER,
+        _EAGER_READ_ONLY if read_only else (_EAGER_SCOPED if scoped else _EAGER),
         "{decision_filter_note}",
         "In decision-shaped conversations, the Decision Readiness section "
         "below adds one more filter: a candidate tension that could not "
@@ -1427,7 +1510,21 @@ def system_prompt(
             )
 
     conversation_use = _CONVERSATION_USE
-    if scoped and "ingest" not in names:
+    if read_only:
+        # Same rule, taken to the end: these two headings are PHASE labels named
+        # after the tool that produces the phase, and on a read-only surface no
+        # tool produces either — the phase is simply what the understanding
+        # already holds. Two literal swaps rather than a fork of the whole
+        # section, because everything else in it is about how to USE what is
+        # there, which is exactly what this surface does.
+        conversation_use = conversation_use.replace(
+            "**After ingest or anchor (tensions identified):**",
+            "**When tensions are already mapped:**",
+        ).replace(
+            "**After explore (pathways available):**",
+            "**When pathways are already available:**",
+        )
+    elif scoped and "ingest" not in names:
         # Don't reference a tool that isn't wired in this mode.
         conversation_use = conversation_use.replace(
             "**After ingest or anchor (tensions identified):**",
@@ -1441,12 +1538,28 @@ def system_prompt(
         internal_model,
         conversation_use,
         decision_readiness if decisions_wired else None,
-        _TOOLS_INTRO_SCOPED if scoped else _TOOLS_INTRO,
+        _TOOLS_INTRO_READ_ONLY
+        if read_only
+        else (_TOOLS_INTRO_SCOPED if scoped else _TOOLS_INTRO),
         "\n\n".join(tool_docs),
-        _REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING,
-        None if scoped else default_arc,
+        _REJECTION_HANDLING_READ_ONLY
+        if read_only
+        else (_REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING),
+        # Dropped on a read-only surface for the reason it is dropped when
+        # scoped: the arc IS the building sequence (steps 2-4 are tool calls, and
+        # its closing paragraph tells the head what to do when `ingest` surfaces
+        # nothing). What survives of it for this surface — skip the listening
+        # phase when understanding already exists — is already in How to Use Your
+        # Understanding.
+        None if scoped or read_only else default_arc,
         how_you_speak,
         score_reading,
+        # LAST of the instruction sections, and load-bearingly so: it overrides
+        # what Reading Your Understanding and How to Use Your Understanding still
+        # say about deepening, weaving and auditing. Those two are left alone on
+        # purpose — their tool references sit mid-paragraph inside reasoning about
+        # what the scores MEAN, and forking them is where prompt drift lives.
+        _READ_ONLY_MANDATE if read_only else None,
         _CONTEXT_SLOT,
     ]
     return "\n\n".join(s for s in sections if s)

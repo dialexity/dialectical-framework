@@ -529,6 +529,25 @@ anchors.
       section that renders in every mode (`_SCORE_READING`) can dangle, which is what `_decision_note` and the
       `_INTERNAL_MODEL` mid-sentence placeholder exist for — and when you gate a sentence, keep the part that
       carries the RULE outside the gate and put only the pointer inside it.
+- [ ] **Gating the TOOLSET does not gate the PROMPT — and at mode scale that is not one dangling sentence but
+      most of the render.** `Advisor(read_only=True)` (2026-09-17, the engine's THIRD render shape; the flag is
+      DERIVED in `system_prompt()` as `read_only = not (set(names) & _WRITE_TOOL_NAMES)`, never passed, so it
+      cannot disagree with the tools the head actually holds) removes all 7 write tools, and only tool DOCS plus
+      the two name-gated sections followed it. `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`,
+      `_DEFAULT_ARC`, `_TOOLS_INTRO_SCOPED` and `_SCORE_READING` all still instructed a head to `ingest`,
+      `anchor`, `explore` and `discard` with none of them wired. So when you add a mode that withdraws a CLASS of
+      tools, enumerate every section and ask what it tells the model to DO, not just which names it mentions —
+      the name-gates that already exist cover the sections written after them and nothing else. Two shape rules
+      from the fix. (1) **Fork the sections whose whole subject is the withdrawn work** (`_EAGER`,
+      `_CONVERSATION_USE`, `_REJECTION_HANDLING`) and drop the ones that are pure procedure for it
+      (`_DEFAULT_ARC`). (2) **For a section whose tool references sit mid-paragraph inside reasoning about what
+      the scores MEAN, do not fork it** — that is where drift lives; state one mandate and place it LAST among
+      the instruction sections, immediately before `_CONTEXT_SLOT`, because later sections win and the cache
+      seam requires the dump to stay last. Enforcement stays in CODE at two sites (the toolset, and the closing
+      seam's single `_repair_unrecorded_decision` method); the prompt's only job is to stop the head spending
+      turns reaching for what it does not have. `tests/test_advisor_read_only.py` pins both halves, including
+      that `DEFAULT_TOOL_NAMES` is exactly the read set ∪ `_WRITE_TOOL_NAMES` so a new tool cannot be added
+      without being classified.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
