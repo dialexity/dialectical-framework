@@ -3333,9 +3333,17 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   check their own corpus. **The lever is closed, not pending — and closed on absence of evidence, which is worth
   knowing before anyone reruns it.** One finding from that work is NOT about the arms and is larger than they
   are: the per-claim check rated **~44% of everything step 2 emits as distorted or invented relative to its own
-  source, on the shipped default path** (36 + 16 of 120 claims). One judge, one prompt, one run, unvalidated,
-  and "distorted" will be catching legitimate compression — a lead recorded in CLAUDE.md, not a number to quote,
-  but it dwarfs anything the arms differ by. Three methodological lessons from these runs, each of which
+  source, on the shipped default path** (36 + 16 of 120 claims). **That instrument was recorded here as an
+  unvalidated lead and is now VALIDATED** (`tests/e2e/probe_support_validity.py`, 2026-09-17): spike-in with known
+  ground truth judged INSIDE real batches through the imported `_support`, specificity 93% (28/30), sensitivity
+  100% (45/45), verbatim floor 18/18, verdict FIT TO QUOTE, and an 18/18-vs-0/18 same-string contrast holding
+  wording exactly constant. The finding survives at **35-39% pooled** after Rogan-Gladen — but the usable form is
+  the decomposition, because the two labels are different instruments: `invented` took ZERO of 39 truly-supported
+  spikes and caught 27/27 truly-absent ones, so its **13.3% needs no correction**, while every false positive was
+  a `distorted` (5/39), taking that label's 30% to **24.4%**. The compression suspicion is CONFIRMED as the
+  mechanism and sized at +17pp (verbatim 100% vs compressed 83%), stable across two byte-identical passes. So
+  extraction quality is a real defect of about the claimed size, and the target is `distorted`-class over-reading
+  of legitimate compression rather than the judge's competence. Three methodological lessons from these runs, each of which
   changed a verdict: (a) the decision metric must read `is_assertable`/`is_substantive` ONLY, because those are
   what `_step2_identify_candidates` branches on; (b) **but "read by no code" is not "harmless", and this was
   stated wrongly here until 2026-09-17** — the corollary used to be that an `is_atomic` flip "cannot reach a

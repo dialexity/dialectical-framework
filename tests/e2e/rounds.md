@@ -6226,3 +6226,100 @@ stay unjudged. Pooling was registered before wave 1 ran precisely so it could no
    non-recursively, and a same-arm comparison saved as an ordinary stem would enter `read_pooled`, `across_runs`,
    `noise_floor` and `read_length_confound` itself as a legitimate arm pair — the placebo pooled into the numbers
    it exists to interpret. Pinned by a free test.
+
+---
+
+## Round `support-validity` — the ~44% extraction finding's instrument, VALIDATED (RUN 2026-09-17)
+
+**WHY THIS ROUND OUTRANKS THE ARM QUESTION IT CAME FROM.** `probe_step2_isolate_ab.py` closed the
+`extraction_step2_carries_source` lever on absence of evidence, and along the way its unpaired per-claim
+judge reported something arm-independent and much larger: **~44% of everything step 2 emits was rated
+distorted or invented against its own source, on the SHIPPED DEFAULT path** (36 + 16 of 120). That was
+recorded in CLAUDE.md with an explicit disclaimer — one judge, one prompt, one run, and "distorted" was
+certainly catching legitimate compression — so it was a LEAD and not a number to quote. This round asks
+whether the instrument can be quoted, because no amount of prompt tuning is worth doing against a
+measurement nobody has validated.
+
+**DESIGN: spike-in with known ground truth, judged INSIDE REAL BATCHES.** A homogeneous control set does
+not transfer here, and that is the design's whole premise: `_support` batches a candidate LIST into ONE
+call, so a claim is judged among its neighbours. 84 authored spikes across seven classes were therefore
+shuffled into this suite's own arm-A step-2 output and sent through the **imported** `_support` (a free
+guard asserts `_support is source._support` — validating a copy validates nothing), in the same call as
+the real claims, in the same register and length band. Supported: `verbatim` (a source sentence copied,
+pronoun resolved at most — the unarguable floor), `compressed` (rewritten shorter, meaning preserved —
+the exact confound the disclaimer named), `combined` (a correct join of two source sentences — legitimate
+synthesis, deliberately EXCLUDED from the primary). Unsupported: `flipped`, `inflated`, `foreign`
+(verbatim from a DIFFERENT document), `fabricated`. Stratified per class so every class appears in every
+batch; two byte-identical passes to measure the judge's STOCHASTICITY, which the recorded 38pp swing
+could not, being across different claim sets.
+
+**THE STRONGEST CONTROL COST NOTHING EXTRA.** Every `foreign` spike IS another document's `verbatim`
+spike, so all 18 verbatim strings are judged twice with wording held **exactly** constant — once against
+the source that states them, once against one that does not. Measured **18/18 vs 0/18**. A judge
+answering `supported` both times would be reading the claim rather than the source, and no argument about
+how the spikes were authored can explain that away.
+
+**RESULT: FIT TO QUOTE**, on bands registered before any judge call. Specificity **93% (28/30)**
+[0.79,0.98] against a 90% bar; sensitivity **100% (45/45)** [0.92,1.00] against 70%; VERBATIM FLOOR
+**100% (18/18)** against 90%. Per class: verbatim 100%, compressed 83%, combined 67%, flipped / inflated
+/ foreign / fabricated 100% each. Test-retest **94%** over 120 items. 18 calls, 144s.
+
+**THE COMPRESSION MECHANISM: CONFIRMED AND SIZED.** verbatim 100% − compressed 83% = **+17pp** against
+the registered 15pp bar. The original disclaimer was right about the mechanism and roughly right about it
+being small.
+
+**THE CORRECTION.** Rogan-Gladen puts the recorded 43.3% at **39.3% [28.0,45.9]**, and this run's fresh
+real-claim rate 30.6% at 25.6%. **So the finding is NOT a measurement artefact — it survives correction.**
+
+**THE DECOMPOSITION IS THE PART TO ACT ON, and it came free from persisted verdicts.** `invented` and
+`distorted` are not one instrument. `invented` attracted **ZERO of 39** truly-supported spikes (0%
+[0.00,0.09], `combined` included) and caught **27/27** truly-absent ones, so the recorded **16 invented
+(13.3%) needs no correction at all** — that is content not in the source, and it is quotable as it
+stands. **Every** false positive was a `distorted` (5/39, 13%), so that label's 30% corrects to
+**24.4%**. The two sum to ~38%, bracketed by the pooled corrections. All five misses were
+`['distorted','distorted']` across both identical passes — a systematic reading of compression and
+synthesis, not noise — and none was a false negative.
+
+**CHECKS, all four registered in advance.** Base rate: this run's real claims read 30.6% (11/36)
+[0.18,0.47] against the recorded 52/120 [0.35,0.52] — the intervals **OVERLAP**, so the spiked
+composition did not measurably move the judge and the registered condition on transferring specificity
+back is NOT triggered. Retest 94%, usable; 7 flips, 5 of them on `real` claims, so the borderline
+population is the real extracted claims rather than the spikes. Position (`_support` has no position
+control at all): first 42% / middle 55% / last 51%. Per document: specificity 100% / 80% / 100%, both
+false positives from `self-contained`.
+
+**THE PRE-REGISTERED EXCLUSION OF `combined` IS LOAD-BEARING, and it is the honest caveat.** Pooling all
+three supported classes gives specificity **87% (34/39)**, which would read **INDETERMINATE** under the
+same registered bands, and corrects 43.3% to **35.0%** instead of 39.3%. Real extracted theses often ARE
+joins of two source sentences. **So quote 35-39%, not 39.3% alone.**
+
+**THE FREE GUARDS EARNED THEIR KEEP BEFORE A CALL WAS SPENT**, and they are re-collected into the default
+suite (`TestSupportValidityGuardsRunInTheDefaultSuite`). They caught three real defects: two `verbatim`
+spikes that had drifted into paraphrase, and a wrong batch-size premise in the pre-registration itself
+(the docstring claimed "near the 30-40 the original run judged"; reading the original loop showed
+`_support` runs once per document-replicate, so ~10 per batch — which moved the design to three batches
+per document and forced two spike classes from 2 to 3). **A drifted `verbatim` spike fails nothing — it
+quietly LOWERS the measured specificity of the instrument under test**, which is the argument for having
+guards on ground truth at all.
+
+**THE LESSON THAT GENERALISES PAST THIS FINDING: an instrument that emits a RATE must persist per-item
+verdicts, or its output is unfalsifiable by construction.** `probe_step2_isolate_ab.py` has no
+`json.dump` — it printed rates and discarded the claim texts and verdicts, so the 44% could not be
+audited at any price short of re-running it. The counter survived and the evidence did not. This file
+persists all 120 items × 2 passes, which is where the `combined` pricing, the per-label decomposition,
+the five named misjudged claims and the base-rate CIs all came from: free, after the run, with no
+further provider spend.
+
+**LIMITS, stated before the result was known.**
+1. **One judge model, three ~1k-char documents, one run.** The verdict is that the instrument is fit to
+   quote at this size — not that 35-39% is the rate for any other corpus.
+2. **Spikes are authored, real claims are generated.** The same-string contrast is what bounds this, and
+   it is the reason that control exists; it does not remove the objection for `compressed`/`combined`.
+3. **Precision, not power.** There is no prior to size against, so the design registers what the n can
+   discriminate rather than a detectable effect.
+4. **Batches ran ~15, not the derived ~12**, because real-claim yield ran higher than the recorded
+   per-rep sets (18 / 6 / 12 real claims per document). Whether specificity holds as a list grows is
+   exactly the assumption a validation may not smuggle in, and this run does not settle it.
+5. **The output lives in `results/support_validation/`**, deliberately — every archive reader globs
+   `results/*.json` non-recursively, so an ordinary stem would enter the pooled readers as a legitimate
+   arm pair. The placebo's rule, pinned by a free test.

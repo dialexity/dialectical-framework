@@ -337,11 +337,30 @@ THE TWO CONFOUND-FREE INSTRUMENTS BOTH FIND NOTHING:
 A SEPARATE FINDING, ARM-INDEPENDENT AND BIGGER THAN THE ARM QUESTION: that
 per-claim check says **~44% of everything step 2 emits is not cleanly supported by
 its own source** — 36 distorted and 16 invented of arm A's 120 claims, and the
-same shape for arm C. One judge, one prompt, unvalidated, and "distorted" will be
-catching legitimate compression, so this is a lead and not a number to quote. But
-it is measured on the shipped default path and it dwarfs anything the arms differ
-by. It is recorded in CLAUDE.md as an open question about extraction, not about
-this setting.
+same shape for arm C. It is measured on the shipped default path and it dwarfs
+anything the arms differ by. It is recorded in CLAUDE.md as an open question about
+extraction, not about this setting.
+
+**THE INSTRUMENT BEHIND THAT NUMBER IS NOW VALIDATED, AND THE NUMBER MOSTLY
+SURVIVES (2026-09-17).** This paragraph used to end "a lead and not a number to
+quote", and the caveat it named — that "distorted" catches legitimate compression
+— turned out to be exactly right in mechanism and small in size.
+`probe_support_validity.py` spikes 84 claims of known ground truth into REAL
+batches of this probe's own arm-A output, through this module's own imported
+`_support`, and reads the judge against them: **specificity 93% (28/30),
+sensitivity 100% (45/45)**, verbatim floor 18/18, verdict FIT TO QUOTE.
+Rogan-Gladen puts the 43.3% at **39.3% [28.0,45.9]**, or 35.0% if legitimate
+two-sentence synthesis is counted as supported (it is excluded from that primary,
+and real theses often ARE such joins — so 35-39% is the honest band).
+**The decomposition is the part to actually use: the two labels are not one
+instrument.** `invented` attracted ZERO of 39 truly-supported spikes and caught
+27/27 truly-absent ones, so the **16 invented (13.3%) needs no correction at all**
+and is quotable as it stands. `distorted` is where every false positive landed
+(5/39, all of them stable across two identical passes), so the **36 distorted
+(30%) corrects to 24.4%**. Both together: ~38%, which is why the pooled figures
+above bracket it. Do not re-derive any of this from the rates this file prints —
+it persists no per-item verdict, which is what made the original finding
+unauditable and is the lesson recorded in that probe's docstring.
 
 WHAT THIS SETTLES. Arm C stays a knob and NOT a default, and the reason is now
 different from run 1's: not that arm C is less faithful, but that three runs of a

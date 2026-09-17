@@ -11858,3 +11858,22 @@ class TestSameArmPlaceboGuardsRunInTheDefaultSuite(_SameArmPlaceboGuards):
     `results/*.json` sweep as a legitimate arm pair — the placebo pooled into the
     numbers it exists to interpret.
     """
+
+
+from e2e.probe_support_validity import \
+    TestThePreRegistrationIsAuditable as _SupportValidityGuards
+
+
+class TestSupportValidityGuardsRunInTheDefaultSuite(_SupportValidityGuards):
+    """The support-judge validation's free guards, re-collected.
+
+    These are ground-truth guards, which is a stronger reason to run them free
+    than the usual doc-pin: the whole probe rests on `verbatim` spikes actually
+    appearing in the source they are judged against and `foreign` spikes actually
+    not, and both of those are hand-authored strings that a later edit to the
+    documents in `probe_step2_isolate_ab.py` would silently falsify. A `verbatim`
+    spike that has drifted into paraphrase does not fail anything — it quietly
+    lowers the measured specificity of the instrument under test, which is the one
+    number the whole validation turns on. Two such drifts were caught here before
+    a single judge call was spent.
+    """

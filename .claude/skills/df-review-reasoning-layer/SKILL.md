@@ -181,6 +181,22 @@ co-occurrence hotspots. Then:
       preference across three runs. **And an endpoint that counts ties against detection is decided by the
       judge's tie rate**, which was the least stable thing it did (1, 6, 4 of 12) — pool runs before moving a
       default, and treat any single-run verdict as provisional.
+- [ ] **An unpaired rate is only as quotable as its instrument, and validating one takes SPIKES INSIDE REAL
+      BATCHES — plus persisted per-item verdicts, or the rate is unfalsifiable by construction.** The judge
+      recommended above went on to report ~44% of extracted claims as unsupported, which sat in CLAUDE.md as an
+      unquotable lead until `tests/e2e/probe_support_validity.py` measured it: specificity 93%, sensitivity 100%,
+      FIT TO QUOTE, finding intact at 35-39%. Three transferable parts. **A homogeneous control set does not
+      transfer** when the judge batches a LIST into one call, because a claim is judged among its neighbours — so
+      shuffle known-truth spikes into real output and send them through the IMPORTED judge (validating a
+      reimplemented copy validates nothing). **Author the confound you suspect as its own class**: "distorted
+      catches legitimate compression" became a registered ±15pp endpoint and measured +17pp, confirming the
+      mechanism instead of hand-waving it. **And hold wording exactly constant where you can get it free** — every
+      out-of-source spike was another document's verbatim spike, so identical strings were judged against a source
+      that states them and one that does not (18/18 vs 0/18), which no argument about spike authorship can
+      explain away. The original probe printed rates and discarded the claims, so its 44% could not be audited at
+      any price short of re-running; persisting all verdicts is what later bought the per-label decomposition
+      (`invented` 0/39 false positives and quotable uncorrected, `distorted` 5/39 and needing correction) for
+      free, after the run. **A judge's LABELS may be separate instruments — decompose before correcting.**
 - [ ] **"Read by no code" is not "harmless" — a field can be unread while the thing it DESCRIBES is the
       output.** Restricting the decision metric to `is_assertable & is_substantive` was right (they are what
       `_step2_identify_candidates` branches on) but the corollary drawn from it was wrong for a year: `is_atomic`
