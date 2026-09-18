@@ -286,6 +286,12 @@ class E2ERun:
                                 note += " !! NO TOOL CALLS (A2 collapsed)"
                             if record.collapsed_to_a1_without_structure:
                                 note += " !! NO STATIC CONTEXT (A1.5 is A1 here)"
+                            if record.consultant_without_structure:
+                                # The build ran the full Advisor and it anchored
+                                # nothing, so this cell consulted an empty graph:
+                                # a Consultant with nothing to consult is a
+                                # tool-less prompt arm wearing the label.
+                                note += " !! NO STRUCTURE (A2c consulted an empty graph)"
                             say(f"{label} done: {note}")
         return self.runs
 

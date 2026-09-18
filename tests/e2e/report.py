@@ -870,6 +870,16 @@ def render_report(
         a2 = [r for r in runs if r.arm is Arm.A2]
         if a2:
             add(f"ok  all {len(a2)} A2 run(s) built a graph (A2 != A1 holds).")
+    # The Consultant's version of the same collapse: its BUILD anchored nothing,
+    # so the cell consulted an empty graph. `seam-fixes` archived one such cell
+    # correctly invalid and silently — the archive knew, the report did not.
+    empty_consults = [r for r in runs if r.consultant_without_structure]
+    if empty_consults:
+        add(f"!! {len(empty_consults)} A2c run(s) consulted an EMPTY graph (the build anchored nothing).")
+        for r in empty_consults:
+            add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} branch={r.branch}")
+        add("   These runs are INVALID as A2c evidence: a Consultant with nothing to")
+        add("   consult is a tool-less prompt arm wearing the label.")
     # "Built a graph" is a floor, not a description. An A2 run that only
     # anchored is A1 plus a tetrad: it pays the framework's latency and cost
     # without the pathways or the record that the two claims are ABOUT, and

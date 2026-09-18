@@ -6513,7 +6513,49 @@ TWO SEAM BEHAVIOURS THE RUN EXPOSED, neither regime-specific, both worth a look:
 - The Consultant model called `record_decision` twice in ONE turn (A2c wobble_a t5),
   4 decisions on that cell against one closing.
 
+Both fixed in `6f98613` (the classifier sees the standing ledger → `REAFFIRMED`;
+`RecordDecision` refuses an exact active repeat; the weave yields to a waiting turn) and
+verified live in `seam-fixes` below.
+
 NOT DECIDED HERE: the product default. It is already off in `settings.py`; `medium` is
 this environment's `.env`. This run says the bench must not inherit it (every archived
 Advisor-vs-prompt comparison did), and says nothing yet about what medium buys in quality.
 Tooling: `read_elections.py` (new), `read_turn_timing.py --by-arm`.
+
+### seam-fixes: one record per closing, no wait on the next turn — and one Consultant cell consulted nothing (2026-09-18)
+
+`A2` and `A2c`, same cells as `thinking-off`, thinking unset, judge off, 27m44s, after
+`6f98613` (re-affirmation named by the classifier, exact repeats refused by
+`RecordDecision`, the weave yielding to a waiting turn).
+
+    A2, 16 turns                thinking-off      seam-fixes
+    closings                    repaired 4        repaired 2   (one per cell, at the closing turn)
+    decisions on record         4 (2 grounded)    2 (2 grounded)
+    worst deferred wait         367.3s            0.0s
+    worst turn                  394.8s            62.2s
+    median reply path           7.35s             7.80s
+
+    A2c, 16 turns
+    closings                    model_recorded 1, failed 1     reaffirmed 2
+    decisions written by cell   4 + 1 (one turn recorded twice)  0 (the builds' records re-affirmed)
+    median reply path           7.05s             5.75s
+    worst turn                  23.9s             10.9s
+
+THE READINGS. The three-consecutive-repairs shape is gone: each A2 cell closed once, at
+t5, with one record and one weave, and no turn waited on it — so the yield was never
+exercised live (there was no waiting turn to yield to), and what removed the 367s was
+removing the repeated closing that caused it. The Consultant's two closings both read as
+RE-AFFIRMATIONS, which is exactly right for this arm: its build already recorded the
+decision on the same script, so "write that down" in the consultant session confirms a
+standing record. Nothing was written twice anywhere in the run.
+
+ONE CELL IS NOT EVIDENCE. `A2c wobble_a`'s build came back `perspectives=0` in 69.8s —
+the full Advisor anchored nothing in the base sessions (the r7 shape, a collapsed build),
+so that Consultant consulted an empty graph and its 5.5s turns are a tool-less prompt
+arm's. `consultant_without_structure` drops it from every pooled cut; the runner's
+progress line now says so (`!! NO STRUCTURE`) the way it does for A1.5, which it did not
+before this run — the cell was flagged in the archive and silent on the console. The A2c
+figures above therefore rest on `wobble_b` (5 perspectives / 42 transformations) plus
+the invalid cell's timing, and the latency column is the one to distrust.
+
+Builds: 69.8s (0 / 0, INVALID) and 385.6s (5 / 42).

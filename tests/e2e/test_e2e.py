@@ -3717,6 +3717,16 @@ class TestTheConsultantArm:
         run.consultant_build_provenance = "perspectives=0"
         assert not run.consultant_without_structure
 
+    def test_an_empty_build_is_loud_on_the_console_too(self):
+        """`seam-fixes` archived an A2c cell whose build came back with zero
+        perspectives; the cell was correctly invalid in the archive and silent
+        on the console, where the A1.5 equivalent shouts."""
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        assert "if record.consultant_without_structure:" in source
+        assert "NO STRUCTURE (A2c consulted an empty graph)" in source
+
     def test_the_consultant_is_never_a_collapsed_a2(self):
         """`collapsed_to_a1` reads "A2 built nothing" — a Consultant builds
         nothing BY DESIGN, so the tripwire must not fire on it."""
