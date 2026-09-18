@@ -271,7 +271,10 @@ on the tool path — `DIALEXITY_THINKING_LEVEL` applies to every tool-enabled ca
 to the structured path the prompt arms answer through, so with `medium` set the Advisor
 arms think on every turn and the prompt arms never do. **That regime was neither controlled
 nor recorded by the bench until 2026-09-18**; every cell now carries `thinking_level` and
-the matrix header prints it. Full reading in [rounds.md](rounds.md).
+the matrix header prints it. Run with `DIALEXITY_THINKING_LEVEL=` (unset) unless the round is
+about thinking: with it unset both Advisor arms' tool-free turns land on A1.5's ~6s and elect
+no fewer tools (`thinking-off`; `read_elections.py` is the reader). Full reading in
+[rounds.md](rounds.md).
 
 Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools

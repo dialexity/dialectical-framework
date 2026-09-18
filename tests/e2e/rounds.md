@@ -6464,3 +6464,56 @@ weak tier is unmeasured, so no default moves here. The next round is the one thi
 settles the design of: A2c (and A2) at `medium` against unset, judge on, same graph —
 the first A/B in this archive where the thinking regime is the variable rather than a
 confound.
+
+### thinking-off: with thinking unset the Advisor arms answer at the dump's speed and elect no fewer tools (2026-09-18)
+
+`A2` and `A2c`, `cofounder_equity`, weak tier, one replicate, both wobble branches, judge
+off, `DIALEXITY_THINKING_LEVEL=` (unset) — the first run in this archive whose cells
+record the regime (`thinking_level=''`). Read against `consultant-latency` (same cells,
+`medium`, the level this environment has carried since at least 2026-09-02). 39m28s.
+
+    per arm, 16 turns each          medium (consultant-latency)      unset (thinking-off)
+                                       A2         A2c                 A2        A2c
+    median reply path               20.55       16.05                7.35      7.05
+    tool-free median reply path     19.70       15.40                6.20      6.10
+    worst tool-free reply path      73.80       27.50                7.50     16.00
+    tool seconds, total            154.0        17.9               121.0      14.2
+    (A1.5, no tools, no thinking: 6.30 median)
+
+LATENCY. Unset, both Advisor arms' tool-free turns land on A1.5's 6.3s — the whole
+tool-free gap between the framework arms and the prompt arms in this archive was the
+thinking regime, not the prompt and not the graph. The Consultant's median turn is 9.3s
+against 17.6s; a full Advisor turn that calls no tool is 6.2s against 19.7s.
+
+ELECTIONS DID NOT MOVE — the thing this run existed to check. Per cell:
+
+                          medium                          unset
+    A2   anchor           3 calls, 2/2 cells              3 calls, 2/2 cells
+         explore          1, 1/2                          1, 1/2
+         inspect_node     3, 1/2                          2, 2/2
+         sync             0                               1, 1/2
+         record_decision  0 (2 repaired by the seam)      0 (4 repaired by the seam)
+    A2c  record_decision  1, 1/2                          2, 1/2
+         sync             1, 1/2                          3, 2/2
+         inspect_node     0                               2, 1/2
+         audit_feasib.    1, 1/2                          0
+
+n=2 cells per arm, so none of these differences is a finding; what IS one is that the
+weak tier's election defect (`record_decision` 0/6 by the model itself) is exactly as bad
+WITH thinking as without. Thinking at medium was buying no elections. Whether it buys
+counsel quality is still the open half and needs the judge.
+
+TWO SEAM BEHAVIOURS THE RUN EXPOSED, neither regime-specific, both worth a look:
+- The repair seam fired on THREE CONSECUTIVE turns of one closing (A2 wobble_b, decide
+  t3/t4/t5, all `repaired`, each starting a weave) and recorded three decisions where the
+  person closed once; two of the three failed the coherence check. And the weave started
+  at t3 landed on t4 as a **367s deferred wait** — the off-turn weave charged to the
+  very next turn, which is the deferral's known worst case and its largest measured
+  instance (previous worst 53s).
+- The Consultant model called `record_decision` twice in ONE turn (A2c wobble_a t5),
+  4 decisions on that cell against one closing.
+
+NOT DECIDED HERE: the product default. It is already off in `settings.py`; `medium` is
+this environment's `.env`. This run says the bench must not inherit it (every archived
+Advisor-vs-prompt comparison did), and says nothing yet about what medium buys in quality.
+Tooling: `read_elections.py` (new), `read_turn_timing.py --by-arm`.

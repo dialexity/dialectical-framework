@@ -412,8 +412,9 @@ cache. What remains is not the prompt's size (measured: under a second) but **ex
 thinking on the tool path**: `thinking_level`, when set, applies to every tool-enabled call
 and never to the structured path the prompt arms answer through, and at `medium` it is ~450
 hidden output tokens and ~6s a turn on the weak tier. Unset, the Consultant answers in ~6s
-(`tests/e2e/rounds.md`, `probe-consultant-prompt-cost`). Whether thinking earns that in
-counsel quality is unmeasured. None of this is the mode's enforcement.
+and elects no fewer tools (`tests/e2e/rounds.md`, `probe-consultant-prompt-cost`,
+`thinking-off`). Whether thinking earns that in counsel quality is unmeasured. None of this
+is the mode's enforcement.
 
 **Tools (10)** — coarse, composed super-tools that hide the machinery:
 
