@@ -115,6 +115,13 @@ class ClosingOutcome(str, Enum):
     #: wrote it. The case the seam exists for, and the one whose rate no prompt
     #: change ever moved.
     REPAIRED = "repaired"
+    #: The person confirmed a decision that is ALREADY on the record — "yes,
+    #: write it down" on the turn after it was written. Nothing recorded, nothing
+    #: scheduled, and not a failure: the classifier saw the standing ledger and
+    #: named the record being re-affirmed. Its own member because before it
+    #: existed (`thinking-off`, A2 wobble_b) three consecutive turns of one
+    #: closing each read as REPAIRED and wrote three records of one decision.
+    REAFFIRMED = "reaffirmed"
     #: The seam ran and did not deliver what it set out to. Five ways in: it
     #: raised; the classifier returned nothing; the classifier said the person
     #: confirmed but gave no question or stance to write; the record write handed

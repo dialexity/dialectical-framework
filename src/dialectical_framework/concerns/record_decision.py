@@ -159,6 +159,38 @@ class RecordDecision(ReasonableConcern[str | None]):
             )
             return None
 
+        # 0c. One decision, one record. An ACTIVE decision with this exact
+        # question and stance is returned instead of written again: the model
+        # called `record_decision` twice in one turn (`thinking-off`, A2c
+        # wobble_a — four records on one closing) and nothing refused it. Exact
+        # after whitespace/case normalisation, deliberately narrow: a
+        # paraphrase is the classifier's job (`reaffirms_decision_hash`), and a
+        # different stance on the same question is a NEW decision that
+        # supersedes (the coherence check flags the contradiction; discarding
+        # the old one stays the agent's move). Discarded decisions do not
+        # count — deciding the same thing again after a retraction is a new
+        # speech act, which is what the node's nonce exists to keep.
+        from dialectical_framework.graph.repositories.decision_repository import \
+            DecisionRepository
+
+        def _norm(text: str | None) -> str:
+            return " ".join((text or "").split()).casefold()
+
+        for standing in DecisionRepository().find_all_active():
+            if _norm(standing.intent) == _norm(question) and _norm(
+                standing.stance
+            ) == _norm(stance):
+                self._report.ok = True
+                self._report.summary = (
+                    f"Already on record as [[{standing.short_hash}]] — the same "
+                    "question and stance are a standing decision, so nothing was "
+                    "recorded again. To change it, record the new stance (and "
+                    "discard the old record if it is superseded)."
+                )
+                self._report.artifacts["decision_hash"] = standing.hash
+                self._report.artifacts["already_recorded"] = True
+                return standing.hash
+
         # 0b. Normalize grounds — callers at the tool boundary hand raw
         # dicts (Mirascope passes json.loads'd kwargs without coercion) —
         # and dedup: GROUNDED_IN is directed, so repeated connect() calls

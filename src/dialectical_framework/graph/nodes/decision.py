@@ -50,8 +50,12 @@ class Decision(IntentMixin, AssessableEntity, label="Decision"):
     references the new decision, e.g. "superseded by [[hash]]").
 
     Hash: two constraints, both load-bearing —
-    - The nonce means identical decision text recorded twice is TWO records:
-      recording again is a new speech act, never a dedup.
+    - The nonce means identical decision text recorded twice is TWO records at
+      the NODE: recording again is a new speech act, never a dedup here. The
+      one place that refuses a repeat is `RecordDecision` (the concern behind
+      the tool and the closing seam), and only for an exact question+stance
+      match against an ACTIVE decision — a re-decision after a discard is
+      still a new record.
     - committed_at is EXCLUDED from the hash (do not add it back): it is a
       pure timestamp here — the decision's decided-at — and excluding it
       keeps the post-commit save() integrity re-check stable while the

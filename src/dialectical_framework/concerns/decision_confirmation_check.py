@@ -93,6 +93,20 @@ own words — never invent, upgrade or tidy their reasoning:
 Be conservative. A false "confirmed" writes a record the person never asked for,
 which is worse than a missing one: it puts words in their mouth.
 
+## Decisions already on the record
+
+You are also given the standing decisions — what has ALREADY been written down in
+this conversation. A person closing a decision often says so on more than one
+turn: "yes, the buyout", then "write that down", then "good, that's settled". Only
+the FIRST of those is a new record; the rest re-affirm it. When the person's words
+confirm a choice that a standing decision already records — same question, same
+stance, in substance — set `reaffirms_decision_hash` to that decision's hash and
+still report `confirmed: true` with the question and stance you heard. Recording
+it again would put two records of one decision on the ledger. Leave
+`reaffirms_decision_hash` empty when they confirm a DIFFERENT stance on the same
+question (that is a new decision that supersedes, and it is recorded) or a
+decision no standing record covers.
+
 ## Which side of the tension they chose
 
 You are also given the mapped tensions, each with a thesis (T) and an
@@ -159,6 +173,19 @@ class ConfirmationVerdictDto(BaseModel):
         description="'T' if the stance is the thesis pole, 'A' if the "
         "antithesis pole. Empty when no tension was matched.",
     )
+    reaffirms_decision_hash: str = Field(
+        default="",
+        description="Short hash of the standing decision this confirmation "
+        "merely re-affirms — same question, same stance in substance. Empty "
+        "when the confirmation is a new decision, or a different stance on a "
+        "question already decided.",
+    )
+
+    @property
+    def reaffirms_standing(self) -> bool:
+        """A confirmation of a decision already on the record: not recordable
+        again, and not a failure either — its own closing outcome."""
+        return self.confirmed and bool(self.reaffirms_decision_hash.strip())
 
     @property
     def chosen_cost_position(self) -> str:
@@ -182,10 +209,15 @@ class ConfirmationVerdictDto(BaseModel):
 
         `RecordDecision` refuses an empty question or stance in-band; checking
         here keeps that refusal out of the repair path, where it would look
-        like a framework error rather than a non-event.
+        like a framework error rather than a non-event. A re-affirmation of a
+        standing decision is confirmed and complete and still not recordable:
+        the record it confirms already exists (`reaffirms_standing`).
         """
-        return self.confirmed and bool(self.question.strip()) and bool(
-            self.stance.strip()
+        return (
+            self.confirmed
+            and not self.reaffirms_standing
+            and bool(self.question.strip())
+            and bool(self.stance.strip())
         )
 
 
@@ -229,13 +261,20 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
         # which is what makes the accepted cost derivable. An empty graph just
         # means no match is possible; the confirmation still records.
         tensions = self._active_perspectives()
+        # Standing decisions are offered so a re-affirmation is told apart from
+        # a new closing. Measured without them (`thinking-off`, A2 wobble_b):
+        # the seam read three consecutive turns of one closing as three
+        # confirmations and wrote three records of one decision, each starting
+        # an off-turn weave — the second of which landed on the next turn as
+        # a 367s wait.
+        decisions = self._active_decisions()
 
         try:
             self._conversation.set_system_prompt(SYSTEM_PROMPT)
             result = await self._conversation.submit(
                 response_model=ConfirmationVerdictDto,
                 user_content=self._prompt(
-                    user_message, assistant_message, tensions
+                    user_message, assistant_message, tensions, decisions
                 ),
             )
         except Exception as e:
@@ -249,12 +288,27 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
             return None
 
         self._report.ok = True
-        self._report.summary = (
-            f"Decision confirmed: {result.stance}"
-            if result.is_recordable
-            else "No decision confirmation in this turn"
-        )
+        if result.is_recordable:
+            self._report.summary = f"Decision confirmed: {result.stance}"
+        elif result.reaffirms_standing:
+            self._report.summary = (
+                f"Re-affirms standing decision [[{result.reaffirms_decision_hash}]]"
+            )
+        else:
+            self._report.summary = "No decision confirmation in this turn"
         return result
+
+    @staticmethod
+    def _active_decisions() -> list:
+        """The standing ledger, fail-soft: without it every confirmation reads
+        as new, which is the pre-2026-09-18 behaviour and not a block."""
+        from dialectical_framework.graph.repositories.decision_repository import \
+            DecisionRepository
+
+        try:
+            return DecisionRepository().find_all_active()
+        except Exception:
+            return []
 
     @staticmethod
     def _active_perspectives() -> list:
@@ -280,9 +334,23 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
 
     @staticmethod
     def _prompt(
-        user_message: str, assistant_message: str, tensions: list
+        user_message: str,
+        assistant_message: str,
+        tensions: list,
+        decisions: list | None = None,
     ) -> str:
         from dialectical_framework.graph.rendering import one_line
+
+        decisions_section = "None recorded yet."
+        if decisions:
+            decision_lines = [
+                f"- [[{d.short_hash}]] decided: {one_line(str(d.intent or ''))} | "
+                f"stance: {one_line(str(d.stance or ''))}"
+                for d in decisions
+                if getattr(d, "hash", None)
+            ]
+            if decision_lines:
+                decisions_section = "\n".join(decision_lines)
 
         tensions_section = "None mapped."
         if tensions:
@@ -315,9 +383,14 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
 ## The assistant replied
 {assistant_message or "(nothing)"}
 
+## Standing decisions (already on the record)
+{decisions_section}
+
 ## Mapped tensions
 {tensions_section}
 
 Judge the PERSON's words for the confirmation. Use the reply only as context \
-for what was being decided and why. Then, only if their stance clearly IS one \
-pole of one tension above, name that tension and side."""
+for what was being decided and why. If what they confirmed is already a \
+standing decision above — same question, same stance — name it in \
+`reaffirms_decision_hash`. Then, only if their stance clearly IS one pole of \
+one tension above, name that tension and side."""

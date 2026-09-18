@@ -2422,7 +2422,16 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   own message, creates/mutates nothing, fail-soft) + `Advisor._repair_unrecorded_decision` (post-reply, both
   `chat` and `chat_stream`, records under the same attested principal when the person confirmed and no SUCCESSFUL
   `record_decision` ran — a failed call still repairs, since an in-band refusal leaves the identical false
-  belief). **On the streaming path the seam was SKIPPABLE by correct-looking host code until 2026-09-16**: it ran
+  belief). **The classifier is shown the STANDING LEDGER (2026-09-18) and names the record a confirmation merely
+  re-affirms** (`reaffirms_decision_hash`; `is_recordable` is False for it; the seam files
+  `ClosingOutcome.REAFFIRMED`, writes nothing and schedules nothing). Measured without it (`thinking-off`, A2
+  wobble_b): three consecutive turns of one closing — "yes, the buyout" / "write that down" / "good, settled" —
+  each read as a new confirmation, three records of one decision, three off-turn weaves, and a 367s deferred wait
+  on the next turn. The prompt rule is stated as a distinction (re-affirms the SAME stance → name it; a DIFFERENT
+  stance on a decided question → a new record that supersedes), because "don't record twice" alone would have
+  swallowed genuine reversals. `RecordDecision` refuses the other shape at its own layer — an exact active
+  question+stance repeat (the model called the tool twice in one turn) returns the standing hash — while the
+  Decision node still never dedups (its nonce). **On the streaming path the seam was SKIPPABLE by correct-looking host code until 2026-09-16**: it ran
   after `chat_stream`'s loop, so `if isinstance(event, ResponseComplete): break` — the obvious way to consume a
   stream, and the shape the only in-tree consumer uses — left the generator suspended at that `yield` and the
   repair never ran. The failure is the seam's own defect restored: the person is told their decision was noted and

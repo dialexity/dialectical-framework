@@ -425,7 +425,7 @@ is the mode's enforcement.
 | `explore` | CreateNexus + ExplorationPipeline + GenerateSynthesis | group → pathways → synthesis in one shot (budgeted: deepens only the top-plausibility arrangement) |
 | `deepen` | ExploreTransformations + GenerateSynthesis | develop an alternative arrangement when the person's lived reality picks a shallow reading |
 | `audit_feasibility` | TransformationAudit | answer "could I actually do that?" about named pathways — a practical-achievability band per Ac+/Re+ step with its factors and success conditions (on demand: 2 calls per pathway, idempotent, absent unless asked) |
-| `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + the confirming principal's rationale (consent-first in BOTH modes — the one exception to silent machinery; provenance = `principal`, host-attested) |
+| `record_decision` | RecordDecision + DecisionCoherenceCheck | record an explicitly confirmed decision with grounds + the confirming principal's rationale (consent-first in BOTH modes — the one exception to silent machinery; provenance = `principal`, host-attested). One decision, one record: an exact repeat of an active decision's question and stance returns the standing record instead of writing a second one |
 | `sync` | DialecticalContext | re-read full graph state |
 | `discard`, `inspect_node`, `read_digest` | shared | curate / detail (discard also retracts/supersedes Decisions) |
 

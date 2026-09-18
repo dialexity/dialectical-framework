@@ -33,7 +33,8 @@ from dialectical_framework.agents.advisor.advisor import (_DEFERRED_WORK,
 from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.stream_events import ToolResult
-from dialectical_framework.agents.turn_timing import DeferralOutcome
+from dialectical_framework.agents.turn_timing import (ClosingOutcome,
+                                                      DeferralOutcome)
 from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.concerns.decision_confirmation_check import (
     ConfirmationVerdictDto, DecisionConfirmationCheck)
@@ -138,6 +139,8 @@ class _StubAdvisor:
     _schedule_pathway_construction = Advisor._schedule_pathway_construction
     _run_deferred_pathway_construction = Advisor._run_deferred_pathway_construction
     _weave_unwoven_perspectives = Advisor._weave_unwoven_perspectives
+    _turn_is_waiting = Advisor._turn_is_waiting
+    _settle_deferred_work = Advisor._settle_deferred_work
     # The tail of the drain. Bound for a reason worth stating: an UNbound method
     # here fails inside the task, after the grounding, where
     # `wait_for_deferred_work` catches it and logs — so every assertion in
@@ -3093,3 +3096,165 @@ class TestTheDeferralSaysWhoStartedIt:
 
         assert advisor._deferred_pathway_task is None
         assert advisor._last_deferral is DeferralOutcome.UNAVAILABLE
+
+
+class TestAReaffirmationIsNotASecondRecord:
+    """`thinking-off` (A2 wobble_b): three consecutive turns of one closing each
+    read as a confirmation, three records of one decision, three weaves. The
+    classifier now sees the standing ledger and names what is being re-affirmed;
+    the seam files that as REAFFIRMED and writes nothing."""
+
+    def test_a_verdict_that_reaffirms_is_confirmed_and_not_recordable(self):
+        verdict = ConfirmationVerdictDto(
+            confirmed=True,
+            question="Buy out or restructure?",
+            stance="Buy him out",
+            reaffirms_decision_hash="abc1234",
+        )
+        assert verdict.reaffirms_standing
+        assert not verdict.is_recordable
+        # And the default keeps every existing fixture recordable.
+        assert ConfirmationVerdictDto(
+            confirmed=True, question="q", stance="s"
+        ).is_recordable
+
+    def test_the_classifier_is_shown_the_standing_ledger(self):
+        from types import SimpleNamespace
+
+        standing = SimpleNamespace(
+            hash="abc1234" + "0" * 57,
+            short_hash="abc1234",
+            intent="Buy out or restructure?",
+            stance="Buy him out",
+        )
+        prompt = DecisionConfirmationCheck._prompt(
+            "yes, write that down", "Noted.", [], [standing]
+        )
+        assert "## Standing decisions" in prompt
+        assert "[[abc1234]] decided: Buy out or restructure? | stance: Buy him out" in prompt
+        assert "None recorded yet." in DecisionConfirmationCheck._prompt(
+            "yes", "Noted.", [], []
+        )
+
+    async def test_reaffirmed_records_nothing_and_schedules_nothing(self, monkeypatch):
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True,
+                question="Buy out or restructure?",
+                stance="Buy him out",
+                rationale="He is checked out.",
+                reaffirms_decision_hash="abc1234",
+            )
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        async def must_not_record(self, **kwargs):
+            raise AssertionError("a re-affirmation must not reach RecordDecision")
+
+        monkeypatch.setattr(RecordDecision, "resolve", must_not_record)
+
+        advisor = _StubAdvisor([], principal="human")
+        await advisor._repair_unrecorded_decision("yes, write that down", "Noted.")
+
+        assert advisor._last_closing is ClosingOutcome.REAFFIRMED
+        assert advisor._last_deferral is DeferralOutcome.NOTHING_TO_DEFER
+        assert advisor._deferred_pathway_task is None
+
+
+class TestTheWeaveYieldsToAWaitingTurn:
+    """`thinking-off` measured a 367s deferred wait on the turn after a closing:
+    four weave rounds over five unwoven perspectives, all charged to one reply.
+    The weave now stops after the round in flight when a turn is waiting."""
+
+    @staticmethod
+    def _perspectives(count: int):
+        class _PP:
+            def __init__(self, h: str) -> None:
+                self.hash = h
+                self.in_cycle = False
+
+        return [_PP(f"h{i:04d}") for i in range(count)]
+
+    def _patch_repo(self, monkeypatch, perspectives):
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        monkeypatch.setattr(
+            PerspectiveRepository, "find_all_active", lambda self: perspectives
+        )
+        monkeypatch.setattr(
+            PerspectiveRepository, "is_in_use_by_cycle", lambda self, pp: pp.in_cycle
+        )
+
+    def _weave(self, monkeypatch, perspectives, *, waiting_after: int | None):
+        """A fake weave that weaves ONE perspective per round, and — when asked —
+        marks a turn as waiting once `waiting_after` rounds have run."""
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+        from dialectical_framework.agents.advisor import advisor as advisor_mod
+
+        state = {"calls": 0, "key": None}
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            state["calls"] += 1
+            for pp in perspectives:
+                if not pp.in_cycle:
+                    pp.in_cycle = True
+                    break
+            if waiting_after is not None and state["calls"] >= waiting_after:
+                advisor_mod._deferred_work_if_any(state["key"]).waiting = True
+            return "{}", [f"tr{state['calls']:04d}"]
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        return state
+
+    async def _run(self, monkeypatch, *, waiting_after: int | None) -> int:
+        perspectives = self._perspectives(3)
+        self._patch_repo(monkeypatch, perspectives)
+        state = self._weave(monkeypatch, perspectives, waiting_after=waiting_after)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        advisor = _StubAdvisor([])
+        state["key"] = advisor._deferred_work_key()
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+        return state["calls"]
+
+    async def test_with_nobody_waiting_the_weave_drains(self, monkeypatch):
+        """The control: three unwoven, one woven per round, three rounds."""
+        assert await self._run(monkeypatch, waiting_after=None) == 3
+
+    async def test_a_waiting_turn_stops_it_after_the_round_in_flight(
+        self, monkeypatch
+    ):
+        assert await self._run(monkeypatch, waiting_after=1) == 1
+
+    async def test_the_settle_marks_the_entry_and_clears_it(self, monkeypatch):
+        """`_settle_deferred_work` is what raises the flag; the weave only reads
+        it. Pinned on the real method, because a flag nobody raises is a
+        no-op that every test above would pass with."""
+        from dialectical_framework.agents.advisor import advisor as advisor_mod
+
+        perspectives = self._perspectives(2)
+        self._patch_repo(monkeypatch, perspectives)
+        seen: list[bool] = []
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            seen.append(advisor_mod._deferred_work_if_any(key).waiting)
+            for pp in perspectives:
+                pp.in_cycle = True
+            return "{}", ["tr0001"]
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None
+        )
+        advisor = _StubAdvisor([])
+        key = advisor._deferred_work_key()
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor._settle_deferred_work()
+
+        assert seen == [True], "the weave ran while the turn was marked waiting"
+        assert advisor._turn_is_waiting() is False, "the flag must clear after the settle"

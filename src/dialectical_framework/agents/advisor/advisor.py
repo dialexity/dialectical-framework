@@ -81,11 +81,16 @@ class _DeferredWork:
     tells hosts not to create.
     """
 
-    __slots__ = ("task", "decisions")
+    __slots__ = ("task", "decisions", "waiting")
 
     def __init__(self) -> None:
         self.task: Optional[asyncio.Task] = None
         self.decisions: list[str] = []
+        #: A turn is blocked in `_settle_deferred_work` on this task. The weave
+        #: reads it between rounds and yields: the person's next message is
+        #: worth more than a second exploration round, and unbounded here meant
+        #: a measured 367s wait on the turn after a closing (`thinking-off`).
+        self.waiting: bool = False
 
     @property
     def idle(self) -> bool:
@@ -906,6 +911,15 @@ class Advisor(SettingsAware):
                 # find out the concern is broken.
                 self._last_closing = ClosingOutcome.FAILED
                 return
+            if verdict.reaffirms_standing:
+                # "Write that down" on the turn AFTER it was written down. The
+                # record exists; a second one would be two records of one
+                # decision and a second weave for the same pathway. Checked
+                # before `is_recordable`, which is False here by construction
+                # and would otherwise file this as FAILED.
+                self._last_closing = ClosingOutcome.REAFFIRMED
+                self._last_deferral = DeferralOutcome.NOTHING_TO_DEFER
+                return
             if not verdict.is_recordable:
                 # Two different turns arrive here and they are not pooled. A
                 # verdict that says the person was not closing is the ordinary
@@ -1091,8 +1105,24 @@ class Advisor(SettingsAware):
         if self._deferred_pathway_task is None:
             return 0.0
         started = time.monotonic()
-        await self.wait_for_deferred_work()
+        # Say so, so the weave yields between rounds instead of draining every
+        # unwoven perspective while the person sits behind it. The wait stays
+        # unbounded — the round in flight finishes, because half a wheel is the
+        # thing the invariant exists to prevent — but it is now ONE round long.
+        entry = _deferred_work_if_any(self._deferred_work_key())
+        if entry is not None:
+            entry.waiting = True
+        try:
+            await self.wait_for_deferred_work()
+        finally:
+            if entry is not None:
+                entry.waiting = False
         return time.monotonic() - started
+
+    def _turn_is_waiting(self) -> bool:
+        """Is a turn blocked behind this sid's weave right now?"""
+        entry = _deferred_work_if_any(self._deferred_work_key())
+        return bool(entry is not None and entry.waiting)
 
     async def wait_for_deferred_work(self, timeout: float | None = None) -> bool:
         """Await off-turn work on this conversation. A HOST OBLIGATION.
@@ -1284,7 +1314,17 @@ class Advisor(SettingsAware):
                 for decision_hash in pending:
                     self._ground_recorded_decision(decision_hash, pathways)
                     grounded.append(decision_hash)
-            await self._audit_adopted_pathways(grounded)
+                if self._turn_is_waiting():
+                    # A closing that landed mid-weave stays queued for the next
+                    # weave rather than costing the waiting turn another round.
+                    logger.info("Deferred weave yielding to a waiting turn")
+                    break
+            if self._turn_is_waiting():
+                # The audit is two provider calls per recipe on the same wait;
+                # the elective route (`audit_feasibility`) stays open.
+                logger.info("Deferred feasibility audit skipped: a turn is waiting")
+            else:
+                await self._audit_adopted_pathways(grounded)
         finally:
             # Retire this sid's registry entry as the task ends, so keys do not
             # accumulate for the life of the process. In a `finally` because a
@@ -1513,6 +1553,17 @@ class Advisor(SettingsAware):
 
         Stops on no progress, so a perspective the pipeline cannot weave costs
         one wasted round instead of spinning.
+
+        AND YIELDS TO A WAITING TURN (2026-09-18). "There is no turn here" was
+        true only until the person replied: `_settle_deferred_work` blocks the
+        next turn on this task, and `thinking-off` measured that block at 367s
+        on the turn after a closing — four rounds over five unwoven
+        perspectives, all charged to one reply. So between rounds this checks
+        whether a turn is waiting and stops if one is. The round in flight
+        always finishes (a half-built wheel is what the invariant forbids), the
+        cap is still honoured per call, and what is left unwoven is picked up
+        by the next closing's weave rather than by this one. A weave with
+        nobody waiting still drains to the cap.
         """
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration_detailed
@@ -1544,6 +1595,12 @@ class Advisor(SettingsAware):
                 nexus_hash=self._nexus_hash,
             )
             built += [h for h in (round_built or []) if h not in built]
+            if self._turn_is_waiting():
+                logger.info(
+                    "Deferred weave yielding to a waiting turn after one round; "
+                    "the rest stays unwoven until the next closing"
+                )
+                break
             still_unwoven = [
                 p
                 for p in PerspectiveRepository().find_all_active()
