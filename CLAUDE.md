@@ -103,7 +103,7 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 - **Structural** (Merkle backbone — in parent hashes, immutable after commit): Statement, Polarity, Perspective, Transition, Cycle, Wheel, Nexus. Containers: `save() → add members → commit()`.
 - **Analytical** (attached via `AnalyticalStructure` edges — never in parent hashes, connectable even to committed targets): Rationale, Estimation, Synthesis (SYNTHESIS_OF), Transformation (ACTION_REFLECTION), Decision (GROUNDED_IN); CRITIQUES is Rationale→Rationale (no Critique node). Analytical NODES are hash-frozen at commit — layer mutability = add/replace/discard, not edit.
-- Mutable-anytime = metadata fields excluded from hashes, on BOTH layers: `digest`, `instruction`/`summary`/`haiku`, `discarded`, `validation`.
+- Mutable-anytime = metadata fields excluded from hashes, on BOTH layers: `digest`, `display_text`, `instruction`/`summary`/`haiku`, `discarded`, `validation`. **Every one of them must also be a term of `CaseRepository.scope_fingerprint()`** — the Advisor re-renders its graph dump only when that fingerprint moves, and a mutable field the fingerprint cannot see is a stale prompt on exactly the turns that change it (`tests/test_context_render_cache.py` holds the list to the node classes).
 
 ### Shared Rendering (`graph/rendering.py`)
 

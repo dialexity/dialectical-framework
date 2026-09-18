@@ -49,9 +49,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   because the toolset is already this function's single source of truth and a second parameter could
   disagree with the tools the head actually holds. Both compose with the scoped shape (a pinned consultant
   or a pinned view is legal). See the modes subsection under the authority matrix in §5.
-  The dump is **re-read every turn** by `Advisor._refresh_context`, and the system prompt is **rewritten
-  only when the rendered dump changed**. Read this history before touching it, because the design has
-  flipped twice:
+  The dump is **re-read on every turn where the graph MOVED** by `Advisor._refresh_context` — gated since
+  2026-09-18 on `CaseRepository.scope_fingerprint()`, two aggregate queries (node count, latest commit and
+  save, edge count, and the total length of every hash-excluded mutable field) that cost milliseconds
+  where the render cost 3.21s a turn on the Consultant (`consultant-latency`) — and the system prompt is
+  **rewritten only when the rendered dump changed**. The fingerprint says when to LOOK, the text says
+  whether to REWRITE; cannot-tell (no scope, a failing query, a seeded context) falls through to the
+  render. A mutable field missing from the fingerprint is a stale prompt on exactly the turns that change
+  it: `tests/test_context_render_cache.py` holds the query's list to the node classes. Read this history
+  before touching it, because the design has flipped twice:
   - A per-turn refresh was tried and removed **2026-07-28** — it busted prompt caching to re-present
     information already in history.
   - The static prompt was then removed and the refresh **reinstated 2026-08-26**, because both halves of

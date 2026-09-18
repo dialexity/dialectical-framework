@@ -55,6 +55,28 @@ def _system_prompt_text(advisor: Advisor) -> str:
     return content.text
 
 
+@pytest.fixture(autouse=True)
+def the_graph_moves_every_turn(monkeypatch):
+    """Every test here fakes `DialecticalContext.resolve` and changes what it
+    returns to stand for the graph changing. Since 2026-09-18 the re-read is
+    gated on `CaseRepository.scope_fingerprint()` (a turn that changed nothing
+    renders nothing — `tests/test_context_render_cache.py`), and these tests
+    run in a scope with no writes, so the real fingerprint would be constant
+    and every "the dump changed" test would read a cached prompt. So the
+    fingerprint moves on every call here, which is the premise these tests were
+    written under: the graph moved, does the prompt follow?"""
+    from dialectical_framework.graph.repositories.case_repository import \
+        CaseRepository
+
+    ticks: list[int] = []
+
+    def moving(self, *args, **kwargs):
+        ticks.append(1)
+        return (len(ticks),)
+
+    monkeypatch.setattr(CaseRepository, "scope_fingerprint", moving)
+
+
 def _install_fake_context(monkeypatch, dump: str) -> None:
     from dialectical_framework.concerns.dialectical_context import \
         DialecticalContext
@@ -92,6 +114,9 @@ class TestTheContextIsRereadEveryTurn:
             return f"# dump revision {len(renders)}"
 
         monkeypatch.setattr(DialecticalContext, "resolve", counting_context)
+        # The graph moves between the turns (module autouse fixture), so this
+        # states the contract in the direction that matters: a turn that could
+        # see a change does see it.
 
         advisor = Advisor()
         with scope("test-advisor-render-sid"):

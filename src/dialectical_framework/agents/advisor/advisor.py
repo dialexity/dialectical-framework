@@ -444,6 +444,12 @@ class Advisor(SettingsAware):
         # `None` means "nothing rendered yet", which is distinct from a rendered
         # empty graph and must stay so — otherwise turn 1 skips its first read.
         self._last_context: Optional[str] = dialectical_context
+        # The scope fingerprint the rendered `_last_context` was read under, so
+        # `_refresh_context` can skip the render when nothing has moved. `None`
+        # for a seeded context on purpose: the seed was rendered by someone
+        # else at some earlier moment, so turn 1 reads the graph as it always
+        # did — the cache only ever trusts a fingerprint THIS instance took.
+        self._last_context_fingerprint: Optional[tuple] = None
         # Cleared only when the pinned nexus proves unresolvable — see
         # `_refresh_context`. Not a host knob: a turn that must see the graph
         # cannot be configured into not looking.
@@ -1994,14 +2000,49 @@ class Advisor(SettingsAware):
         reads and string assembly with no LLM call in it, against a reply path
         whose median tool round is 42s. Not free, though — so the cost is returned
         and recorded as `TurnTiming.context_render_s` rather than assumed small.
+
+        AND SKIPPED WHEN NOTHING MOVED (2026-09-18). "Not free" was measured:
+        3.21s a turn on the Consultant over a 5-6 perspective graph
+        (`consultant-latency`), a fifth of that surface's whole reply path, for a
+        render that produced the same text as the turn before on 12 of 16 turns.
+        So the read is now gated on `CaseRepository.scope_fingerprint()` — two
+        aggregate queries, milliseconds — and the full render runs only when the
+        fingerprint differs from the one the current prompt was rendered under.
+        The contract is unchanged in the direction that matters: every turn that
+        COULD see a change does see it, because the fingerprint covers every
+        addition (nodes, edges) and every mutable field a render reads (its
+        docstring lists them and a test holds the list to the node classes).
+        What it gives up is only the render whose output was going to be
+        byte-identical. Cannot-tell (no scope, a failing query) falls through to
+        the render, never to the cache.
         """
         if not self._context_refresh_enabled:
             return 0.0
 
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
+        from dialectical_framework.graph.repositories.case_repository import \
+            CaseRepository
 
         started = time.monotonic()
+        # Taken BEFORE the render, so a write that lands during it (which the
+        # one-writer-per-sid contract rules out, but which this must not depend
+        # on) shows up as a difference on the next turn rather than being folded
+        # into a fingerprint the render never saw.
+        try:
+            fingerprint = CaseRepository().scope_fingerprint()
+        except Exception:
+            logger.warning(
+                "Scope fingerprint unavailable; rendering the context unconditionally",
+                exc_info=True,
+            )
+            fingerprint = None
+        if (
+            fingerprint is not None
+            and self._last_context is not None
+            and fingerprint == self._last_context_fingerprint
+        ):
+            return time.monotonic() - started
         try:
             context = await DialecticalContext(
                 nexus_hash=self._nexus_hash
@@ -2023,15 +2064,18 @@ class Advisor(SettingsAware):
             logger.exception("Dialectical context refresh failed (fail-soft)")
             return time.monotonic() - started
 
-        # Idempotent by comparing the RENDERED text, not by trusting a
-        # graph-version signal that does not exist. A turn that changed nothing
-        # must not churn the system prompt: re-setting an identical prompt buys
-        # nothing and needlessly disturbs provider-side prefix caching.
+        # Idempotent by comparing the RENDERED text — the fingerprint above says
+        # when to LOOK, the text says whether to REWRITE. A turn whose render came
+        # out identical must not churn the system prompt: re-setting an identical
+        # prompt buys nothing and needlessly disturbs provider-side prefix caching.
         if context != self._last_context:
             self._conversation.set_system_prompt(
                 self._build_system_prompt(self._app_preamble, context)
             )
             self._last_context = context
+        # Recorded only after a successful render, and as the value read BEFORE
+        # it: the cache trusts exactly the graph this text was rendered from.
+        self._last_context_fingerprint = fingerprint
         return time.monotonic() - started
 
     @property

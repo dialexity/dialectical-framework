@@ -99,3 +99,81 @@ class CaseRepository:
             )
         return case
 
+    @inject
+    def scope_fingerprint(
+        self,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> Optional[tuple]:
+        """A cheap signature of everything in this scope that a render can see.
+
+        Two aggregate queries against the `Node(sid)` index — milliseconds on a
+        case whose full render costs seconds — so a reader can ask "has anything
+        moved since I last looked?" without looking. Equal fingerprints mean
+        "nothing the dump renders has changed"; a different one means only "look
+        again". It is computed from the database on every call, never stored, so
+        writes from another process on the same sid are seen too — which is the
+        reason it is a query and not an in-process write counter.
+
+        WHAT IT MUST COVER, AND WHY EACH TERM IS THERE
+        =============================================
+        Every node writes at commit, so `count` plus `max(committed_at)` catches
+        every structural or analytical addition — including an Estimation
+        upsert, which deletes and re-creates (count unchanged, latest commit
+        newer). Edges are counted separately because `GROUNDED_IN` is attached
+        to an already-committed Decision and changes no node at all. The rest are
+        the MUTABLE fields: the ones excluded from every hash precisely so they
+        can change in place after commit, which means a count and a timestamp
+        cannot see them. Each is folded in as the total length of its text over
+        the scope, not as a count, so a value changing from one string to another
+        (a validation verdict, a re-digested Input) still moves the fingerprint:
+        `discarded`, `validation`, `digest`, the Statement's cosmetic
+        `display_text` override (`concerns/display_text_edit.py`), and the
+        Transition trio `instruction`/`summary`/`haiku`. `saved_at` is included
+        because a save of a committed node is what every one of those mutations
+        does.
+
+        Adding a mutable field to a node without adding it here makes the
+        Advisor's render cache serve a stale prompt for exactly the turns that
+        changed that field — `tests/test_context_render_cache.py` lists the
+        mutable fields it knows and fails when a node declares one it does not.
+
+        Returns None when there is no scope, so a caller treats "cannot tell" as
+        "look again" rather than as "nothing changed".
+        """
+        if not sid:
+            return None
+
+        nodes_query = """
+        MATCH (n:Node {sid: $sid})
+        RETURN count(n) AS nodes,
+               max(n.committed_at) AS latest_commit,
+               max(n.saved_at) AS latest_save,
+               sum(size(coalesce(n.discarded, ''))) AS discarded_chars,
+               sum(size(coalesce(n.validation, ''))) AS validation_chars,
+               sum(size(coalesce(n.digest, ''))) AS digest_chars,
+               sum(size(coalesce(n.display_text, ''))) AS display_text_chars,
+               sum(size(coalesce(n.instruction, ''))) AS instruction_chars,
+               sum(size(coalesce(n.summary, ''))) AS summary_chars,
+               sum(size(coalesce(n.haiku, ''))) AS haiku_chars
+        """
+        edges_query = """
+        MATCH (n:Node {sid: $sid})-[r]->()
+        RETURN count(r) AS edges
+        """
+        nodes = list(graph_db.execute_and_fetch(nodes_query, {"sid": sid}))[0]
+        edges = list(graph_db.execute_and_fetch(edges_query, {"sid": sid}))[0]
+        return (
+            nodes["nodes"],
+            str(nodes["latest_commit"]),
+            str(nodes["latest_save"]),
+            nodes["discarded_chars"],
+            nodes["validation_chars"],
+            nodes["digest_chars"],
+            nodes["display_text_chars"],
+            nodes["instruction_chars"],
+            nodes["summary_chars"],
+            nodes["haiku_chars"],
+            edges["edges"],
+        )
+

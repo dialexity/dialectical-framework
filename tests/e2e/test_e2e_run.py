@@ -19,6 +19,7 @@ nodes.
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -161,13 +162,30 @@ async def test_e2e_matrix(di_container):
     )
 
     run = E2ERun(di_container, config)
-    await run.run_matrix(
-        arms=arms,
-        scenario_keys=scenarios,
-        replicates=replicates,
-        branches=branches,
-        progress=_say,
+    # Every fail-soft seam in the framework reports through `logger.exception`
+    # and nothing else — `consultant-latency` closed 3 of 16 A2c turns as
+    # `failed` and the cause could not be read, because pytest's capture kept
+    # those records off the run log. A WARNING+ file next to the archive stem
+    # is the only place a fail-soft failure becomes a fact after the run.
+    log_path = OUTPUT_DIR / f"{stem}.log"
+    log_handler = logging.FileHandler(log_path, encoding="utf-8")
+    log_handler.setLevel(logging.WARNING)
+    log_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
     )
+    logging.getLogger().addHandler(log_handler)
+    try:
+        await run.run_matrix(
+            arms=arms,
+            scenario_keys=scenarios,
+            replicates=replicates,
+            branches=branches,
+            progress=_say,
+        )
+    finally:
+        logging.getLogger().removeHandler(log_handler)
+        log_handler.close()
+    _say(f"fail-soft log: {log_path}")
     run.score_machine()
     # Save before judging: the matrix is the expensive part, and judging can be
     # redone from the saved records for a fraction of the cost.
