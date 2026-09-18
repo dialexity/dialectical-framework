@@ -130,6 +130,15 @@ co-occurrence hotspots. Then:
       (`_FEASIBILITY_ON_A_WOBBLE`, 2026-09-15). So run the WHEN question in both directions: for each moment the
       value matters, ask whether a rule fires there, and only then whether the value is on the line that rule
       reads. Render fixes the second; nothing but prompt fixes the first.
+- [ ] **REACHABLE IS NOT AVAILABLE: a prompt cannot traverse.** When a fact the model needs is one hop away in the
+      graph, the temptation is to call it already present — it is derivable, nothing is lost, a reader could get it.
+      But if the consumer is a rendered dump (`_dump_decisions`, the perspective dumps, the pathway menu), the only
+      facts that exist are the ones some renderer walked to and PUT on a line. `Transformation.get_wheel()` recovers
+      a recipe's arrangement in one hop, and the decision ledger still could not name the circle a step closes until
+      the Wheel was grounded as its own edge (2026-09-18; see the four-things paragraph in
+      [reference/systemic-map.md](reference/systemic-map.md)). So when reviewing a dump, ask what it would take to
+      answer each question the prompt asks the model to answer — if the answer is "a second query", the fact is
+      missing, however short the path.
 - [ ] **Runtime splices.** Explorer embeds `nexus_hash`/`nexus_intent`; Advisor embeds the whole
       `{dialectical_context}` dump. Your edit must tolerate an empty/"fresh conversation" block and untrusted
       interpolated text.

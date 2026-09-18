@@ -1529,20 +1529,50 @@ class Advisor(SettingsAware):
         return built or self._existing_pathway_hashes()
 
     def _existing_pathway_hashes(self) -> list[str]:
-        """Transformation hashes already on this session's graph, if any.
+        """Transformation hashes of the best-ranked ARRANGEMENT already built.
 
         Read-only and fail-soft: a closing that cannot see a pathway is
         recorded without one, exactly as before. Scoped to the pinned nexus in
         counsel mode; unscoped sessions have a single Case's worth of graph, so
         every transformation in scope belongs to the conversation that built it.
+
+        ONE WHEEL, NOT THE WHOLE NEXUS, AND THE REASON IS THE ARRANGEMENT
+        ================================================================
+        This used to return every transformation under the nexus, which was
+        right for the question it was asked ("does a pathway exist to ground
+        on?") and wrong for the question the record answers next. The caller
+        takes `[0]`, so a lexicographic hash order decided not only WHICH
+        recipe went on the record but — via the pathway's own wheel — which
+        CAUSAL READING the record would later be understood to rest on. And
+        the nexus holds more than one developed wheel by construction, not by
+        accident: `EXPLORE_REFINE_FROM_COARSER` deepens the top wheel's coarser
+        ancestry too, so the smallest hash can easily belong to a rung that was
+        only ever built as refinement context for the arrangement the person
+        was actually shown.
+
+        Arbitrary-but-stable is defensible for the RECIPE — any real pathway
+        beats none, which is what `_adopted_pathway_grounds` means by "the
+        floor, not the ceiling". It is not defensible for the ARRANGEMENT: that
+        is a claim about the reading the person settled on, and the seam has no
+        basis for making it at random. So the pick is narrowed first, on
+        `_select_deep_wheels`' own rule — deepest layer, then highest causality
+        P — and the sort then breaks ties WITHIN one arrangement, where an
+        arbitrary choice is what it always was.
+
+        Layer comes off the Cycle's `perspective_hashes` (which is what
+        `find_developed_by_nexus` already orders on) rather than
+        `Wheel._perspectives`, deliberately: the latter reads `Wheel.edges`,
+        the most expensive read in the tree, to answer a question already
+        answered by a property on a node in hand.
         """
         try:
+            from dialectical_framework.agents.explorer.explorer import \
+                _causality_probability
             from dialectical_framework.graph.repositories.nexus_repository import \
                 NexusRepository
-            from dialectical_framework.graph.repositories.transformation_repository import \
-                TransformationRepository
+            from dialectical_framework.graph.repositories.wheel_repository import \
+                WheelRepository
 
-            tr_repo = TransformationRepository()
             nexus_repo = NexusRepository()
             nexuses: list = []
             if self._nexus_hash:
@@ -1551,14 +1581,25 @@ class Advisor(SettingsAware):
                 nexuses = [pinned] if pinned else []
             else:
                 nexuses = nexus_repo.find_all()
-            hashes: list[str] = []
+
+            wheel_repo = WheelRepository()
+            best = None
+            best_rank: tuple[int, float] = (-1, -2.0)
             for nexus in nexuses:
-                hashes += [
-                    tr.hash for tr in tr_repo.find_by_nexus(nexus) if tr.hash
-                ]
+                for cycle, wheel in wheel_repo.find_developed_by_nexus(nexus):
+                    rank = (
+                        len(getattr(cycle, "perspective_hashes", None) or []),
+                        _causality_probability(wheel),
+                    )
+                    if rank > best_rank:
+                        best, best_rank = wheel, rank
+            if best is None:
+                return []
             # Sorted for the same reason the explore report sorts: a ground
             # picked from an arbitrary DB order is not reproducible.
-            return sorted(set(hashes))
+            return sorted(
+                {tr.hash for tr in wheel_repo.get_transformations(best) if tr.hash}
+            )
         except Exception:
             logger.exception("Pathway lookup for grounding failed (fail-soft)")
             return []
@@ -1574,18 +1615,74 @@ class Advisor(SettingsAware):
         closing, not which one the person would choose. The model's own
         `record_decision` path still names its own, and that one is chosen with
         the conversation in view — this is the floor, not the ceiling.
+
+        THE ARRANGEMENT RIDES ALONG, AS A PLAIN GROUND
+        ==============================================
+        Two grounds, not one: the recipe AND the wheel it belongs to. See
+        `_arrangement_of` for why the traversal is not a substitute.
         """
         if not pathway_hashes:
             return []
         try:
             from dialectical_framework.concerns.record_decision import GroundLink
 
-            return [
-                GroundLink(hash=pathway_hashes[0], role="adopted_pathway")
-            ]
+            grounds = [GroundLink(hash=pathway_hashes[0], role="adopted_pathway")]
+            wheel = self._arrangement_of(pathway_hashes[0])
+            if wheel is not None and wheel.hash:
+                grounds.append(GroundLink(hash=wheel.hash, role=None))
+            return grounds
         except Exception:
             logger.exception("Adopted-pathway ground construction failed")
             return []
+
+    def _arrangement_of(self, pathway_hash: str):
+        """The Wheel an adopted pathway belongs to, or None.
+
+        WHY THE RECORD CARRIES THIS AND NOT JUST THE TRAVERSAL
+        ======================================================
+        `Transformation.get_wheel()` already recovers it in one hop, so nothing
+        here is unreachable — from the GRAPH. But the consumer that reads a
+        decision back is the ledger (`DialecticalContext._dump_decisions`),
+        re-rendered into the prompt every turn, and a prompt cannot traverse.
+        Without this ground the record names a recipe with no arrangement around
+        it, which is precisely what the wobble ("is what I decided still
+        sound?") has to read off the record.
+
+        A PLAIN ground, role omitted, for the reason `GroundedInRelationship`
+        states: "a role exists iff a consumer branches on it". Nothing branches
+        on being an arrangement — `rendering.decision_ground_line` already
+        selects its format from the node TYPE and renders a Wheel as its spiral
+        sequence, the one line that names the arrangement. That branch has been
+        in the tree unreachable on every framework-written record, and
+        `record_decision`'s own tool doc has licensed it all along ("omit role
+        for a plain ground (tensions weighed, arrangements counseled from)").
+
+        Frame-neutral by construction, which is what makes it safe to add to a
+        set `_ground_set_inconsistency` checks: `_perspective_frame` resolves a
+        Wheel and a Transformation to the same thing, "the whole owning Nexus",
+        and this wheel IS the pathway's own wheel — so the union of frames the
+        other grounds are checked against does not move, and no record that
+        recorded before this can start refusing.
+        """
+        try:
+            from dialectical_framework.graph.nodes.transformation import \
+                Transformation
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            pathway = NodeRepository().find_by_hash(
+                pathway_hash, node_type=Transformation
+            )
+            if pathway is None:
+                return None
+            return pathway.get_wheel()
+        except Exception:
+            logger.exception(
+                "Could not resolve the arrangement behind pathway [[%s]] "
+                "(fail-soft)",
+                pathway_hash[:7],
+            )
+            return None
 
     def _attach_adopted_pathway(self, pathway_hashes: list[str]) -> str | None:
         """Ground an ALREADY-recorded decision on a pathway built after it.
@@ -1647,7 +1744,13 @@ class Advisor(SettingsAware):
         self._connect_adopted_pathway(decision, pathway_hashes)
 
     def _connect_adopted_pathway(self, decision, pathway_hashes: list[str]) -> None:
-        """The GROUNDED_IN write both attachment paths share."""
+        """The GROUNDED_IN write both attachment paths share.
+
+        Writes the ARRANGEMENT too, as a plain ground — same two grounds
+        `_adopted_pathway_grounds` builds for the commit-time path, so a
+        decision repaired on the turn and one grounded by the off-turn weave
+        read identically in the ledger. `_arrangement_of` carries why.
+        """
         if not pathway_hashes or decision is None:
             return
         try:
@@ -1661,22 +1764,59 @@ class Advisor(SettingsAware):
             # `connect` deduplicates only direction="any" edges, so a repeated
             # closing in one session would otherwise add a second identical
             # GROUNDED_IN. Check first (CLAUDE.md, Idempotent connect).
+            #
+            # The whole set is read before anything is written, rather than
+            # returning from inside the loop on the first `adopted_pathway`
+            # found: the two writes below are independent, and an early return
+            # would make a record that already has its recipe permanently
+            # unable to acquire its arrangement — which is every record written
+            # before the arrangement ground existed, plus any whose wheel write
+            # failed on its own.
+            grounded_hashes: set[str] = set()
+            recorded_pathway: str | None = None
             for existing, rel in decision.grounds.all():
                 if getattr(rel, "role", None) == "adopted_pathway":
-                    return
+                    recorded_pathway = getattr(existing, "hash", None) or ""
+                if getattr(existing, "hash", None):
+                    grounded_hashes.add(existing.hash)
             repo = NodeRepository()
             target = repo.find_by_hash(pathway_hashes[0], node_type=Transformation)
             if target is None:
                 return
+            if recorded_pathway is None:
+                decision.grounds.connect(
+                    target,
+                    relationship=GroundedInRelationship(role="adopted_pathway"),
+                )
+                logger.info(
+                    "Grounded already-recorded decision [[%s]] on the pathway "
+                    "its closing built: [[%s]]",
+                    (decision.hash or "")[:7],
+                    pathway_hashes[0][:7],
+                )
+            # The arrangement is a SEPARATE fail-soft step, below the pathway
+            # write and never guarding it: a record that names its recipe and
+            # not its wheel is strictly better than one that names neither, so
+            # nothing about the arrangement may cost the pathway. Deduped by
+            # node hash rather than by role, because a plain ground is exactly
+            # what the Perspective ground already is.
+            #
+            # Read off the pathway ON THE RECORD, never off the candidate list,
+            # for the same reason `_audit_adopted_pathways` does: the weave
+            # knows what it built and the edge knows what the record rests on.
+            # A second closing whose candidate list happens to sort differently
+            # must not attach the wheel of a recipe this decision does not name.
+            wheel = self._arrangement_of(recorded_pathway or pathway_hashes[0])
+            if wheel is None or not wheel.hash or wheel.hash in grounded_hashes:
+                return
             decision.grounds.connect(
-                target,
-                relationship=GroundedInRelationship(role="adopted_pathway"),
+                wheel, relationship=GroundedInRelationship(role=None)
             )
             logger.info(
-                "Grounded already-recorded decision [[%s]] on the pathway its "
-                "closing built: [[%s]]",
+                "Grounded decision [[%s]] on the arrangement that pathway sits "
+                "in: [[%s]]",
                 (decision.hash or "")[:7],
-                pathway_hashes[0][:7],
+                wheel.hash[:7],
             )
         except Exception:
             logger.exception(

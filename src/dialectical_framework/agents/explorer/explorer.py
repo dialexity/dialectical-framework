@@ -210,9 +210,15 @@ class StepError(BaseModel):
 def _causality_probability(wheel) -> float:
     """Raw causality P for ranking, or -1.0 when the wheel has no estimation.
 
-    Module level because two selections rank on it — which wheels get deepened, and
-    which coarser wheel each of them refines from — and a wheel with no estimation
-    has to lose both, not raise.
+    Module level because three selections rank on it — which wheels get deepened,
+    which coarser wheel each of them refines from, and which ARRANGEMENT a closing
+    decision is grounded on (`Advisor._existing_pathway_hashes`) — and a wheel with
+    no estimation has to lose all three, not raise.
+
+    The third consumer is why this stays the single owner despite crossing an agent
+    boundary: it is the same ranking rule, and a hand-typed copy in the Advisor
+    would let a decision name one arrangement while the exploration deepened
+    another.
     """
     from dialectical_framework.graph.nodes.estimation import \
         CausalityProbabilityEstimation

@@ -31,6 +31,11 @@ What this pins that the DB-free tests cannot, and what survives the inversion:
 3. `_existing_pathway_hashes` really finds those transformations afterwards.
    That read is now the closing's ONLY source of a ground, so a silent failure in
    it means every decision closes ungrounded.
+4. The read comes back narrowed to ONE arrangement, and `_arrangement_of` can
+   traverse from a real Transformation back to the Wheel it belongs to. Every
+   DB-free test stubs that traversal, so nothing else in the tree pins that the
+   edge it walks (`Transformation.edge` -> `Transition.cycle`) exists on a wheel
+   the pipeline actually built.
 
     poetry run pytest tests/test_pathways_seam_real_llm.py --real-llm -s
 """
@@ -146,9 +151,14 @@ class TestTheClosingReadsAnArrangement:
             )
             woven = [p for p in repo.find_all_active() if repo.is_in_use_by_cycle(p)]
             found = advisor._existing_pathway_hashes()
+            # The second half of the ground, resolved inside the scope because it
+            # is a graph traversal: recipe -> the arrangement it belongs to.
+            arrangement = advisor._arrangement_of(found[0]) if found else None
 
         print(f"Woven after explicit exploration: {len(woven)}")
+        print(f"Transformations the exploration built: {len(built)}")
         print(f"Transformations the read finds:   {len(found)}")
+        print(f"Arrangement read off the recipe:  {arrangement and arrangement.hash}")
 
         assert woven, (
             "Explicit exploration over "
@@ -163,6 +173,19 @@ class TestTheClosingReadsAnArrangement:
             "`_existing_pathway_hashes` finds none. That read is the closing's "
             "ONLY source of a ground now, so every decision would close "
             "ungrounded with nothing raising."
+        )
+        assert set(found) <= set(built), (
+            f"The read returned {sorted(set(found) - set(built))}, which this "
+            "exploration did not build. The read is narrowed to ONE arrangement's "
+            "transformations, so anything outside what was just built came from "
+            "somewhere the ranking was not supposed to reach."
+        )
+        assert arrangement is not None and arrangement.hash, (
+            f"`_arrangement_of({found[0]})` resolved nothing on a pathway this "
+            "run just built. Every DB-free test stubs that traversal, so this is "
+            "the only place the real edge walk is exercised — and a decision "
+            "would be grounded on its recipe and not on the arrangement the "
+            "recipe belongs to, silently, because the lookup is fail-soft."
         )
 
     @pytest.mark.asyncio

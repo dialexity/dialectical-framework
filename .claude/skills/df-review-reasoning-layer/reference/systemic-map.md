@@ -2437,6 +2437,49 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   built (see "The record never pointed at the pathway" below). It was withheld until then on the reasoning that it
   "needs a Transformation the wheel may not have", which stopped being true the moment the seam started building
   wheels before recording.
+  **A decision rests on FOUR things and the seam grounded three of them; the fourth landed 2026-09-18.** The price
+  (`accepted_cost`→Statement at a minus), the tension (plain ground→Perspective), the recipe
+  (`adopted_pathway`→Transformation) — and the ARRANGEMENT the recipe is a step of, which was never grounded at all.
+  `_adopted_pathway_grounds` now returns TWO links: the Transformation with its role, and the Wheel it belongs to as
+  a PLAIN ground. **Plain, not a third role, and that follows `GroundedInRelationship`'s own rule rather than being
+  a shortcut** — "a role exists iff a consumer branches on it", `DECISION_GROUND_ROLES` holds exactly two entries,
+  and `rendering.decision_ground_line` already selects its format from the node TYPE (`isinstance(node, Wheel)` →
+  `format_spiral(node, pp_index)`), so a role would buy a label and change no rendering. The existing
+  `DECISION_GROUND_ROLES == {...}` assertion in `test_prompt_review_regressions.py` is therefore untouched.
+  **Why the traversal is not a substitute, which is the whole case for the edge:** `Transformation.get_wheel()`
+  recovers the arrangement from the graph in one hop, so nothing is *unknowable* — but the consumer that reads a
+  decision back is `DialecticalContext._dump_decisions`, re-rendered into the prompt every turn, and **a prompt
+  cannot traverse**. Ungrounded, the re-audit could name the step and not the circle it closes.
+  **The safety argument is frame-neutrality, and it is a proof rather than a test result:** `_perspective_frame`
+  resolves Transformation, Wheel and Synthesis IDENTICALLY, to the whole owning Nexus, and
+  `_ground_set_inconsistency` Rule A checks only ROLED grounds against the union of the OTHERS' frames — plain
+  grounds define the frame and are never themselves checked. The wheel added is the pathway's OWN, so the union
+  cannot move and no previously-recordable ground set can start refusing.
+  **The read that feeds it was NARROWED in the same change, and that half is the reasoning change.**
+  `_existing_pathway_hashes` returned every Transformation of every developed wheel in the nexus (of every nexus,
+  unpinned) and the seam grounded `pathway_hashes[0]` — its own comment called that pick "the floor, not the
+  ceiling". Arbitrary-but-stable is defensible for a recipe and NOT for an arrangement, because
+  `EXPLORE_REFINE_FROM_COARSER` guarantees several developed wheels per nexus, so a lexicographic pick can land on
+  a rung built only as refinement CONTEXT for the wheel the exploration was actually about. It now ranks with
+  `_select_deep_wheels`' own rule — deepest layer first, then highest causality P — reusing the module-level
+  `_causality_probability` in `explorer.py` (a cross-agent import justified in that function's docstring, which now
+  names its third consumer), and reads layer as `len(cycle.perspective_hashes)`, which is what
+  `find_developed_by_nexus` already orders on, rather than `Wheel._perspectives`, which would read `Wheel.edges`.
+  The winner's transformations come back SORTED, for the reason the explore report sorts.
+  **Two ordering guarantees, both mutation-verified:** `_connect_adopted_pathway` reads the whole ground set once
+  and then does two INDEPENDENT writes with the arrangement BELOW the pathway, so a raise in the arrangement lookup
+  cannot cost the record its recipe; and the arrangement is read off the pathway actually RECORDED, not off the
+  candidate list, which differ whenever the record already carried a recipe from an earlier round. The arrangement
+  dedup keys on the node HASH and not on a role — a plain ground is exactly what the Perspective ground already is,
+  so there is nothing to recognise it by.
+  **What the bench cannot see:** `E2EDriver._read_decisions` branches on `accepted_cost` and `adopted_pathway`
+  only, so a plain Wheel ground is invisible to every archived `DecisionReadout` — no round measures this, and no
+  round needs to be re-read because of it. Locked by `tests/test_decision_confirmation_repair.py`
+  (`TestTheArrangementIsGroundedToo`, `TestTheArrangementLookup`,
+  `TestTheGroundedArrangementIsTheBestRankedOne` — 118 tests in that file, seven mutations each failing exactly the
+  tests that should) and, on a real graph, `tests/test_pathways_seam_real_llm.py`, which is the ONLY place the
+  `Transformation`→`Wheel` edge walk is exercised: every DB-free test stubs `_arrangement_of`, and the lookup is
+  fail-soft, so a broken traversal would ground the recipe and silently drop the arrangement.
   **The prompt is deliberately silent about the backstop** — telling the model it exists would
   license the laziness it compensates for. Reviewing prompts here: the three prose/tool-doc rules stay exactly as
   they are (the model calling the tool itself is still the path that produces good grounds); the seam is a

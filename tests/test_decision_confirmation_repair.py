@@ -113,6 +113,15 @@ class _StubAdvisor:
     _ensure_pathways_before_closing = Advisor._ensure_pathways_before_closing
     _existing_pathway_hashes = Advisor._existing_pathway_hashes
     _adopted_pathway_grounds = Advisor._adopted_pathway_grounds
+    # The arrangement lookup, bound for the same reason `_audit_adopted_pathways`
+    # is: both of its call sites sit inside a fail-soft `except`, so an UNBOUND
+    # method here would raise `AttributeError` where nothing can see it —
+    # `_adopted_pathway_grounds` would return an empty list and take the PATHWAY
+    # ground down with it, while every assertion about a missing arrangement
+    # stayed green. `_SeamFixtures._graph_pathways` stubs it per test because
+    # these tests are DB-free; what is bound here is what a test that forgets to
+    # gets, and it must be the real method.
+    _arrangement_of = Advisor._arrangement_of
     _attach_adopted_pathway = Advisor._attach_adopted_pathway
     _connect_adopted_pathway = Advisor._connect_adopted_pathway
     _ground_recorded_decision = Advisor._ground_recorded_decision
@@ -620,17 +629,108 @@ class _SeamFixtures:
         )
         return scheduled
 
-    def _graph_pathways(self, monkeypatch, hashes: list[str]):
+    def _graph_pathways(self, monkeypatch, hashes: list[str], arrangement=None):
         """Pathways ALREADY on the graph — the only source a closing now has.
 
         Call after `_capture_exploration`, which defaults the same lookup to
         empty. Whether these came from the model's own `explore` or from an
         earlier turn is exactly the distinction the closing cannot make and does
         not need to: it grounds on what is there.
+
+        The ARRANGEMENT behind those pathways is stubbed too, and defaults to
+        None, because `_arrangement_of` resolves a Transformation through
+        `NodeRepository` and these tests are DB-free (the same reason
+        `_adopted_pathway_hash` is stubbed in the classes below). Defaulting it
+        to None also keeps every assertion written before the arrangement ground
+        existed measuring what it was written to measure — one ground, one role
+        — rather than being loosened to accommodate a second one.
+        `TestTheArrangementIsGroundedToo` is what passes a wheel.
         """
         monkeypatch.setattr(
             _StubAdvisor, "_existing_pathway_hashes", lambda self: list(hashes)
         )
+        monkeypatch.setattr(
+            _StubAdvisor, "_arrangement_of", lambda self, h: arrangement
+        )
+
+    @staticmethod
+    def _confirming(monkeypatch):
+        """Make the confirmation check say "the person closed"."""
+
+        async def fake_check(self, *, user_message, assistant_message):
+            return ConfirmationVerdictDto(
+                confirmed=True, question="q", stance="s", rationale="r"
+            )
+
+        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
+
+    @staticmethod
+    def _capture_record(monkeypatch) -> dict:
+        recorded: dict = {}
+
+        async def fake_record(self, **kwargs):
+            recorded.update(kwargs)
+            return "dec00001"
+
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
+        return recorded
+
+    def _graph_wheels(self, monkeypatch, wheels, *, pinned=True):
+        """The DEVELOPED wheels of a nexus, as `find_developed_by_nexus` yields them.
+
+        `wheels` is a list of `(layer, causality_p, transformation_hashes)`.
+        Layer is expressed the way the real read expresses it — as the length of
+        the owning Cycle's `perspective_hashes`, which is what the repository
+        already orders on — and the causality P as a real
+        `CausalityProbabilityEstimation` on the wheel, so the ranking under test
+        goes through the SAME `_causality_probability` the exploration ranks on
+        rather than a number this fixture made up. `None` for the P means a wheel
+        with no estimation at all, which is the case that has to lose without
+        raising.
+        """
+        from dialectical_framework.graph.nodes.estimation import \
+            CausalityProbabilityEstimation
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+        from dialectical_framework.graph.repositories.wheel_repository import \
+            WheelRepository
+
+        class _Nexus:
+            hash = "nex1234"
+
+        pairs = []
+        transformations: dict[str, list] = {}
+        for i, (layer, probability, tr_hashes) in enumerate(wheels):
+            estimations = (
+                []
+                if probability is None
+                else [(CausalityProbabilityEstimation(value=probability), None)]
+            )
+            wheel = SimpleNamespace(
+                hash=f"wh{i:04d}",
+                estimations=SimpleNamespace(all=lambda e=estimations: e),
+            )
+            cycle = SimpleNamespace(
+                hash=f"cy{i:04d}", perspective_hashes=[f"pp{j}" for j in range(layer)]
+            )
+            pairs.append((cycle, wheel))
+            transformations[wheel.hash] = [SimpleNamespace(hash=h) for h in tr_hashes]
+
+        monkeypatch.setattr(
+            NexusRepository, "find_by_hash_prefix", lambda self, h: _Nexus()
+        )
+        monkeypatch.setattr(NexusRepository, "find_all", lambda self: [_Nexus()])
+        monkeypatch.setattr(
+            WheelRepository, "find_developed_by_nexus", lambda self, n: list(pairs)
+        )
+        monkeypatch.setattr(
+            WheelRepository,
+            "get_transformations",
+            lambda self, w: transformations[w.hash],
+        )
+        return _StubAdvisor([], nexus_hash="nex1234" if pinned else None)
 
 
 class TestPathwaysBeforeClosing(_SeamFixtures):
@@ -805,8 +905,8 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
 
         from dialectical_framework.graph.repositories.nexus_repository import \
             NexusRepository
-        from dialectical_framework.graph.repositories.transformation_repository import \
-            TransformationRepository
+        from dialectical_framework.graph.repositories.wheel_repository import \
+            WheelRepository
 
         def _prefix(self, h):
             seen.append(h)
@@ -819,11 +919,19 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
             lambda self: pytest.fail("a pinned counsel session read every nexus"),
         )
 
-        class _Tr:
-            hash = "tr0005"
-
+        wheel = SimpleNamespace(
+            hash="wh0001", estimations=SimpleNamespace(all=lambda: [])
+        )
+        cycle = SimpleNamespace(perspective_hashes=["pp0", "pp1"])
         monkeypatch.setattr(
-            TransformationRepository, "find_by_nexus", lambda self, n: [_Tr()]
+            WheelRepository,
+            "find_developed_by_nexus",
+            lambda self, n: [(cycle, wheel)],
+        )
+        monkeypatch.setattr(
+            WheelRepository,
+            "get_transformations",
+            lambda self, w: [SimpleNamespace(hash="tr0005")],
         )
         self._patch_repo(monkeypatch, self._perspectives(3, woven=3))
 
@@ -988,30 +1096,6 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
     and `if not unwoven: return` skipped the one cell that most deserved a
     ground. This class covers all three.
     """
-
-    @staticmethod
-    def _confirming(monkeypatch):
-        """Make the confirmation check say "the person closed"."""
-
-        async def fake_check(self, *, user_message, assistant_message):
-            return ConfirmationVerdictDto(
-                confirmed=True, question="q", stance="s", rationale="r"
-            )
-
-        monkeypatch.setattr(DecisionConfirmationCheck, "resolve", fake_check)
-
-    @staticmethod
-    def _capture_record(monkeypatch) -> dict:
-        recorded: dict = {}
-
-        async def fake_record(self, **kwargs):
-            recorded.update(kwargs)
-            return "dec00001"
-
-        from dialectical_framework.concerns.record_decision import RecordDecision
-
-        monkeypatch.setattr(RecordDecision, "resolve", fake_record)
-        return recorded
 
     @pytest.mark.asyncio
     async def test_the_repair_branch_grounds_on_the_pathway_it_found(
@@ -1188,17 +1272,32 @@ class TestTheClosingGroundsOnThePathwayItBuilt(_SeamFixtures):
 
 
 class _StubDecision:
-    """A committed Decision's `grounds` manager, and nothing else."""
+    """A committed Decision's `grounds` manager, and nothing else.
 
-    def __init__(self, existing_roles: list[str] | None = None) -> None:
+    `existing_roles` names roles without hashes, which is what the pathway
+    dedup reads. `existing_grounds` takes `(hash, role)` pairs, because the
+    ARRANGEMENT dedup keys on the node HASH rather than on a role — a plain
+    ground is exactly what the Perspective ground already is, so there is no
+    role to recognise it by.
+    """
+
+    def __init__(
+        self,
+        existing_roles: list[str] | None = None,
+        existing_grounds: list[tuple[str | None, str | None]] | None = None,
+    ) -> None:
         self.hash = "dec00001"
         self.connected: list = []
 
         class _Rel:
-            def __init__(self, role: str) -> None:
+            def __init__(self, role: str | None) -> None:
                 self.role = role
 
         existing = [(object(), _Rel(r)) for r in (existing_roles or [])]
+        existing += [
+            (SimpleNamespace(hash=h), _Rel(role))
+            for h, role in (existing_grounds or [])
+        ]
         outer = self
 
         class _Grounds:
@@ -1211,6 +1310,374 @@ class _StubDecision:
                 outer.connected.append((target, relationship))
 
         self.grounds = _Grounds()
+
+
+class TestTheArrangementIsGroundedToo(_SeamFixtures):
+    """A decision rests on four things and the seam grounded three of them.
+
+    The price (`accepted_cost`), the tension (a plain Perspective ground) and
+    the recipe (`adopted_pathway`) were all written. The ARRANGEMENT — which
+    causal reading the recipe sits inside — was not, on either closing branch.
+
+    WHY THE TRAVERSAL IS NOT A SUBSTITUTE
+    =====================================
+    `Transformation.get_wheel()` recovers it in one hop, so nothing was
+    unreachable from the GRAPH. But the consumer that reads a decision back is
+    the ledger (`DialecticalContext._dump_decisions`), re-rendered into the
+    prompt every turn, and a prompt cannot traverse. So at the wobble the record
+    named a recipe with no arrangement around it — the one thing "is what I
+    decided still sound?" has to read off the record.
+
+    WHY IT IS A PLAIN GROUND
+    ========================
+    `GroundedInRelationship`'s own rule: "a role exists iff a consumer branches
+    on it". Nothing branches on being an arrangement, because
+    `rendering.decision_ground_line` already selects its format from the node
+    TYPE and renders a Wheel as its spiral sequence — the one line that names
+    the arrangement. That branch was unreachable on every framework-written
+    record until this, and `record_decision`'s tool doc has licensed it all
+    along ("omit role for a plain ground (tensions weighed, arrangements
+    counseled from)").
+    """
+
+    @staticmethod
+    def _wheel(hash_: str = "wh0001"):
+        return SimpleNamespace(hash=hash_)
+
+    @pytest.mark.asyncio
+    async def test_the_record_names_the_recipe_and_the_arrangement(
+        self, monkeypatch
+    ):
+        """Both grounds reach `RecordDecision` at commit time, on the repair branch."""
+        self._confirming(monkeypatch)
+        recorded = self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(
+            monkeypatch, ["tr0001", "tr0002"], arrangement=self._wheel()
+        )
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        grounds = recorded["grounds"] or []
+        assert [(g.hash, g.role) for g in grounds if g.role != "accepted_cost"] == [
+            ("tr0001", "adopted_pathway"),
+            ("wh0001", None),
+        ], "a record that names a recipe with no arrangement around it"
+
+    @pytest.mark.asyncio
+    async def test_the_arrangement_is_read_off_the_pathway_being_grounded(
+        self, monkeypatch
+    ):
+        """Not off the wheel-shaped thing nearest to hand — off the recipe on the record.
+
+        Only one pathway becomes the `adopted_pathway`, so only that one's wheel
+        is the arrangement the person settled on.
+        """
+        self._confirming(monkeypatch)
+        self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch)
+        asked: list = []
+        wheel = self._wheel()
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_existing_pathway_hashes",
+            lambda self: ["tr0001", "tr0002"],
+        )
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_arrangement_of",
+            lambda self, h: asked.append(h) or wheel,
+        )
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        assert asked == ["tr0001"]
+
+    @pytest.mark.asyncio
+    async def test_no_resolvable_arrangement_still_records_the_recipe(
+        self, monkeypatch
+    ):
+        """A wheel the lookup cannot reach is a non-event, never a lost recipe.
+
+        Same order of preference as the pathway ground itself: an absent ground
+        leaves the record standing, so nothing about the arrangement may cost
+        the recipe.
+        """
+        self._confirming(monkeypatch)
+        recorded = self._capture_record(monkeypatch)
+        self._patch_repo(monkeypatch, self._perspectives(2))
+        self._capture_exploration(monkeypatch)
+        self._graph_pathways(monkeypatch, ["tr0001"], arrangement=None)
+
+        await _StubAdvisor([])._repair_unrecorded_decision("write it down", "done")
+
+        roles = [g.role for g in (recorded["grounds"] or [])]
+        assert roles.count("adopted_pathway") == 1
+        assert None not in roles
+
+    def test_the_off_turn_weave_grounds_the_arrangement_too(self, monkeypatch):
+        """The two attachment paths must read identically in the ledger.
+
+        A decision repaired on the turn passes its grounds to `RecordDecision`;
+        one grounded by the deferred weave gets a GROUNDED_IN edge afterwards.
+        Wiring only the first would make the arrangement depend on which branch
+        the closing took, and the archive splits those roughly 50/48.
+        """
+        target = object()
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: target if h == "tr0007" else None,
+        )
+        wheel = self._wheel()
+        monkeypatch.setattr(_StubAdvisor, "_arrangement_of", lambda self, h: wheel)
+
+        decision = _StubDecision()
+        _StubAdvisor([])._connect_adopted_pathway(decision, ["tr0007"])
+
+        assert [(n, r.role) for n, r in decision.connected] == [
+            (target, "adopted_pathway"),
+            (wheel, None),
+        ]
+
+    def test_a_record_that_has_its_recipe_still_acquires_its_arrangement(
+        self, monkeypatch
+    ):
+        """The dedup may not early-return, and this is the behaviour that pins it.
+
+        Every record written before the arrangement ground existed already has
+        its `adopted_pathway`, and so does any record whose wheel write failed
+        on its own. Returning from inside the dedup loop on the first
+        `adopted_pathway` found would make all of them permanently unable to
+        acquire an arrangement.
+        """
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: object(),
+        )
+        wheel = self._wheel()
+        monkeypatch.setattr(_StubAdvisor, "_arrangement_of", lambda self, h: wheel)
+
+        decision = _StubDecision(existing_grounds=[("tr0007", "adopted_pathway")])
+        _StubAdvisor([])._connect_adopted_pathway(decision, ["tr0007"])
+
+        assert [r.role for _, r in decision.connected] == [None], (
+            "the recipe was already there; the arrangement was not"
+        )
+
+    def test_the_arrangement_is_read_off_the_recorded_pathway_not_the_candidates(
+        self, monkeypatch
+    ):
+        """`_audit_adopted_pathways`' rule, for the same reason it holds there.
+
+        The weave knows what it built and the EDGE knows what the record rests
+        on. A second closing whose candidate list sorts differently must not
+        attach the wheel of a recipe this decision does not name.
+        """
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: object(),
+        )
+        asked: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_arrangement_of",
+            lambda self, h: asked.append(h) or None,
+        )
+
+        decision = _StubDecision(existing_grounds=[("tr0007", "adopted_pathway")])
+        _StubAdvisor([])._connect_adopted_pathway(decision, ["tr0099"])
+
+        assert asked == ["tr0007"]
+
+    def test_the_arrangement_is_not_grounded_twice(self, monkeypatch):
+        """Deduped by node HASH, because a plain ground has no role to recognise.
+
+        `connect` deduplicates only `direction="any"` edges, so a repeated
+        closing would otherwise leave the record naming one arrangement twice.
+        """
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: object(),
+        )
+        wheel = self._wheel()
+        monkeypatch.setattr(_StubAdvisor, "_arrangement_of", lambda self, h: wheel)
+
+        decision = _StubDecision(
+            existing_grounds=[("tr0007", "adopted_pathway"), ("wh0001", None)]
+        )
+        _StubAdvisor([])._connect_adopted_pathway(decision, ["tr0007"])
+
+        assert decision.connected == []
+
+    def test_the_arrangement_never_costs_the_pathway(self, monkeypatch):
+        """Order is the guarantee: the recipe is written before the wheel is looked up.
+
+        A record that names its recipe and not its wheel is strictly better than
+        one that names neither, so the arrangement is a separate fail-soft step
+        BELOW the pathway write and never a guard on it.
+        """
+        target = object()
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: target,
+        )
+
+        def boom(self, h):
+            raise RuntimeError("memgraph went away")
+
+        monkeypatch.setattr(_StubAdvisor, "_arrangement_of", boom)
+
+        decision = _StubDecision()
+        _StubAdvisor([])._connect_adopted_pathway(decision, ["tr0007"])
+
+        assert [(n, r.role) for n, r in decision.connected] == [
+            (target, "adopted_pathway")
+        ]
+
+
+class TestTheArrangementLookup:
+    """`_arrangement_of` — one hop, and fail-soft at every step of it."""
+
+    @staticmethod
+    def _patch_find(monkeypatch, result):
+        monkeypatch.setattr(
+            "dialectical_framework.graph.repositories.node_repository."
+            "NodeRepository.find_by_hash",
+            lambda self, h, **kw: result(h) if callable(result) else result,
+        )
+
+    def test_it_returns_the_wheel_the_pathway_belongs_to(self, monkeypatch):
+        wheel = SimpleNamespace(hash="wh0001")
+        self._patch_find(
+            monkeypatch, SimpleNamespace(get_wheel=lambda: wheel)
+        )
+
+        assert _StubAdvisor([])._arrangement_of("tr0007") is wheel
+
+    def test_a_pathway_that_is_gone_is_no_arrangement(self, monkeypatch):
+        self._patch_find(monkeypatch, None)
+
+        assert _StubAdvisor([])._arrangement_of("tr0007") is None
+
+    def test_a_traversal_that_raises_is_fail_soft(self, monkeypatch):
+        def boom():
+            raise RuntimeError("memgraph went away")
+
+        self._patch_find(monkeypatch, SimpleNamespace(get_wheel=boom))
+
+        assert _StubAdvisor([])._arrangement_of("tr0007") is None
+
+
+class TestTheGroundedArrangementIsTheBestRankedOne(_SeamFixtures):
+    """One arrangement's pathways, not the whole nexus's.
+
+    `_existing_pathway_hashes` used to return every transformation under the
+    nexus, which was right for the question it was asked ("does a pathway exist
+    to ground on?") and wrong for the question the record answers next: the
+    caller takes `[0]`, so a lexicographic hash order decided not only WHICH
+    recipe went on the record but — through that pathway's own wheel — which
+    CAUSAL READING the record would later be understood to rest on.
+
+    And the nexus holds more than one developed wheel by construction rather
+    than by accident: `EXPLORE_REFINE_FROM_COARSER` deepens the top wheel's
+    coarser ancestry too, so the smallest hash can easily belong to a rung that
+    was only ever built as refinement context for the arrangement the person was
+    actually shown.
+
+    Arbitrary-but-stable is defensible for the RECIPE — any real pathway beats
+    none, which is what `_adopted_pathway_grounds` means by "the floor, not the
+    ceiling". It is not defensible for the ARRANGEMENT.
+    """
+
+    def test_only_one_arrangements_pathways_come_back(self, monkeypatch):
+        advisor = self._graph_wheels(
+            monkeypatch,
+            [(2, 0.9, ["tr0100", "tr0101"]), (2, 0.2, ["tr0001"])],
+        )
+
+        assert advisor._existing_pathway_hashes() == ["tr0100", "tr0101"], (
+            "the lexicographically smallest hash won across two arrangements"
+        )
+
+    def test_the_deepest_layer_wins(self, monkeypatch):
+        """`_select_deep_wheels`' own first key, so the two cannot disagree.
+
+        A coarser rung can carry the higher causality P and still be the wrong
+        arrangement to name: it exists because the deeper one refines from it.
+        """
+        advisor = self._graph_wheels(
+            monkeypatch,
+            [(2, 0.99, ["tr0001"]), (4, 0.10, ["tr0500"])],
+        )
+
+        assert advisor._existing_pathway_hashes() == ["tr0500"]
+
+    def test_causality_breaks_a_tie_within_one_layer(self, monkeypatch):
+        advisor = self._graph_wheels(
+            monkeypatch,
+            [(3, 0.30, ["tr0001"]), (3, 0.70, ["tr0900"]), (3, 0.50, ["tr0002"])],
+        )
+
+        assert advisor._existing_pathway_hashes() == ["tr0900"]
+
+    def test_an_unestimated_wheel_loses_without_raising(self, monkeypatch):
+        """`_causality_probability`'s contract, and the reason it is shared.
+
+        A wheel with no estimation has to lose all three selections that rank on
+        it, not raise in any of them.
+        """
+        advisor = self._graph_wheels(
+            monkeypatch,
+            [(3, None, ["tr0001"]), (3, 0.05, ["tr0900"])],
+        )
+
+        assert advisor._existing_pathway_hashes() == ["tr0900"]
+
+    def test_an_unestimated_wheel_is_still_better_than_no_wheel(self, monkeypatch):
+        """Ranking last is not being excluded — an unestimated wheel is finished.
+
+        `audit_transformations` is off by default, and nothing in the framework
+        counts an unscored structure as partial.
+        """
+        advisor = self._graph_wheels(monkeypatch, [(2, None, ["tr0001"])])
+
+        assert advisor._existing_pathway_hashes() == ["tr0001"]
+
+    def test_a_nexus_with_no_developed_wheel_grounds_on_nothing(self, monkeypatch):
+        advisor = self._graph_wheels(monkeypatch, [])
+
+        assert advisor._existing_pathway_hashes() == []
+
+    def test_the_pathways_of_the_winner_are_sorted(self, monkeypatch):
+        """Same reason the explore report sorts: an arbitrary DB order is not reproducible.
+
+        The tie the sort breaks is now WITHIN one arrangement, where an
+        arbitrary pick is what it always was.
+        """
+        advisor = self._graph_wheels(
+            monkeypatch, [(2, 0.5, ["tr0300", "tr0100", "tr0200", "tr0100"])]
+        )
+
+        assert advisor._existing_pathway_hashes() == ["tr0100", "tr0200", "tr0300"]
+
+    def test_a_read_that_raises_is_fail_soft(self, monkeypatch):
+        """A closing that cannot see a pathway is recorded without one, as before."""
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+
+        def boom(self):
+            raise RuntimeError("memgraph went away")
+
+        monkeypatch.setattr(NexusRepository, "find_all", boom)
+
+        assert _StubAdvisor([])._existing_pathway_hashes() == []
 
 
 class TestDeferredPathwayConstruction(_SeamFixtures):

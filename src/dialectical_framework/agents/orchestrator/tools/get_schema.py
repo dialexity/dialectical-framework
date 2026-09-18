@@ -113,7 +113,7 @@ All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_a
 **Metadata**:
 - `(r:Rationale)-[:EXPLAINS]->(n)` — explanation for any node; edge property `role`: "grounding" (the case particulars the node was abstracted from — specific facts, dates, numbers the person stated) or null (machine assessment prose: coherence checks, causality reasoning). To read what a person actually said about a tension: `MATCH (r:Rationale)-[e:EXPLAINS]->(pp:Perspective) WHERE e.role = "grounding"`.
 - `(e:Estimation)-[:ESTIMATES]->(n)` — numeric assessment of any node
-- `(d:Decision)-[:GROUNDED_IN]->(n)` — node the decision rests on; edge property `role`: "accepted_cost" (the risk accepted — the chosen side's minus aspect, T- or A-), "adopted_pathway" (Transformation adopted as management recipe), or null (plain ground). Active decisions: add `d.discarded IS NULL`.
+- `(d:Decision)-[:GROUNDED_IN]->(n)` — node the decision rests on; edge property `role`: "accepted_cost" (the risk accepted — the chosen side's minus aspect, T- or A-), "adopted_pathway" (Transformation adopted as management recipe), or null (plain ground — the Perspective whose tension was weighed, and the Wheel the adopted pathway is a step of). Active decisions: add `d.discarded IS NULL`.
 
 ### Common Cypher Patterns
 
