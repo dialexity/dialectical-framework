@@ -317,7 +317,7 @@ class TestScopedRefresh:
         self, monkeypatch
     ):
         """Scoped used to render once, so anything built on turn 3 was invisible
-        from turn 4 on. Counsel mode is exactly where that hurts: the person is
+        from turn 4 on. Advisory mode is exactly where that hurts: the person is
         debriefing a deliverable they are still editing."""
         from dialectical_framework.graph.nodes.case import Case
         from dialectical_framework.graph.nodes.nexus import Nexus

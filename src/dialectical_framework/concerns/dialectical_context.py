@@ -9,7 +9,7 @@ pair mirrors the paper's acceptance criterion, all mirroring the prompt's own sc
 perspectives are suppressed with a count line, and wheels are capped to the
 top-% few per cycle (settings.advisor_wheel_quality_top_plausible). Pre-computed pruning
 beats prioritization rules the model must self-apply; a weak tetrad
-delivered with full counsel choreography is confident bad advice.
+delivered with full advisory choreography is confident bad advice.
 inspect_node still reaches everything suppressed.
 """
 
@@ -82,7 +82,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         """Whether completeness may be spoken with counts and edge labels.
 
         Set in code, not by prompt discipline: this concern serves the Advisor
-        only, and there the scope IS the register. Counsel mode (nexus-pinned)
+        only, and there the scope IS the register. Advisory mode (nexus-pinned)
         is the person debriefing their own exploration, which is on screen and
         already carries scores — numbers are appropriate. Unscoped, the
         framework is invisible by design, so partial progress is spoken in
@@ -215,7 +215,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         # tension should join the exploration".
         #
         # So the tools could act on an unattached tension that this dump had
-        # reduced to an anonymous count — and counsel-mode `anchor` plants a
+        # reduced to an anonymous count — and advisory-mode `anchor` plants a
         # STANDALONE perspective every single time. The head could only use its
         # own anchor by remembering the hash out of an earlier turn's tool
         # result; on the next turn the tension it had just planted, in this
@@ -240,7 +240,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             if pp._id not in member_ids and pp._id in nexused_pp_ids
         )
 
-        # Counsel mode needs the person's case as much as the unscoped dump —
+        # Advisory mode needs the person's case as much as the unscoped dump —
         # arguably more, since this is the head debriefing their own
         # deliverable. Members AND unattached tensions: the fence above is about
         # whose deliverable a tension belongs to, not whose facts it carries,
@@ -251,14 +251,14 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if particulars_dump:
             sections.append(particulars_dump)
 
-        # Decisions are Case-level facts — the counsel head must see them
+        # Decisions are Case-level facts — the advisory head must see them
         # even when pinned to one exploration.
         decisions_dump = self._dump_decisions()
         if decisions_dump:
             sections.append(decisions_dump)
 
         # Same floor and the same renderer as the unscoped dump. Inventing a
-        # second quality policy for counsel mode is not this change's job, and
+        # second quality policy for advisory mode is not this change's job, and
         # the floor's own reason ("a weak tetrad delivered with full counsel
         # choreography is confident bad advice") is if anything sharper here.
         #
@@ -267,7 +267,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         # perspective 2 in [[otherhash]]" would name another exploration's
         # contents, which is the leak the count line exists to prevent. The
         # correspondence this does unlock is the one `_build_cross_nexus_refs`
-        # already documents and could not reach from counsel mode — "a fresh
+        # already documents and could not reach from advisory mode — "a fresh
         # unexplored anchor echoing an already-explored tension".
         shown_unattached, suppressed_count = self._apply_quality_floor(unattached)
         cross_refs = (
@@ -792,7 +792,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         cycles = self._find_top_layer_cycles(nexus, pp_list, cycle_repo)
         self._append_cycle_group(lines, cycles, wheel_repo, pp_index)
 
-        # Counsel mode ALSO gets the earlier layers that carry developed
+        # Advisory mode ALSO gets the earlier layers that carry developed
         # pathways, and this is the same load-bearing exemption `_dump_cycle`
         # already makes for the wheel cap: the head debriefing the person's own
         # deliverable must not be blind to parts of it they built deliberately.
@@ -928,9 +928,9 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         # Wheels under this cycle — capped to the top-% few. The % denominator
         # stays the FULL sibling set (ranking is over all alternatives, not
         # just the rendered ones). The cap applies to the UNSCOPED dump only:
-        # a scoped (counsel-mode) render shows the user-built exploration in
+        # a scoped (advisory-mode) render shows the user-built exploration in
         # full — same load-bearing exemption as nexus members in the quality
-        # floor; the counsel head must not be blind to parts of the
+        # floor; the advisory head must not be blind to parts of the
         # deliverable the user assembled deliberately.
         wheels = self._get_cycle_wheels(cycle, wheel_repo)
         if wheels:
@@ -1078,7 +1078,7 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             lines.append(header)
             # A synthesis derived from a fragment must not read as the whole.
             # Register follows the same rule as the wheel's own status line:
-            # counts in counsel mode, plain words when the machinery is hidden.
+            # counts in advisory mode, plain words when the machinery is hidden.
             stamp = self._synthesis_stamp(synth)
             if stamp:
                 lines.append(stamp)

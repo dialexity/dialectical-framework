@@ -92,10 +92,13 @@ class ClosingOutcome(str, Enum):
     the seam did not run, or the turn predates this field. Every member here is a
     positive claim about a seam that ran to a conclusion.
 
-    `Advisor(read_only=True)` is a third way into that `None`, and the reason it
-    gets no member of its own: the seam declines before the classifier looks, so
-    nothing was concluded about whether anyone was closing. Reading such a turn as
-    `NO_CLOSING` would turn "nobody asked" into "the answer was no".
+    `Advisor(mode=AdvisorMode.VIEW)` is a third way into that `None`, and the
+    reason it gets no member of its own: the seam declines before the classifier
+    looks, so nothing was concluded about whether anyone was closing. Reading such
+    a turn as `NO_CLOSING` would turn "nobody asked" into "the answer was no".
+    (The CONSULTANT surface is different: its seam runs and concludes, so its
+    turns carry a real member here — only the weave afterwards is withheld, which
+    `DeferralOutcome.NOT_BUILDING` records.)
     """
 
     #: The classifier read the exchange and found no decision being closed. The
@@ -160,6 +163,11 @@ class DeferralOutcome(str, Enum):
     #: kept its pre-deferral behaviour. Recorded rather than collapsed into
     #: `NOTHING_TO_DEFER`, which would claim there was nothing to do.
     UNAVAILABLE = "unavailable"
+    #: The surface does not build (`AdvisorMode.CONSULTANT`): the decision was
+    #: recorded and grounded on whatever pathways already existed, and the weave
+    #: that would have followed was withheld by design. Its own member because
+    #: `NOTHING_TO_DEFER` says no decision was waiting, which is the opposite fact.
+    NOT_BUILDING = "not_building"
 
 
 @dataclass(frozen=True, slots=True)

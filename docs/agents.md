@@ -14,10 +14,13 @@ They are three products over one graph, split by **when you know what**:
 | **Analyst** | workbench | Case | raw material → structured tensions, up to grouping | yes (structure-forward) |
 | **Explorer** | lab bench | one Nexus | one group of tensions → causal pathways + synthesis | yes (structure-forward) |
 | **Advisor** | conversation | Case | anything → counsel, framework runs silent | no (hidden) |
+| **Advisor (Consultant)** | conversation | Case or one Nexus | a built graph → counsel and recorded decisions, nothing built | no (hidden) |
 
-Analyst + Explorer together are the **graph-navigator** experience (two visible
-phases). The Advisor is a **separate app**: internally it does what Analyst + Explorer
-do, but exposes none of the machinery.
+Analyst + Explorer together are the **Navigator** experience (two visible phases).
+The Advisor is a **separate app**: internally it does what Analyst + Explorer do, but
+exposes none of the machinery. The **Consultant** is the Advisor with the build tools
+withheld (`Advisor(mode=AdvisorMode.CONSULTANT)`): the third product surface, for a graph
+that already exists — see [Choosing what to build](#choosing-what-to-build).
 
 All three live in `agents/{analyst,explorer,advisor}/`. See also `docs/graph.md`
 (data model) and `docs/scoring.md` (metrics).
@@ -105,16 +108,16 @@ Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
 declares its custom pieces once — `voicing` (Navigator-side domain flavor),
 `advisor_persona` (standalone-Advisor identity), `tool_guide` (shared tool usage rules),
 `tools` — and every head composes the right preamble itself: Analyst/Explorer get
-`NAVIGATOR_APP + voicing + tool_guide`, the counsel toggle gets
-`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide`, the standalone Advisor gets
+`NAVIGATOR_APP + voicing + tool_guide`, the advisory toggle gets
+`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER + voicing + tool_guide`, the standalone Advisor gets
 `advisor_persona + tool_guide`. The framework owns the composition lore; apps never
 touch the base preambles. One AppSpec constant, passed to every constructor — the
 continuity rule below is then automatic.
 
 **`advanced=True` is the expert register**, for a user who knows the framework: the
 Navigator base becomes `NAVIGATOR_APP_ADVANCED_TOGGLE` (framework vocabulary, short
-hashes, numeric scores, structural tetrad presentation) and the counsel toggle becomes
-`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED` — so the level **carries
+hashes, numeric scores, structural tetrad presentation) and the advisory toggle becomes
+`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED` — so the level **carries
 across the toggle** instead of resetting mid-conversation. It is a property of the
 person, not of the app, so it is a per-session constructor flag rather than an AppSpec
 field: one AppSpec serves both registers, and a host with a user-level toggle passes the
@@ -355,7 +358,9 @@ mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
 nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
-read_only=False)`. `dialectical_context` is an
+mode=AdvisorMode.FULL)`. `messages` is resumption and nothing else — every head takes it, a host
+passes it on every turn, and the Explorer↔Advisor toggle below is built on it (construct the other
+class with the same history); it is not a mode. `dialectical_context` is an
 optional pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the
 system prompt — use it when a rich graph already exists at conversation start. `principal` is
 the host's attestation of WHO confirms decisions in this conversation, and it is the one
@@ -368,7 +373,7 @@ renders as "confirmed by agent:unattested" instead of as the person's own "Why".
 deliberately visible failure: the wording is intact and passing the argument fixes it, whereas
 a fabricated human attestation is unfixable after the fact. Closed over by the tool in code;
 the LLM cannot set it. `nexus_hash` pins the
-Advisor to one exploration — this is the **counsel mode of an Explorer session**, not a
+Advisor to one exploration — this is the **advisory mode of an Explorer session**, not a
 standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
 `app_tools` is the app's domain-resource seam: additional `@llm.tool` functions
 (chart lookups, methodology references, knowledge-base fetches) appended to the
@@ -376,23 +381,34 @@ built-in set. The engine prompt carries no docs for them (their tool-schema docs
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
-`read_only=True` is the **third surface**, and it is a narrowing of the two above rather
-than a mode of its own: the head keeps `sync`, `inspect_node` and `read_digest`, and no
-write tool is built at all. Nothing it does changes the graph — no tension anchored, no
-pathway built or deepened, no feasibility scored, no decision recorded — and the closing
-seam declines to run, so the framework does not write on its own initiative either. It
-composes with `nexus_hash=`, giving a counsel-mode head pinned to one exploration and
-unable to alter it. Use it for a second reader on a Case someone else is working, a shared
-or public view of an exploration, a support seat, or any host that wants counsel without
-granting write access. Enforced by the TOOLSET, not by prompt — the same division of labour
-as the nexus pin. Two things it costs, and both are worth stating to whoever picks it:
-a person who states a decision in this conversation gets **no record of it** (the seam that
-catches the model not calling `record_decision` is exactly what is switched off — measured
-0/6 at the weak tier), and the graph never deepens, so counsel stays at whatever depth it
-was handed. `principal` is accepted and ignored (nothing is recorded, so nothing is
-attested); `app_tools` are still merged, deliberately — the framework cannot tell a host's
-chart lookup from a host's write, so this flag governs the framework's surface and the host
-owns its own.
+`mode=` selects which of the Advisor's **three surfaces** this head is
+(`agents/advisor/mode.py`). The axis is *builds structure* versus *does not*, not read versus
+write: what costs a person minutes on a turn is the four build tools (`ingest`, `anchor`,
+`explore`, `deepen`), while recording a confirmed decision is one call of a few seconds and
+discarding is free.
+
+| Mode | Tools | Builds | Records decisions | For |
+|------|-------|--------|-------------------|-----|
+| `FULL` (default) | all ten | yes, on and off the turn | yes | the consulting chat; the Explorer's advisory register when pinned |
+| `CONSULTANT` | `sync`, `inspect_node`, `read_digest`, `record_decision`, `discard`, `audit_feasibility` | **never** — not on the turn, and the closing seam records without starting the off-turn weave | yes, grounded on the pathways that already exist | **the Consultant**: a conversation over a graph that was built before it. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
+| `VIEW` | `sync`, `inspect_node`, `read_digest` | no | **no** — the closing seam declines | a second reader on someone else's Case, a shared or public view, a support seat |
+
+All three compose with `nexus_hash=`. Enforced by the TOOLSET and, for the framework's own
+initiative, by the closing seam — never by prompt, the same division of labour as the nexus
+pin. That is a deliberate choice against a "prefer reading" preamble: tool-election
+instructions measurably do not hold (`anchor` fired 6/6, `explore` 2/6, `deepen` 0/6 under
+the full prompt), so a prompt-deprioritised surface would be fast on most turns and take a
+minute on whichever turn the model anchors anyway. What `VIEW` costs, and it must be said to
+whoever picks it: a person who states a decision in that conversation gets **no record of it**
+(the seam that catches the model not calling `record_decision` is exactly what is switched
+off — measured 0/6 at the weak tier). `principal` is accepted and ignored on `VIEW`;
+`app_tools` are still merged on both narrow surfaces, deliberately — the framework cannot tell
+a host's chart lookup from a host's write, so the mode governs the framework's surface and the
+host owns its own. The Consultant's latency against the full Advisor and against a static dump
+is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says the build
+tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
+the same graph, of which ~3s is re-rendering the graph every turn and the rest is most likely
+the engine prompt's size. Both are the next levers; neither is the mode's enforcement.
 
 **Tools (10)** — coarse, composed super-tools that hide the machinery:
 
@@ -429,9 +445,12 @@ displays it.
 - The **unscoped** Advisor is a standalone app, not a mode of the navigator. The
   **exploration-pinned** Advisor (`nexus_hash=...`) is the opposite: a mode of the
   Explorer session, reached by handover, never started cold.
-- A **read-only** head (`read_only=True`) is the one to reach for when the seat is not the
-  one doing the work — a viewer, a second reader, a support agent. The conversation looks
-  identical; the graph is untouched, and nothing said in it is recorded.
+- The **Consultant** (`mode=AdvisorMode.CONSULTANT`) is the one to reach for when the graph
+  already exists and the person wants to talk it through and decide: same chat window, a
+  turn is one graph read plus the model, decisions are recorded, nothing is built.
+- The **View** (`mode=AdvisorMode.VIEW`) is for a seat that is not the one doing the work —
+  a viewer, a second reader, a support agent. The conversation looks identical; the graph is
+  untouched, and nothing said in it is recorded.
 
 ---
 
@@ -476,14 +495,14 @@ the Analyst always knows *which* exploration to weave back into without raw Cyph
 **Advisor (unscoped):** no handoff UX at all — it is one thread, one chat window.
 
 **Explorer ↔ Advisor (the mode toggle):** an exploration session has two registers —
-**operator mode** (Explorer: technical tools, wheels, scores) and **counsel mode**
+**operator mode** (Explorer: technical tools, wheels, scores) and **advisory mode**
 (Advisor pinned to the same nexus: "what does this mean for me?"). The toggle is a
 handover of the SAME conversation between two heads, driven by the host:
 
 ```python
-# user in Explorer asks "so what should I actually do?" → toggle to counsel mode
+# user in Explorer asks "so what should I actually do?" → toggle to advisory mode
 advisor = Advisor(
-    app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,  # NAVIGATOR_APP + advisory register — same user contract, counsel voice
+    app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,  # NAVIGATOR_APP + advisory register — same user contract, advisory voice
     nexus_hash=explorer.nexus_hash,
     messages=explorer.messages,
     principal="human",  # a person is on the other end — see Construct above
@@ -522,7 +541,7 @@ Analyst included, not just the toggle pair. The toggle heads share literal histo
 missing tool there breaks a capability the conversation already references (e.g. a chart
 lookup) mid-conversation; the Analyst thread is a separate conversation, but the app's
 user expects the same domain resources in the analysis phase (Analyst + Explorer +
-counsel toggle = one Navigator app). The framework cannot detect a forgotten head: at
+advisory toggle = one Navigator app). The framework cannot detect a forgotten head: at
 construction, "no app" is indistinguishable from "this app has none", and diffing
 history tool-blocks against the tool set would false-positive on the intended built-in
 asymmetry (Advisor carries `anchor`; Explorer deliberately doesn't). One constant makes
@@ -538,12 +557,12 @@ ASTRO_APP = AppSpec(
 
 Analyst(app=ASTRO_APP)
 Explorer(nexus_hash=nx, messages=msgs, app=ASTRO_APP)
-Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # counsel toggle
+Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # advisory toggle
 ```
 
 Both heads narrate the toggle moment without switching themselves: the Explorer suggests
-counsel mode when the conversation pulls from structure to meaning (only if the host offers
-one — otherwise it keeps counseling from pathways), and the counsel head points back to the
+advisory mode when the conversation pulls from structure to meaning (only if the host offers
+one — otherwise it keeps counseling from pathways), and the advisory head points back to the
 exploration view for technical work. The host performs every switch.
 
 **Both preambles sit on `NAVIGATOR_APP`** — that's what keeps both registers in Navigator
@@ -557,8 +576,8 @@ sentence still holds one level up: the contract is the *expert* one on both side
 pairing needs a trailer the ordinary one does not, because the advisory register body was
 written for the non-expert default — it re-affirms the contextual vocabulary and
 "meaning first, numbers on request" that advanced mode overrode, and later sections win,
-so without a final word the counsel side would silently re-lock the register the host
-just asked for (`"Nexus"` included). `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED`
+so without a final word the advisory side would silently re-lock the register the host
+just asked for (`"Nexus"` included). `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED`
 is therefore `NAVIGATOR_APP_ADVANCED_TOGGLE + the same register body + that trailer`; the
 body is one shared constant, so the two pairings cannot drift apart.
 
@@ -575,12 +594,12 @@ voice), but with two constraints:
 
   What the pin does NOT hide is a tension attached to no exploration, and that
   matters because `anchor` plants exactly that: a freshly anchored tension is
-  standalone until `explore` weaves it in. So the counsel head reads its own
+  standalone until `explore` weaves it in. So the advisory head reads its own
   anchors in the context dump (under `# Unexplored Tensions`, quality-floored like
   the unscoped dump, with their particulars hoisted) and can weave, discard or
   draw on them. Other explorations' tensions appear only as a count.
-- **Transparent mutation** (`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`): unlike the unscoped Advisor's
-  silent graph-building, the counsel head asks before adding a new tension to the
+- **Transparent mutation** (`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER`): unlike the unscoped Advisor's
+  silent graph-building, the advisory head asks before adding a new tension to the
   user-built exploration and announces the change afterwards. The deliverable never
   changes behind the user's back. (`deepen` needs no consent ceremony — it only adds
   analytical depth to existing structure, never changes what the exploration contains.)
@@ -658,22 +677,37 @@ prompt directs it at decisions — the consent ceremony lives in the Advisor
 line). Decisions are an Advisor-line artifact for now; extending the ledger
 to the Navigator surfaces is a scope decision to make explicitly, not an
 omission (it would touch the Navigator prompts' vocabulary contract, not
-just the renderers). The counsel toggle is the covered exception: after a
-counsel-mode recording, the Explorer head sees the record in its replayed
+just the renderers). The advisory toggle is the covered exception: after a
+advisory-mode recording, the Explorer head sees the record in its replayed
 history (verbatim tool blocks) and can read it via `inspect_node`/
 `query_graph`; its prompt routes decision *lifecycle* (record/retire) back
-to counsel mode and forbids fake acknowledgments.
+to advisory mode and forbids fake acknowledgments.
 
 ## Choosing what to build
 
-Two product shapes share one backend:
+Three product surfaces share one backend, and they differ by **who builds the graph and
+whether it is built at all**:
 
-- **Navigator** (Analyst + Explorer): two visible phases, structure-forward. For users
-  who want to *see and steer* the dialectics. More UI, but degrades gracefully — the user
-  sees and fixes each step.
-- **Advisor**: one chat, structure hidden. For users who just want counsel. Minimal UI,
-  but demands the framework be reliable end-to-end unattended.
+| Surface | Heads | Who builds | Chat is... | For |
+|---------|-------|------------|------------|-----|
+| **Navigator** | Analyst + Explorer (+ the Explorer's advisory register) | the person, through chat — every tool call is visible, buttons in the app route through the same conversation | the UI for building | users who want to *see and steer* the dialectics; degrades gracefully because each step is seen and fixed |
+| **Advisor** | `Advisor(mode=FULL)` | the framework, silently, while the person talks | the whole product | users who want counsel and never the machinery; demands the framework be reliable end-to-end unattended |
+| **Consultant** | `Advisor(mode=CONSULTANT)` | nobody — the graph was built before this conversation, by either surface above | a conversation over a finished graph that records what the person decides | the return visit, the decision session over a built case; a turn is one graph read plus the model, and no turn can cost a pipeline |
 
-They are **not** one UI with a toggle — the Advisor's value is that it hides exactly what
-the Navigator exists to show. If you build both, they are two front-ends over one graph
-service, distinguished only by which agents they instantiate and which preamble they inject.
+`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a fourth
+surface: the same conversation, nothing recorded, for a seat that is not the one doing the
+work. `messages` is resumption on every head and never a mode.
+
+The bench (`tests/e2e/README.md`) is what says which surface earns its cost. The live
+Advisor answers in ~24s a turn against ~6s for a static dump of the same graph, and the
+in-session quality of the two was not distinguishable — which is what makes the Consultant
+a product surface rather than a convenience: build once, on either of the other two, and
+talk to the result. Its first measurement put it at ~18s a turn: bounded (no turn can start
+a pipeline) but not yet at the dump's speed, because the engine prompt and the per-turn
+graph render are what remain (`tests/e2e/rounds.md`, `consultant-latency`).
+
+Navigator and Advisor are **not** one UI with a toggle — the Advisor's value is that it hides
+exactly what the Navigator exists to show. If you build both, they are two front-ends over
+one graph service, distinguished only by which agents they instantiate and which preamble
+they inject. The Consultant composes with either: it is the same `Advisor` class, handed
+fewer tools.

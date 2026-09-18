@@ -100,7 +100,7 @@ co-occurrence hotspots. Then:
 - [ ] **Read the co-occurring layers, not just the file you're editing.**
     - Agent prompt → open the app preambles it fuses with. For Analyst that means **both `NAVIGATOR_APP` and
       `NAVIGATOR_APP_ADVANCED_TOGGLE`** (`NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + override`); for the counsel
-      toggle, **both** `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` and its `_ADVANCED` pairing (same shared
+      toggle, **both** `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER` and its `_ADVANCED` pairing (same shared
       `_ADVISORY_REGISTER` body on a different base, plus a trailer that gets the last word); for Advisor, all five personas. Check the edit
       doesn't contradict the preamble's vocabulary / score-presentation rules (esp. the "communicate as MEANING
       not numbers" default vs. `NAVIGATOR_APP_ADVANCED_TOGGLE`'s "show numeric scores").
@@ -503,7 +503,7 @@ anchors.
 - [ ] **`NAVIGATOR_APP_ADVANCED_TOGGLE` override completeness.** New section in `NAVIGATOR_APP`? Re-check the override list, or
       expert users inherit non-expert framing. Same question one layer out for the COUNSEL pairing: a new section in
       `_ADVISORY_REGISTER` ships in both registers, and if it re-affirms a non-expert default (vocabulary, "meaning
-      first, numbers on request", "Nexus" stays internal) it must be named in `_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE`
+      first, numbers on request", "Nexus" stays internal) it must be named in `_ADVANCED_SURVIVES_THE_ADVISORY_TOGGLE`
       — later sections win, so an unaddressed one silently re-locks the expert register a host asked for.
 - [ ] **Internal-only strings** (`nexus_intent` is "do not surface to user") must keep that classification when interpolated into another agent's prompt.
 - [ ] **Structural/direction conventions match `docs/graph.md` and `GRAPH_SCHEMA`** — update `GRAPH_SCHEMA` in lockstep (per CLAUDE.md).
@@ -555,24 +555,25 @@ anchors.
       `_INTERNAL_MODEL` mid-sentence placeholder exist for — and when you gate a sentence, keep the part that
       carries the RULE outside the gate and put only the pointer inside it.
 - [ ] **Gating the TOOLSET does not gate the PROMPT — and at mode scale that is not one dangling sentence but
-      most of the render.** `Advisor(read_only=True)` (2026-09-17, the engine's THIRD render shape; the flag is
-      DERIVED in `system_prompt()` as `read_only = not (set(names) & _WRITE_TOOL_NAMES)`, never passed, so it
-      cannot disagree with the tools the head actually holds) removes all 7 write tools, and only tool DOCS plus
-      the two name-gated sections followed it. `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`,
-      `_DEFAULT_ARC`, `_TOOLS_INTRO_SCOPED` and `_SCORE_READING` all still instructed a head to `ingest`,
-      `anchor`, `explore` and `discard` with none of them wired. So when you add a mode that withdraws a CLASS of
-      tools, enumerate every section and ask what it tells the model to DO, not just which names it mentions —
-      the name-gates that already exist cover the sections written after them and nothing else. Two shape rules
-      from the fix. (1) **Fork the sections whose whole subject is the withdrawn work** (`_EAGER`,
-      `_CONVERSATION_USE`, `_REJECTION_HANDLING`) and drop the ones that are pure procedure for it
-      (`_DEFAULT_ARC`). (2) **For a section whose tool references sit mid-paragraph inside reasoning about what
-      the scores MEAN, do not fork it** — that is where drift lives; state one mandate and place it LAST among
-      the instruction sections, immediately before `_CONTEXT_SLOT`, because later sections win and the cache
-      seam requires the dump to stay last. Enforcement stays in CODE at two sites (the toolset, and the closing
-      seam's single `_repair_unrecorded_decision` method); the prompt's only job is to stop the head spending
-      turns reaching for what it does not have. `tests/test_advisor_read_only.py` pins both halves, including
-      that `DEFAULT_TOOL_NAMES` is exactly the read set ∪ `_WRITE_TOOL_NAMES` so a new tool cannot be added
-      without being classified.
+      most of the render.** `Advisor(mode=VIEW)` (2026-09-17 as `read_only=`, the engine's THIRD render shape;
+      `mode=CONSULTANT` added 2026-09-18 as the FOURTH — both DERIVED in `system_prompt()` from the names, never
+      passed, so they cannot disagree with the tools the head actually holds) removes a class of tools, and only
+      tool DOCS plus the two name-gated sections followed it. `_EAGER`, `_CONVERSATION_USE`,
+      `_REJECTION_HANDLING*`, `_DEFAULT_ARC`, `_TOOLS_INTRO_SCOPED`, `_scope_section` and `_SCORE_READING` all
+      still instructed a head to `ingest`, `anchor`, `explore` and `discard` with none of them wired. So when you
+      add a mode that withdraws a CLASS of tools, enumerate every section and ask what it tells the model to DO,
+      not just which names it mentions — the name-gates that already exist cover the sections written after them
+      and nothing else. Two shape rules from the fix. (1) **Fork the sections whose whole subject is the
+      withdrawn work** (`_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING`) and drop the ones that are pure
+      procedure for it (`_DEFAULT_ARC`). (2) **For a section whose tool references sit mid-paragraph inside
+      reasoning about what the scores MEAN, do not fork it** — that is where drift lives; state one mandate and
+      place it LAST among the instruction sections, immediately before `_CONTEXT_SLOT`, because later sections
+      win and the cache seam requires the dump to stay last. Enforcement stays in CODE (the toolset, and the
+      closing seam: `_repair_unrecorded_decision` declines on VIEW, `_schedule_pathway_construction` withholds
+      the weave on CONSULTANT); the prompt's only job is to stop the head spending turns reaching for what it
+      does not have. `tests/test_advisor_modes.py` pins both halves, including that `DEFAULT_TOOL_NAMES` is
+      exactly the read set ∪ `_WRITE_TOOL_NAMES` and `_BUILD_TOOL_NAMES` ⊂ `_WRITE_TOOL_NAMES`, so a new tool
+      cannot be added without being classified on both axes.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
@@ -587,7 +588,7 @@ anchors.
       a design conflict rather than a defect against spec, and a prompt-only fix could not bind anyway (the
       code seam repairs an unrecorded confirmation back in). Do not write the restraining rule as a prompt patch;
       see the `r23-controls` entry under Decision lifecycle in reference §4 for the three constraints on any fix.
-- [ ] **Accumulation and concession are register-independent, so verify the SCOPED render too.** Counsel mode
+- [ ] **Accumulation and concession are register-independent, so verify the SCOPED render too.** Advisory mode
       swaps `_ROLE`/`_HOW_YOU_SPEAK`/`_REJECTION_HANDLING` for scoped variants; a conversational rule that only
       lands unscoped silently exempts the toggle (`TestWhatTheJudgeSaidWasWrong` asserts both).
 - [ ] **A plural structure must not surface as a plural question.** Wheels/pathways rank internally; a menu of N

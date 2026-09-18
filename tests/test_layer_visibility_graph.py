@@ -3,7 +3,7 @@
 `DialecticalContext._find_top_layer_cycles` returns cycles at the HIGHEST layer
 and falls back to a smaller one only when the top layer is empty. That is right
 for the unscoped dump — it is a summary of everything, and the newest layer is
-the most complete reading of the case. In COUNSEL MODE it was a quality defect:
+the most complete reading of the case. In ADVISORY MODE it was a quality defect:
 the Advisor is pinned to one exploration the person built, and the moment a
 Navigator (or its own `explore`) wove in one more tension, a wheel carrying a
 written Ac+/Re+ recipe was replaced in the prompt by
@@ -12,11 +12,11 @@ written Ac+/Re+ recipe was replaced in the prompt by
     Pathways: 0/12 (not yet developed)
 
 `_dump_cycle` had already answered this question the other way for the wheel
-cap ("the counsel head must not be blind to parts of the deliverable the user
+cap ("the advisory head must not be blind to parts of the deliverable the user
 assembled deliberately") — the LAYER selection just never got the same
 exemption, and the layer selection is the one that drops finished work.
 
-So counsel mode now also renders earlier layers that carry DEVELOPED pathways.
+So advisory mode now also renders earlier layers that carry DEVELOPED pathways.
 Developed is the bound: the undeveloped rest stays hidden, which is what keeps
 this from re-admitting 96 wheels at k=4.
 

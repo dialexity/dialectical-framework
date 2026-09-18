@@ -311,7 +311,7 @@ class TestWheelCap:
 
     @pytest.mark.asyncio
     async def test_scoped_dump_exempt_from_wheel_cap(self, di_container):
-        """The counsel-mode (nexus-pinned) render shows the user-built
+        """The advisory-mode (nexus-pinned) render shows the user-built
         exploration in FULL — the wheel cap is unscoped-dump policy only
         (same load-bearing exemption as nexus members in the quality floor)."""
         from dialectical_framework.graph.repositories.nexus_repository import \

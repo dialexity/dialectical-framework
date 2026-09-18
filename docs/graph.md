@@ -151,7 +151,7 @@ AND visible:
   unfinished is equally stuck: it renders under `blocked_edges`, stays out of
   `incomplete_edges` (nothing invites a `deepen` that cannot help), and the
   pair spends no LLM calls.
-- The fraction is rendered by `completeness_line` — with counts in counsel mode,
+- The fraction is rendered by `completeness_line` — with counts in advisory mode,
   in plain digit-free words in the standalone Advisor — and by
   `present_exploration._format_wheels` as `Pathways: 4/6` in the Navigator's
   exploration view. `inspect_node` adds the numeric line plus a "synthesis is

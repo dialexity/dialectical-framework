@@ -1,6 +1,6 @@
-"""A tension the counsel head just planted must be visible to it next turn.
+"""A tension the advisory head just planted must be visible to it next turn.
 
-Counsel mode pins the Advisor to one exploration, and `anchor` — which it keeps
+Advisory mode pins the Advisor to one exploration, and `anchor` — which it keeps
 in that mode on purpose — plants a STANDALONE perspective: `explore` is what
 weaves one into the exploration afterwards, and `explore` fires 2 times in 6.
 So until it fires, the tension the head anchored in this conversation, out of the
@@ -22,7 +22,7 @@ says to call it "when a newly anchored tension should join the exploration". The
 context dump is now on that same line.
 
 What this file pins, in the three halves that can break separately:
-1. an unattached tension is rendered in counsel mode, with its particulars
+1. an unattached tension is rendered in advisory mode, with its particulars
    hoisted, and it is not also counted away as "outside";
 2. the fence that remains is real — another exploration's perspectives, their
    particulars, and any cross-reference line that would name their contents;
@@ -114,7 +114,7 @@ class TestTheHeadSeesItsOwnAnchor:
         """The payoff `_build_cross_nexus_refs` documented and could not reach.
 
         Its docstring already promised "a fresh unexplored anchor echoing an
-        already-explored tension" — unreachable from counsel mode, because the
+        already-explored tension" — unreachable from advisory mode, because the
         anchor was not in the dump to carry a line.
         """
         with scope(_new_sid()):
@@ -210,7 +210,7 @@ class TestTheBoundIsTheQualityFloorAndNothingElse:
     async def test_a_weak_anchor_is_suppressed_with_a_count(self):
         """Same floor, same reason as unscoped: a weak tetrad given full counsel
         choreography is confident bad advice. Inventing a second quality policy
-        for counsel mode is not this change's job."""
+        for advisory mode is not this change's job."""
         with scope(_new_sid()):
             member = _create_perspective_with_aspects(thesis_text="Take the investment")
             pinned = _exploration("whether to take the investment", member)
@@ -225,7 +225,7 @@ class TestTheBoundIsTheQualityFloorAndNothingElse:
         assert "reachable via inspect_node" in dump
 
     async def test_a_discarded_anchor_is_gone(self):
-        """`discard` on a standalone perspective is allowed from counsel mode, so
+        """`discard` on a standalone perspective is allowed from advisory mode, so
         a rejected framing must actually leave the dump."""
         with scope(_new_sid()):
             member = _create_perspective_with_aspects(thesis_text="Take the investment")

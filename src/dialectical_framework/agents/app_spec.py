@@ -4,7 +4,7 @@ each agent head composes the right preamble from it.
 
 Without this, an app developer must know framework lore to preamble an app:
 which base constant belongs to which head (NAVIGATOR_APP for Analyst/Explorer,
-NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER for the counsel toggle, bare persona for a standalone
+NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER for the advisory toggle, bare persona for a standalone
 Advisor), that later preamble sections override earlier ones, and that the
 same tool guide must be repeated into every head's preamble. AppSpec owns
 that lore: the app supplies only its custom pieces, the framework supplies
@@ -23,11 +23,11 @@ Usage:
 
     Analyst(app=ASTRO_APP)
     Explorer(nexus_hash=nx, messages=msgs, app=ASTRO_APP)
-    Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # counsel toggle
+    Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # advisory toggle
     Advisor(app=ASTRO_APP)                                  # standalone advisor
 
     # Expert register for a user who knows the framework: the SAME AppSpec plus
-    # one flag, and it CARRIES ACROSS the Explorer<->counsel toggle.
+    # one flag, and it CARRIES ACROSS the Explorer<->advisory toggle.
     Explorer(nexus_hash=nx, messages=msgs, app=ASTRO_APP, advanced=True)
     Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP, advanced=True)
 
@@ -56,12 +56,12 @@ class AppSpec:
     """Declarative definition of a host app, composed per agent head.
 
     voicing: Domain flavor layered on the Navigator user contract
-        (Analyst/Explorer and the counsel toggle). Vocabulary direction,
+        (Analyst/Explorer and the advisory toggle). Vocabulary direction,
         framing, domain emphasis — NOT tool docs, NOT persona for the
         standalone Advisor.
     advisor_persona: Persona for the STANDALONE (unscoped) Advisor, where
         the machinery is hidden and the preamble is the entire user-facing
-        identity (like COUNSELOR_PERSONA). Ignored in counsel-toggle mode,
+        identity (like COUNSELOR_PERSONA). Ignored in advisory-toggle mode,
         which keeps the Navigator contract.
     tool_guide: Shared documentation for the app's tools — what each does,
         when to reach for it. Included verbatim in EVERY head's preamble
@@ -87,27 +87,27 @@ class AppSpec:
     def advisor_preamble(self, scoped: bool, advanced: bool = False) -> str:
         """Preamble for the Advisor head.
 
-        scoped=True (counsel toggle of a Navigator session): the Navigator
-        contract survives the toggle — NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + app pieces.
+        scoped=True (advisory toggle of a Navigator session): the Navigator
+        contract survives the toggle — NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER + app pieces.
         scoped=False (standalone Advisor): the persona IS the identity —
         no Navigator base, machinery stays hidden.
 
         advanced CARRIES THROUGH the toggle (scoped only): an expert who
         toggled from an advanced Explorer keeps framework vocabulary, hashes
-        and numeric scores in counsel mode — same literal history, so dropping
+        and numeric scores in advisory mode — same literal history, so dropping
         back to translated vocabulary mid-conversation would read as the head
         forgetting who it is talking to. It RAISES for the standalone Advisor,
         which has no framework vocabulary to unlock (see resolve_app_layer).
         """
         from dialectical_framework.agents.apps import (
-            NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
-            NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED)
+            NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
+            NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED)
 
         if scoped:
             base = (
-                NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED
+                NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED
                 if advanced
-                else NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+                else NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
             )
             return _join(base, self.voicing, self.tool_guide)
         if advanced:
@@ -123,7 +123,7 @@ _ADVANCED_UNSCOPED_ADVISOR = (
     "advanced=True has no meaning for a standalone Advisor: that head hides "
     "the machinery, so there is no framework vocabulary to unlock. Advanced "
     "mode belongs to the Navigator heads (Analyst, Explorer) and to the "
-    "counsel toggle (Advisor(nexus_hash=...))."
+    "advisory toggle (Advisor(nexus_hash=...))."
 )
 
 _ADVANCED_WITHOUT_SPEC = (
@@ -132,7 +132,7 @@ _ADVANCED_WITHOUT_SPEC = (
     "AppSpec.navigator_preamble(advanced=True) or "
     "AppSpec.advisor_preamble(scoped=True, advanced=True) — or the "
     "NAVIGATOR_APP_ADVANCED_TOGGLE / "
-    "NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED constant — "
+    "NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED constant — "
     "yourself, together with app_tools=."
 )
 

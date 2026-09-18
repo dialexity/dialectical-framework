@@ -46,9 +46,9 @@ class TestScopedSync:
 
     This class pinned the STRICTER rule until 2026-09-15 — every perspective
     outside the pinned nexus hidden, unattached ones included. That was the same
-    defect `test_counsel_anchor_visibility.py` documents: the render was enforcing
+    defect `test_advisory_anchor_visibility.py` documents: the render was enforcing
     a tighter pin than the tools it serves, so a tension this head anchored in the
-    conversation (counsel-mode `anchor` always plants a STANDALONE perspective) was
+    conversation (advisory-mode `anchor` always plants a STANDALONE perspective) was
     invisible to it next turn, while `discard` and `explore` would both act on it.
     The assertion moved with the fence; the fence that remains is below it.
     """
@@ -249,7 +249,7 @@ class TestScopedToolset:
 class TestScopedDeepen:
     async def test_refuses_wheel_outside_nexus(self):
         """A wheel whose perspectives belong to a DIFFERENT exploration
-        cannot be deepened from this counsel head."""
+        cannot be deepened from this advisory head."""
         from dialectical_framework.graph.nodes.cycle import Cycle
         from dialectical_framework.graph.nodes.transition import Transition
         from dialectical_framework.graph.nodes.wheel import Wheel

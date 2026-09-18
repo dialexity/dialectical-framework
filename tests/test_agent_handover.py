@@ -2,10 +2,10 @@
 Tests for the Explorer↔Advisor mode toggle (handover contract).
 
 An exploration session has two registers — operator mode (Explorer) and
-counsel mode (Advisor pinned to the same nexus). The toggle is a handover of
+advisory mode (Advisor pinned to the same nexus). The toggle is a handover of
 the SAME conversation between two heads, driven by the host:
 
-    advisor  = Advisor(app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+    advisor  = Advisor(app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                        nexus_hash=explorer.nexus_hash,
                        messages=explorer.messages)
     explorer = Explorer(nexus_hash=nx,
@@ -25,7 +25,7 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import Advisor
-from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                                                NAVIGATOR_APP_ADVANCED_TOGGLE)
 from dialectical_framework.agents.explorer.explorer import Explorer
 from dialectical_framework.graph.nodes.case import Case
@@ -85,12 +85,12 @@ class TestHandoverRoundTrip:
             history_before = list(explorer.messages)
 
             advisor = Advisor(
-                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
 
-            # System prompt is the counsel head's now.
+            # System prompt is the advisory head's now.
             sys_text = _message_text(advisor._conversation._messages[0])
             assert "## Advisory Register" in sys_text
             assert "## Scope" in sys_text  # nexus-pinned engine
@@ -110,7 +110,7 @@ class TestHandoverRoundTrip:
             explorer = self._explorer_with_history(nexus)
 
             advisor = Advisor(
-                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -141,7 +141,7 @@ class TestHandoverRoundTrip:
             explorer = Explorer(nexus_hash=nexus.hash[:7])
 
             advisor = Advisor(
-                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -186,17 +186,17 @@ class TestHandoverReplayAcceptance:
                     "— replay of foreign tool-use blocks not exercised"
                 )
 
-            # Toggle to counsel mode: the Advisor head must replay a history
+            # Toggle to advisory mode: the Advisor head must replay a history
             # containing Explorer tool-use blocks it has no tools for.
             advisor = Advisor(
-                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
             reply = await advisor.chat("So what does this all mean for me?")
             assert isinstance(reply, str) and reply.strip()
 
-            # Toggle back: the Explorer head replays counsel-mode history
+            # Toggle back: the Explorer head replays advisory-mode history
             # (possibly containing scoped-Advisor tool-use blocks).
             explorer_again = Explorer(
                 nexus_hash=explorer.nexus_hash,

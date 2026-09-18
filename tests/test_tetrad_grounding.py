@@ -1,4 +1,4 @@
-"""Case particulars survive the tetrad's abstraction and reach the counsel dump.
+"""Case particulars survive the tetrad's abstraction and reach the advisory dump.
 
 The tetrad's text is universal by construction (~7-word poles, `commit()` dedup,
 taxonomy anchoring). That is what makes it transferable and also what made the
@@ -290,7 +290,7 @@ class TestPromptTeachesTheReadSide:
         assert "reads as having been forgotten" in section
 
     def test_scoped_prompt_teaches_it_too(self):
-        """Counsel mode is where a returning session's wobble actually lands."""
+        """Advisory mode is where a returning session's wobble actually lands."""
         from dialectical_framework.agents.advisor.system_prompts import \
             system_prompt
 

@@ -158,7 +158,7 @@ genuinely complement each other and the pathologies arise organically; low
 DV means the framing itself is forced or one-sided even if it reads
 coherently. A low-DV tension is better re-framed (`edit_perspective` or
 discard-and-re-anchor) than polished aspect-by-aspect — the distortion sits
-in the T/A framing, not the aspects. Note: counsel mode prunes very-low-DV
+in the T/A framing, not the aspects. Note: advisory mode prunes very-low-DV
 tensions from its working view, so a framing you keep here may be absent
 there — re-framing it fixes both.
 

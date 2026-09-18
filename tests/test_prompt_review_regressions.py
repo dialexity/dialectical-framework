@@ -1388,7 +1388,7 @@ class TestCrossAgentHsBandParity:
         """DV parity across the toggle: both agents must describe DV as
         naturalness-of-framing (not quality/coherence), both must route low
         DV to RE-FRAMING (not aspect polishing), and the Analyst must know
-        counsel mode prunes very-low-DV tensions — otherwise a perspective
+        advisory mode prunes very-low-DV tensions — otherwise a perspective
         visible in analysis silently vanishes in counsel and the Analyst
         can't explain why."""
         from dialectical_framework.agents.advisor.system_prompts import \
@@ -1407,7 +1407,7 @@ class TestCrossAgentHsBandParity:
             )
         # the Analyst-specific toggle warning
         analyst_text = " ".join(ANALYST.split())
-        assert "counsel mode prunes very-low-DV" in analyst_text
+        assert "advisory mode prunes very-low-DV" in analyst_text
 
 
 class TestArrangementContrast:
@@ -1463,7 +1463,7 @@ class TestExplorerAdvisorToggleNarration:
     """The Explorer<->Advisor toggle is host-driven; each head must surface the
     handover signal for its opposite register without auto-switching."""
 
-    def test_explorer_signals_counsel_mode(self):
+    def test_explorer_signals_advisory_mode(self):
         from dialectical_framework.agents.explorer.system_prompts import \
             system_prompt
 
@@ -1472,7 +1472,7 @@ class TestExplorerAdvisorToggleNarration:
         assert "counsel" in joined
         # host drives the switch, never the agent
         assert "never switch modes yourself" in joined
-        # graceful floor: absent a counsel mode, keep counseling
+        # graceful floor: absent a advisory mode, keep counseling
         assert "keep counseling" in joined
 
     def test_explorer_routes_decision_moments_to_counsel(self):
@@ -1486,7 +1486,7 @@ class TestExplorerAdvisorToggleNarration:
         joined = " ".join(p.split())
         assert "when the user tries to DECIDE" in joined
         assert "NEVER claim to have noted a decision yourself" in joined
-        assert "Recording and retiring decisions happens in counsel mode" in joined
+        assert "Recording and retiring decisions happens in advisory mode" in joined
 
     def test_analyst_never_fakes_or_anchors_decisions(self):
         """Cross-agent parity (review finding): the Analyst serves the same
@@ -1502,17 +1502,17 @@ class TestExplorerAdvisorToggleNarration:
         assert "NEVER anchor the declared choice as a thesis" in joined
 
     def test_scoped_advisor_signals_exploration_view(self):
-        """The counsel-mode preamble already narrates switching back to the
+        """The advisory-mode preamble already narrates switching back to the
         technical exploration view — lock that phrase."""
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
-        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.split())
         assert "they can switch anytime" in joined
         assert "exploration view" in joined
 
 
 class TestScopedAdvisorConsentContract:
-    """The scoped (counsel-mode) render must not contradict the preamble's
+    """The scoped (advisory-mode) render must not contradict the preamble's
     transparency contract: no silent mutation instructions may survive into
     the assembled scoped prompt. The unscoped render keeps silent-discard
     (that's its design)."""
@@ -1522,7 +1522,7 @@ class TestScopedAdvisorConsentContract:
             system_prompt
 
         # The FULL production scoped toolset (build_scoped_tools) — the sweep
-        # must see every section that actually renders in counsel mode; a
+        # must see every section that actually renders in advisory mode; a
         # reduced list leaves conditionally-rendered sections unswept.
         return system_prompt(
             tool_names=[
@@ -1724,14 +1724,14 @@ class TestAdvisorNexusSizeCapDerived:
 
 
 class TestExplorationAdvisorColdStart:
-    """NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER must not presuppose shared history or that the
+    """NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER must not presuppose shared history or that the
     user built the exploration — the constructor explicitly supports
     messages=None on an existing (possibly ingest-built or shared) nexus."""
 
     def test_history_is_ground_truth_not_assumed(self):
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
-        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.split())
         assert "take the history you actually see as the ground truth" in joined
         assert "never assume shared memories" in joined
         # authorship is not presupposed either
@@ -1741,10 +1741,10 @@ class TestExplorationAdvisorColdStart:
 
     def test_switch_back_hedged_on_host_affordance(self):
         """Mirror of the Explorer's 'if the application offers' hedge — the
-        counsel head must not promise a UI affordance the host may not have."""
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        advisory head must not promise a UI affordance the host may not have."""
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
-        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.split())
+        joined = " ".join(NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.split())
         assert "if the application offers a way back" in joined
 
 
@@ -1821,7 +1821,7 @@ class TestNexusExplorationVocabulary:
 
 
 class TestExplorationAdvisorApp:
-    """NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER is the counsel-mode preamble of the
+    """NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER is the advisory-mode preamble of the
     Explorer<->Advisor toggle. It MUST be composed on NAVIGATOR_APP (Navigator
     territory: same vocabulary contract, perspective detection, score
     presentation) — not written from scratch — and it must mandate
@@ -1829,34 +1829,34 @@ class TestExplorationAdvisorApp:
 
     def test_composed_on_default_app(self):
         from dialectical_framework.agents.apps import (NAVIGATOR_APP,
-                                                       NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER)
+                                                       NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER)
 
-        assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.startswith(NAVIGATOR_APP)
-        assert "## Advisory Register" in NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        assert NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.startswith(NAVIGATOR_APP)
+        assert "## Advisory Register" in NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
     def test_grants_terminology_disclosure_for_engine_hatch(self):
         """The engine's terminology escape hatch keys on the preamble
         granting disclosure — the section must exist."""
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
-        assert "## Terminology Disclosure" in NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        assert "## Terminology Disclosure" in NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
     def test_disclosure_defers_to_default_app_nexus_rule(self):
         """Disclosure does NOT unlock 'Nexus' — NAVIGATOR_APP's exploration
         vocabulary still governs (unlike NAVIGATOR_APP_ADVANCED_TOGGLE, which unlocks it)."""
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
-        idx = NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.find("## Terminology Disclosure")
-        disclosure = NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER[idx:]
+        idx = NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.find("## Terminology Disclosure")
+        disclosure = NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER[idx:]
         assert '"Nexus" stays internal' in disclosure
 
     def test_mandates_transparent_mutation(self):
-        """Counsel mode must never grow or prune the user-built exploration
+        """Advisory mode must never grow or prune the user-built exploration
         silently — ask first, announce after."""
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
         assert "Never grow or prune their exploration silently" in (
-            NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+            NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
         )
 
 
@@ -2047,7 +2047,7 @@ class TestCrossExplorationGuidance:
         assert "How You Speak rules above govern" in SYSTEM_PROMPT
 
     def test_scoped_render_keeps_guidance(self):
-        """Counsel-mode dumps are single-nexus, but the person can toggle
+        """Advisory-mode dumps are single-nexus, but the person can toggle
         heads — the score-reading section is shared, so the guidance must
         survive the scoped render too."""
         from dialectical_framework.agents.advisor.system_prompts import \
@@ -2627,7 +2627,7 @@ class TestDecisionReadiness:
         what the rationale ARGUED, so it narrowed that without closing it; the
         silent case needed check 5 (see below).
 
-        Both renders: counsel mode debriefs the person's own deliverable and
+        Both renders: advisory mode debriefs the person's own deliverable and
         writes the same records. Prose arms keep it too (no tool token in the
         paragraph) — a prose record can be handed back just as wrongly.
         """
@@ -2986,7 +2986,7 @@ class TestAnchorGroundingReachesTheToolDoc:
         return _TOOL_DOCS
 
     def test_both_anchor_docs_demand_context_with_specifics(self):
-        """Unscoped AND counsel mode — the same `anchor` function backs both."""
+        """Unscoped AND advisory mode — the same `anchor` function backs both."""
         docs = self._tool_docs()
         for key in ("anchor", "anchor_scoped"):
             doc = " ".join(docs[key].split())
@@ -3294,7 +3294,7 @@ class TestTheElectiveRouteNamesItsMoments:
         from dialectical_framework.agents.advisor.system_prompts import \
             system_prompt
 
-        # Counsel mode wires `audit_feasibility` too (`tools/scoped.py`), and it
+        # Advisory mode wires `audit_feasibility` too (`tools/scoped.py`), and it
         # wires `record_decision` — so both new moments exist there and both must
         # render. A scoped session is the RETURNING one, where the wobble moment
         # is not a corner case but the main event.
@@ -3640,7 +3640,7 @@ class TestWhatTheJudgeSaidWasWrong:
         assert "an unpriced menu is never how a turn ends" in p
 
     def test_the_new_rules_survive_the_scoped_render(self):
-        """Counsel mode swaps _ROLE/_HOW_YOU_SPEAK/_REJECTION_HANDLING for
+        """Advisory mode swaps _ROLE/_HOW_YOU_SPEAK/_REJECTION_HANDLING for
         scoped variants. The conversational rules are register-independent —
         conceding a correction is not a machinery-disclosure question — so a
         rule that only lands unscoped would silently exempt the toggle."""
@@ -3989,7 +3989,7 @@ class TestTheProbeScenariosDoNotLeakIntoThePrompt:
             system_prompt
 
         # Both registers: a leak in a scoped-only section would be invisible to
-        # the default render, and counsel mode is measured too.
+        # the default render, and advisory mode is measured too.
         return self._normalize(
             system_prompt() + " " + system_prompt(scoped_nexus_hash="deadbeef")
         )
@@ -4056,7 +4056,7 @@ class TestCompletenessRegisterSplit:
 
     An interrupted build is the common path (heavy `explore` turns run minutes,
     users close the tab), so the context dump now carries derived status:
-    `Pathways: 4/6` and a synthesis "built from 4 of 6" in counsel mode, plain
+    `Pathways: 4/6` and a synthesis "built from 4 of 6" in advisory mode, plain
     sentences with no digits unscoped (`completeness_line(numeric=...)`,
     `DialecticalContext._numeric_status`). The prompt must match the register
     the code actually renders — a rule telling the unscoped head to name a

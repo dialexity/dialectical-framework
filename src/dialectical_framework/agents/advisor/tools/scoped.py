@@ -1,7 +1,7 @@
 """
 Tool factory for the Advisor mode of an exploration session.
 
-This is the "counsel mode" head of an Explorer↔Advisor toggle: the host
+This is the "advisory mode" head of an Explorer↔Advisor toggle: the host
 hands the Explorer conversation (messages + nexus_hash) to an Advisor so
 the user can discuss what the exploration MEANS, then may hand back to
 Explorer for technical work. Same conversation, same exploration,
@@ -25,8 +25,11 @@ record_decision persists confirmed decisions (Case-level, unguarded by the
 pin). Only `ingest` is excluded — bulk extraction belongs to the unscoped
 flow.
 
-`read_only=True` is the one configuration that keeps less than all of that: the
-pinned `sync` plus `inspect_node`/`read_digest`, and no write tool built at all.
+Two narrower configurations keep less than all of that (`advisor/mode.py`):
+`AdvisorMode.CONSULTANT` drops the three BUILD tools (`anchor`, `explore`,
+`deepen`) and keeps reading, `discard`, `audit_feasibility` and
+`record_decision`; `AdvisorMode.VIEW` keeps the pinned `sync` plus
+`inspect_node`/`read_digest` and builds no write tool at all.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ from typing import Annotated
 from mirascope import llm
 from pydantic import Field
 
+from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.concerns.record_decision import \
     UNATTESTED_PRINCIPAL
 
@@ -43,10 +47,10 @@ from dialectical_framework.concerns.record_decision import \
 def build_scoped_tools(
     nexus_hash: str,
     principal: str = UNATTESTED_PRINCIPAL,
-    read_only: bool = False,
+    mode: AdvisorMode = AdvisorMode.FULL,
 ) -> list:
     """
-    Build the tool set for an exploration-pinned Advisor (counsel mode).
+    Build the tool set for an exploration-pinned Advisor (advisory mode).
 
     The nexus_hash is captured by closure — the LLM cannot redirect any of
     these tools to another nexus or create a new one. Validation that the
@@ -56,11 +60,13 @@ def build_scoped_tools(
     tools/record_decision.py. It defaults to no attestation rather than to
     "human", which is a claim only a host can make.
 
-    `read_only=True` returns the READING tools alone — the pinned `sync`,
+    `mode=AdvisorMode.VIEW` returns the READING tools alone — the pinned `sync`,
     `inspect_node`, `read_digest` — and nothing else is built, so `principal`
-    reaches nobody. Same enforcement mechanism as the pin itself: what the head
+    reaches nobody. `mode=AdvisorMode.CONSULTANT` adds the pinned `discard`,
+    `audit_feasibility` and `record_decision`, and builds none of the three
+    build tools. Same enforcement mechanism as the pin itself: what the head
     cannot do is what it was never handed, not what a prompt asked it to avoid.
-    See `Advisor.__init__` for what the flag is for and what it costs.
+    See `Advisor.__init__` for what each surface is for and what it costs.
     """
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
@@ -78,14 +84,13 @@ def build_scoped_tools(
         concern = DialecticalContext(nexus_hash=pinned_hash)
         return await concern.resolve()
 
-    if read_only:
+    if mode is AdvisorMode.VIEW:
         # Returned before anything else is even imported: `discard` and
         # `audit_feasibility` below are guarded by scope refusals, and a reader
         # coming to this file should not have to check whether those guards
         # happen to make them safe. They do not — both write.
         return [sync, inspect_node, read_digest]
 
-    from dialectical_framework.agents.advisor.tools.anchor import anchor
     from dialectical_framework.agents.advisor.tools.record_decision import \
         build_record_decision
 
@@ -106,6 +111,21 @@ def build_scoped_tools(
         concern = Discard()
         await concern.resolve(hash=hash, reason=reason)
         return str(concern.report)
+
+    if mode is AdvisorMode.CONSULTANT:
+        # `audit_feasibility` is defined below `explore`/`deepen` in the FULL
+        # order; it is hoisted here so the consultant surface never even defines
+        # a build tool. Decisions stay Case-level and unguarded, as in FULL.
+        return [
+            sync,
+            inspect_node,
+            read_digest,
+            discard,
+            _pinned_audit_feasibility(pinned_hash),
+            record_decision,
+        ]
+
+    from dialectical_framework.agents.advisor.tools.anchor import anchor
 
     @llm.tool
     async def explore(
@@ -142,6 +162,29 @@ def build_scoped_tools(
 
         return await run_deepen(wheel_hash)
 
+    # record_decision is appended as-is: decisions are Case-level facts, not
+    # exploration members — no nexus-scope guard applies (grounds may be
+    # exploration members; grounding is read-only w.r.t. the exploration).
+    return [
+        anchor,
+        sync,
+        inspect_node,
+        read_digest,
+        discard,
+        explore,
+        deepen,
+        _pinned_audit_feasibility(pinned_hash),
+        record_decision,
+    ]
+
+
+def _pinned_audit_feasibility(pinned_hash: str):
+    """The pinned `audit_feasibility`, shared by the FULL and CONSULTANT surfaces.
+
+    A factory rather than a closure inside `build_scoped_tools` so the consultant
+    return above does not have to reach past `explore`/`deepen` to get it.
+    """
+
     @llm.tool
     async def audit_feasibility(
         transformation_hashes: Annotated[
@@ -168,20 +211,7 @@ def build_scoped_tools(
 
         return await run_audit_feasibility(transformation_hashes)
 
-    # record_decision is appended as-is: decisions are Case-level facts, not
-    # exploration members — no nexus-scope guard applies (grounds may be
-    # exploration members; grounding is read-only w.r.t. the exploration).
-    return [
-        anchor,
-        sync,
-        inspect_node,
-        read_digest,
-        discard,
-        explore,
-        deepen,
-        audit_feasibility,
-        record_decision,
-    ]
+    return audit_feasibility
 
 
 def _outside_scope_refusal(nexus_hash: str, target_hash: str) -> str | None:

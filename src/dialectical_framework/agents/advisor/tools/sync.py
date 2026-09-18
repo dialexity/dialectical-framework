@@ -4,7 +4,7 @@ sync tool: Re-read the dialectical graph state.
 Returns a structured dump of tensions, pathways, and synthesis for the
 current case scope. With `nexus_hash`, zooms into one exploration and
 renders it in full depth (the unscoped dump caps wheels per cycle for
-compactness; the zoomed render is exempt, same as counsel-mode dumps).
+compactness; the zoomed render is exempt, same as advisory-mode dumps).
 
 A `nexus_hash` that does not resolve comes BACK as text, it does not raise.
 `DialecticalContext._resolve_scoped` raises `ValueError` on an unknown hash,

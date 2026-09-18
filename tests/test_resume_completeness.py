@@ -23,7 +23,7 @@ is pinned here:
    would change.
 
 Plus the register split: the standalone Advisor speaks completeness in plain
-words with no counts; counsel mode (nexus-pinned) gets the numbers.
+words with no counts; advisory mode (nexus-pinned) gets the numbers.
 
 DB-free and LLM-free — all three defects live in counting and composition, so
 the repository reads and the generation calls are patched out.
@@ -292,7 +292,7 @@ def test_wheel_with_no_edges_is_not_called_complete(monkeypatch):
     assert completeness_line(wheel, {}, numeric=True) is None
 
 
-# --- Register: numbers in counsel mode, plain words otherwise -----------
+# --- Register: numbers in advisory mode, plain words otherwise -----------
 
 
 def test_completeness_line_registers_differ(monkeypatch):
@@ -317,7 +317,7 @@ def test_numeric_register_names_an_undeveloped_wheel_as_such(monkeypatch):
     """`0/6` alone reads as a broken build; by design most wheels sit there.
 
     `explore` deep-generates exactly one wheel (EXPLORE_DEEP_WHEELS), so every
-    other wheel of a counsel-mode dump is at 0/N on purpose.
+    other wheel of a advisory-mode dump is at 0/N on purpose.
     """
     edges = [_FakeEdge("A"), _FakeEdge("B")]
     _patch_edges(monkeypatch, {"A": 0, "B": 0})

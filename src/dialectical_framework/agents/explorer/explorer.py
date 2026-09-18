@@ -85,7 +85,7 @@ class Explorer:
         # domain resources by parity.
         #
         # advanced: the expert register (NAVIGATOR_APP_ADVANCED_TOGGLE) for a
-        # user who knows the framework. Pass the same value to the counsel head
+        # user who knows the framework. Pass the same value to the advisory head
         # when the host toggles — it carries across, so the two registers of one
         # session speak at the same level. This comment used to send hosts to
         # `app_preamble=my_app.navigator_preamble(advanced=True)` instead, which

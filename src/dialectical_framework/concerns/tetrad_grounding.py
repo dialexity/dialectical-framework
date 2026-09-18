@@ -89,7 +89,7 @@ logger = logging.getLogger(__name__)
 #: legibility judgement, not a policy. Generous next to
 #: `component_length` (~7) because the whole point is to hold what the
 #: tetrad cannot — but bounded, because this text renders on EVERY turn of
-#: the counsel dump and an unbounded note would crowd out the structure it
+#: the advisory dump and an unbounded note would crowd out the structure it
 #: is meant to support.
 MAX_GROUNDING_WORDS = 60
 
@@ -206,7 +206,7 @@ class TetradGrounding(ReasonableConcern[Optional[Rationale]], SettingsAware):
             return ""
 
         # Trim rather than reject: a slightly long note is still useful, and
-        # this text renders on every counsel turn.
+        # this text renders on every advisory turn.
         words = particulars.split()
         if len(words) > MAX_GROUNDING_WORDS:
             particulars = " ".join(words[:MAX_GROUNDING_WORDS])

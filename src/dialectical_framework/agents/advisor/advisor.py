@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.advisor.system_prompts import \
     system_prompt
+from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.graph.scope_context import (get_current_sid,
                                                         require_current_sid)
@@ -257,37 +258,50 @@ class Advisor(SettingsAware):
                 app_tools=[lookup_natal_chart],   # @llm.tool from the app
             )
 
-    Usage (read-only counsel — the graph is not touched):
-        # A head that reads the understanding and counsels from it, and cannot
-        # change it: three tools (`sync`, `inspect_node`, `read_digest`), no
-        # decision recorded, no perspective anchored, no pathway built, no
-        # feasibility scored. For a second reader on a Case someone else is
-        # working, a shared or public view of an exploration, a support seat, or
-        # any host that wants counsel without granting write access.
+    Usage (the Consultant — a graph that already exists, consulted, never built on):
+        # The fast surface. Reads the understanding, records what the person
+        # decides and grounds it on the pathways already there, may retract a
+        # framing they reject and may score a named pathway's feasibility on
+        # request — and never builds: no `ingest`, `anchor`, `explore` or
+        # `deepen` is handed to it, and the closing seam records without
+        # starting the off-turn weave. Every turn is one graph read plus the
+        # model; the pipelines that cost minutes are simply not reachable.
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, read_only=True)
+            advisor = Advisor(
+                app_preamble=COUNSELOR_PERSONA,
+                mode=AdvisorMode.CONSULTANT,
+                principal="human",
+            )
+            response = await advisor.chat("Given all this, what would you do?")
+
+        # Composes with `nexus_hash=` for a consultant pinned to one exploration.
+
+    Usage (the View — read and nothing else):
+        # Three tools (`sync`, `inspect_node`, `read_digest`), no decision
+        # recorded, no perspective anchored, no pathway built, no feasibility
+        # scored. For a second reader on a Case someone else is working, a
+        # shared or public view of an exploration, a support seat, or any host
+        # that wants counsel without granting write access.
+        with scope(case.sid):
+            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, mode=AdvisorMode.VIEW)
             response = await advisor.chat("What does this look like to you?")
 
-        # Works in both modes — pass `nexus_hash=` as well for a read-only
-        # counsel-mode head, pinned to one exploration and unable to alter it.
-        #
         # What it costs, so the choice is made with open eyes: the decision seam
         # does not run, so a person who states a decision in this conversation
         # gets no record of it (the seam is what catches the model not calling
-        # `record_decision` — measured 0/6 at the weak tier), and the graph never
-        # deepens, so counsel stays at whatever depth it was handed. It still
-        # WAITS for a weave another instance on the same sid left running, and it
-        # still re-reads the graph every turn — reading a half-built graph is the
-        # one thing worse than reading a shallow one.
+        # `record_decision` — measured 0/6 at the weak tier). Both narrower
+        # surfaces still WAIT for a weave another instance on the same sid left
+        # running, and still re-read the graph every turn — reading a half-built
+        # graph is the one thing worse than reading a shallow one.
 
     Usage (Advisor mode of an exploration session — Explorer handover):
         # User was chatting in Explorer (operator mode) and asks "what does
-        # this all mean for me?" — the host toggles to counsel mode by
+        # this all mean for me?" — the host toggles to advisory mode by
         # handing the SAME conversation to an Advisor pinned to the SAME
         # exploration:
         with scope(case.sid):
             advisor = Advisor(
-                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+                app_preamble=NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                 nexus_hash=explorer.nexus_hash,
                 messages=explorer.messages,
             )
@@ -326,12 +340,13 @@ class Advisor(SettingsAware):
     #: instance. Dropping it would be a regression dressed as a fix.
     _deferred_work_keys: frozenset[str] | set[str] = frozenset()
 
-    #: Whether this head may write. Declared at CLASS level for the same reason
-    #: as the set above: `_repair_unrecorded_decision` reads it, and a subclass or
-    #: stand-in reaching that method without running `__init__` should get the
-    #: writing behaviour every caller had before this flag existed rather than an
-    #: AttributeError from inside the seam. `__init__` always shadows it.
-    _read_only: bool = False
+    #: Which surface this head is (`advisor/mode.py`). Declared at CLASS level
+    #: for the same reason as the set above: the closing seam reads it, and a
+    #: subclass or stand-in reaching that method without running `__init__`
+    #: should get the FULL behaviour every caller had before modes existed
+    #: rather than an AttributeError from inside the seam. `__init__` always
+    #: shadows it.
+    _mode: AdvisorMode = AdvisorMode.FULL
 
     def __init__(
         self,
@@ -343,7 +358,7 @@ class Advisor(SettingsAware):
         app: Optional[AppSpec] = None,
         principal: str = UNATTESTED_PRINCIPAL,
         advanced: bool = False,
-        read_only: bool = False,
+        mode: AdvisorMode = AdvisorMode.FULL,
     ) -> None:
         # principal: WHO confirms decisions in this conversation — a host
         # attestation, fixed for the session (the counterpart doesn't change
@@ -364,30 +379,33 @@ class Advisor(SettingsAware):
         # docstring carries the whole argument) exists to stop being possible.
         self._principal = principal
         self._nexus_hash = nexus_hash
-        # read_only: this head READS the graph and writes nothing to it. Enforced
-        # by the TOOLSET (below) and by the closing seam declining to run (see
-        # `_repair_unrecorded_decision`) — never by prompt, which is the same
-        # division of labour the nexus pin uses: the prompt's job is to stop the
-        # head spending turns reaching for something it does not have, and the
-        # code's job is to make sure reaching would fail anyway.
+        # mode: which surface this head is — FULL builds, CONSULTANT records
+        # but never builds, VIEW reads and nothing else (`advisor/mode.py`).
+        # Enforced by the TOOLSET (below) and, for the framework's own
+        # initiative, by the closing seam (`_repair_unrecorded_decision`
+        # declines on VIEW; `_schedule_pathway_construction` withholds the weave
+        # on CONSULTANT) — never by prompt, which is the same division of labour
+        # the nexus pin uses: the prompt's job is to stop the head spending
+        # turns reaching for something it does not have, and the code's job is
+        # to make sure reaching would fail anyway.
         #
         # What it does NOT cover is `app_tools`, and that is deliberate rather
         # than an oversight: the framework cannot tell a host's chart lookup from
-        # a host's write, so read_only governs the FRAMEWORK's surface and the
+        # a host's write, so the mode governs the FRAMEWORK's surface and the
         # host owns its own. Refusing app tools here was the alternative and it
-        # is worse — it would make this flag unusable for exactly the apps that
-        # have domain lookups, and push them onto `app_preamble=` instead, which
-        # is the trap `advanced` fell into (an escape hatch that silently unwires
-        # something else).
+        # is worse — it would make the narrower modes unusable for exactly the
+        # apps that have domain lookups, and push them onto `app_preamble=`
+        # instead, which is the trap `advanced` fell into (an escape hatch that
+        # silently unwires something else).
         #
-        # `principal` is accepted and unused when read_only: nothing attests
-        # anything here, because nothing is recorded. Unlike `advanced`, ignoring
-        # it changes nothing a person can see, so it does not raise — a host
-        # passes one principal to every head it constructs.
-        self._read_only = read_only
+        # `principal` is accepted and unused on VIEW: nothing attests anything
+        # there, because nothing is recorded. Unlike `advanced`, ignoring it
+        # changes nothing a person can see, so it does not raise — a host passes
+        # one principal to every head it constructs.
+        self._mode = AdvisorMode(mode)
         # app: declarative app definition — composition depends on the mode:
-        # counsel toggle (nexus_hash set) keeps the Navigator contract
-        # (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide); standalone uses
+        # advisory toggle (nexus_hash set) keeps the Navigator contract
+        # (NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER + voicing + tool_guide); standalone uses
         # the spec's advisor_persona (machinery hidden). See AppSpec.
         #
         # advanced: carries the expert register THROUGH the toggle, so a user who
@@ -406,11 +424,11 @@ class Advisor(SettingsAware):
         )
         if nexus_hash:
             self._validate_nexus(nexus_hash)
-            self._tools = _build_scoped_tools(
-                nexus_hash, principal, read_only=read_only
-            )
-        elif read_only:
-            self._tools = _build_read_only_tools()
+            self._tools = _build_scoped_tools(nexus_hash, principal, mode=self._mode)
+        elif self._mode is AdvisorMode.VIEW:
+            self._tools = _build_view_tools()
+        elif self._mode is AdvisorMode.CONSULTANT:
+            self._tools = _build_consultant_tools(principal)
         else:
             self._tools = _build_tools(principal)
         # App-provided @llm.tool functions (domain resources: chart lookups,
@@ -809,8 +827,8 @@ class Advisor(SettingsAware):
         # field left over from the last turn would be read as this turn's.
         self._last_closing = None
         self._last_deferral = None
-        if self._read_only:
-            # A read-only Advisor's whole contract is that it writes nothing, and
+        if not self._mode.records:
+            # The VIEW surface's whole contract is that it writes nothing, and
             # this seam is the framework writing on its own initiative — a
             # Decision, then a weave that builds perspectives, cycles and wheels
             # off the turn. So it does not run, and the gate is HERE rather than at
@@ -819,11 +837,13 @@ class Advisor(SettingsAware):
             # drive the seam directly.
             #
             # Both outcome fields therefore stay None, which is already documented
-            # on `ClosingOutcome` as "the seam did not run" — a read-only turn is a
+            # on `ClosingOutcome` as "the seam did not run" — a VIEW turn is a
             # third way into that state, and it must not read as NO_CLOSING: the
             # classifier never looked, so nothing was concluded about whether the
             # person was closing. A host that needs decisions recorded has the
-            # writing surface for it; that is the choice read_only makes.
+            # CONSULTANT surface for it; that is the choice VIEW makes. (The
+            # CONSULTANT runs this seam in full and withholds only the weave —
+            # see `_schedule_pathway_construction`.)
             return
         if self._recorded_decision_this_turn():
             # The record is written, so there is nothing to repair — but a
@@ -1159,6 +1179,17 @@ class Advisor(SettingsAware):
         Fail-soft and silent: the reply is already delivered, and a pathway the
         person never asked about must not surface to them as an error.
         """
+        if not self._mode.builds:
+            # The CONSULTANT surface: the decision is already recorded, and
+            # already grounded on whatever pathways existed (both branches of
+            # `_repair_unrecorded_decision` attach before reaching here). What
+            # is withheld is only the weave — the one thing on this surface that
+            # would add structure, and it would do so on a graph the person
+            # brought here as finished. Gated BEFORE the queue rather than at the
+            # task, so a FULL instance resuming the same sid later does not find
+            # a consultant's decisions waiting and weave on their behalf.
+            self._last_deferral = DeferralOutcome.NOT_BUILDING
+            return
         if decision_hash and decision_hash not in self._decisions_awaiting_pathway:
             self._decisions_awaiting_pathway.append(decision_hash)
         if not self._decisions_awaiting_pathway:
@@ -1533,7 +1564,7 @@ class Advisor(SettingsAware):
 
         Read-only and fail-soft: a closing that cannot see a pathway is
         recorded without one, exactly as before. Scoped to the pinned nexus in
-        counsel mode; unscoped sessions have a single Case's worth of graph, so
+        advisory mode; unscoped sessions have a single Case's worth of graph, so
         every transformation in scope belongs to the conversation that built it.
 
         ONE WHEEL, NOT THE WHOLE NEXUS, AND THE REASON IS THE ARRANGEMENT
@@ -2039,8 +2070,8 @@ def _build_tools(principal: str = UNATTESTED_PRINCIPAL) -> list:
     ]
 
 
-def _build_read_only_tools() -> list:
-    """The reading half of `_build_tools` — nothing here changes the graph.
+def _build_view_tools() -> list:
+    """The reading third of `_build_tools` — nothing here changes the graph.
 
     Three tools, and the two omissions worth stating. `audit_feasibility` looks
     like a read and is not: it writes a FeasibilityEstimation plus a critique
@@ -2061,12 +2092,36 @@ def _build_read_only_tools() -> list:
     return [sync, inspect_node, read_digest]
 
 
+def _build_consultant_tools(principal: str = UNATTESTED_PRINCIPAL) -> list:
+    """`_build_tools` minus the four BUILD tools — what the Consultant is handed.
+
+    Reads, records decisions, retracts, scores a named pathway on request. What
+    is missing is exactly `_BUILD_TOOL_NAMES` in `system_prompts.py`: `ingest`,
+    `anchor`, `explore`, `deepen` — every pipeline that adds structure and costs
+    a person minutes on a turn. `tests/test_advisor_modes.py` holds the two
+    lists together.
+    """
+    from dialectical_framework.agents.advisor.tools.record_decision import \
+        build_record_decision
+    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+        audit_feasibility
+    from dialectical_framework.agents.orchestrator.tools.discard import \
+        discard
+
+    return [
+        *_build_view_tools(),
+        audit_feasibility,
+        build_record_decision(principal),
+        discard,
+    ]
+
+
 def _build_scoped_tools(
     nexus_hash: str,
     principal: str = UNATTESTED_PRINCIPAL,
-    read_only: bool = False,
+    mode: AdvisorMode = AdvisorMode.FULL,
 ) -> list:
     from dialectical_framework.agents.advisor.tools.scoped import \
         build_scoped_tools
 
-    return build_scoped_tools(nexus_hash, principal, read_only=read_only)
+    return build_scoped_tools(nexus_hash, principal, mode=mode)

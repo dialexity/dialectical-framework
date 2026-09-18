@@ -30,6 +30,7 @@ import pytest
 
 from dialectical_framework.agents.advisor.advisor import (_DEFERRED_WORK,
                                                             Advisor)
+from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.stream_events import ToolResult
 from dialectical_framework.agents.turn_timing import DeferralOutcome
@@ -69,14 +70,15 @@ class _StubAdvisor:
         nexus_hash: str | None = None,
         automatic_feasibility_audit: bool = True,
         # Mirrors the real class, and defaulted the same way. The seam declines
-        # outright on a read-only head, so a stub defaulting the other way would
-        # turn every test in this file green by never running the repair —
-        # `tests/test_advisor_read_only.py` is what passes True.
-        read_only: bool = False,
+        # outright on the VIEW surface and withholds the weave on CONSULTANT, so
+        # a stub defaulting to either would turn tests in this file green by
+        # never running what they assert on — `tests/test_advisor_modes.py` is
+        # what passes the narrower ones.
+        mode: AdvisorMode = AdvisorMode.FULL,
     ) -> None:
         self._principal = principal
         self._nexus_hash = nexus_hash
-        self._read_only = read_only
+        self._mode = mode
         # Settings reach the real class through DI (`SettingsAware`), which wants
         # a live container these DB-free tests do not build. A per-instance
         # stand-in keeps the audit MODE switchable per test — and it defaults to
@@ -891,7 +893,7 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
 
     @pytest.mark.asyncio
     async def test_the_scoped_nexus_pin_governs_the_read(self, monkeypatch):
-        """Counsel mode reads ITS nexus, not every nexus in scope.
+        """Advisory mode reads ITS nexus, not every nexus in scope.
 
         The pin used to matter because the weave could fork a second nexus. With
         no weave, it still matters for the same underlying reason — a counsel
@@ -916,7 +918,7 @@ class TestPathwaysBeforeClosing(_SeamFixtures):
         monkeypatch.setattr(
             NexusRepository,
             "find_all",
-            lambda self: pytest.fail("a pinned counsel session read every nexus"),
+            lambda self: pytest.fail("a pinned advisory session read every nexus"),
         )
 
         wheel = SimpleNamespace(

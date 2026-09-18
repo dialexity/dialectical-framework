@@ -22,7 +22,7 @@ installed via `ConversationFacilitator.set_system_prompt` (`agents/conversation_
 The model sees **one fused system block** — it cannot tell where the preamble ends and the workflow prompt begins.
 
 ```
-[ app_preamble ]              agents/apps.py  (NAVIGATOR_APP / NAVIGATOR_APP_ADVANCED_TOGGLE / ..._COUNSELOR_REGISTER[_ADVANCED] / COUNSELOR_PERSONA / ...)
+[ app_preamble ]              agents/apps.py  (NAVIGATOR_APP / NAVIGATOR_APP_ADVANCED_TOGGLE / ..._ADVISORY_REGISTER[_ADVANCED] / COUNSELOR_PERSONA / ...)
    + "\n\n" +
 [ agent SYSTEM_PROMPT ]       agents/{analyst,explorer,advisor}/system_prompts.py
    ↓ set_system_prompt → _messages[0]
@@ -44,11 +44,11 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   import-time default render (settings defaults), kept for back-compat + regression tests.
   Nexus-scoped mode (`Advisor(nexus_hash=...)`) adds a `## Scope` section and swaps eager-building guidance
   for counsel-from-existing-structure guidance.
-  **There are THREE render shapes, and the third is DERIVED from the names, not passed:**
-  `read_only = not (set(tool_names) & _WRITE_TOOL_NAMES)`, because the toolset is already this function's
-  single source of truth and a second parameter could disagree with the tools the head actually holds.
-  It composes with the scoped shape (a pinned, read-only counsel head is legal). See the read-only
-  subsection under the authority matrix in §5.
+  **There are FOUR render shapes, and the two narrow ones are DERIVED from the names, not passed:**
+  `view = not (names & _WRITE_TOOL_NAMES)` and `consultant = not view and not (names & _BUILD_TOOL_NAMES)`,
+  because the toolset is already this function's single source of truth and a second parameter could
+  disagree with the tools the head actually holds. Both compose with the scoped shape (a pinned consultant
+  or a pinned view is legal). See the modes subsection under the authority matrix in §5.
   The dump is **re-read every turn** by `Advisor._refresh_context`, and the system prompt is **rewritten
   only when the rendered dump changed**. Read this history before touching it, because the design has
   flipped twice:
@@ -627,15 +627,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - `NAVIGATOR_APP_ADVANCED_TOGGLE = NAVIGATOR_APP + "..."` (`apps.py`) — the advanced preamble literally *contains* the default one.
   Any edit to `NAVIGATOR_APP` also ships inside `NAVIGATOR_APP_ADVANCED_TOGGLE`.
 - **FOUR Navigator preamble constants, not two, and the fourth is composed of the other three** (`apps.py`, 2026-09-16):
-  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` and
-  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED = NAVIGATOR_APP_ADVANCED_TOGGLE + _ADVISORY_REGISTER
-  + _ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE`. So an edit to `NAVIGATOR_APP` ships in all four, and an edit to the
+  `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` and
+  `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED = NAVIGATOR_APP_ADVANCED_TOGGLE + _ADVISORY_REGISTER
+  + _ADVANCED_SURVIVES_THE_ADVISORY_TOGGLE`. So an edit to `NAVIGATOR_APP` ships in all four, and an edit to the
   register body ships in both counsel pairings — which is why the body is a SHARED constant (`_ADVISORY_REGISTER`)
   rather than written twice. **The trailer is not decoration: without it the advanced pairing RE-LOCKS the expert
   register.** The register body was written for the non-expert default — it re-affirms the Contextual Vocabulary
   rules, "meaning first, numbers on request", and keeps "Nexus" internal — and later sections win, so
-  `NAVIGATOR_APP_ADVANCED_TOGGLE + body` would have handed an advanced Explorer a counsel head that dropped back to
-  translated vocabulary mid-conversation, on the same message history. `_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE` must
+  `NAVIGATOR_APP_ADVANCED_TOGGLE + body` would have handed an advanced Explorer a advisory head that dropped back to
+  translated vocabulary mid-conversation, on the same message history. `_ADVANCED_SURVIVES_THE_ADVISORY_TOGGLE` must
   therefore stay the LAST section; `tests/test_app_spec.py::TestTheTwoCounselRegistersCannotDrift` pins both the
   shared body and the trailer's position (by `rfind` against `## Terminology Disclosure`).
 - **The structured-extraction slot is a prompt surface in the USER role, and the model reads it as the person.**
@@ -2192,7 +2192,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   criterion (SP AND DV [P0 p.12]) as soft pruning, conservative defaults, never the paper's 0.5 verbatim; wheels per
   cycle capped to top-% `advisor_wheel_quality_top_plausible` (3), % denominator stays the full
   sibling set. Nexus members and unscored perspectives are never suppressed, and the wheel cap applies to
-  the UNSCOPED dump only — the counsel-mode (nexus-pinned) render shows the user-built exploration in full
+  the UNSCOPED dump only — the advisory-mode (nexus-pinned) render shows the user-built exploration in full
   (same load-bearing exemption). This is a RENDER gate — it
   filters what the Advisor sees, not what exists; `inspect_node` reaches everything. The Advisor's
   prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
@@ -2200,21 +2200,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_SP` / `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV` /
   `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
   `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`
-  to zoom into one exploration in full depth (no wheel cap — same exemption as counsel-mode dumps); its
+  to zoom into one exploration in full depth (no wheel cap — same exemption as advisory-mode dumps); its
   tool doc in `_TOOL_DOCS["sync"]` describes overview-vs-zoom and must stay consistent with this cap.
-- **Layer visibility in counsel mode** (`DialecticalContext._dump_nexus` + `_find_developed_lower_layers`
+- **Layer visibility in advisory mode** (`DialecticalContext._dump_nexus` + `_find_developed_lower_layers`
   + `_append_cycle_group` + `WheelRepository.find_developed_by_nexus`, fixed 2026-09-15): `_find_top_layer_cycles`
   returns cycles at the HIGHEST layer and falls back to a smaller one only when the top layer is EMPTY.
-  Correct for the unscoped dump (a summary; the newest layer is the most complete reading). In COUNSEL MODE
+  Correct for the unscoped dump (a summary; the newest layer is the most complete reading). In ADVISORY MODE
   it dropped finished work: the moment a Navigator or the Advisor's own `explore` wove in one more tension,
   a wheel carrying a written Ac+/Re+ recipe was replaced in the prompt by `Pathways: 0/12 (not yet
   developed)`. **The entry above is the argument that made it a defect rather than a compression choice —
-  the wheel cap is already exempt in counsel mode "so the counsel head is not blind to parts of the
+  the wheel cap is already exempt in advisory mode "so the advisory head is not blind to parts of the
   deliverable the user assembled deliberately", and the LAYER selection contradicted that exemption while
   being the harsher cut.** "The model can `inspect_node` it" is not a mitigation: measured elective-tool
   election is 0–2 of 6. Partially routed around already — an ADOPTED pathway's recipe rides on the
   decision's own ground line (`rendering.adopted_pathway_summary`) — so what vanished was every developed
-  pathway not yet decided upon. Fix: counsel mode also renders earlier-layer cycles that carry DEVELOPED
+  pathway not yet decided upon. Fix: advisory mode also renders earlier-layer cycles that carry DEVELOPED
   pathways, and DEVELOPED is the bound that keeps this from re-admitting 96 wheels at k=4 (development is
   elective and rare: `EXPLORE_DEEP_WHEELS = 1` per `explore` plus the coarser rungs it refines from). The
   undeveloped siblings of a rendered cycle are named-not-shown; an entirely undeveloped layer stays hidden;
@@ -2229,9 +2229,9 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   `find_by_nexus` + `get_transformations` per wheel would read `Wheel.edges` (the framework's most
   expensive read, see `_signature_of`) ~88 times per turn at k=4 to answer a yes/no question. Pinned by
   `tests/test_layer_visibility_graph.py` (8 tests, all four guarantees mutation-verified). Found alongside it and fixed
-  in the next change: the counsel-mode anchor fence, below.
-- **The counsel-mode scope fence** (`DialecticalContext._resolve_scoped`, widened 2026-09-15): the pinned render
-  used to hide EVERY perspective that was not a member of the pinned nexus. But counsel-mode `anchor` plants a
+  in the next change: the advisory-mode anchor fence, below.
+- **The advisory-mode scope fence** (`DialecticalContext._resolve_scoped`, widened 2026-09-15): the pinned render
+  used to hide EVERY perspective that was not a member of the pinned nexus. But advisory-mode `anchor` plants a
   STANDALONE perspective — `explore` is what weaves one in, and `explore` fires 2 times in 6 — so the tension the
   head had just planted, in this conversation, out of the person's own words, was on the next turn one digit in
   "3 other tension(s) exist outside this exploration (not shown)", indistinguishable from another exploration's.
@@ -2242,16 +2242,16 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   allowed (e.g. a framing this head anchored during the conversation and the user rejected)", and `explore`'s
   tool doc says to call it "when a newly anchored tension should join the exploration". The write scope in the
   parity matrix below had said "pinned members + standalone PPs" for as long as the render column said "one
-  nexus". Fix: unattached tensions render in counsel mode under the same `# Unexplored Tensions` heading, through
+  nexus". Fix: unattached tensions render in advisory mode under the same `# Unexplored Tensions` heading, through
   the same renderer and the same quality floor as the unscoped dump, with their particulars hoisted; other
   explorations' members stay fenced to a count line. **Two guards a future edit must keep:** (1) cross-references
   are built over the PINNED nexus only — passing every nexus would emit "Same opposition family as perspective 1
   in [[otherhash]]" and walk straight around the count line, naming both the other exploration and its contents;
   (2) the quality floor is the ONLY bound, unchanged from unscoped, because inventing a second quality policy for
-  counsel mode would be a new reasoning rule smuggled in under a visibility fix. The Advisor prompt's "Unexplored
+  advisory mode would be a new reasoning rule smuggled in under a visibility fix. The Advisor prompt's "Unexplored
   Tensions" paragraph carried the old rule verbatim ("in an exploration-pinned session this section is absent...
   not yours to work with") and was corrected in the same change — it had ALREADY been wrong about `discard`.
-  Pinned by `tests/test_counsel_anchor_visibility.py` (10 tests, four mutations verified) plus the rewritten
+  Pinned by `tests/test_advisory_anchor_visibility.py` (10 tests, four mutations verified) plus the rewritten
   `TestDialecticalContextScoped`, whose three old assertions pinned the old fence and moved with it, and
   `TestScopedSync` in `tests/test_advisor_scoped_tools.py`, which pinned the same old rule one layer up at the
   TOOL and now pins both halves (unattached shown, another exploration fenced to its count).
@@ -2576,7 +2576,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   about the backstop for the same reason as above. Locked by `TestPathwaysBeforeClosing` in
   `tests/test_decision_confirmation_repair.py` (fires on the r7 shape, fires on a LONE tension, skips
   woven/lone-woven/empty, carries the
-  counsel-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact)
+  advisory-mode `nexus_hash` pin, orders before the record, survives an exploration fault with the record intact)
   + `tests/test_pathways_seam_real_llm.py` (`real_llm`, weak tier, tensions SEEDED: the conversational tripwire
   `tests/test_pathways_before_closing_weak_tier.py` skipped on its first run because the weak tier anchored only
   ONE tension in three turns and the floor silenced the seam — read then as "that measures `anchor` productivity,
@@ -3159,7 +3159,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   in any of the six `docs/theory/` pages). Empty string is the required answer when there are no particulars;
   `MAX_GROUNDING_WORDS = 60` is a module constant, not a setting (policy-not-config), generous next to
   `component_length` because the point is to hold what the tetrad cannot, bounded because it renders on EVERY
-  counsel turn.
+  advisory turn.
   **Storage is `ExplainsRelationship.role == ROLE_GROUNDING`** — an open-vocabulary edge property following
   `GroundedInRelationship.role` ("a role exists iff a consumer branches on it"). Three properties are load-bearing:
   role is deliberately NOT in `Rationale._collect_structure_hash_parts` (hashing it would fork the node and break
@@ -3476,7 +3476,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   forgotten fact. `_SCORE_READING`'s particulars paragraph names the new header and explains the two placements, so
   the read-side instruction and the render cannot drift. The scoped render fences to nexus members PLUS tensions attached to no
   exploration (2026-09-15; it was members-only before) — same fence as the perspectives themselves, which is about whose
-  DELIVERABLE a tension belongs to and not whose facts it carries: another exploration's tension appears in counsel mode
+  DELIVERABLE a tension belongs to and not whose facts it carries: another exploration's tension appears in advisory mode
   as a count and hoisting its facts would leak around that, while an unattached tension is normally this head's own
   anchor and its `context` argument is the only place the person's particulars survive. Pre-floor either way — the
   quality gate suppresses a weak TETRAD, never the facts behind it. Locked by
@@ -3531,7 +3531,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   read per Transformation on a path that renders every wheel. So a session that closed mid-`deepen` reports
   `Pathways: 4/6 (incomplete: T1→A2)` on reopen and a second `deepen` tops up exactly the gap. Three prompt-relevant consequences. (1) **The register split is
   `numeric=bool(scoped_nexus_hash)`, not prompt discipline** — `DialecticalContext` is Advisor-only, so
-  counsel mode gets digits and the standalone Advisor gets plain words; `_HOW_YOU_SPEAK` says unfinished work
+  advisory mode gets digits and the standalone Advisor gets plain words; `_HOW_YOU_SPEAK` says unfinished work
   is spoken plainly and **never with counts** (and not the framework nouns behind them), while
   `_HOW_YOU_SPEAK_SCOPED` says it is stated **with its numbers** because the exploration is the person's own
   deliverable. Both variants must keep the same honesty clause — asked whether it finished, the answer is
@@ -3584,7 +3584,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 |----------------|---------|----------|---------|--------------|
 | HS-on-A vs HS-on-Ac+/Re+ disambiguation | uses only HS-on-A | disambiguates both | disambiguates both | — (must agree) |
 | HS threshold bands | 4 bands (0.7/0.5/0.3) | — | 4 bands (same boundaries) | `HS_SCALE` (6 bands) — neither imports it, but boundaries now agree; locked by `TestCrossAgentHsBandParity` |
-| DV semantics (naturalness-of-framing; low DV → re-frame, not polish; counsel-mode floor prunes very-low DV) | validation section (incl. the toggle warning: counsel prunes what analysis keeps) | — | score-reading section + `min_dv` floor | `DialecticalValidityEstimation` + `advisor_perspective_quality_min_dv`; qualitative wording (no bands); locked by `test_analyst_and_advisor_agree_on_dv_semantics` |
+| DV semantics (naturalness-of-framing; low DV → re-frame, not polish; advisory-mode floor prunes very-low DV) | validation section (incl. the toggle warning: counsel prunes what analysis keeps) | — | score-reading section + `min_dv` floor | `DialecticalValidityEstimation` + `advisor_perspective_quality_min_dv`; qualitative wording (no bands); locked by `test_analyst_and_advisor_agree_on_dv_semantics` |
 | Nexus grouping rule ("different polarities → synthesis; same → angle shift") | prose | — | prose | duplicated, hand-written twice |
 | S+/S- emergence-vs-trap, "1+1>2" | `NAVIGATOR_APP` | prose | prose | `synthesis_generation` concern |
 | Ac+ = this edge's T-→A+, Re+ = the OPPOSITE edge's T-→A+ | `NAVIGATOR_APP` (prose only, no notation) | prose | prose | `docs/graph.md` + `GRAPH_SCHEMA` (both corrected 2026-09-11; `A-→T+` was stated there as the general rule when it is the 1-Polarity collapse) |
@@ -3600,37 +3600,50 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ (consent-first, prompt-enforced) | ✅ sid-wide (incl. Decisions) | full case (render at construction) |
 | Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + unattached PPs (quality-floored) + Decisions (Case-wide) + a count of other explorations' tensions — the render scope now MATCHES the write scope to its left, which it did not until 2026-09-15 |
-| Advisor(read_only=True) | ❌ | ❌ | ❌ | ❌ **and the seam declines too** | ❌ | same as the row it narrows (full case, or one nexus with `nexus_hash=`) — reading is untouched |
+| Advisor(mode=CONSULTANT) | ❌ | ❌ | ❌ | ✅ (own tool + the seam, grounded on EXISTING pathways; **the weave is withheld**, `DeferralOutcome.NOT_BUILDING`) | ✅ (`discard`), plus `audit_feasibility` on request | same as the row it narrows (full case, or one nexus with `nexus_hash=`) — reading is untouched |
+| Advisor(mode=VIEW) | ❌ | ❌ | ❌ | ❌ **and the seam declines too** | ❌ | same as the row it narrows — reading is untouched |
 
-**`Advisor(read_only=True)` is the one row where the framework's OWN initiative had to be gated as well,
-and that is the transferable part.** Every ❌ above it is a tool the model does not get; this row also has
-to stop `_repair_unrecorded_decision`, which writes a Decision the model never recorded and schedules the
-off-turn weave (perspectives, cycles, wheels). Gated at that ONE method rather than at the two turn loops —
-it is the single place every caller passes through, tests included — and both `TurnTiming` outcome fields
-stay `None`, which `ClosingOutcome` already documents as "the seam did not run"; it is deliberately given
-no enum member, because reading it as `NO_CLOSING` would turn "nobody asked" into "the answer was no".
-`_settle_deferred_work` and `_refresh_context` still run (ONE WRITER PER SID, and the refresh is a read).
-**`audit_feasibility` and `discard` are WRITES for this purpose** — the first spends two provider calls
-writing a FeasibilityEstimation plus a critique Rationale, the second soft-marks a node out of every active
-query. `app_tools` are still merged, deliberately: the framework cannot tell a host's chart lookup from a
-host's write, so the flag governs the FRAMEWORK's surface and refusing them would push those apps onto
-`app_preamble=` — the trap `advanced` fell into. `principal` is accepted and ignored (nothing recorded,
-nothing attested; unlike `advanced`, ignoring it changes nothing a person can see, so it does not raise).
+**The Advisor's surfaces are one `mode` parameter (`advisor/mode.py`, 2026-09-18, replacing
+`read_only=`), and the axis is BUILDS STRUCTURE versus DOES NOT — not read versus write.** What costs a
+person minutes on a turn is the four build tools (`_BUILD_TOOL_NAMES`: `ingest`, `anchor`, `explore`,
+`deepen`); recording a decision is one call of seconds and discarding is free. So CONSULTANT — the product's
+third surface, a conversation over a graph that already exists — keeps `record_decision`, `discard` and
+`audit_feasibility` and is handed no build tool, while VIEW keeps only the three reads. **Why a toolset and
+not a "prefer reading" preamble:** tool-election instructions measurably do not hold (`anchor` 6/6,
+`explore` 2/6, `deepen` 0/6 under the full prompt), so a prompt-deprioritised surface would have stochastic
+latency — fast on most turns, 40-90s on whichever turn the model anchors anyway.
+
+**Both narrow rows gate the framework's OWN initiative as well, and differently — that is the transferable
+part.** Every ❌ is a tool the model does not get; VIEW also stops `_repair_unrecorded_decision` outright
+(gated at that ONE method rather than at the two turn loops — the single place every caller passes
+through, tests included — with both `TurnTiming` outcome fields left `None`, which `ClosingOutcome`
+documents as "the seam did not run"; deliberately no member, because `NO_CLOSING` would turn "nobody
+asked" into "the answer was no"). CONSULTANT lets that seam run to its conclusion — the person's "write that
+down" is honoured, and both branches ground the record on whatever pathways `_ensure_pathways_before_closing`
+READS — and gates `_schedule_pathway_construction` instead, BEFORE the sid-keyed queue is touched, so a FULL
+instance resuming the same sid cannot find a consultant's decisions waiting and weave on their behalf.
+`_settle_deferred_work` and `_refresh_context` still run on both (ONE WRITER PER SID, and the refresh is a
+read). `app_tools` are still merged, deliberately: the framework cannot tell a host's chart lookup from a
+host's write, so the mode governs the FRAMEWORK's surface and refusing them would push those apps onto
+`app_preamble=` — the trap `advanced` fell into. `principal` is accepted and ignored on VIEW only.
 **The prompt side is the review lesson: gating the toolset does NOT gate the prompt.** Only the tool DOCS
 and two name-gated sections (`_DECISION_READINESS` on `record_decision`, the two feasibility passages on
 `audit_feasibility`) follow the names; `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`, `_DEFAULT_ARC`,
-`_TOOLS_INTRO_SCOPED` and `_SCORE_READING` all still instruct absent tools. Closed with three forks mirroring
-the existing `*_SCOPED` ones (`_EAGER_READ_ONLY`, `_TOOLS_INTRO_READ_ONLY`, `_REJECTION_HANDLING_READ_ONLY`),
-two literal heading swaps in `_CONVERSATION_USE` (phase labels named after the tool that produces the phase),
-`_DEFAULT_ARC` dropped for the reason it is dropped when scoped (the arc IS the building sequence), and ONE
-new `_READ_ONLY_MANDATE` placed LAST among the instruction sections so **later sections win** over what
-`_SCORE_READING` and `_CONVERSATION_USE` still say — those two deliberately NOT forked, because their tool
-references sit mid-paragraph inside reasoning about what the scores MEAN, which is where prompt drift lives.
-Tests: `tests/test_advisor_read_only.py`, whose `TestTheTwoListsAreOne` is the only thing holding
-`_WRITE_TOOL_NAMES` (prompt) and `_build_read_only_tools` (toolset) together, and `TestTheGateHasOneSite`
-the only thing stopping a "read-only means do nothing" edit from taking the settle and the refresh.
+`_TOOLS_INTRO_SCOPED`, `_scope_section` and `_SCORE_READING` all still instruct absent tools. Closed with
+forks mirroring the existing `*_SCOPED` ones (`_EAGER_VIEW`/`_EAGER_CONSULTANT`, `_TOOLS_INTRO_VIEW`/
+`_TOOLS_INTRO_CONSULTANT`, `_REJECTION_HANDLING_VIEW`/`_REJECTION_HANDLING_CONSULTANT`/
+`_REJECTION_HANDLING_CONSULTANT_SCOPED`, a `building=` flag on `_scope_section`), two literal heading swaps
+in `_CONVERSATION_USE` (phase labels named after the tool that produces the phase), `_DEFAULT_ARC` dropped
+for the reason it is dropped when scoped (the arc IS the building sequence), and ONE mandate per surface
+(`_VIEW_MANDATE`, `_CONSULTANT_MANDATE`) placed LAST among the instruction sections so **later sections win**
+over what `_SCORE_READING` and `_CONVERSATION_USE` still say — those two deliberately NOT forked, because
+their tool references sit mid-paragraph inside reasoning about what the scores MEAN, which is where prompt
+drift lives. Tests: `tests/test_advisor_modes.py`, whose `TestTheListsAreOne` is the only thing holding
+`_BUILD_TOOL_NAMES`/`_WRITE_TOOL_NAMES` (prompt) and the three toolset factories together, and
+`TestTheGateHasThreeSites` the only thing stopping a "not building means do nothing" edit from taking the
+settle and the refresh.
 
-`Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **counsel mode of an Explorer↔Advisor
+`Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **advisory mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head
 ("what does this mean for me?") and can hand back for technical work. Same conversation, same exploration,
 different register; the host app drives the toggle (no automatic agent-switching). Its prompt is
@@ -3641,19 +3654,19 @@ uniform across Analyst/Explorer/Advisor via `agents/toolsets.py::merge_app_tools
 app, passed to EVERY head — toggle heads share literal history, and the Analyst thread owes the same
 domain resources by parity. The recommended host interface is `AppSpec` (`agents/app_spec.py`): apps
 declare pieces (voicing / advisor_persona / tool_guide / tools) and each head composes its correct base —
-NAVIGATOR_APP, NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER, or bare persona — so the composition lore stays in the framework;
+NAVIGATOR_APP, NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER, or bare persona — so the composition lore stays in the framework;
 `tool_guide` lands verbatim in every head, preventing per-head drift of app-tool usage rules —
 `tests/test_app_spec.py`); the nexus pin
 is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),
 never by prompt admonition. Explorer, by contrast, steers its nexus_hash via prompt text only — a known
 weaker enforcement. Preamble pairing for the toggle: `NAVIGATOR_APP_ADVANCED_TOGGLE` (Explorer side) ↔
-`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` (Advisor side). BOTH are `NAVIGATOR_APP + override` — that composition is what
+`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER` (Advisor side). BOTH are `NAVIGATOR_APP + override` — that composition is what
 keeps both registers in Navigator territory (same vocabulary contract, third-party detection, score
 presentation); the toggle changes engine + register, never the user contract. **There are TWO such pairings and the
 register level CARRIES across the toggle**, selected by `advanced=` on the head constructor
 (`Analyst`/`Explorer`/`Advisor`) and threaded through `resolve_app_layer` into `navigator_preamble(advanced=)` /
-`advisor_preamble(scoped=True, advanced=)`: ordinary ↔ `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER`, advanced ↔
-`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED` (both on `NAVIGATOR_APP_ADVANCED_TOGGLE`, so the sentence
+`advisor_preamble(scoped=True, advanced=)`: ordinary ↔ `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER`, advanced ↔
+`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED` (both on `NAVIGATOR_APP_ADVANCED_TOGGLE`, so the sentence
 above holds one level up — the contract is the EXPERT one on both sides). `advanced` is deliberately NOT an AppSpec
 field: it is a per-SESSION property of the person, not of the product, so one AppSpec serves both registers and a
 host passes the SAME flag to every head the person is looking at. **It RAISES rather than being ignored wherever no
@@ -3684,9 +3697,9 @@ by `TestScopedAdvisorConsentContract` (whole-prompt sweep + woven-in dead-end + 
 allowed, members of OTHER explorations refused (multi-membership counts as another's).
 
 **Toggle narration lives on both heads** (each surfaces the handover signal, neither auto-switches):
-the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests counsel mode only
-if the host offers one (graceful floor: otherwise keep counseling from pathways); the counsel side's
-`NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER` narrates switching back to the exploration view — hedged the same way ("if the
+the Explorer prompt's "When the User Shifts from Structure to Meaning" section suggests advisory mode only
+if the host offers one (graceful floor: otherwise keep counseling from pathways); the advisory side's
+`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER` narrates switching back to the exploration view — hedged the same way ("if the
 application offers a way back"). The preamble also treats history as ground truth (cold start with
 messages=None on an ingest-built or shared nexus must not fabricate shared memories or authorship);
 the scoped engine's `_HOW_YOU_SPEAK_SCOPED` replaces machinery-invisible/rephrase-freely with the
@@ -3706,8 +3719,8 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   (decision-frame-first, phase shift on a formed leaning, keeper-not-prosecutor after recording) but the
   mechanics (discrimination/saturation/ceremony/re-audit) stay engine-owned in `_DECISION_READINESS`.
   Locked by `TestAdvisoryPersonaBoundary` (no framework terms, no engine-mechanics re-specification).
-  `NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` (same construction as `NAVIGATOR_APP_ADVANCED_TOGGLE`; the advanced pairing is the same body on the advanced base plus a trailer that gets the last word)
-  is the advisory-side override: counsel register for a Navigator-built exploration, transparent-mutation
+  `NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER` (same construction as `NAVIGATOR_APP_ADVANCED_TOGGLE`; the advanced pairing is the same body on the advanced base plus a trailer that gets the last word)
+  is the advisory-side override: advisory register for a Navigator-built exploration, transparent-mutation
   rule, and a "Terminology Disclosure" section that the engine's "How You Speak" escape hatch honors —
   deferring to `NAVIGATOR_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not

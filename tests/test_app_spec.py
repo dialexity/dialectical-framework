@@ -3,8 +3,8 @@ Tests for AppSpec — the declarative app definition.
 
 The host describes WHAT its app is (voicing, persona, tool guide, tools);
 each agent head composes the right preamble: Navigator heads get
-NAVIGATOR_APP + voicing + tool_guide, the counsel toggle gets
-NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER + voicing + tool_guide, the standalone Advisor gets
+NAVIGATOR_APP + voicing + tool_guide, the advisory toggle gets
+NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER + voicing + tool_guide, the standalone Advisor gets
 advisor_persona + tool_guide. The framework owns the composition lore so
 apps supply only their custom pieces.
 """
@@ -55,16 +55,16 @@ class TestAppSpecComposition:
         assert VOICING in preamble
 
     def test_advisor_scoped_keeps_navigator_contract(self):
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
 
         preamble = FULL_SPEC.advisor_preamble(scoped=True)
-        assert preamble.startswith(NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip())
+        assert preamble.startswith(NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.strip())
         assert VOICING in preamble
         assert TOOL_GUIDE in preamble
-        assert PERSONA not in preamble  # counsel toggle is NOT the standalone persona
+        assert PERSONA not in preamble  # advisory toggle is NOT the standalone persona
 
     def test_advisor_unscoped_is_persona_only(self):
-        from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER,
+        from dialectical_framework.agents.apps import (NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER,
                                                        NAVIGATOR_APP)
 
         preamble = FULL_SPEC.advisor_preamble(scoped=False)
@@ -72,7 +72,7 @@ class TestAppSpecComposition:
         assert TOOL_GUIDE in preamble
         # standalone advisor hides the machinery — no Navigator contract
         assert NAVIGATOR_APP.strip() not in preamble
-        assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip() not in preamble
+        assert NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.strip() not in preamble
         assert VOICING not in preamble  # voicing is Navigator-side flavor
 
     def test_tool_guide_identical_in_every_head(self):
@@ -115,7 +115,7 @@ class TestAgentsAcceptAppSpec:
 
     def test_explorer_and_scoped_advisor_compose_from_spec(self):
         from dialectical_framework.agents.advisor.advisor import Advisor
-        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER
+        from dialectical_framework.agents.apps import NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER
         from dialectical_framework.agents.explorer.explorer import Explorer
         from dialectical_framework.graph.nodes.case import Case
         from dialectical_framework.graph.nodes.nexus import Nexus
@@ -140,7 +140,7 @@ class TestAgentsAcceptAppSpec:
                 app=FULL_SPEC,
             )
             prompt = _system_prompt_text(advisor)
-            assert NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER.strip()[:80] in prompt
+            assert NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.strip()[:80] in prompt
             assert VOICING in prompt
             assert PERSONA not in prompt
 
@@ -204,7 +204,7 @@ class TestAdvancedModeIsReachableThroughTheDeclarativePath:
         """One session, one register level — the toggle shares literal history.
 
         Both heads are constructed the way a host toggles them: same AppSpec,
-        same flag. An advanced Explorer whose counsel head dropped back to
+        same flag. An advanced Explorer whose advisory head dropped back to
         translated vocabulary would read, mid-conversation, as the head
         forgetting who it is talking to.
         """
@@ -234,7 +234,7 @@ class TestAdvancedModeIsReachableThroughTheDeclarativePath:
             )
             prompt = _system_prompt_text(advisor)
             assert self.ADVANCED_MARKER in prompt, (
-                "the counsel register dropped back to the non-expert base"
+                "the advisory register dropped back to the non-expert base"
             )
             assert "## Advisory Register" in prompt  # still counsel, not operator
             assert VOICING in prompt
@@ -271,11 +271,11 @@ class TestTheTwoCounselRegistersCannotDrift:
         from dialectical_framework.agents import apps
 
         body = apps._ADVISORY_REGISTER
-        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER == (
+        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER == (
             apps.NAVIGATOR_APP + body
         )
-        assert body in apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED
-        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED.startswith(
+        assert body in apps.NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED
+        assert apps.NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED.startswith(
             apps.NAVIGATOR_APP_ADVANCED_TOGGLE
         )
 
@@ -284,13 +284,13 @@ class TestTheTwoCounselRegistersCannotDrift:
         for the non-expert default — re-affirms the contextual vocabulary and
         "meaning first, numbers on request" that Advanced Interaction overrode.
         So the advanced pairing needs the LAST word, including on "Nexus", which
-        the default counsel register deliberately keeps internal (see
+        the default advisory register deliberately keeps internal (see
         test_prompt_review_regressions.py::test_disclosure_defers_to_default_app_nexus_rule).
         """
         from dialectical_framework.agents import apps
 
-        advanced = apps.NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED
-        trailer_at = advanced.rfind("## Advanced Interaction in Counsel Mode")
+        advanced = apps.NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED
+        trailer_at = advanced.rfind("## Advanced Interaction in Advisory Mode")
         assert trailer_at > advanced.rfind("## Terminology Disclosure"), (
             "the trailer is not the last section — the register body re-locks "
             "the vocabulary rules a host asked to unlock"

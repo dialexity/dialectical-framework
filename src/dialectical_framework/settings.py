@@ -35,7 +35,7 @@ class Settings(BaseModel):
     # calibrated), and pruning the dump, never the graph.
     advisor_perspective_quality_min_sp: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose SP (Synthesis Potential = code `area`, differentiation of constructive over destructive aspects, ~0-2) is below this. 0 disables.")
     advisor_perspective_quality_min_dv: float = Field(default=0.3, description="Perspective quality floor: suppress perspectives whose DV (Dialectical Validity — naturalness of the dialectical relationship, 0.0-1.0) is below this. 0 disables.")
-    advisor_wheel_quality_top_plausible: int = Field(default=3, description="Max wheels rendered per cycle in the unscoped context dump, top-normalized-%. Counsel-mode (nexus-pinned) dumps are exempt. 0 = unlimited.")
+    advisor_wheel_quality_top_plausible: int = Field(default=3, description="Max wheels rendered per cycle in the unscoped context dump, top-normalized-%. Advisory-mode (nexus-pinned) dumps are exempt. 0 = unlimited.")
 
     # Depth budget for the Advisor's SILENT exploration (its `explore` tool).
     # "Rich vs simple" exploration is a runtime budget, not a schema concept:

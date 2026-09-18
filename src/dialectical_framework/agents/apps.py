@@ -5,7 +5,7 @@ Vocabulary (four distinct concepts — do not blend):
 
 - **App** = the product. One AppSpec (voicing / advisor_persona / tool_guide /
   tools) passed to EVERY agent head; heads compose their own preambles from it.
-- **Register** = the Explorer↔Advisor counsel toggle inside a Navigator
+- **Register** = the Explorer↔Advisor advisory toggle inside a Navigator
   session, and only that. Same conversation, same messages, framework-fixed
   preamble pairing; both sides narrate the switch. Registers change what the
   head DOES, never who the user is talking to.
@@ -18,14 +18,14 @@ Vocabulary (four distinct concepts — do not blend):
 Two territories, and a naming convention that separates them:
 
 1. **Navigator contracts** (`*_APP`: NAVIGATOR_APP, NAVIGATOR_APP_ADVANCED_TOGGLE,
-   NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER) — FRAMEWORK-OWNED. Used with Analyst/Explorer (and
-   the exploration-pinned Advisor: the counsel register of an Explorer session)
+   NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER) — FRAMEWORK-OWNED. Used with Analyst/Explorer (and
+   the exploration-pinned Advisor: the advisory register of an Explorer session)
    where the user co-navigates the graph directly. All composed on
    NAVIGATOR_APP — that composition IS the Navigator's user contract
    (vocabulary, perspective detection, framing, score presentation) surviving
    every register toggle. Hosts never pick these by hand — AppSpec composes
    the right one per head; personas never enter this territory
-   (AppSpec.advisor_persona is ignored in counsel-toggle mode).
+   (AppSpec.advisor_persona is ignored in advisory-toggle mode).
 
 2. **Advisory personas** (`*_PERSONA`: COUNSELOR_PERSONA,
    STRATEGIC_ADVISOR_PERSONA, COACH_PERSONA, MEDIATOR_PERSONA,
@@ -448,7 +448,7 @@ directly. Adjust interaction accordingly:
 - Always use framework vocabulary: Thesis, Antithesis, T+, T-, A+, A-,
   Polarity, Perspective, Wheel, Cycle, Transformation, Nexus, Transition,
   Decision (a recorded decision — readable here via inspect_node/query_graph;
-  recording and retiring them happens in counsel mode).
+  recording and retiring them happens in advisory mode).
 - Show hashes (short form) for node references.
 - Show numeric scores: HS, Kc, Mode, Arousal, insight, proactiveness.
 - Present tetrads structurally with all six positions and scores.
@@ -457,13 +457,13 @@ directly. Adjust interaction accordingly:
 - Suggest exploration-phase next steps (nexus, wheels) rather than auto-executing — the user drives structural expansion. Analysis tools (expand, find) still follow "act on clear intent."
 """
 
-# The counsel register's BODY, shared by the two pairings composed below. It is
+# The advisory register's BODY, shared by the two pairings composed below. It is
 # extracted rather than written twice because the register text must be
 # IDENTICAL on both sides of the toggle — what differs between an ordinary and
 # an advanced counsel session is the base it sits on (and the trailer that
 # settles which of the two wins where they disagree), never the register itself.
 _ADVISORY_REGISTER = """
-## Advisory Register (overrides Persona above; for the counsel mode of an exploration session)
+## Advisory Register (overrides Persona above; for the advisory mode of an exploration session)
 
 The person you're talking with owns this exploration — typically they built
 it themselves through interactive analysis, and now they want to understand
@@ -515,10 +515,10 @@ for their situation.
 # Contextual Vocabulary rules and "meaning first, numbers on request", which is
 # exactly what NAVIGATOR_APP_ADVANCED_TOGGLE overrides. Later sections win, so
 # without this the register would silently RE-LOCK the expert register a host
-# just asked for — an advanced Explorer toggling into counsel would drop back to
+# just asked for — an advanced Explorer toggling into advisory mode would drop back to
 # translated vocabulary mid-conversation, on the same message history.
-_ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE = """
-## Advanced Interaction in Counsel Mode (settles the conflict between the two sections above)
+_ADVANCED_SURVIVES_THE_ADVISORY_TOGGLE = """
+## Advanced Interaction in Advisory Mode (settles the conflict between the two sections above)
 
 This person knows the framework AND owns this exploration, so both sections
 above hold at once. Where they disagree about HOW to speak,
@@ -543,12 +543,12 @@ Advanced Interaction wins:
 # toggle; which one a head gets is `AppSpec.advisor_preamble(scoped=True,
 # advanced=...)`, and it must match the Explorer side the host toggled FROM
 # (NAVIGATOR_APP <-> ordinary, NAVIGATOR_APP_ADVANCED_TOGGLE <-> advanced).
-NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER
+NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER = NAVIGATOR_APP + _ADVISORY_REGISTER
 
-NAVIGATOR_APP_EXPLORER_AGENT_COUNSELOR_REGISTER_ADVANCED = (
+NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED = (
     NAVIGATOR_APP_ADVANCED_TOGGLE
     + _ADVISORY_REGISTER
-    + _ADVANCED_SURVIVES_THE_COUNSEL_TOGGLE
+    + _ADVANCED_SURVIVES_THE_ADVISORY_TOGGLE
 )
 
 # =============================================================================

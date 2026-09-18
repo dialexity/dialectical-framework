@@ -64,7 +64,7 @@ TENSION_COUNT = 7
 #: not a ratio, and the share is printed for judgement, never asserted.
 MEDIAN_TOOL_ROUND_S = 41.4
 
-#: How many QUERIES the counsel-mode refresh may run per unattached tension.
+#: How many QUERIES the advisory-mode refresh may run per unattached tension.
 #:
 #: A count and not a second seconds-budget, and the reason is measured rather than
 #: stylistic. Seconds cannot carry this claim at the size people actually hit: the
@@ -203,9 +203,9 @@ async def test_the_refresh_is_cheap_against_the_reply_path():
 async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
     di_container, monkeypatch
 ):
-    """The counsel-mode refresh, which the test above does not measure at all.
+    """The advisory-mode refresh, which the test above does not measure at all.
 
-    This is the path the Advisor actually runs on in counsel mode, and it is the
+    This is the path the Advisor actually runs on in advisory mode, and it is the
     one the scope fence widened on 2026-09-15: `_resolve_scoped` now reads every
     nexus's members to tell an UNATTACHED tension (renderable — it is likely this
     head's own anchor) from one belonging to another exploration (fenced to a
@@ -218,7 +218,7 @@ async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
     figure is worth watching even where it cannot carry an assertion.
 
     Bounded on purpose: this fixture has perspectives, two explorations and
-    unattached tensions, but NO cycles or wheels. Counsel mode renders wheels
+    unattached tensions, but NO cycles or wheels. Advisory mode renders wheels
     without the unscoped dump's `advisor_wheel_quality_top_plausible` cap, so a
     developed graph is a different and larger question than the read set this pins.
     """
@@ -227,7 +227,7 @@ async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
     small, large = UNATTACHED_SIZES
 
     with scope(case.sid):
-        # The shape counsel mode is pinned into: the exploration under discussion,
+        # The shape advisory mode is pinned into: the exploration under discussion,
         # a second one whose tensions must stay fenced, and unattached tensions —
         # the anchors this head planted and has not woven in yet.
         pinned = Nexus(intent="the exploration under discussion")
@@ -286,7 +286,7 @@ async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
     print(f"Share of one {MEDIAN_TOOL_ROUND_S}s tool round: "
           f"{counsel_median / MEDIAN_TOOL_ROUND_S:.2%}")
 
-    assert counsel_dump, "rendered an empty counsel dump over a pinned exploration"
+    assert counsel_dump, "rendered an empty advisory dump over a pinned exploration"
     # Non-vacuity: if the fixture stopped exercising the widened branch, the slope
     # would be measuring nothing. The unattached tensions must actually render.
     assert "# Unexplored Tensions" in counsel_dump, (
@@ -298,7 +298,7 @@ async def test_the_counsel_refresh_costs_what_the_unscoped_one_costs(
         "query count by nothing, so there is no slope here to bound"
     )
     assert counsel_slope <= unscoped_slope + COUNSEL_SLOPE_SLACK, (
-        f"the counsel-mode refresh adds {counsel_slope:.2f} graph queries per "
+        f"the advisory-mode refresh adds {counsel_slope:.2f} graph queries per "
         f"unattached tension against the unscoped dump's {unscoped_slope:.2f}. "
         "Both render that set with the same renderer, so the slopes must match — "
         "this says the pinned path is now asking a question per node."

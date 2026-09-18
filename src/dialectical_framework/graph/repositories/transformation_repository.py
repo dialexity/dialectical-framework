@@ -135,7 +135,7 @@ class TransformationRepository:
 
         The batched twin of `find_by_edge`, for derived status: rendering needs
         only the count, and asking per edge cost one round-trip per edge on a
-        path with no budget guard (a counsel-mode dump renders every wheel of
+        path with no budget guard (a advisory-mode dump renders every wheel of
         the nexus, so a 4-PP nexus meant 96 wheels × 8 edges of round-trips).
 
         Returns:

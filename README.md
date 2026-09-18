@@ -88,7 +88,7 @@ Wherever the answer is a tension rather than a fact, this drops in as the reason
 
 - **Analyst** — turns raw material into structured tensions, up to grouping them into a Nexus (Case-scoped).
 - **Explorer** — takes one Nexus and works out its causal pathways and synthesis (Nexus-scoped).
-- **Advisor** — runs the whole machine silently and returns pure counsel, with no framework vocabulary exposed (Case-scoped).
+- **Advisor** — runs the whole machine silently and returns pure counsel, with no framework vocabulary exposed (Case-scoped). Its **Consultant** mode (`Advisor(mode=AdvisorMode.CONSULTANT)`) is the same head over a graph that already exists: it reads, records decisions, and never builds — the fast surface for a return visit.
 
 Analyst + Explorer are the structure-forward "graph navigator" experience; the Advisor is a chat-only product over the same graph. See [docs/agents.md](docs/agents.md) for full specs, tool lists, and the UX to build around each.
 
@@ -146,7 +146,7 @@ Runnable versions of the above:
 - **[notebooks/minds.ipynb](notebooks/minds.ipynb)** — plugging your own domain in
   with a single declarative `AppSpec`.
 - **[notebooks/seasons.ipynb](notebooks/seasons.ipynb)** — one `AppSpec` across every
-  agent head (Analyst, Explorer, Advisor, and the counsel toggle).
+  agent head (Analyst, Explorer, Advisor, and the advisory toggle).
 
 ## Setup
 

@@ -254,7 +254,7 @@ class TestDialecticalContextScoped:
     every perspective that was not a member of the pinned nexus, standalone ones
     included — which meant the head's OWN anchor, planted in this conversation
     from the person's own words, became one digit in an anonymous count on the
-    next turn (counsel-mode `anchor` always plants a standalone perspective).
+    next turn (advisory-mode `anchor` always plants a standalone perspective).
     The pin protects other explorations, exactly as `tools/scoped.py`'s discard
     guard already had it.
     """
@@ -304,7 +304,7 @@ class TestDialecticalContextScoped:
             assert "Control" in dump
             assert "Freedom" in dump
             # Attached to no exploration, so nothing is fenced by showing it —
-            # and this is where a counsel-mode anchor lands.
+            # and this is where a advisory-mode anchor lands.
             assert "Speed" in dump
             assert "Thoroughness" in dump
             assert "# Unexplored Tensions" in dump
@@ -656,7 +656,7 @@ class TestCaseParticularsAreHoisted:
 class TestScopedDumpCarriesTheCase:
     @pytest.mark.asyncio
     async def test_counsel_mode_sees_the_persons_facts(self):
-        """Counsel mode needs the case as much as the unscoped dump — arguably
+        """Advisory mode needs the case as much as the unscoped dump — arguably
         more, being the head debriefing the person's own deliverable."""
         sid = _new_sid()
         with scope(sid):

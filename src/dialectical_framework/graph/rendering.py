@@ -284,7 +284,7 @@ def wheel_completeness(
 
     per_edge = len(INSIGHT_CATEGORIES)
     # One query for the whole wheel, not one per edge: this runs on every wheel
-    # of a counsel-mode dump, which is exempt from the wheel cap.
+    # of a advisory-mode dump, which is exempt from the wheel cap.
     counts = TransformationRepository().count_by_edges(edges)
     if pp_index is None:
         nexus = find_nexus_for_wheel(wheel)
@@ -349,7 +349,7 @@ def completeness_line(
     """One status line for a partly-built wheel, or None when it is finished.
 
     `numeric` sets the register, in code rather than by prompt discipline:
-    the Navigator and counsel mode get counts and edge labels because the
+    the Navigator and advisory mode get counts and edge labels because the
     exploration is on screen and is the person's own deliverable; the
     standalone Advisor gets plain words with no digits and no framework nouns,
     because there the machinery is invisible by design.
@@ -377,7 +377,7 @@ def completeness_line(
     if completeness.done == 0:
         # Never deepened is not the same as interrupted, and the numeric line is
         # where that distinction is most load-bearing: `explore` deepens exactly
-        # one wheel by design (EXPLORE_DEEP_WHEELS), so counsel mode dumps every
+        # one wheel by design (EXPLORE_DEEP_WHEELS), so advisory mode dumps every
         # other wheel at 0/N. Left as a bare shortfall the model reads a working
         # budget as a broken build and offers to repair it.
         line += " (not yet developed"
@@ -556,7 +556,7 @@ def grounding_line(node) -> Optional[str]:
     Reads `Rationale` nodes whose EXPLAINS edge carries
     `role == ROLE_GROUNDING`. Untagged rationales are machine assessment prose
     (control-statement checks, causality reasoning) and are deliberately NOT
-    returned — rendering those in the counsel dump would bury the tetrad in
+    returned — rendering those in the advisory dump would bury the tetrad in
     CC/DV scoring text on every turn.
 
     Shared by `dialectical_context` and `inspect_node` for the same reason

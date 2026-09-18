@@ -698,7 +698,7 @@ class TestDecisionRendering:
             assert dump == "No prior understanding — this is a fresh conversation."
 
     async def test_scoped_dump_includes_decisions(self):
-        """Decisions are Case-level facts — the counsel-mode (nexus-pinned)
+        """Decisions are Case-level facts — the advisory-mode (nexus-pinned)
         render must show them too."""
         from dialectical_framework.concerns.dialectical_context import (
             DialecticalContext,
@@ -1128,7 +1128,7 @@ class TestTheAdoptedPathwayCarriesItsFeasibilityBand:
             assert "Hand the accounts over deliberately" in ground_lines[0]
 
     async def test_the_band_reaches_the_scoped_render_too(self):
-        """Counsel mode is where the returning person is debriefed."""
+        """Advisory mode is where the returning person is debriefed."""
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
 
