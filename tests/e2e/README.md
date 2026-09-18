@@ -264,8 +264,9 @@ would hand cell 2 cell 1's ledger. A cell whose build produced no perspectives i
 `consultant_without_structure` and dropped as evidence, the same rule as A1.5's.
 First run (`consultant-latency`, weak, judge off): median turn A1.5 6.30s / A2c 17.60s /
 A2 24.25s, and A2c's TOOL-FREE reply path is still 15.4s — the build tools were a small part
-of the gap; the per-turn graph render (3.2s) and the engine prompt's size are what remain.
-Full reading in [rounds.md](rounds.md).
+of the gap. The per-turn graph render (3.2s) was then cached away (`consultant-cache`:
+render 3.21s → 0.01s, turn median inside run-to-run noise), so the engine prompt's size is
+what remains. Full reading in [rounds.md](rounds.md).
 
 Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools

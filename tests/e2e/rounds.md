@@ -6376,3 +6376,46 @@ it makes A2c the most expensive arm per cell, ahead of A1.5's one shared 407.7s 
 
 NOT CLAIMED: quality. Judge off, one replicate; `(A2C, A1_5)` and `(A2, A2C)` are
 wired as judged pairs and this stem can be re-judged from its transcripts.
+
+### consultant-cache: the render cache removes the render and the turn does not move (2026-09-18)
+
+A2c alone, same scenario/tier/branches as `consultant-latency`, judge off, 24m58s. The
+render cache (`CaseRepository.scope_fingerprint` gating `_refresh_context`) landed between
+the two runs, and the bench now writes WARNING+ logging to `results/<stem>.log`.
+
+    A2c                       consultant-latency    consultant-cache
+    median context_render                   3.21                0.01
+    median turn                            17.60               21.45
+    median reply path                      16.05               18.40
+    tool-free median reply path            15.40               16.00
+    worst turn                             38.80               36.00
+    tool seconds, total                    17.90                7.00
+    median assistant words                   228                 236
+
+THE READING. The lever did exactly what it was built to do — the per-turn render went
+from 3.21s to 0.01s, 16/16 turns — and the turn got SLOWER by 3.9s on the median. So
+the two runs differ by more than the lever, and at n=16 on a weak-tier provider that
+is the ordinary run-to-run swing: per-turn reply paths in the two runs are
+[15.0, 27.5, 14.4, 16.1, 21.6, 13.7, 37.4, 14.2] against [21.4, 21.6, 9.7, 15.4, 22.5,
+35.8, 24.7, 12.0] on the same branch. Do not read the cache as a loss, and do not read
+it as a win either: a 3s lever cannot be resolved by two n=16 runs on this provider, and
+the honest figure is the render column, which is a direct measurement.
+
+WHAT IT SETTLES ANYWAY. With the render at 0.01s and tools at 7s across 16 turns, the
+Consultant's ~16s tool-free reply path is now GENERATION: the same model, the same
+graph and ~230 words of reply that A1.5 produces in 6.3s. The one thing left that
+differs is the prompt — the full engine (~17k tokens) plus tool schemas plus the dump
+against A1.5's rewritten method text plus the dump. That is lever 2 (a consultant-
+specific engine render) and it is now the only lever on this surface; it needs an A/B
+that holds the graph fixed.
+
+THE LOG CAPTURE WORKED, AND THE `failed 3` DID NOT RECUR. This run's closings:
+`no_closing 13, model_recorded 2, repaired 1`, deferral `not_building 3`, no seam
+failure in the log. What the log DID show: TetradDto / HsScoringDto / GroundingDto
+envelope parse retries during the per-cell BUILDS (the full Advisor, not the
+Consultant), and two "Decision closing over N unwoven perspective(s); grounding on
+0 / 12 existing pathway(s)" warnings — both from the builds' own closings before their
+off-turn weave ran, which is the seam working as designed. The Consultant's own
+decisions all carry an `adopted pathway` ground, 5 records across the two cells.
+
+Builds: 614.6s (6 / 54) and 486.5s (5 / 42), inside `duration_s` (822.4s, 671.6s).
