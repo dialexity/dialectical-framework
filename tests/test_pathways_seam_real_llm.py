@@ -34,8 +34,15 @@ What this pins that the DB-free tests cannot, and what survives the inversion:
 4. The read comes back narrowed to ONE arrangement, and `_arrangement_of` can
    traverse from a real Transformation back to the Wheel it belongs to. Every
    DB-free test stubs that traversal, so nothing else in the tree pins that the
-   edge it walks (`Transformation.edge` -> `Transition.cycle`) exists on a wheel
-   the pipeline actually built.
+   edge it walks (`Transformation.edge` -> `Transition.cycle`, filtered to the
+   Wheel because that manager also holds the Cycle) exists on a wheel the
+   pipeline actually built. MEASURED 2026-09-18, weak tier, both tests 247.8s:
+   the exploration built **18** transformations — the top layer-2 wheel plus the
+   layer-1 rung `EXPLORE_REFINE_FROM_COARSER` deepens for refinement context —
+   and the read returned **12**, which is 2N=4 edges x 3 insight categories,
+   i.e. exactly one arrangement's worth. So the narrowing is OBSERVED and not
+   merely asserted: a read that had kept the nexus-wide behaviour would have
+   returned all 18 and this test would not have noticed before that run.
 
     poetry run pytest tests/test_pathways_seam_real_llm.py --real-llm -s
 """

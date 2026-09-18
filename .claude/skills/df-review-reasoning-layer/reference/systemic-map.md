@@ -2480,6 +2480,12 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   tests that should) and, on a real graph, `tests/test_pathways_seam_real_llm.py`, which is the ONLY place the
   `Transformation`→`Wheel` edge walk is exercised: every DB-free test stubs `_arrangement_of`, and the lookup is
   fail-soft, so a broken traversal would ground the recipe and silently drop the arrangement.
+  **PROVEN on a real provider 2026-09-18 (weak tier, 2 seeded tensions, both tests 247.8s), and the narrowing is
+  the part that needed a real graph:** the exploration built **18** transformations — the top layer-2 wheel plus the
+  layer-1 rung `EXPLORE_REFINE_FROM_COARSER` deepens as refinement context — and `_existing_pathway_hashes` returned
+  **12**, exactly 2N=4 edges × 3 insight categories, one arrangement's worth, with `_arrangement_of` resolving that
+  recipe to a committed Wheel hash. The subset is the whole point: mock brain and every DB-free stub would have been
+  equally green on a read that kept the nexus-wide behaviour and returned all 18.
   **The prompt is deliberately silent about the backstop** — telling the model it exists would
   license the laziness it compensates for. Reviewing prompts here: the three prose/tool-doc rules stay exactly as
   they are (the model calling the tool itself is still the path that produces good grounds); the seam is a
