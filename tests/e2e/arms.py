@@ -42,6 +42,7 @@ import re
 from typing import Optional, Protocol
 
 from dialectical_framework.agents.advisor.advisor import Advisor, ChatResponse
+from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.agents.advisor.system_prompts import (
     _CONVERSATION_USE,
     _DECISION_READINESS,
@@ -108,7 +109,7 @@ _TOOL_REWRITES: tuple[tuple[str, str], ...] = (
     # no-analysis exceptions, which are exactly the poor-fit control.
     ("Your understanding deepens through dialectical analysis that runs silently — they never see the machinery, only experience increasingly precise and insightful responses that help them find their own path.", "You reason dialectically about their situation as you go, and let that reasoning show up as increasingly precise and insightful responses that help them find their own path."),
     ("If the machinery has nothing yet, you are still a fully capable counselor — respond from your own judgment and let the structural understanding catch up.", "If the analysis has nothing yet, you are still a fully capable counselor — respond from your own judgment and let the structural understanding catch up."),
-    ("Building structural understanding through your internal tools is part of how you think — the default on any counsel-shaped turn, not an optional extra. When someone shares a situation, a decision, a conflict, a position — anchor or ingest it as a matter of course. Your counsel is only as deep as the understanding you've built.", "Building structural understanding is part of how you think — the default on any counsel-shaped turn, not an optional extra. When someone shares a situation, a decision, a conflict, a position — work out its dialectical structure as a matter of course. Your counsel is only as deep as the understanding you've built."),
+    ("Building structural understanding through your internal tools is part of how you think — the default on any advice-shaped turn, not an optional extra. When someone shares a situation, a decision, a conflict, a position — anchor or ingest it as a matter of course. Your counsel is only as deep as the understanding you've built.", "Building structural understanding is part of how you think — the default on any advice-shaped turn, not an optional extra. When someone shares a situation, a decision, a conflict, a position — work out its dialectical structure as a matter of course. Your counsel is only as deep as the understanding you've built."),
     ("Your response to the person never waits on the machinery — speak from what you have. Analysis deepens your next turn; it never delays or deforms this one.", "Your response to the person never waits on the analysis — speak from what you have."),
     ("After ingest or anchor (tensions identified)", "Once you have identified the tension"),
     ("After explore (pathways available)", "Once you have worked out the pathways"),
@@ -436,6 +437,10 @@ class PromptArm:
 class AdvisorArm:
     """A2 — the full Advisor: live tools, graph persistence, ceremony.
 
+    Also A2c with `mode=AdvisorMode.CONSULTANT`: the same class over a graph
+    built beforehand, handed the reading and deciding tools and none of the
+    build tools, so its per-turn cost is one graph read plus the model.
+
     `principal` is passed as an agent identity, never "human": the user turns
     here are produced by a simulator, and a recorded decision must not claim a
     human confirmation it never got. This is the framework's own provenance
@@ -448,11 +453,13 @@ class AdvisorArm:
         *,
         principal: str,
         dialectical_context: Optional[str] = None,
+        mode: AdvisorMode = AdvisorMode.FULL,
     ) -> None:
         self._advisor = Advisor(
             app_preamble=persona,
             dialectical_context=dialectical_context,
             principal=principal,
+            mode=mode,
         )
 
     async def reply(self, user_text: str) -> str:

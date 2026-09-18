@@ -63,6 +63,8 @@ from dialectical_framework.graph.repositories.perspective_repository import (
 )
 from dialectical_framework.graph.scope_context import scope
 
+from dialectical_framework.agents.advisor.mode import AdvisorMode
+
 from .arms import AdvisorArm, PromptArm, method_prompt
 from .models import (
     Arm,
@@ -603,6 +605,33 @@ class E2EDriver:
         the first conversation can start, and that is the clock the person feels.
         """
         started = time.monotonic()
+        case, summary = await self._build_with_full_advisor(
+            scenario, tier_model=tier_model
+        )
+        with scope(case.sid):
+            try:
+                with using_model(self._container, tier_model):
+                    dump = await DialecticalContext().resolve()
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("Static dump failed")
+                # Seconds are still returned on the failure path, and they are
+                # still real: the build spent them. Reporting 0.0 here would make
+                # a build that ran the whole conversation and then failed to
+                # render read as one that never started.
+                return "", f"failed: {type(exc).__name__}: {exc}", round(
+                    time.monotonic() - started, 1
+                )
+        return dump, summary, round(time.monotonic() - started, 1)
+
+    async def _build_with_full_advisor(
+        self, scenario: Scenario, *, tier_model: str
+    ) -> tuple[Case, str]:
+        """Run the base sessions through the FULL Advisor on a fresh Case.
+
+        The one build both pre-built arms share: A1.5 dumps the result as static
+        text, A2c consults it live. Returns the Case (so a caller can scope into
+        it) and the graph summary that becomes the arm's provenance.
+        """
         case = Case()
         case.commit()
         simulator = UserSimulator(scenario)
@@ -618,24 +647,33 @@ class E2EDriver:
                     start_index=index,
                 )
                 index += len(turns)
-            # Before the dump is read: the static context this builds is the
-            # A1.5 arm's whole input, and a graph read mid-weave would hand that
-            # arm a wheel-less snapshot of a graph that is about to have one.
+            # Before the graph is read: what this builds is the pre-built arm's
+            # whole input, and a graph read mid-weave would hand that arm a
+            # wheel-less snapshot of a graph that is about to have one.
             await advisor_arm.finish()
             summary = self._graph_summary()
-            try:
-                with using_model(self._container, tier_model):
-                    dump = await DialecticalContext().resolve()
-            except Exception as exc:  # noqa: BLE001
-                logger.exception("Static dump failed")
-                # Seconds are still returned on the failure path, and they are
-                # still real: the build spent them. Reporting 0.0 here would make
-                # a build that ran the whole conversation and then failed to
-                # render read as one that never started.
-                return "", f"failed: {type(exc).__name__}: {exc}", round(
-                    time.monotonic() - started, 1
-                )
-        return dump, summary, round(time.monotonic() - started, 1)
+        return case, summary
+
+    # -- A2c support -------------------------------------------------------
+
+    async def build_consultant_case(
+        self, scenario: Scenario, *, tier_model: str
+    ) -> tuple[Case, str, float]:
+        """Build the graph the Consultant arm will consult, one per CELL.
+
+        Not once per (scenario, tier) the way A1.5's dump is: the Consultant
+        WRITES decisions into the graph it consults, so a graph shared across
+        replicates or branches would hand cell 2 cell 1's ledger — a carryover
+        the arm was never supposed to have. The price is a full Advisor run per
+        cell, which is why the arm is opt-in, and the seconds are returned so the
+        cell can carry them (`RunRecord.consultant_build_s`) rather than hide
+        them.
+        """
+        started = time.monotonic()
+        case, summary = await self._build_with_full_advisor(
+            scenario, tier_model=tier_model
+        )
+        return case, summary, round(time.monotonic() - started, 1)
 
     # -- the cell ----------------------------------------------------------
 
@@ -696,6 +734,19 @@ class E2EDriver:
 
         journal: Optional[str] = None
         try:
+            if arm is Arm.A2C:
+                # Inside the try, because the build is a full Advisor run and a
+                # cell whose build fails must be recorded as a failed cell, not
+                # raise out of the matrix. Inside `duration_s` too — unlike
+                # A1.5's build, which is one charge for many cells, this one
+                # belongs to exactly this cell — so read the arm's per-turn
+                # timing for the person's wait and `consultant_build_s` for the
+                # price of arriving at a graph to consult.
+                case, provenance, build_s = await self.build_consultant_case(
+                    scenario, tier_model=tier_model
+                )
+                record.consultant_build_provenance = provenance
+                record.consultant_build_s = build_s
             for position, spec in enumerate(specs):
                 session, journal = await self._run_session(
                     arm=arm,
@@ -742,7 +793,7 @@ class E2EDriver:
         simulator = UserSimulator(scenario)
         session = SessionRecord(label=spec.label)
 
-        if arm is Arm.A2:
+        if arm in (Arm.A2, Arm.A2C):
             assert case is not None
             with scope(case.sid):
                 # On a returning session the Advisor is handed the freshly
@@ -757,8 +808,12 @@ class E2EDriver:
                 # that, which is why `probe_readside_reach.build_without_context`
                 # can still read `had_dump` as "context-free session" for them and
                 # must NOT be pointed at new rounds without re-reading this.
+                #
+                # The Consultant is seeded on EVERY session, the first included:
+                # its graph was built before the conversation, and arriving with
+                # it unread would be the arm not being what it claims to be.
                 live_context = None
-                if not is_first:
+                if not is_first or arm is Arm.A2C:
                     try:
                         with using_model(self._container, tier_model):
                             live_context = await DialecticalContext().resolve()
@@ -769,6 +824,11 @@ class E2EDriver:
                     E2E_PERSONA,
                     principal=E2E_PRINCIPAL,
                     dialectical_context=live_context,
+                    mode=(
+                        AdvisorMode.CONSULTANT
+                        if arm is Arm.A2C
+                        else AdvisorMode.FULL
+                    ),
                 )
                 session.turns = await self._run_beats(
                     advisor_arm, simulator, spec.beats, tier_model=tier_model

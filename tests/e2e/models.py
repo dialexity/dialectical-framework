@@ -59,6 +59,13 @@ class Arm(str, Enum):
     A1_5 = "A1.5"  # + pre-built graph dumped as static text
     A1_7 = "A1.7"  # + self-maintained prose decision journal
     A2 = "A2"  # full Advisor: live tools, graph, ceremony
+    #: The Consultant (`Advisor(mode=CONSULTANT)`): a graph built beforehand by
+    #: the full Advisor — the same build A1.5 dumps — then consulted LIVE with
+    #: the reading tools plus `record_decision`/`discard`/`audit_feasibility`,
+    #: and never built on. Sits between A1.5 (same graph, no tools, static text)
+    #: and A2 (same tools plus the four build tools). Opt-in like A1.5, for the
+    #: same reason: it needs a real Advisor run per cell just to exist.
+    A2C = "A2c"
 
 
 #: Arms that carry state across sessions, and HOW. Drives the wobble arm:
@@ -70,6 +77,7 @@ CARRYOVER: dict[Arm, str] = {
     Arm.A1_5: "static_graph_dump",
     Arm.A1_7: "prose_journal",
     Arm.A2: "live_graph",
+    Arm.A2C: "live_graph",
 }
 
 
@@ -735,6 +743,13 @@ class RunRecord(BaseModel):
     #: prefill every A1.5 turn pays, which is the one number that predicts this
     #: arm's per-turn cost.
     static_context_chars: Optional[int] = None
+    #: A2c only: the graph this cell consulted, built by the full Advisor just
+    #: before it. PER CELL, unlike the A1.5 trio above — the Consultant writes
+    #: decisions into what it consults, so cells cannot share a build — and the
+    #: seconds are INSIDE this cell's `duration_s` for the same reason, so
+    #: summing them across cells is correct here and wrong for A1.5.
+    consultant_build_provenance: Optional[str] = None
+    consultant_build_s: Optional[float] = None
     #: A2 only: did the decision ceremony fire, and with what grounds.
     decision_hashes: list[str] = Field(default_factory=list)
     accepted_cost_grounds: list[str] = Field(default_factory=list)
@@ -1147,6 +1162,22 @@ class RunRecord(BaseModel):
         return bool(turns) and all(t.error for t in turns)
 
     @property
+    def consultant_without_structure(self) -> bool:
+        """An A2c cell whose build produced no perspectives: the same defect as
+        `collapsed_to_a1_without_structure`, on the arm that consults live.
+
+        Judged as A2c it would answer "does consulting a built graph help?" with
+        a cell that had nothing to consult — a full Advisor with no build tools
+        over an empty graph, which is A1's prompt with three lookups that return
+        nothing. Read off the provenance the way A1.5's is; an unreadable
+        provenance returns False, because cannot-tell must not read as built
+        nothing.
+        """
+        if self.arm is not Arm.A2C:
+            return False
+        return perspectives_in_summary(self.consultant_build_provenance) == 0
+
+    @property
     def invalid_as_evidence(self) -> bool:
         """The arm was never exercised — MISSING data, not a weak result.
 
@@ -1197,6 +1228,7 @@ class RunRecord(BaseModel):
             or self.all_turns_errored
             or self.collapsed_to_a1
             or self.collapsed_to_a1_without_structure
+            or self.consultant_without_structure
         )
 
     def session(self, label: str) -> Optional[SessionRecord]:

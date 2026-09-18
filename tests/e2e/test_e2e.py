@@ -3677,6 +3677,71 @@ class TestReport:
         assert "DIALECTICAL FRAMEWORK BENCH" in render_report([], [], {}, [])
 
 
+class TestTheConsultantArm:
+    """A2c: the third product surface on the ladder (2026-09-18).
+
+    Same build as A1.5, consulted live with `Advisor(mode=CONSULTANT)`. What
+    the arm must get right is the same thing A1.5 had to: a cell handed no
+    structure is not a weak Consultant, it is a full-Advisor-without-tools cell
+    wearing the label, and it must drop out of every pooled cut.
+    """
+
+    def test_the_two_a2c_pairs_bracket_the_consultant(self):
+        assert (Arm.A2C, Arm.A1_5) in JUDGED_PAIRS
+        assert (Arm.A2, Arm.A2C) in JUDGED_PAIRS
+        assert Arm.A2C not in DEFAULT_ARMS, "a full Advisor run per cell — opt-in"
+
+    def test_a_consultant_cell_without_structure_is_not_evidence(self):
+        run = _run(Arm.A2C, "weak")
+        run.consultant_build_provenance = "perspectives=0 woven=0 transformations=0"
+        assert run.consultant_without_structure
+        assert run.invalid_as_evidence
+
+    def test_a_consultant_cell_with_structure_is_evidence(self):
+        run = _run(Arm.A2C, "weak")
+        run.consultant_build_provenance = "perspectives=6 woven=5 transformations=42"
+        assert not run.consultant_without_structure
+        assert not run.invalid_as_evidence
+
+    def test_an_unreadable_build_is_not_reported_as_built_nothing(self):
+        """Cannot-tell must not read as failed — the asymmetry every reader in
+        this harness enforces."""
+        run = _run(Arm.A2C, "weak")
+        run.consultant_build_provenance = "unavailable: RuntimeError: x"
+        assert not run.consultant_without_structure
+        no_field = _run(Arm.A2C, "weak")
+        assert not no_field.consultant_without_structure
+
+    def test_the_term_reaches_no_other_arm(self):
+        run = _run(Arm.A2, "weak", tool_calls=["anchor"])
+        run.consultant_build_provenance = "perspectives=0"
+        assert not run.consultant_without_structure
+
+    def test_the_consultant_is_never_a_collapsed_a2(self):
+        """`collapsed_to_a1` reads "A2 built nothing" — a Consultant builds
+        nothing BY DESIGN, so the tripwire must not fire on it."""
+        assert not _run(Arm.A2C, "weak").collapsed_to_a1
+
+    def test_the_driver_runs_it_on_the_advisor_path_in_consultant_mode(self):
+        import inspect
+
+        source = inspect.getsource(E2EDriver._run_session)
+        assert "if arm in (Arm.A2, Arm.A2C):" in source
+        assert "AdvisorMode.CONSULTANT" in source
+        # Seeded on EVERY session — the graph exists before the conversation.
+        assert "if not is_first or arm is Arm.A2C:" in source
+
+    def test_the_build_is_per_cell_and_inside_the_cell(self):
+        """The Consultant writes decisions into what it consults, so cells cannot
+        share a build; and the build is inside `duration_s`, unlike A1.5's."""
+        import inspect
+
+        source = inspect.getsource(E2EDriver.run_cell)
+        assert "build_consultant_case" in source
+        assert "record.consultant_build_s = build_s" in source
+        assert "record.consultant_build_provenance = provenance" in source
+
+
 class TestRunnerWiring:
     def test_judged_pairs_isolate_one_rung_each(self):
         for arm_a, arm_b in JUDGED_PAIRS:

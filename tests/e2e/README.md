@@ -250,6 +250,22 @@ habit, not any published number:
 | A1.5 | + a real Advisor-built graph, dumped as static text | static dump |
 | A1.7 | + a journal the model writes for itself | prose journal |
 | A2 | the full Advisor: live tools, graph, decision ceremony | live graph |
+| A2c | the Consultant: A1.5's pre-built graph consulted LIVE — reading tools + `record_decision`/`discard`/`audit_feasibility`, no build tool, no off-turn weave | live graph |
+
+**A2c is opt-in like A1.5 and prices the third product surface.** A1.5 answered "does a static
+dump buy the live graph's counsel?" (4x faster, quality indistinguishable) and A2c asks the
+next question: does a LIVE read of that same graph, with decisions recorded, keep A1.5's
+latency? Read `A2c−A1.5` for the price of the live read and the decision tools, and
+`A2−A2c` for what the four build tools buy on the turn. Each A2c cell builds its own graph
+(a full Advisor run over the base sessions, carried as `consultant_build_s` on the cell and
+INSIDE its `duration_s`, never inside its per-turn timing) rather than sharing one across
+replicates: the Consultant WRITES decisions into the graph it consults, and a shared graph
+would hand cell 2 cell 1's ledger. A cell whose build produced no perspectives is
+`consultant_without_structure` and dropped as evidence, the same rule as A1.5's.
+First run (`consultant-latency`, weak, judge off): median turn A1.5 6.30s / A2c 17.60s /
+A2 24.25s, and A2c's TOOL-FREE reply path is still 15.4s — the build tools were a small part
+of the gap; the per-turn graph render (3.2s) and the engine prompt's size are what remain.
+Full reading in [rounds.md](rounds.md).
 
 Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools

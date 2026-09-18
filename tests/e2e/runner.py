@@ -94,11 +94,22 @@ DEFAULT_ARMS: tuple[Arm, ...] = (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2)
 #: both pairs rather than judging nothing under their heading. Do NOT add a pair
 #: naming an arm no configuration can produce — that IS the silent-nothing bug,
 #: and it is what the narrowed `TestRunnerWiring` test now pins.
+#:
+#: THE TWO A2C PAIRS PRICE THE THIRD PRODUCT SURFACE (2026-09-18)
+#: ============================================================
+#: `(A2C, A1_5)` — the same pre-built graph, consulted LIVE with the reading and
+#: deciding tools against dumped as static text: what the live read and
+#: `record_decision` cost and buy. `(A2, A2C)` — what the four BUILD tools add on
+#: the turn over consulting a finished graph. A2c is opt-in for A1.5's reason
+#: (a full Advisor run per cell just to exist), so both pairs rely on the same
+#: filters as the A1.5 ones.
 JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A1, Arm.A0),
     (Arm.A1_5, Arm.A1),
     (Arm.A2, Arm.A1),
     (Arm.A2, Arm.A1_5),
+    (Arm.A2C, Arm.A1_5),
+    (Arm.A2, Arm.A2C),
     (Arm.A2, Arm.A1_7),
     (Arm.A2, Arm.A0),
 )

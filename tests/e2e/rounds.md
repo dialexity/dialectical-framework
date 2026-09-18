@@ -6323,3 +6323,56 @@ further provider spend.
 5. **The output lives in `results/support_validation/`**, deliberately — every archive reader globs
    `results/*.json` non-recursively, so an ordinary stem would enter the pooled readers as a legitimate
    arm pair. The placebo's rule, pinned by a free test.
+
+### consultant-latency: the Consultant lands between the dump and the live Advisor, and tools are not the gap (2026-09-18)
+
+First run of the `A2c` arm (`Advisor(mode=CONSULTANT)`, added the same day with the
+`mode=` parameter that replaced `read_only=`). One scenario (`cofounder_equity`), weak
+tier, one replicate, both wobble branches, judge OFF — a timing round, not a quality one.
+44m56s wall. 16 turns per arm, 0 untimed, arithmetic closes 16/16 on all three.
+
+    median turn             A1.5 6.30s    A2c 17.60s    A2 24.25s
+    median reply path             6.30         16.05        20.55
+    tool-free median reply        6.30         15.40        19.70
+    worst turn                   10.60         38.80       109.00
+    median context_render         0.00          3.21         0.41
+    tool seconds, total           0.00         17.90       154.00
+    median assistant words         272           228          276
+
+THE READING. The Consultant is ~27% faster than the full Advisor on the median and
+2.8x better on the worst turn, and it is NOT the 6s surface A1.5 is. Removing the four
+build tools was the whole hypothesis of the mode, and this run says the build tools are
+a small part of the gap: A2c spent 17.9s in tools across 16 turns against A2's 154.0s,
+yet its TOOL-FREE median reply path is 15.4s against A1.5's 6.3s over the SAME graph
+(A1.5's dump was 21,968c; A2c's per-session seed 25-30k, same build recipe). Two
+things explain the residual, one measured and one not:
+
+- `context_render` is 3.21s a turn for A2c against 0.41s for A2 — the Consultant
+  re-renders a 4-6 perspective / 36-54 transformation graph on EVERY turn, while
+  A2's graph is small for most of its cells (0c and ~10k seeds). That is graph-read
+  time, not model time, and it is the first lever: cache the rendered dump between
+  turns when nothing was written.
+- The remaining ~6s is not reply length (228 vs 272 words) and not tools. What is
+  left is the prompt: A2c carries the full ~17k-token engine plus tool schemas plus
+  the dump, while A1.5 carries the rewritten method text plus the same dump. Whether
+  prefill size is what a haiku turn pays for at this scale is UNMEASURED — the cache
+  probe showed a ~19k prefix does not move TTFT, but it compared two arms sending the
+  SAME prefix, not a 17k engine against a rewritten one. A consultant-specific engine
+  render (drop the building sections rather than overriding them with a mandate) is
+  the second lever, and it needs its own A/B.
+
+THE MECHANISM WORKED. A2c's closings: `no_closing 12, failed 3, model_recorded 1`,
+deferral `not_building 1` — the model recorded once, the seam grounded it on existing
+pathways and withheld the weave, and `deferred_wait` was 0.00 on every turn (A2's worst
+was 53.33s). The `failed 3` is UNEXPLAINED here (A2 had 1): the seam's fail-soft
+`logger.exception` output is not captured in the run log, so the cause could not be
+read; 3-vs-1 at n=16 is not evidence of a mode defect, and it is the first thing to
+capture next run.
+
+THE PRICE. Each A2c cell built its own graph: 452.0s (5 perspectives / 42
+transformations) and 655.9s (6 / 54), inside `duration_s` (658.3s, 855.1s). Building
+per cell is right — the Consultant writes decisions into the graph it consults — but
+it makes A2c the most expensive arm per cell, ahead of A1.5's one shared 407.7s build.
+
+NOT CLAIMED: quality. Judge off, one replicate; `(A2C, A1_5)` and `(A2, A2C)` are
+wired as judged pairs and this stem can be re-judged from its transcripts.
