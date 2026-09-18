@@ -265,8 +265,13 @@ would hand cell 2 cell 1's ledger. A cell whose build produced no perspectives i
 First run (`consultant-latency`, weak, judge off): median turn A1.5 6.30s / A2c 17.60s /
 A2 24.25s, and A2c's TOOL-FREE reply path is still 15.4s — the build tools were a small part
 of the gap. The per-turn graph render (3.2s) was then cached away (`consultant-cache`:
-render 3.21s → 0.01s, turn median inside run-to-run noise), so the engine prompt's size is
-what remains. Full reading in [rounds.md](rounds.md).
+render 3.21s → 0.01s, turn median inside run-to-run noise). What remained was NOT the
+engine prompt's size (`probe_consultant_prompt_cost`: under a second) but extended thinking
+on the tool path — `DIALEXITY_THINKING_LEVEL` applies to every tool-enabled call and never
+to the structured path the prompt arms answer through, so with `medium` set the Advisor
+arms think on every turn and the prompt arms never do. **That regime was neither controlled
+nor recorded by the bench until 2026-09-18**; every cell now carries `thinking_level` and
+the matrix header prints it. Full reading in [rounds.md](rounds.md).
 
 Every arm answers through the same `ConversationFacilitator.submit(ChatResponse,
 ...)` on the same tier model with the same persona. A2 differs by having **tools

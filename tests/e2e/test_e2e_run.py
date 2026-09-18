@@ -158,7 +158,10 @@ async def test_e2e_matrix(di_container):
     _say(
         f"tiers={config.tiers} arms={[a.value for a in arms]} "
         f"scenarios={scenarios or 'all'} replicates={replicates} "
-        f"branches={branches or 'all'}"
+        f"branches={branches or 'all'} "
+        # Tool-path arms think at this level; prompt arms never think. Printed
+        # so a run's header says which regime its A2/A2c cells ran in.
+        f"thinking={di_container.settings().thinking_level!r}"
     )
 
     run = E2ERun(di_container, config)

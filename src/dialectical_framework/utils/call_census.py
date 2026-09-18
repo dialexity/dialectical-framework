@@ -119,6 +119,12 @@ class CallRecord:
     cache_read_tokens: Optional[int] = None
     #: Prefill written INTO the cache, billed at ~1.25x.
     cache_write_tokens: Optional[int] = None
+    #: Tokens the model GENERATED, when the response reported them. `seconds`
+    #: is dominated by this number, so a slow call is only a finding once it is
+    #: read beside it (`probe_consultant_prompt_cost.py`: the same prompt took
+    #: 4s without tools and 11s with them, and this column is what says whether
+    #: the extra seconds were output or overhead).
+    output_tokens: Optional[int] = None
 
     #: Seconds from asking to the first content chunk coming back. `None` on every
     #: non-streaming call, where the question has no answer: the response arrives
@@ -369,6 +375,7 @@ def record_call(
     cache_read_tokens: Optional[int] = None,
     cache_write_tokens: Optional[int] = None,
     first_token_seconds: Optional[float] = None,
+    output_tokens: Optional[int] = None,
 ) -> None:
     """Attribute one provider round-trip to every installed census.
 
@@ -398,6 +405,7 @@ def record_call(
         cache_read_tokens=cache_read_tokens,
         cache_write_tokens=cache_write_tokens,
         first_token_seconds=first_token_seconds,
+        output_tokens=output_tokens,
     )
     for census in stack:
         census.calls.append(record)

@@ -3731,6 +3731,21 @@ class TestTheConsultantArm:
         # Seeded on EVERY session — the graph exists before the conversation.
         assert "if not is_first or arm is Arm.A2C:" in source
 
+    def test_every_cell_records_the_thinking_regime(self):
+        """Tool-path arms think at the configured level and prompt arms never
+        do; a cell that does not say which level it ran under cannot be
+        compared across that line. Both record constructors — the ordinary
+        one and the timeout's synthesised one."""
+        import inspect
+
+        assert "thinking_level=self._container.settings().thinking_level" in (
+            inspect.getsource(E2EDriver.run_cell)
+        )
+        assert "thinking_level=self._container.settings().thinking_level" in (
+            inspect.getsource(E2ERun.run_matrix)
+        )
+        assert "thinking_level" in RunRecord.model_fields
+
     def test_the_build_is_per_cell_and_inside_the_cell(self):
         """The Consultant writes decisions into what it consults, so cells cannot
         share a build; and the build is inside `duration_s`, unlike A1.5's."""

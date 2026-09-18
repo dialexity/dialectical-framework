@@ -408,9 +408,12 @@ host owns its own. The Consultant's latency against the full Advisor and against
 is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says the build
 tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
 the same graph. The per-turn graph render (3.2s) has since been removed by a fingerprint-gated
-cache, which left the turn inside run-to-run noise — so what remains is generation over the
-engine prompt itself, and a consultant-specific render of it is the one lever left
-(`tests/e2e/rounds.md`, `consultant-cache`). None of this is the mode's enforcement.
+cache. What remains is not the prompt's size (measured: under a second) but **extended
+thinking on the tool path**: `thinking_level`, when set, applies to every tool-enabled call
+and never to the structured path the prompt arms answer through, and at `medium` it is ~450
+hidden output tokens and ~6s a turn on the weak tier. Unset, the Consultant answers in ~6s
+(`tests/e2e/rounds.md`, `probe-consultant-prompt-cost`). Whether thinking earns that in
+counsel quality is unmeasured. None of this is the mode's enforcement.
 
 **Tools (10)** — coarse, composed super-tools that hide the machinery:
 
@@ -704,10 +707,10 @@ The bench (`tests/e2e/README.md`) is what says which surface earns its cost. The
 Advisor answers in ~24s a turn against ~6s for a static dump of the same graph, and the
 in-session quality of the two was not distinguishable — which is what makes the Consultant
 a product surface rather than a convenience: build once, on either of the other two, and
-talk to the result. Its first measurements put it at ~18-21s a turn: bounded (no turn can
-start a pipeline) but not yet at the dump's speed. The per-turn graph render is now cached
-away, and what remains is generation over the engine prompt (`tests/e2e/rounds.md`,
-`consultant-latency` and `consultant-cache`).
+talk to the result. Its first measurements put it at ~18-21s a turn with extended thinking
+at `medium`, and ~6s a turn with thinking unset — the tool path thinks, the prompt arms never
+do, and that regime rather than the prompt's size is the gap (`tests/e2e/rounds.md`,
+`consultant-latency`, `consultant-cache`, `probe-consultant-prompt-cost`).
 
 Navigator and Advisor are **not** one UI with a toggle — the Advisor's value is that it hides
 exactly what the Navigator exists to show. If you build both, they are two front-ends over

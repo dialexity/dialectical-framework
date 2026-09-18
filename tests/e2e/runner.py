@@ -242,6 +242,7 @@ class E2ERun:
                                     arm=arm,
                                     tier=tier,
                                     model=tier_model,
+                                    thinking_level=self._container.settings().thinking_level,
                                     scenario_key=scenario.key,
                                     scenario_kind=scenario.kind,
                                     replicate=replicate,

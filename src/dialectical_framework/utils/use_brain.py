@@ -205,6 +205,11 @@ def use_brain(
                             # explicitly rather than left to the arithmetic, since
                             # the arithmetic can only DISPROVE pre-adding.
                             **prefill_token_kwargs(response, pre_added=True),
+                            output_tokens=getattr(
+                                getattr(response, "usage", None),
+                                "output_tokens",
+                                None,
+                            ),
                         )
                     _trace_generation(
                         response=response,

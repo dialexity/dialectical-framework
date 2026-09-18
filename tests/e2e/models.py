@@ -698,6 +698,17 @@ class RunRecord(BaseModel):
     arm: Arm
     tier: str
     model: str
+    #: The extended-thinking level the framework was configured with when this
+    #: cell ran (`Settings.thinking_level`, env `DIALEXITY_THINKING_LEVEL`).
+    #: Recorded since 2026-09-18, because it is NOT the same regime for every
+    #: arm: thinking kwargs go out on the TOOL path only
+    #: (`ConversationFacilitator._call_with_tools`), never on the structured
+    #: path the prompt arms answer through — so with a level set, A2/A2c think
+    #: on every turn and A0/A1/A1.5/A1.7 never do. `probe_consultant_prompt_cost`
+    #: measured that at `medium` as ~450 hidden output tokens and 6s a turn on
+    #: haiku. `None` on a record means the cell predates the field, not that
+    #: thinking was off.
+    thinking_level: Optional[str] = None
     scenario_key: str
     #: What the scenario was FOR. Recorded on the cell rather than looked up from
     #: `SCENARIOS_BY_KEY`, because `collapsed_to_a1` needs it and `scenarios`

@@ -6419,3 +6419,48 @@ off-turn weave ran, which is the seam working as designed. The Consultant's own
 decisions all carry an `adopted pathway` ground, 5 records across the two cells.
 
 Builds: 614.6s (6 / 54) and 486.5s (5 / 42), inside `duration_s` (822.4s, 671.6s).
+
+### probe-consultant-prompt-cost: not the prompt — extended thinking on the tool path, which the prompt arms never pay (2026-09-18)
+
+`consultant-cache` left "generation over the engine prompt" as the one explanation for
+the Consultant's ~16s tool-free reply path against A1.5's ~6s. Before building a trimmed
+consultant render on that hypothesis, `probe_consultant_prompt_cost.py` measured it as a
+2x2 (engine text vs method text, tools vs none) plus a bare engine+tools condition, same
+graph, same model, same question, interleaved reps, with a new `output_tokens` column on
+the call census.
+
+    condition               thinking=medium            unset
+                            turn    call   out tok     turn   out tok
+    A engine+tools          12.18    9.5     674        5.80    191
+    B method+no tools        2.88    2.9     152        3.08    163
+    C engine+no tools        3.58    3.6     190        3.99    231
+    D method+tools           7.05    4.4     348        4.87     59
+    E engine+tools (bare)    9.27    9.3     700        5.44    258
+
+REFUTED: the prompt text. The full engine (16.6k prefill) without tools answers in 3.6s
+against the method text's 2.9s. The trimmed render would have bought under a second.
+
+FOUND: `DIALEXITY_THINKING_LEVEL=medium` is set in this environment, and thinking kwargs
+go out on the TOOL path only — `_call_with_tools` passes `_thinking_kwargs()`,
+`_call_with_response_model` does not. So every tool-enabled call thinks (~450 hidden
+output tokens, 9.5s instead of 3.6s on haiku) and every structured call — which is how
+A0/A1/A1.5/A1.7 answer — never does. Dissecting one turn showed the `Thought` block in
+the assistant message beside a ~170-word reply billed at 609 output tokens. With the
+level unset the Consultant lands at 5.8s: ~1s of engine text, ~0.5s of render and
+settle, 0.3 elective tool reads a turn.
+
+WHAT THIS DOES TO THE ARCHIVE. The bench inherits the level from the environment and
+never controlled or recorded it. `rounds.md` already shows medium in this environment on
+2026-09-02 (`probe_first_delta`), so every Advisor-arm cell since is presumed to have
+thought while every prompt-arm cell did not — on the latency rows that is most of the
+A2/A2c-vs-A1.5 gap; on the judged rows it is an uncontrolled advantage handed to the
+arm that LOST. Older stems cannot be re-read for it. From this commit every RunRecord
+carries `thinking_level` and the matrix header prints it; `None` on an old record means
+"not recorded", never "off".
+
+NOT DONE, DELIBERATELY. The product default (`settings.py`) is thinking off; `medium`
+is this environment's choice. Whether medium earns 6s a turn in counsel quality on the
+weak tier is unmeasured, so no default moves here. The next round is the one this
+settles the design of: A2c (and A2) at `medium` against unset, judge on, same graph —
+the first A/B in this archive where the thinking regime is the variable rather than a
+confound.
