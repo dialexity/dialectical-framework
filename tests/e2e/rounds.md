@@ -6559,3 +6559,38 @@ figures above therefore rest on `wobble_b` (5 perspectives / 42 transformations)
 the invalid cell's timing, and the latency column is the one to distrust.
 
 Builds: 69.8s (0 / 0, INVALID) and 385.6s (5 / 42).
+
+### probe-extraction-thinking-ab: thinking does not make extraction faithful — declined (2026-09-18)
+
+Two things had to be true before this could even be asked. The framework's structured
+calls (all 33 DTOs) run in Mirascope's default formatting mode, FORCED TOOL USE, and the
+provider rejects extended thinking on that shape outright — so no concern has ever thought,
+whatever `DIALEXITY_THINKING_LEVEL` said. `probe_format_mode_thinking.py` measured the
+alternatives on a DTO-shaped call: JSON mode parses 4/4, costs LESS prefill than tool mode
+(430 vs 1000 tokens: the JSON instruction is smaller than the tool schema), and accepts
+thinking (~800 hidden output tokens at medium, 8.0s vs 1.5s); strict mode is unsupported on
+Bedrock Anthropic. So `ConversationFacilitator(format_mode=, thinking=)` now exists, the
+shape travels through `isolate()`, and `settings.extraction_thinking_level` puts the
+extraction concern (step 1 and every step-2 gate) into JSON mode with thinking.
+
+Then the question. Same three documents as the step-2 A/B, 2 reps, arms interleaved, the
+whole of `extract_candidates` per arm, every emitted thesis rated UNPAIRED by the
+validated `_support` judge (pre-registered primary: the invented rate at similar yield).
+
+    arm               runs  yield/run  median s  out tok/run  supported distorted invented  invented%  not-supported%
+    default              6      13.5       6.0          984         53        23        5      6.2%          34.6%
+    thinking=medium      6       9.2      27.9         9221         39         9        7     12.7%          29.1%
+
+DECLINED. The primary went the wrong way (7/55 vs 5/81 invented), the not-supported rate
+moved 5pp in the right direction but bought by a third less yield — a stricter gate, not
+a more faithful one — at 4.6x the wall and 9x the output tokens. n is small (136 rated
+claims) and this is one document set, so it is "not shown, and not cheap enough to keep
+looking", not "thinking hurts extraction". The knob stays, opt-in and off, with this
+result in its own comment; the plumbing stays because it is the only route by which any
+concern can think, and the next candidate site (`StatementClassification`, the SIMPLE/
+COMPLEX boundary — `probe_classifier_stability.py`) has a stability endpoint rather than a
+faithfulness one.
+
+Also worth carrying: the default arm's invented rate here (6.2%) is half the archived 13%,
+which was measured on a different candidate pool; the per-item verdicts are printed, so the
+gap can be read rather than argued.

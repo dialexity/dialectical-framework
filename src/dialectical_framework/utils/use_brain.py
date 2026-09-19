@@ -137,7 +137,17 @@ def use_brain(
                     call_params[key] = llm_call_kwargs[key]
 
             has_format = "format" in call_params
-            format_name = call_params["format"].__name__ if has_format else None
+            # A bare DTO class carries `__name__`; a `mirascope.llm.Format` (the
+            # shape that selects a formatting MODE, e.g. json rather than forced
+            # tool use) carries `name`. Both name the same DTO for the census.
+            format_name = (
+                (
+                    getattr(call_params["format"], "__name__", None)
+                    or getattr(call_params["format"], "name", None)
+                )
+                if has_format
+                else None
+            )
 
             @llm.call(resolved, **call_params)
             async def _llm_call() -> Any:
@@ -223,7 +233,15 @@ def use_brain(
                             return response.parse()
                         except ParseError as e:
                             salvaged = _salvage_envelope(
-                                response, call_params["format"], e
+                                response,
+                                # The DTO class, whether it was passed bare or
+                                # wrapped in a `Format` that selects a mode.
+                                getattr(
+                                    call_params["format"],
+                                    "formattable",
+                                    call_params["format"],
+                                ),
+                                e,
                             )
                             if salvaged is not None:
                                 return salvaged

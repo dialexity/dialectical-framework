@@ -164,7 +164,9 @@ def install_mock_brain(monkeypatch: Any) -> None:
     # --- Patch use_brain ---
 
     def mock_use_brain(*, ai_model=None, retry_max=10, format=None, tools=None, thinking=None, raw_call=False, **llm_call_kwargs):
-        format_model = format
+        # A `mirascope.llm.Format` (a DTO plus a formatting mode) unwraps to its
+        # DTO here; the mode is a provider concern the mock never reaches.
+        format_model = getattr(format, "formattable", format)
 
         def decorator(method):
             async def wrapper(*args, **kwargs):

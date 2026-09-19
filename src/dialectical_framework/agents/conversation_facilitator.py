@@ -201,7 +201,30 @@ class ConversationFacilitator(SettingsAware):
         results = await asyncio.gather(*tasks)
     """
 
-    def __init__(self, tools: Optional[list[Any]] = None) -> None:
+    def __init__(
+        self,
+        tools: Optional[list[Any]] = None,
+        *,
+        format_mode: Optional[str] = None,
+        thinking: Optional[str] = None,
+    ) -> None:
+        # format_mode: how STRUCTURED calls (`submit(response_model=...)`) ask
+        # for their DTO. None = Mirascope's default, forced tool use — the shape
+        # every concern has always used. "json" asks for JSON in the reply
+        # instead; it parses as reliably on a DTO-shaped call, costs less
+        # prefill, and it is the only shape the provider lets THINK
+        # (`probe_format_mode_thinking.py`: "Thinking may not be enabled when
+        # tool_choice forces tool use"). Hence `thinking` here — the level for
+        # structured calls, distinct from `settings.thinking_level`, which
+        # reaches only the tool path — requires a mode that accepts it, and
+        # refusing at construction beats a 400 on every call.
+        if thinking and format_mode in (None, "tool"):
+            raise ValueError(
+                "thinking on structured calls needs format_mode='json': the "
+                "default (forced tool use) cannot think"
+            )
+        self._format_mode = format_mode
+        self._structured_thinking = thinking
         self._messages: list = []
         self._tools = tools or []
         # Tool names invoked during the most recent submit()/submit_stream()
@@ -342,7 +365,14 @@ class ConversationFacilitator(SettingsAware):
         the next caller. Rebuild whatever the isolated call does need with
         `set_system_prompt` / `add_user_message` / `add_assistant_message`.
         """
-        isolated = ConversationFacilitator(tools=self._tools)
+        # The structured-call shape travels with the isolate: a concern that
+        # fans out over `isolate()` (extraction's step-2 gate) must think, or
+        # not, the way its parent does.
+        isolated = ConversationFacilitator(
+            tools=self._tools,
+            format_mode=self._format_mode,
+            thinking=self._structured_thinking,
+        )
         if keep_history:
             isolated._messages = [*self._messages]  # Copy messages
         elif self._messages and _is_system_message(self._messages[0]):
@@ -1222,7 +1252,9 @@ class ConversationFacilitator(SettingsAware):
         if messages and messages[-1].role == "assistant":
             messages = [*messages, llm.messages.user(_EXTRACTION_REQUEST)]
 
-        @use_brain(format=response_model)
+        requested, thinking_kwargs = self._structured_request(response_model)
+
+        @use_brain(format=requested, **thinking_kwargs)
         async def _llm_call():
             return messages
 
@@ -1235,6 +1267,26 @@ class ConversationFacilitator(SettingsAware):
             )
         )
         return result
+
+    def _structured_request(self, response_model: type) -> tuple[Any, dict[str, Any]]:
+        """What a structured call hands `use_brain`: the format and the kwargs.
+
+        A bare DTO class means Mirascope's default mode (forced tool use); a
+        `Format` selects another. `use_brain` names either for the census and
+        unwraps either for the envelope salvage. Its own method so the shape can
+        be pinned without a provider — the mock brain replaces the caller.
+        """
+        requested = (
+            llm.format(response_model, mode=self._format_mode)
+            if self._format_mode
+            else response_model
+        )
+        thinking_kwargs = (
+            {"thinking": self._structured_thinking}
+            if self._structured_thinking
+            else {}
+        )
+        return requested, thinking_kwargs
 
     @staticmethod
     def _assistant_history_text(result: Any) -> str:

@@ -1256,6 +1256,21 @@ that co-occur in one call:
    → provider → response.parse() → Pydantic Dto
 ```
 
+**The FORMATTING MODE is part of this stack, and it decides whether the call can think.** The default
+`use_brain(format=Dto)` is Mirascope's forced-tool mode, and the provider refuses extended thinking on
+that shape outright ("Thinking may not be enabled when tool_choice forces tool use") — so
+`settings.thinking_level` has NEVER reached a concern, only the conversational tool path (Stack A). A
+concern that must think constructs `ConversationFacilitator(format_mode="json", thinking=level)`: JSON
+mode parses a DTO-shaped call 4/4 at LESS prefill than tool mode (the JSON instruction is smaller than
+the tool schema) and accepts thinking at ~800 hidden output tokens per call at medium; strict mode is
+unsupported on Bedrock Anthropic (`probe_format_mode_thinking.py`). The shape travels through
+`isolate()`, so a fan-out thinks the way its parent does, and the impossible combination is refused at
+construction. **Only `ThesisExtraction` is wired** (`settings.extraction_thinking_level`, off), and it was
+priced and DECLINED on the defect it was aimed at: invented claims 6.2% → 12.7%, yield −1/3, wall 4.6x
+(`probe_extraction_thinking_ab.py`). Review rule that follows: a concern's prompt is read by a model that
+is NOT thinking, so a prompt that leans on "reason carefully before answering" is asking for something the
+call shape cannot deliver; if a site needs it, the mode switch is the change, and it needs its own A/B.
+
 **DTO field descriptions are prompt surface.** Review them alongside the SYSTEM_PROMPT and `_*_prompt()`
 (e.g. `AspectDto.heuristic_similarity` description in `aspect_generation.py`;
 `TaxonomyLocationDto.taxonomy_type` in `statement_classification.py`).

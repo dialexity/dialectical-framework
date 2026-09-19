@@ -153,7 +153,16 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
     """
 
     def __init__(self) -> None:
-        self._conversation = ConversationFacilitator()
+        # `settings.extraction_thinking_level` puts this concern's structured
+        # calls — step 1 and, through `isolate()`, every step-2 gate — into JSON
+        # formatting mode with extended thinking. Off by default; see the
+        # setting's own comment for what it costs and what it is aimed at.
+        level = self.settings.extraction_thinking_level
+        self._conversation = (
+            ConversationFacilitator(format_mode="json", thinking=level)
+            if level
+            else ConversationFacilitator()
+        )
 
     async def resolve(
         self,
