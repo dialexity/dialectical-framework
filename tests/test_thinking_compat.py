@@ -2,7 +2,7 @@
 Extended-thinking request-shape compatibility.
 
 Why this has tests at all: the failure it prevents is silent. With
-`DIALEXITY_THINKING_LEVEL` set and a Claude 5 model configured, every LLM call
+`DIALEXITY_CONVERSATION_THINKING_LEVEL` set and a Claude 5 model configured, every LLM call
 400s, and on the Advisor's conversational path the visible symptom is an agent
 that answers with empty text and calls no tools — indistinguishable from a weak
 model until you read the provider error.

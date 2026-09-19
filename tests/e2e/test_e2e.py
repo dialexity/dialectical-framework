@@ -3748,13 +3748,13 @@ class TestTheConsultantArm:
         one and the timeout's synthesised one."""
         import inspect
 
-        assert "thinking_level=self._container.settings().thinking_level" in (
+        assert "conversation_thinking_level=self._container.settings().conversation_thinking_level" in (
             inspect.getsource(E2EDriver.run_cell)
         )
-        assert "thinking_level=self._container.settings().thinking_level" in (
+        assert "conversation_thinking_level=self._container.settings().conversation_thinking_level" in (
             inspect.getsource(E2ERun.run_matrix)
         )
-        assert "thinking_level" in RunRecord.model_fields
+        assert "conversation_thinking_level" in RunRecord.model_fields
 
     def test_the_build_is_per_cell_and_inside_the_cell(self):
         """The Consultant writes decisions into what it consults, so cells cannot

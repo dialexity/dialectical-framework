@@ -266,12 +266,12 @@ class TurnTiming:
     #: first `ToolStart` (0 of 3 tool-electing turns, so the premise holds — though
     #: 0/3 only bounds narration-first below ~63% one-sided, it does not measure it). But this
     #: field is stamped on the first Text **or** Thinking chunk, and with
-    #: `DIALEXITY_THINKING_LEVEL` set it read 1.3–3.7s on those very turns, tracking
+    #: `DIALEXITY_CONVERSATION_THINKING_LEVEL` set it read 1.3–3.7s on those very turns, tracking
     #: `ThinkingDelta`, while their first TEXT was 45.7–66.8s. So:
     #:
     #: - thinking ON — this is a genuine ~2s "something is happening", every turn
     #:   shape, and the old warning does not apply;
-    #: - thinking OFF (`thinking_level` defaults to `None`) — it collapses onto first
+    #: - thinking OFF (`conversation_thinking_level` defaults to `None`) — it collapses onto first
     #:   text and the old warning is exactly right, tool round included.
     #:
     #: Never quote it without saying which. The prefill-sensitive figure lives on

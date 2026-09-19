@@ -11,7 +11,7 @@ up and closed the tab.
 
 The crash half is not hypothetical. Mirascope raises `NotImplementedError` from
 inside the chunk loop on a `redacted_thinking` block, so any turn with
-`DIALEXITY_THINKING_LEVEL` set can take that path today.
+`DIALEXITY_CONVERSATION_THINKING_LEVEL` set can take that path today.
 
 The abandonment half brings a second obligation with it. An abandoned turn is
 suspended inside mirascope's decoder, which holds the HTTP response open in an

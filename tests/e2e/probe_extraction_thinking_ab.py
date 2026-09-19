@@ -43,6 +43,12 @@ third less yield (a stricter gate, not a more faithful one) at 4.6x the wall and
 9x the output tokens. "Not shown, and not cheap enough to keep looking" — not
 "thinking hurts extraction": n is small and this is one document set. The knob
 stays opt-in and off (`rounds.md`, `probe-extraction-thinking-ab`).
+
+ON SONNET 5 (2026-09-19, `DIALEXITY_PROBE_MODEL`, Fable as judge): default 3.5%
+invented / 7.0% not-supported, thinking 0.0% / 9.1% — the defect is 5x smaller
+from the MODEL alone and thinking moves nothing outside noise at no extra cost
+(`rounds.md`, `sonnet-thinking`). The lever the defect responds to is which
+model runs the extraction concern.
 """
 
 from __future__ import annotations
@@ -56,14 +62,22 @@ from typing import Iterator
 
 import pytest
 
+import probe_step2_isolate_ab as ps2
 from dialectical_framework.concerns.thesis_extraction import ThesisExtraction
 from dialectical_framework.utils.call_census import call_census
-from e2e.config import DEFAULT_TIER_WEAK
+from e2e.config import DEFAULT_JUDGE, DEFAULT_TIER_STRONG, DEFAULT_TIER_WEAK
 from e2e.modelctx import using_model
 from probe_step2_isolate_ab import COUNT, DOCUMENTS, _support
 
 REPS = int(os.getenv("DIALEXITY_PROBE_REPS", "2"))
 ARMS = {"default": None, "thinking=medium": "medium"}
+#: The model under test. Every figure is model-conditional (the 2026-09-18 run
+#: was Haiku 4.5), so the same probe answers for Sonnet 5 by pointing this at it.
+MODEL = os.getenv("DIALEXITY_PROBE_MODEL", DEFAULT_TIER_WEAK)
+if MODEL == DEFAULT_TIER_STRONG:
+    # The support judge is the strong tier by default; judging Sonnet's own
+    # output with Sonnet would be self-preference, so the judge steps up.
+    ps2.DEFAULT_TIER_STRONG = DEFAULT_JUDGE
 
 
 @contextmanager
@@ -80,7 +94,7 @@ def _extraction_thinking(container, level: str | None) -> Iterator[None]:
 
 
 async def _extract(container, level: str | None, text: str) -> dict:
-    with _extraction_thinking(container, level), using_model(container, DEFAULT_TIER_WEAK):
+    with _extraction_thinking(container, level), using_model(container, MODEL):
         with call_census() as census:
             started = time.monotonic()
             candidates = await ThesisExtraction().extract_candidates(text, count=COUNT)
@@ -97,7 +111,10 @@ async def _extract(container, level: str | None, text: str) -> dict:
 @pytest.mark.real_llm
 @pytest.mark.asyncio
 async def test_probe_extraction_thinking_ab(di_container):
-    print(f"\ndocuments: {len(DOCUMENTS)}  reps: {REPS}  count: {COUNT}  arms: {list(ARMS)}")
+    print(
+        f"\nmodel: {MODEL}  judge: {ps2.DEFAULT_TIER_STRONG}\n"
+        f"documents: {len(DOCUMENTS)}  reps: {REPS}  count: {COUNT}  arms: {list(ARMS)}"
+    )
     verdicts: dict[str, Counter] = {arm: Counter() for arm in ARMS}
     runs: dict[str, list[dict]] = {arm: [] for arm in ARMS}
     misaligned: Counter = Counter()

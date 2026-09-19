@@ -45,6 +45,12 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+#: "Not given" for a per-conversation thinking level: defer to
+#: `settings.conversation_thinking_level`. A sentinel rather than `None`, because
+#: `None` is a real answer here (off), and "the person did not toggle it" must
+#: not be read as "the person turned it off".
+FROM_SETTINGS: Any = object()
+
 #: Injected in the user role before the structured-extraction call (see
 #: `_call_with_response_model`) because Bedrock requires a conversation to end
 #: with a user message. It is machinery, so it says so: the model must not read
@@ -207,7 +213,15 @@ class ConversationFacilitator(SettingsAware):
         *,
         format_mode: Optional[str] = None,
         thinking: Optional[str] = None,
+        conversation_thinking: Any = FROM_SETTINGS,
     ) -> None:
+        # conversation_thinking: the thinking level for the TOOL-PATH call —
+        # the person's own toggle, per session. Three states: not given (defer
+        # to `settings.conversation_thinking_level`, the deployment default),
+        # None (off, whatever the deployment says), or a level. Distinct from
+        # `thinking` below, which is for STRUCTURED calls and is a framework
+        # matter (a concern's choice for a given model), never the person's.
+        self._conversation_thinking = conversation_thinking
         # format_mode: how STRUCTURED calls (`submit(response_model=...)`) ask
         # for their DTO. None = Mirascope's default, forced tool use — the shape
         # every concern has always used. "json" asks for JSON in the reply
@@ -215,7 +229,7 @@ class ConversationFacilitator(SettingsAware):
         # prefill, and it is the only shape the provider lets THINK
         # (`probe_format_mode_thinking.py`: "Thinking may not be enabled when
         # tool_choice forces tool use"). Hence `thinking` here — the level for
-        # structured calls, distinct from `settings.thinking_level`, which
+        # structured calls, distinct from `settings.conversation_thinking_level`, which
         # reaches only the tool path — requires a mode that accepts it, and
         # refusing at construction beats a 400 on every call.
         if thinking and format_mode in (None, "tool"):
@@ -372,6 +386,7 @@ class ConversationFacilitator(SettingsAware):
             tools=self._tools,
             format_mode=self._format_mode,
             thinking=self._structured_thinking,
+            conversation_thinking=self._conversation_thinking,
         )
         if keep_history:
             isolated._messages = [*self._messages]  # Copy messages
@@ -499,7 +514,7 @@ class ConversationFacilitator(SettingsAware):
           and the turns it hides are the expensive ones. (The live trigger is not
           hypothetical — mirascope raises `NotImplementedError` from inside the
           chunk loop on a `redacted_thinking` block, so any turn with
-          `DIALEXITY_THINKING_LEVEL` set can take this path.)
+          `DIALEXITY_CONVERSATION_THINKING_LEVEL` set can take this path.)
         - The generator chain is CLOSED rather than left to the collector, which is
           what lets go of the provider's connection. An abandoned turn is suspended
           inside mirascope's decoder, holding the HTTP response open in an
@@ -1106,10 +1121,19 @@ class ConversationFacilitator(SettingsAware):
             return None
 
     def _thinking_kwargs(self) -> dict[str, Any]:
-        """Build thinking kwargs from settings, if configured."""
-        thinking_level = self.settings.thinking_level
-        if thinking_level:
-            return {"thinking": thinking_level}
+        """Thinking kwargs for the CONVERSATIONAL (tool-path) call.
+
+        Per conversation first, settings second: a head constructed with
+        `thinking=` (a UI toggle, the person's own choice for this session)
+        overrides `settings.conversation_thinking_level`, and `thinking=None`
+        explicitly is "off" — distinct from not saying, which defers to settings.
+        """
+        if self._conversation_thinking is not FROM_SETTINGS:
+            level = self._conversation_thinking
+        else:
+            level = self.settings.conversation_thinking_level
+        if level:
+            return {"thinking": level}
         return {}
 
     async def _call_with_tools(self) -> AsyncResponse:

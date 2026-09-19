@@ -33,7 +33,7 @@ NOT free: `--real-llm`, ~REPS x 5 calls of ~3-15s each.
 RESULT (2026-09-18, haiku weak tier, seed graph of 3 perspectives, 2,380c dump;
 median of 4-5 reps, conditions interleaved):
 
-    condition               DIALEXITY_THINKING_LEVEL=medium      unset
+    condition               DIALEXITY_CONVERSATION_THINKING_LEVEL=medium      unset
                             turn s   call s  out tok  tools    turn s  out tok
     A engine+tools          12.18     9.5     674     0.5       5.80    191
     B method+no tools        2.88     2.9     152     0.0       3.08    163
@@ -47,17 +47,24 @@ THE PROMPT-SIZE HYPOTHESIS IS REFUTED. The full engine prompt (16.6k prefill,
 64k chars) without tools answers in 3.6s against the method text's 2.9s — the
 text costs well under a second. What costs the Consultant its turn is the TOOL
 PATH THINKING: `ConversationFacilitator._call_with_tools` passes the configured
-`thinking_level` and `_call_with_response_model` (the path every prompt arm
+`conversation_thinking_level` and `_call_with_response_model` (the path every prompt arm
 answers through) never does, so with `medium` set — as it is in this
 environment — the tool-enabled call generates ~450 output tokens the reply does
 not contain (674 against 190 for ~150 words) and takes 9.5s instead of 3.6s.
 Unset, the Consultant lands at 5.8s: ~1s for the engine text over the method
 text, ~0.5s render + settle, and 0.3 tool elections a turn (`read_digest`).
 
+ON SONNET 5 (2026-09-19, `DIALEXITY_PROBE_MODEL`) the Haiku finding does NOT
+transfer: the main call is ~5-6s with thinking at medium or unset (289 vs 264
+output tokens — Sonnet 5's adaptive shape spends almost nothing at "medium"),
+and the turn is made of TOOL ROUND TRIPS at ~5s each, 0.8-2.2 elections a turn
+(`rounds.md`, `sonnet-thinking`). On a stronger model the lever is elections,
+not thinking.
+
 Two consequences. (1) Every bench comparison of an Advisor arm against a prompt
 arm in this environment compared a THINKING arm against non-thinking ones, on
 latency and on quality alike; the bench never controlled or recorded the level,
-and now records it on every cell (`RunRecord.thinking_level`). (2) Whether
+and now records it on every cell (`RunRecord.conversation_thinking_level`). (2) Whether
 `medium` earns its 6s a turn in counsel quality is unmeasured on this path —
 that is the next pre-registered round, not a default to flip here.
 """
@@ -88,6 +95,8 @@ QUESTION = (
     "the cofounder this month, and what would it cost me?"
 )
 REPS = int(os.getenv("DIALEXITY_PROBE_REPS", "5"))
+#: The model under test; every figure here is model-conditional.
+MODEL = os.getenv("DIALEXITY_PROBE_MODEL", DEFAULT_TIER_WEAK)
 
 
 def _richest_sid(graph_db) -> tuple[str, int, int]:
@@ -180,7 +189,8 @@ async def test_probe_consultant_prompt_cost(di_container):
     sid, pps, trs = _richest_sid(di_container.graph_db())
     print(f"\ngraph: sid={sid[:8]} perspectives={pps} transformations={trs}")
 
-    with scope(sid), using_model(di_container, DEFAULT_TIER_WEAK):
+    print(f"model: {MODEL}  conversation thinking: {di_container.settings().conversation_thinking_level!r}")
+    with scope(sid), using_model(di_container, MODEL):
         dump = await DialecticalContext().resolve()
         # The engine text the Consultant actually carries, with THIS dump in it.
         engine_advisor = Advisor(

@@ -39,7 +39,7 @@ ADAPTIVE = "adaptive"
 #: Framework thinking level -> ``output_config.effort``. The budgeted shape
 #: expresses intensity as a fraction of max_tokens; the adaptive shape lets the
 #: model decide and takes only a coarse effort label, so "minimal" and "low"
-#: both land on "low". Keep in sync with ``Settings.thinking_level`` docs.
+#: both land on "low". Keep in sync with ``Settings.conversation_thinking_level`` docs.
 _LEVEL_TO_EFFORT = {
     "minimal": "low",
     "low": "low",

@@ -6594,3 +6594,49 @@ faithfulness one.
 Also worth carrying: the default arm's invented rate here (6.2%) is half the archived 13%,
 which was measured on a different candidate pool; the per-item verdicts are printed, so the
 gap can be read rather than argued.
+
+### sonnet-thinking: on Sonnet 5 the model is the lever, thinking is not, and extraction's defect is a Haiku defect (2026-09-19)
+
+The same two probes as 2026-09-18, pointed at Sonnet 5 (`DIALEXITY_PROBE_MODEL`), with
+Fable 5 as the support judge so Sonnet is not grading itself.
+
+EXTRACTION (3 documents x 2 reps, 112 rated claims):
+
+    model / arm                 yield/run  median s  supported distorted invented  invented%  not-supported%
+    haiku   default                 13.5       6.0        53        23        5      6.2%          34.6%
+    haiku   thinking=medium          9.2      27.9        39         9        7     12.7%          29.1%
+    sonnet  default                  9.5       9.1        53         2        2      3.5%           7.0%
+    sonnet  thinking=medium          9.2       8.9        50         5        0      0.0%           9.1%
+
+The extraction-faithfulness defect (35-39% not cleanly supported, 13% invented, all on
+Haiku) is 7% on Sonnet with the same prompts and no thinking — a 5x difference from the
+MODEL alone, at 1.5x the seconds. Thinking on Sonnet moves nothing outside noise (2 -> 0
+invented at n=57, 2 -> 5 distorted) and costs nothing either: Sonnet 5's thinking shape is
+adaptive, and at "medium" it generated FEWER output tokens than the default arm. So the
+knob is a Haiku knob that Haiku cannot afford and Sonnet does not need. The lever the
+defect responds to is which model runs the extraction concern.
+
+CONSULTANT TURN (4 reps, seed graph, same five conditions):
+
+    sonnet                        conversation thinking = medium        unset
+                                  turn s   call s  out tok  tools    turn s  call s  out tok  tools
+    A engine+tools (Consultant)    12.0     5.0     289     1.0       16.2     5.3     264     0.8
+    B method+no tools (A1.5)        6.1     6.1     332     0          5.7     5.7     297     0
+    C engine+no tools               6.1     6.1     337     0          7.8     7.8     417     0
+    E engine+tools (bare)           9.0     8.7     519     0.2       21.9     5.5     333     1.5
+
+On Sonnet the main call costs ~5-6s either way — "medium" adds no hidden tokens to speak
+of (289 vs 264) — and the turn is made of TOOL ROUND TRIPS: ~5s each, 0.8-2.2 elections a
+turn, which is where E's 21.9s (1.5 reads a turn) and D's 14s come from. The Haiku
+finding (thinking = 450 hidden tokens = 3x the call) does not transfer: on Sonnet 5 the
+thinking level is close to free and close to useless on this turn, and the latency
+story is elections. That, not thinking, is what the Consultant's prompt should be
+tuned on next for a stronger model ("pull the detail behind any insight" is an
+instruction to spend 5s per read).
+
+WHAT THIS SETTLES FOR THE SETTINGS. Conversation thinking: per-session, user-facing,
+default off — on Haiku it is a 3x cost with no election gain, on Sonnet it is a no-op.
+Concern thinking: off; the extraction knob stays as an opt-in that neither model rewards.
+The open design question this run creates is a per-concern MODEL: extraction on Sonnet
+buys the single largest reasoning-quality improvement measured in this tree, and the
+framework has one global `DIALEXITY_DEFAULT_MODEL`.

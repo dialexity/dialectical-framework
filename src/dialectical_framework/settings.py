@@ -188,7 +188,7 @@ class Settings(BaseModel):
     # switches this concern to JSON formatting mode (which accepts thinking) —
     # measured on a DTO-shaped call at 4/4 parsed, less prefill than tool mode,
     # and ~700 hidden output tokens per call at "medium"
-    # (tests/e2e/probe_format_mode_thinking.py). Separate from `thinking_level`,
+    # (tests/e2e/probe_format_mode_thinking.py). Separate from `conversation_thinking_level`,
     # which reaches only the conversational TOOL path. PRICED AND DECLINED
     # (tests/e2e/probe_extraction_thinking_ab.py, 2026-09-18): at "medium" the
     # invented rate went 6.2% -> 12.7%, yield fell by a third, wall 4.6x, output
@@ -220,7 +220,15 @@ class Settings(BaseModel):
     # Claude 5 models take no token budget — they accept only adaptive thinking with a
     # coarse effort label, so the level is mapped there instead (utils/thinking_compat.py).
     # If the model doesn't support thinking, the setting is silently ignored (warning logged).
-    thinking_level: Optional[str] = Field(default=None, description="Extended thinking level. None = disabled.")
+    # The CONVERSATIONAL thinking level — the tool-path call every agent turn
+    # makes. A deployment default that a head's `thinking=` overrides per
+    # session (the person's own toggle). Never reaches a structured concern
+    # call: those cannot think in their default formatting mode, and the ones
+    # that opt in do so through their own knob (`extraction_thinking_level`).
+    # Measured: on Haiku 4.5 "medium" is ~450 hidden output tokens and ~3x the
+    # call with no election gain; on Sonnet 5 it is close to free and close to
+    # a no-op (rounds.md: `thinking-off`, `sonnet-thinking`).
+    conversation_thinking_level: Optional[str] = Field(default=None, description="Extended thinking level for the conversational (tool-path) call; the deployment default a head's thinking= overrides per session. None = disabled.")
 
     # TCP connect timeout for the Bedrock client, in seconds.
     #
@@ -306,7 +314,7 @@ class Settings(BaseModel):
             graph_db_password=os.getenv("DIALEXITY_GRAPH_DB_PASSWORD"),
             graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
             graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
-            thinking_level=os.getenv("DIALEXITY_THINKING_LEVEL"),
+            conversation_thinking_level=os.getenv("DIALEXITY_CONVERSATION_THINKING_LEVEL") or None,
             llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

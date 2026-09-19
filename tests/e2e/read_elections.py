@@ -7,7 +7,7 @@ Free: reads `results/<stem>-runs.json`. Exists because the tool-election rate is
 the archive's most machine-countable endpoint and the one the thinking regime
 is most likely to move: `record_decision` fired 0/6 at the weak tier, `explore`
 2/6, `deepen` 0/6, and every one of those figures was measured with
-`DIALEXITY_THINKING_LEVEL=medium` in the environment (`rounds.md`,
+`DIALEXITY_CONVERSATION_THINKING_LEVEL=medium` in the environment (`rounds.md`,
 `probe-consultant-prompt-cost`). A run with the level unset is read against them
 here, arm by arm.
 
@@ -61,7 +61,12 @@ def read(stems: list[str]) -> None:
             by_arm[str(run["arm"])].append(run)
         for arm, runs in sorted(by_arm.items()):
             turns = [t for r in runs for s in r["sessions"] for t in s["turns"]]
-            levels = {r.get("thinking_level", "not recorded") for r in runs}
+            # Raw JSON, so the one-day-old key is read here as well (the
+            # RunRecord loader maps it; this reader does not go through it).
+            levels = {
+                r.get("conversation_thinking_level", r.get("thinking_level", "not recorded"))
+                for r in runs
+            }
             level = ", ".join(str(l) for l in sorted(levels, key=str))
             calls: Counter = Counter()
             cells_with: Counter = Counter()

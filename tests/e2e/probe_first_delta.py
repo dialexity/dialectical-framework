@@ -79,7 +79,7 @@ first `TextDelta` against the first `ToolStart`:
 `ThinkingDelta` is tracked and reported separately, because the framework's
 `first_delta_s` is set on the first Text **or** Thinking chunk
 (`conversation_facilitator.py:602-604` — `ThoughtChunk` or `TextChunk`; `:600-601` is
-the different `first_chunk_at`) while `kind` above is classified on text alone. With `DIALEXITY_THINKING_LEVEL` unset (`settings.py:100` — `thinking_level`
+the different `first_chunk_at`) while `kind` above is classified on text alone. With `DIALEXITY_CONVERSATION_THINKING_LEVEL` unset (`settings.py:100` — `conversation_thinking_level`
 defaults to `None`) thinking never fires and the two coincide; set it and they
 diverge, so the field is validated against `min(first_text, first_thinking)` rather
 than against text. **That setting is not cosmetic here — it decides the answer**, so
@@ -144,7 +144,7 @@ Now the field. On all three of those turns `first_delta_s` read **3.71 / 1.31 /
 1.67s** (r1t1 / r2t1 / r2t5 — turn order, not sorted), matching `first_thinking` to
 the millisecond — it did NOT land after the
 tool round, which is exactly what `turn_timing.py` warned it would do. The reason is
-that `first_delta_s` is stamped on Text **or** Thinking and `DIALEXITY_THINKING_LEVEL`
+that `first_delta_s` is stamped on Text **or** Thinking and `DIALEXITY_CONVERSATION_THINKING_LEVEL`
 was **`medium`** for this run — read out of the environment, but read SEPARATELY: the
 first run of this probe did not print the knob, so its own log can only show that
 `ThinkingDelta`s arrived on 10/10 turns, i.e. that SOME level was set. The header now
@@ -460,7 +460,7 @@ async def test_probe_first_delta(di_container):
     # separately and asserted in prose. A knob that changes the conclusion belongs in
     # the output, next to the model name.
     print(
-        f"DIALEXITY_THINKING_LEVEL: {os.getenv('DIALEXITY_THINKING_LEVEL') or 'unset'}"
+        f"DIALEXITY_CONVERSATION_THINKING_LEVEL: {os.getenv('DIALEXITY_CONVERSATION_THINKING_LEVEL') or 'unset'}"
         "  (unset => `first_delta_s` IS first text)"
     )
     logging.getLogger("dialectical_framework").setLevel(logging.WARNING)

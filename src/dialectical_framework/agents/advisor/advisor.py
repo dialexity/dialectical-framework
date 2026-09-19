@@ -26,6 +26,7 @@ from dialectical_framework.agents.advisor.mode import AdvisorMode
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.graph.scope_context import (get_current_sid,
                                                         require_current_sid)
+from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
@@ -364,7 +365,16 @@ class Advisor(SettingsAware):
         principal: str = UNATTESTED_PRINCIPAL,
         advanced: bool = False,
         mode: AdvisorMode = AdvisorMode.FULL,
+        thinking: Any = FROM_SETTINGS,
     ) -> None:
+        # thinking: the conversational thinking level for THIS session — the
+        # person's toggle, like `advanced`, so pass the same value to every
+        # head they are looking at. Not given = the deployment's
+        # `settings.conversation_thinking_level`; None = off; a level = on.
+        # Measured (rounds.md, `thinking-off`, `sonnet-thinking`): on Haiku
+        # "medium" is ~3x the call for no election gain; on Sonnet 5 it is close
+        # to free and close to a no-op. It never reaches a concern — those are
+        # framework config (`settings.extraction_thinking_level`).
         # principal: WHO confirms decisions in this conversation — a host
         # attestation, fixed for the session (the counterpart doesn't change
         # mid-conversation). Pass "human" when an actual person is on the
@@ -439,7 +449,9 @@ class Advisor(SettingsAware):
         # App-provided @llm.tool functions (domain resources: chart lookups,
         # methodology references, ...) — see toolsets.merge_app_tools.
         self._tools = merge_app_tools(self._tools, app_tools)
-        self._conversation = ConversationFacilitator(tools=self._tools)
+        self._conversation = ConversationFacilitator(
+            tools=self._tools, conversation_thinking=thinking
+        )
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble

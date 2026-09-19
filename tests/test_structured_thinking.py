@@ -5,7 +5,7 @@ Every concern DTO reaches the provider through
 `ConversationFacilitator._call_with_response_model`, whose default formatting
 mode is forced tool use, and the provider rejects extended thinking on that
 shape ("Thinking may not be enabled when tool_choice forces tool use"). So the
-framework's own reasoning has never thought, whatever `thinking_level` said —
+framework's own reasoning has never thought, whatever `conversation_thinking_level` said —
 that setting reaches only the conversational tool path.
 
 `ConversationFacilitator(format_mode="json", thinking=...)` is the door:
@@ -132,3 +132,73 @@ class TestTheExtractionConcernOptsInThroughSettings:
         assert Settings.from_env().extraction_thinking_level == "low"
         monkeypatch.setenv("DIALEXITY_EXTRACTION_THINKING_LEVEL", "")
         assert Settings.from_env().extraction_thinking_level is None
+
+
+class TestConversationThinkingIsPerSession:
+    """`DIALEXITY_CONVERSATION_THINKING_LEVEL` is the deployment default; a head's
+    `thinking=` is the person's own toggle for the session, and `None` there means
+    OFF — distinct from not saying, which defers to settings."""
+
+    def _settings(self, di_container, level):
+        previous = di_container.settings()
+        di_container.settings.override(
+            previous.model_copy(update={"conversation_thinking_level": level})
+        )
+        return previous
+
+    def test_not_given_defers_to_settings(self, di_container):
+        previous = self._settings(di_container, "medium")
+        try:
+            assert ConversationFacilitator()._thinking_kwargs() == {"thinking": "medium"}
+        finally:
+            di_container.settings.reset_override()
+            di_container.settings.override(previous)
+
+    def test_none_is_off_whatever_settings_say(self, di_container):
+        previous = self._settings(di_container, "medium")
+        try:
+            assert ConversationFacilitator(conversation_thinking=None)._thinking_kwargs() == {}
+        finally:
+            di_container.settings.reset_override()
+            di_container.settings.override(previous)
+
+    def test_a_level_wins_over_settings(self, di_container):
+        previous = self._settings(di_container, None)
+        try:
+            assert ConversationFacilitator(conversation_thinking="low")._thinking_kwargs() == {
+                "thinking": "low"
+            }
+        finally:
+            di_container.settings.reset_override()
+            di_container.settings.override(previous)
+
+    def test_the_toggle_travels_through_isolate(self):
+        child = ConversationFacilitator(conversation_thinking="low").isolate(keep_history=False)
+        assert child._conversation_thinking == "low"
+
+    def test_every_head_takes_the_toggle(self, di_container):
+        """Same shape as `advanced=`: one per-session value, every head."""
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.agents.analyst.analyst import Analyst
+
+        assert Advisor(thinking=None)._conversation._thinking_kwargs() == {}
+        assert Analyst(thinking="low")._conversation._thinking_kwargs() == {"thinking": "low"}
+        import inspect
+
+        from dialectical_framework.agents.explorer.explorer import Explorer
+
+        assert "thinking" in inspect.signature(Explorer.__init__).parameters
+
+    def test_the_setting_reads_from_its_new_name(self, monkeypatch):
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", "low")
+        assert Settings.from_env().conversation_thinking_level == "low"
+        # Empty means unset (the bench relies on `DIALEXITY_CONVERSATION_THINKING_LEVEL=`
+        # to run a regime), and the old name is ignored rather than honoured — set
+        # to empty rather than deleted, because a local .env may carry a value.
+        monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", "")
+        monkeypatch.setenv("DIALEXITY_THINKING_LEVEL", "medium")  # the old name
+        assert Settings.from_env().conversation_thinking_level is None, (
+            "no alias: the old environment name must be ignored, not honoured"
+        )

@@ -358,7 +358,13 @@ mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
 nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
-mode=AdvisorMode.FULL)`. `messages` is resumption and nothing else — every head takes it, a host
+mode=AdvisorMode.FULL, thinking=FROM_SETTINGS)`. `thinking` is the person's extended-thinking
+toggle for this session, the same per-session shape as `advanced` (pass one value to every head
+they are looking at): not given defers to the deployment's `DIALEXITY_CONVERSATION_THINKING_LEVEL`,
+`None` is off, a level is on. It reaches only the conversational call, never a concern — concern
+thinking is framework config per model. Measured: on Haiku 4.5 "medium" is ~3x the call with no
+election gain; on Sonnet 5 it is close to free and close to a no-op (`tests/e2e/rounds.md`,
+`thinking-off`, `sonnet-thinking`). `messages` is resumption and nothing else — every head takes it, a host
 passes it on every turn, and the Explorer↔Advisor toggle below is built on it (construct the other
 class with the same history); it is not a mode. `dialectical_context` is an
 optional pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the
@@ -409,7 +415,7 @@ is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says
 tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
 the same graph. The per-turn graph render (3.2s) has since been removed by a fingerprint-gated
 cache. What remains is not the prompt's size (measured: under a second) but **extended
-thinking on the tool path**: `thinking_level`, when set, applies to every tool-enabled call
+thinking on the tool path**: `conversation_thinking_level`, when set, applies to every tool-enabled call
 and never to the structured path the prompt arms answer through, and at `medium` it is ~450
 hidden output tokens and ~6s a turn on the weak tier. Unset, the Consultant answers in ~6s
 and elects no fewer tools (`tests/e2e/rounds.md`, `probe-consultant-prompt-cost`,

@@ -48,7 +48,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Arm(str, Enum):
@@ -699,7 +699,7 @@ class RunRecord(BaseModel):
     tier: str
     model: str
     #: The extended-thinking level the framework was configured with when this
-    #: cell ran (`Settings.thinking_level`, env `DIALEXITY_THINKING_LEVEL`).
+    #: cell ran (`Settings.conversation_thinking_level`, env `DIALEXITY_CONVERSATION_THINKING_LEVEL`).
     #: Recorded since 2026-09-18, because it is NOT the same regime for every
     #: arm: thinking kwargs go out on the TOOL path only
     #: (`ConversationFacilitator._call_with_tools`), never on the structured
@@ -708,7 +708,20 @@ class RunRecord(BaseModel):
     #: measured that at `medium` as ~450 hidden output tokens and 6s a turn on
     #: haiku. `None` on a record means the cell predates the field, not that
     #: thinking was off.
-    thinking_level: Optional[str] = None
+    conversation_thinking_level: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _read_the_field_under_its_first_name(cls, data):
+        """Three stems (`thinking-off`, `seam-fixes`, and the Consultant runs
+        of 2026-09-18) archived this field as `thinking_level`, its name for
+        one day before `DIALEXITY_THINKING_LEVEL` became
+        `DIALEXITY_CONVERSATION_THINKING_LEVEL`. Archived data is not code, so
+        the old key is read here rather than aliased anywhere in `src/`."""
+        if isinstance(data, dict) and "thinking_level" in data:
+            data = dict(data)
+            data.setdefault("conversation_thinking_level", data.pop("thinking_level"))
+        return data
     scenario_key: str
     #: What the scenario was FOR. Recorded on the cell rather than looked up from
     #: `SCENARIOS_BY_KEY`, because `collapsed_to_a1` needs it and `scenarios`

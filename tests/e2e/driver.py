@@ -696,7 +696,7 @@ class E2EDriver:
             arm=arm,
             tier=tier,
             model=tier_model,
-            thinking_level=self._container.settings().thinking_level,
+            conversation_thinking_level=self._container.settings().conversation_thinking_level,
             scenario_key=scenario.key,
             # Carried on the cell, not looked up later: `collapsed_to_a1` needs
             # it, and `models` cannot import `scenarios` (the dependency runs the

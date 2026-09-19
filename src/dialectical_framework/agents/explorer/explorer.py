@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import aclosing
-from typing import TYPE_CHECKING, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional
 
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.graph.scope_context import require_current_sid
+from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.explorer.system_prompts import system_prompt
@@ -75,7 +76,11 @@ class Explorer:
         app_tools: Optional[list] = None,
         app: Optional[AppSpec] = None,
         advanced: bool = False,
+        thinking: Any = FROM_SETTINGS,
     ) -> None:
+        # thinking: the person's conversational thinking level for this
+        # session (a UI toggle, like `advanced` — pass the same value to every
+        # head). Not given = `settings.conversation_thinking_level`; None = off.
         self._nexus_hash = nexus_hash
         # app: declarative app definition (Navigator base + voicing +
         # tool_guide + tools) — see AppSpec. Pass the SAME AppSpec to every
@@ -95,7 +100,9 @@ class Explorer:
             app, app_preamble, app_tools, preamble_for="navigator", advanced=advanced
         )
         self._tools = merge_app_tools(_build_tools(), app_tools)
-        self._conversation = ConversationFacilitator(tools=self._tools)
+        self._conversation = ConversationFacilitator(
+            tools=self._tools, conversation_thinking=thinking
+        )
 
         if messages:
             self._conversation._messages = list(messages)
