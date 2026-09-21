@@ -6700,3 +6700,44 @@ WHAT WOULD CHANGE A DEFAULT. Nothing in one run. What it can do is say whether t
 5x extraction-faithfulness gap survives contact with a whole conversation, and whether
 the archive's "the framework loses on the weak tier" was in part "the framework was
 reasoning on the weak tier".
+
+### reasoning-sonnet: RESULT — the Sonnet-reasoned graph helps as a DUMP and the live Advisor still loses to it (2026-09-21)
+
+Run as pre-registered (Haiku conversation, `DIALEXITY_E2E_REASONING_MODEL` = Sonnet 5,
+thinking unset, A1 / A1.5 / A2, 2 replicates, judge on), with two casualties on the way:
+the process was killed twice for system memory — from other containers on this machine,
+not this run — and the first kill lost every finished cell because records were written
+only after the matrix loop. `d530f26` checkpoints after every cell; the second kill hit
+the 12th cell and 11 were kept (A1 x4, A1.5 x4, A2 x3; A2 r2 wobble_b missing). Judged
+from the checkpoint by `test_e2e_rejudge`.
+
+    pair          composite   pairs   95% CI              read
+    A1.5 vs A1      +0.38       8    [-0.27, +1.02]      the Sonnet-reasoned dump over method text: unresolved, same sign and size as the archive's +0.51
+    A2   vs A1      -0.81       6    [-1.75, +0.13]      the live builder over method text: unresolved, leaning hard negative
+    A2   vs A1.5    -1.47       6    [-1.76, -1.18]      RESOLVED: the live Advisor loses to a static dump of the graph it builds
+
+THE READING. Reasoning on Sonnet did not rescue the live arm; it sharpened the finding
+the archive already held. The same structure, handed to a Haiku conversation as text,
+beats the Haiku conversation that builds it live by 1.5 rubric points with an interval
+nowhere near zero — and that dump's own edge over plain method text is positive again.
+So the value is in the GRAPH and in the RECORD consumed statically, and the live builder
+inside the turn is a cost the person pays in latency, elections, leaks and lost closings.
+Per cell, A2 this run: 3 of 3 partial weaves (coverage 0 FULL), one closing in prose with
+no record (r2 wobble_a), one wobble reached with no record, 5 machinery leaks in 2 runs,
+a 185s deferred wait, and one turn crashed on the structured fallback ("Anthropic does
+not support empty message content" — fixed in the same commit as this entry).
+
+WHAT THE SONNET REASONING DID DO. A1.5's build came in at 5 perspectives / 5 woven /
+42 transformations (735.7s) in the killed run and 4 / 1 / 6 (335.9s) in the kept one — the
+build's depth is the Haiku conversation's elections, not the reasoning model's, and
+that variance is now the largest single factor in what A1.5 is handed. The extraction-
+faithfulness gain measured in isolation (5x) is not visible at the composite because
+the composite is dominated by what the CONVERSATION does with the structure.
+
+WHAT THIS SETTLES. Three product surfaces were named on 2026-09-18 with the Consultant as
+the fast one; this run says the Consultant / static-dump shape is also the BETTER one
+on the weak tier, resolved, and a Sonnet-reasoned graph is a better thing to hand it. The
+live Advisor's remaining case is the record at return (`ladder-return`), not the session.
+n is 6 pairs on one scenario, one tier; the direction has now reproduced across four
+stems (`a15-latency-rejudged`, `a15-floor`, `a15-pooled`, this) and the size grew when
+the reasoning improved, which is the opposite of what a live-builder advantage predicts.

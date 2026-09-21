@@ -78,6 +78,36 @@ def _is_system_message(message: Any) -> bool:
     return getattr(message, "role", None) == "system"
 
 
+def _is_empty_message(message: Any) -> bool:
+    """A message the Anthropic encoder would refuse: no content, or only
+    text parts that are empty. Tool calls, tool outputs, images and thoughts
+    are content, so a message carrying any of those is not empty."""
+    content = message.get("content") if isinstance(message, dict) else getattr(
+        message, "content", None
+    )
+    if content is None:
+        return True
+    if isinstance(content, str):
+        return not content.strip()
+    try:
+        parts = list(content)
+    except TypeError:
+        return False
+    if not parts:
+        return True
+    for part in parts:
+        part_type = part.get("type") if isinstance(part, dict) else getattr(part, "type", None)
+        text = part.get("text") if isinstance(part, dict) else getattr(part, "text", None)
+        if part_type != "text" or (text or "").strip():
+            return False
+    return True
+
+
+def _without_empty_messages(messages: list) -> list:
+    """The same conversation with the messages the provider would refuse dropped."""
+    return [m for m in messages if not _is_empty_message(m)]
+
+
 def _tool_output_text(output: Any) -> str:
     """The tool's own return value as text, not the envelope's repr.
 
@@ -1273,6 +1303,16 @@ class ConversationFacilitator(SettingsAware):
         # shrinks the exposure but does not close it: the fallback turns are
         # exactly the ones already going badly (budget exhausted, no text), so
         # the framing here still has to hold.
+        # An assistant turn that produced NO text — a tool-only round the
+        # budget cut short, or a model that answered with nothing — sits in
+        # history as a message with empty content, and the Anthropic encoder
+        # refuses to send one ("Anthropic does not support empty message
+        # content"), before any request is made. This fallback is reached
+        # precisely when the reply could not be reused, i.e. when that message
+        # is most likely to be empty — measured live in `reasoning-sonnet`
+        # (2026-09-21): one A2 turn crashed here and the closing it carried
+        # was lost. The copy sent is sanitised; history is left as it is.
+        messages = _without_empty_messages(messages)
         if messages and messages[-1].role == "assistant":
             messages = [*messages, llm.messages.user(_EXTRACTION_REQUEST)]
 

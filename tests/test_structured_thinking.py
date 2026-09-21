@@ -184,3 +184,48 @@ class TestConversationThinkingIsPerSession:
         assert Settings.from_env().conversation_thinking_level is None, (
             "no alias: the old environment name must be ignored, not honoured"
         )
+
+
+class TestTheStructuredFallbackNeverSendsAnEmptyMessage:
+    """`reasoning-sonnet` (2026-09-21): an A2 turn whose reply could not be
+    reused fell back to the structured extraction round with an empty
+    assistant message in history, and the Anthropic encoder refused it before
+    any request went out — the turn errored and the closing it carried was
+    lost. The copy sent is sanitised; history is untouched."""
+
+    def test_empty_messages_are_recognised_in_every_shape(self):
+        from mirascope import llm
+
+        from dialectical_framework.agents.conversation_facilitator import \
+            _is_empty_message
+
+        assert _is_empty_message(llm.messages.assistant("", model_id=None, provider_id=None))
+        assert _is_empty_message({"role": "assistant", "content": ""})
+        assert _is_empty_message({"role": "assistant", "content": []})
+        assert _is_empty_message({"role": "assistant", "content": [{"type": "text", "text": "  "}]})
+        assert not _is_empty_message(llm.messages.user("hello"))
+        assert not _is_empty_message({"role": "assistant", "content": [{"type": "tool_call", "name": "sync"}]})
+        assert not _is_empty_message({"role": "user", "content": [{"type": "text", "text": "x"}]})
+
+    def test_the_copy_is_sanitised_and_history_is_not(self):
+        from mirascope import llm
+
+        from dialectical_framework.agents.conversation_facilitator import \
+            _without_empty_messages
+
+        history = [
+            llm.messages.system("s"),
+            llm.messages.user("u"),
+            llm.messages.assistant("", model_id=None, provider_id=None),
+        ]
+        sent = _without_empty_messages(history)
+        assert [m.role for m in sent] == ["system", "user"]
+        assert len(history) == 3, "history is left as it is"
+
+    def test_the_fallback_uses_it(self):
+        import inspect
+
+        import dialectical_framework.agents.conversation_facilitator as cf_module
+
+        source = inspect.getsource(cf_module)
+        assert "messages = _without_empty_messages(messages)" in source
