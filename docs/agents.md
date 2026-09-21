@@ -403,15 +403,17 @@ built-in set. The engine prompt carries no docs for them (their tool-schema docs
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
-`mode=` selects which of the Advisor's **three surfaces** this head is
-(`agents/advisor/mode.py`). The axis is *builds structure* versus *does not*, not read versus
-write: what costs a person minutes on a turn is the four build tools (`ingest`, `anchor`,
+`mode=` selects which of the Advisor's **three modes** this head runs in
+(`agents/advisor/mode.py`) — a different axis from the four app categories in
+[Choosing what to build](#choosing-what-to-build): a category says WHO is talking, a mode
+says what the head is allowed to do to the graph. The axis is *builds structure* versus
+*does not*, not read versus write: what costs a person minutes on a turn is the four build tools (`ingest`, `anchor`,
 `explore`, `deepen`), while recording a confirmed decision is one call of a few seconds and
 discarding is free.
 
 | Mode | Tools | Builds | Records decisions | For |
 |------|-------|--------|-------------------|-----|
-| `FULL` (default) | all ten | yes, on and off the turn | yes | the consulting chat; the Explorer's advisory register when pinned |
+| `FULL` (default) | all ten | yes, on and off the turn | yes | the two Advisor categories: from scratch, and on a nexus (the advisory register or a pinned persona) |
 | `CONSULTANT` | `sync`, `inspect_node`, `read_digest`, `record_decision`, `discard`, `audit_feasibility` | **never** — not on the turn, and the closing seam records without starting the off-turn weave | yes, grounded on the pathways that already exist | **the Consultant**: a conversation over a graph that was built before it. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
 | `VIEW` | `sync`, `inspect_node`, `read_digest` | no | **no** — the closing seam declines | a second reader on someone else's Case, a shared or public view, a support seat |
 
@@ -419,13 +421,13 @@ All three compose with `nexus_hash=`. Enforced by the TOOLSET and, for the frame
 initiative, by the closing seam — never by prompt, the same division of labour as the nexus
 pin. That is a deliberate choice against a "prefer reading" preamble: tool-election
 instructions measurably do not hold (`anchor` fired 6/6, `explore` 2/6, `deepen` 0/6 under
-the full prompt), so a prompt-deprioritised surface would be fast on most turns and take a
+the full prompt), so a prompt-deprioritised mode would be fast on most turns and take a
 minute on whichever turn the model anchors anyway. What `VIEW` costs, and it must be said to
 whoever picks it: a person who states a decision in that conversation gets **no record of it**
 (the seam that catches the model not calling `record_decision` is exactly what is switched
 off — measured 0/6 at the weak tier). `principal` is accepted and ignored on `VIEW`;
-`app_tools` are still merged on both narrow surfaces, deliberately — the framework cannot tell
-a host's chart lookup from a host's write, so the mode governs the framework's surface and the
+`app_tools` are still merged on both narrow modes, deliberately — the framework cannot tell
+a host's chart lookup from a host's write, so the mode governs the framework's tools and the
 host owns its own. The Consultant's latency against the full Advisor and against a static dump
 is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says the build
 tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
@@ -729,12 +731,14 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | Category | Who | Construct | Builds | Measured |
 |----------|-----|-----------|--------|----------|
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
-| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This surface starts from a graph that already exists, i.e. in the position the bench found strongest, and adds enrichment — it is the surface that should carry the framework's claim, and it has zero cells |
+| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This category starts from a graph that already exists, i.e. in the position the bench found strongest, and adds enrichment — it is the category that should carry the framework's claim, and it has zero cells |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
 | **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
 
-`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a category: the
-same conversation, nothing recorded, for a seat that is not the one doing the work.
+The categories and the Advisor's `mode=` are two axes, not one list: the two Advisor
+categories run `FULL`, the Consultant runs `CONSULTANT`, and `VIEW` is an access level under
+the Consultant rather than a fifth category — the same conversation, nothing recorded, for a
+seat that is not the one doing the work.
 `messages` is resumption on every head and never a mode. `thinking=`, `advanced=` and
 `persona=` are properties of the person for the session, passed to every head they see;
 `DIALEXITY_REASONING_MODEL` is the deployment's, for the structured calls every category
@@ -744,7 +748,7 @@ What the bench says, stated once: counsel from a FINISHED graph beats counsel fr
 being built in front of the person, resolved on the weak tier; the value accrues in the
 record and the map and is collected at the return. That is not a verdict against the two
 building categories — it is the reason the first session is the expensive one and the
-Consultant exists — and the one surface built for exactly the mediator's claim (Advisor on
+Consultant exists — and the one category built for exactly the mediator's claim (Advisor on
 a nexus, which the client's sessions collapse into) is the one still unmeasured.
 
 Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
