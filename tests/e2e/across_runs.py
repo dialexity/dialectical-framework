@@ -213,11 +213,29 @@ def tier_model(stem: str, tier: str) -> str | None:
     """
     payload = load_records(RESULTS / f"{stem}.json")
     models = {
-        run.get("model")
+        _build_model_key(run.get("model"), run.get("reasoning_model"))
         for run in payload.get("runs") or []
         if run.get("tier") == tier and run.get("model")
     }
     return models.pop() if len(models) == 1 else None
+
+
+def _build_model_key(model: str, reasoning_model: str | None) -> str:
+    """The identity of a build for pooling: the conversation model, plus the
+    reasoning model when a run recorded a different one.
+
+    Since 2026-09-21 a run can put its structured calls on a second model
+    (`DIALEXITY_REASONING_MODEL`, recorded as `RunRecord.reasoning_model`), and
+    `reasoning-sonnet` did exactly that at the weak tier — Haiku talking, Sonnet
+    extracting. Its `model` field reads as the canonical weak model, so keying
+    on `model` alone pooled an A2 whose whole framework ran on Sonnet into the
+    Haiku column: the same leak `tier_model` exists to refuse, one field over.
+    A run with no `reasoning_model` (every stem before that date) keys as it
+    always did, so nothing else in the archive moves.
+    """
+    if reasoning_model and reasoning_model != model:
+        return f"{model} + reasoning {reasoning_model}"
+    return model
 
 
 def pooled_model(tier: str) -> str | None:
@@ -627,6 +645,10 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
     `warmth` +0.56 — the same two families, same order. n is 16 weak-rung and 8
     A1.7 cells per dimension there, which is why this stays a lead. Resolving it
     needs one run that judges A0/A1 and A1.7 on the same build.
+
+    The rung column is A0/A1 ONLY — `_opponent_bucket` below; A1.5 and A2c
+    comparisons are skipped, and a stem whose runs recorded a distinct
+    `reasoning_model` is not the canonical weak build (`_build_model_key`).
     """
     per: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
     canonical = pooled_model(tier)
@@ -640,7 +662,9 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
             if "A2" not in arms or arms[0] == arms[1]:
                 continue
             opponent = arms[1] if arms[0] == "A2" else arms[0]
-            bucket = "journal" if opponent == "A1.7" else "rung"
+            bucket = _opponent_bucket(opponent)
+            if bucket is None:
+                continue
             for dimension, (score_a, score_b) in comparison.scores.items():
                 mine, theirs = (
                     (score_a, score_b)
@@ -660,6 +684,33 @@ def rung_rows(tier: str) -> dict[str, tuple[float, int, float, int]]:
             len(journal),
         )
     return out
+
+
+def _opponent_bucket(opponent: str) -> str | None:
+    """Which `rung_rows` column an A2 comparison feeds, by the arm A2 faced.
+
+    "rung" is the BARE PROMPT — A0 (no persona) or A1 (persona) — and "journal"
+    is A1.7, the prose journal. Anything else is neither and is left out: A1.5
+    is the framework's own static dump and A2c is the Consultant reading it, so
+    an A2 delta against either measures live-versus-static, not
+    framework-versus-prompt. Until 2026-09-21 this read `"journal" if A1.7 else
+    "rung"`, which was the docstring's "vs A0/A1" for as long as those were the
+    only other opponents; once the archive held 42 weak A1.5 pairs at
+    `decision_closure` -1.07 the pooled rung column read -0.41 and the gap to
+    the journal collapsed to +0.25 — the two-families reading looked refuted by
+    cells that had never asked its question. Restricted, and with the
+    split-model stem excluded by `_build_model_key`, the same archive reads
+    `decision_closure` +0.05 (n=76) against -0.66 (n=148), gap +0.71, and
+    `convergence` +0.12 against -0.64, gap +0.76, with the tax pair at +0.01
+    and +0.14 — the ordering the docstring above records. The rung column's
+    sign is back above zero on that cut; it is still a mean with no interval,
+    so read it as the docstring says: unmeasured, the GAP is the claim.
+    """
+    if opponent in ("A0", "A1"):
+        return "rung"
+    if opponent == "A1.7":
+        return "journal"
+    return None
 
 
 def visibility_cell_labels() -> dict[tuple[str, str, int], bool]:

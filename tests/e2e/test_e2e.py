@@ -12026,3 +12026,46 @@ class TestEveryCellIsCheckpointed:
         )
         assert calls == [1, 2], "one checkpoint per landed cell, the failure swallowed"
         assert len(run.runs) == 2
+
+
+class TestTheRungColumnIsTheBarePromptOnly:
+    """`rung_rows` reads the whole archive, so its buckets are pinned on the two
+    pure functions that decide them, not on the archive's numbers.
+
+    The full suite failed on 2026-09-21 with `decision_closure gap is +0.25`:
+    not a reading inverted, but 42 weak A2-vs-A1.5 pairs (the static dump, at
+    -1.07) pooled into a column documented as "vs A0/A1", which no A1.5 cell
+    ever asked about. And `reasoning-sonnet` — Haiku talking, Sonnet reasoning —
+    was in the canonical weak pool because `tier_model` keyed on `model` alone.
+    """
+
+    def test_only_the_bare_prompts_are_the_rung(self):
+        from e2e.across_runs import _opponent_bucket
+
+        assert _opponent_bucket("A0") == "rung"
+        assert _opponent_bucket("A1") == "rung"
+        assert _opponent_bucket("A1.7") == "journal"
+        assert _opponent_bucket("A1.5") is None, "the static dump is not a prompt"
+        assert _opponent_bucket("A2c") is None, "the Consultant is not a prompt"
+
+    def test_a_distinct_reasoning_model_is_a_different_build(self, monkeypatch):
+        from e2e import across_runs
+        from e2e.across_runs import _build_model_key, tier_model
+
+        haiku, sonnet = "bedrock/haiku", "bedrock/sonnet"
+        assert _build_model_key(haiku, None) == haiku
+        assert _build_model_key(haiku, haiku) == haiku
+        assert _build_model_key(haiku, sonnet) != haiku
+        assert sonnet in _build_model_key(haiku, sonnet)
+
+        payloads = {
+            "old": {"runs": [{"tier": "weak", "model": haiku}]},
+            "split": {"runs": [{"tier": "weak", "model": haiku, "reasoning_model": sonnet}]},
+        }
+        monkeypatch.setattr(
+            across_runs, "load_records", lambda path: payloads[path.stem]
+        )
+        assert tier_model("old", "weak") == haiku
+        assert tier_model("split", "weak") != haiku, (
+            "a run whose framework reasoned on Sonnet pooled as the Haiku build"
+        )
