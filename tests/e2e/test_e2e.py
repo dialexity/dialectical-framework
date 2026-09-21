@@ -11972,3 +11972,57 @@ class TestSupportValidityGuardsRunInTheDefaultSuite(_SupportValidityGuards):
     number the whole validation turns on. Two such drifts were caught here before
     a single judge call was spent.
     """
+
+
+class TestEveryCellIsCheckpointed:
+    """`reasoning-sonnet` (2026-09-21) lost 8 finished cells of 12 when the
+    process was killed for system memory, because records were written only
+    after the matrix loop — the r23 lesson, again. A cell is the unit that
+    costs money, so it is the unit that gets saved."""
+
+    def test_the_matrix_saves_after_every_cell(self):
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        append_at = source.index("self.runs.append(record)")
+        checkpoint_at = source.index("checkpoint()")
+        assert append_at < checkpoint_at, "checkpoint must follow the append"
+
+    def test_the_entry_point_passes_one(self):
+        import inspect
+
+        from e2e import test_e2e_run
+
+        source = inspect.getsource(test_e2e_run.test_e2e_matrix)
+        assert 'checkpoint=lambda: run.save(OUTPUT_DIR, stem=f"{stem}-runs")' in source
+
+    async def test_a_checkpoint_fires_per_cell_and_a_failing_one_does_not_stop_the_matrix(
+        self, monkeypatch
+    ):
+        """Behavioural, DB-free: the driver's `run_cell` is replaced."""
+        from e2e.config import E2EConfig
+
+        calls: list[int] = []
+
+        async def fake_cell(**kwargs):
+            return RunRecord(
+                arm=kwargs["arm"], tier=kwargs["tier"], model="m",
+                scenario_key=kwargs["scenario"].key, replicate=kwargs["replicate"],
+                branch=kwargs["branch"],
+            )
+
+        run = E2ERun(object(), E2EConfig(tiers={"weak": "m"}, simulator_model="m", judge_model="m"))
+        monkeypatch.setattr(run._driver, "run_cell", fake_cell)
+
+        def checkpoint():
+            calls.append(len(run.runs))
+            if len(calls) == 1:
+                raise RuntimeError("disk full")
+
+        await run.run_matrix(
+            arms=[Arm.A1], scenario_keys=["cofounder_equity"], replicates=1,
+            branches=["wobble_a", "wobble_b"], progress=lambda m: None,
+            checkpoint=checkpoint,
+        )
+        assert calls == [1, 2], "one checkpoint per landed cell, the failure swallowed"
+        assert len(run.runs) == 2

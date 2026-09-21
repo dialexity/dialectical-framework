@@ -161,12 +161,19 @@ class E2ERun:
         replicates: int = 1,
         branches: Optional[list[str]] = None,
         progress=None,
+        checkpoint=None,
     ) -> list[RunRecord]:
         """Run every cell sequentially. Returns the records (also on self.runs).
 
         `branches=None` runs every branch a scenario declares; pass a list to
         run only some (e.g. `["wobble_a"]` when only the reassure case is under
         investigation).
+
+        `checkpoint` is called after EVERY cell lands on `self.runs`. r23 lost
+        21 hours to a hang because records were written only after the loop;
+        `reasoning-sonnet` (2026-09-21) lost 8 finished cells of 12 to the
+        process being killed for system memory. A cell is the unit that costs
+        money, so it is the unit that gets saved.
         """
         arms = list(arms)
         scenarios = scenarios_for(scenario_keys)
@@ -273,6 +280,13 @@ class E2ERun:
                                     ),
                                 )
                             self.runs.append(record)
+                            if checkpoint is not None:
+                                try:
+                                    checkpoint()
+                                except Exception:  # noqa: BLE001
+                                    # A failed save must not cost the matrix
+                                    # the cells still to run.
+                                    logger.exception("Checkpoint save failed")
                             note = record.error or f"{record.duration_s}s"
                             # Turn errors first: they explain a collapse rather
                             # than accompanying it, and a run whose every turn

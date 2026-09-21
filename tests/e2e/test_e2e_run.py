@@ -187,6 +187,10 @@ async def test_e2e_matrix(di_container):
             replicates=replicates,
             branches=branches,
             progress=_say,
+            # Every finished cell reaches the archive at once — same stem the
+            # final save below writes, so a killed run leaves a readable
+            # prefix of itself rather than nothing.
+            checkpoint=lambda: run.save(OUTPUT_DIR, stem=f"{stem}-runs"),
         )
     finally:
         logging.getLogger().removeHandler(log_handler)
