@@ -1313,6 +1313,10 @@ class Advisor(SettingsAware):
                 pending = list(self._decisions_awaiting_pathway)
                 self._decisions_awaiting_pathway.clear()
                 try:
+                    # A closing on an EMPTY graph has nothing to weave: plant
+                    # the decided stance as a tension first, so the weave and
+                    # the grounds below have something to work on.
+                    await self._anchor_when_empty(pending)
                     pathways = await self._weave_unwoven_perspectives()
                 except Exception:
                     logger.exception(
@@ -1535,6 +1539,125 @@ class Advisor(SettingsAware):
                 decision_hash[:7],
             )
             return None
+
+    async def _anchor_when_empty(self, pending: list[str]) -> bool:
+        """A closing on an EMPTY graph: plant the decided stance as a tension.
+
+        THE SHAPE THIS REPAIRS
+        ======================
+        The model reliably does the cheap first step (`anchor` fired 6/6 in
+        `a15-floor`) — and then, some of the time, it does not: 5% of weak-tier
+        first sessions in the archive and one build in four on 2026-09-18 ended
+        with the Advisor having anchored nothing, after which the closing seam
+        recorded a decision on a graph with no perspective in it. That record
+        has no tension to rest on, no price, and nothing for the weave to build
+        from — the "A1 with a ledger" shape. The eager rule in the prompt did not
+        prevent it, and this seam already exists because prompt rules do not make
+        elective calls reliable.
+
+        So when the graph holds no active perspective and a decision is waiting
+        on a pathway, this anchors the decision's own STANCE as a thesis, off the
+        turn, before the weave: `anchor(thesis=stance)` finds what opposes it and
+        builds the tetrad, exactly as the model's own call would have. The stance
+        is the one thing a decision record is certain of, and it is the person's
+        own words. Then, because the stance IS the thesis of the tension just
+        planted, its price is that tension's T- by definition — the same
+        derivation `_accepted_cost_ground` makes at closing time — so the record
+        gets its `accepted_cost` ground here too, when it can.
+
+        Bounded and narrow: only when the graph is empty (never a second anchor
+        beside real ones), only the first resolvable decision (one anchor per
+        empty closing), only on a surface that builds (the task does not exist on
+        CONSULTANT/VIEW). Fail-soft in every direction — a failed anchor leaves
+        the record exactly as it was.
+
+        Returns True when a tension was planted.
+        """
+        from dialectical_framework.graph.nodes.decision import Decision
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        if any(p.hash for p in PerspectiveRepository().find_all_active()):
+            return False
+        decision = None
+        for decision_hash in pending:
+            try:
+                candidate = NodeRepository().find_by_hash(decision_hash, node_type=Decision)
+            except Exception:
+                candidate = None
+            if candidate is not None and (candidate.stance or "").strip():
+                decision = candidate
+                break
+        if decision is None:
+            return False
+
+        from dialectical_framework.agents.advisor.tools.anchor import _anchor
+
+        context_parts = [decision.intent or "", decision.stance or ""]
+        try:
+            context_parts += [
+                r.text for r, _rel in decision.rationales.all() if getattr(r, "text", None)
+            ]
+        except Exception:
+            pass
+        logger.info(
+            "Decision [[%s]] closed on an empty graph; anchoring its stance as a "
+            "tension off the turn so the record has something to rest on",
+            decision.short_hash,
+        )
+        report_json = await _anchor(
+            thesis=decision.stance, antithesis=None, context="\n".join(p for p in context_parts if p)
+        )
+        self._ground_accepted_cost_on_stance(decision, report_json)
+        return True
+
+    def _ground_accepted_cost_on_stance(self, decision, report_json: str) -> None:
+        """The price of the stance just anchored: the new tension's T-.
+
+        Reads the perspective hashes off the anchor's own report rather than
+        re-querying the graph, so a tension that already existed can never be
+        priced onto this record by accident. Skips a record that already carries
+        an `accepted_cost`. Fail-soft.
+        """
+        try:
+            import json
+
+            from dialectical_framework.graph.nodes.perspective import Perspective
+            from dialectical_framework.graph.relationships.grounded_in_relationship import \
+                GroundedInRelationship
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            if any(
+                getattr(rel, "role", None) == "accepted_cost"
+                for _node, rel in decision.grounds.all()
+            ):
+                return
+            hashes = (json.loads(report_json).get("artifacts") or {}).get(
+                "perspective_hashes"
+            ) or []
+            repo = NodeRepository()
+            for pp_hash in hashes:
+                pp = repo.find_by_hash(pp_hash, node_type=Perspective)
+                if pp is None:
+                    continue
+                for aspect, _rel in pp.t_minus.all():
+                    if not aspect.is_committed:
+                        continue
+                    decision.grounds.connect(
+                        aspect, relationship=GroundedInRelationship(role="accepted_cost")
+                    )
+                    if pp.is_committed:
+                        decision.grounds.connect(
+                            pp, relationship=GroundedInRelationship(role=None)
+                        )
+                    return
+        except Exception:
+            logger.exception(
+                "Pricing the anchored stance onto its decision failed (fail-soft)"
+            )
 
     async def _weave_unwoven_perspectives(self) -> list[str]:
         """Build pathways for every perspective the model left unwoven.

@@ -139,6 +139,8 @@ class _StubAdvisor:
     _schedule_pathway_construction = Advisor._schedule_pathway_construction
     _run_deferred_pathway_construction = Advisor._run_deferred_pathway_construction
     _weave_unwoven_perspectives = Advisor._weave_unwoven_perspectives
+    _anchor_when_empty = Advisor._anchor_when_empty
+    _ground_accepted_cost_on_stance = Advisor._ground_accepted_cost_on_stance
     _turn_is_waiting = Advisor._turn_is_waiting
     _settle_deferred_work = Advisor._settle_deferred_work
     # The tail of the drain. Bound for a reason worth stating: an UNbound method
@@ -3258,3 +3260,163 @@ class TestTheWeaveYieldsToAWaitingTurn:
 
         assert seen == [True], "the weave ran while the turn was marked waiting"
         assert advisor._turn_is_waiting() is False, "the flag must clear after the settle"
+
+
+class TestAClosingOnAnEmptyGraphIsAnchoredFirst:
+    """5% of weak-tier first sessions in the archive, and one build in four on
+    2026-09-18, ended with nothing anchored and a decision recorded on an empty
+    graph. The off-turn task now plants the decided stance as a tension before
+    weaving, and prices it onto the record. DB-free: the repositories, the
+    anchor body and the weave are all patched, so what is pinned is WHEN the
+    anchor fires, WHAT it is asked to plant, and that the weave follows."""
+
+    @staticmethod
+    def _pp(h: str):
+        class _PP:
+            def __init__(self) -> None:
+                self.hash = h
+                self.in_cycle = False
+
+        return _PP()
+
+    def _graph(self, monkeypatch, perspectives: list):
+        """`find_all_active` reads a LIVE list, so the fake anchor can add to it."""
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        monkeypatch.setattr(
+            PerspectiveRepository, "find_all_active", lambda self: list(perspectives)
+        )
+        monkeypatch.setattr(
+            PerspectiveRepository, "is_in_use_by_cycle", lambda self, pp: pp.in_cycle
+        )
+        return perspectives
+
+    def _decision(self, monkeypatch, stance: str = "Buy him out"):
+        from types import SimpleNamespace
+
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+
+        decision = SimpleNamespace(
+            hash="dec00001" + "0" * 56,
+            short_hash="dec0000",
+            stance=stance,
+            intent="Buy out the cofounder or restructure?",
+            rationales=SimpleNamespace(all=lambda: [(SimpleNamespace(text="He is checked out."), None)]),
+        )
+        monkeypatch.setattr(
+            NodeRepository,
+            "find_by_hash",
+            lambda self, h, node_type=None: decision if h == "dec00001" else None,
+        )
+        return decision
+
+    def _anchor(self, monkeypatch, perspectives: list) -> list[dict]:
+        import dialectical_framework.agents.advisor.tools.anchor as anchor_mod
+
+        calls: list[dict] = []
+
+        async def fake_anchor(*, thesis, antithesis, context):
+            calls.append({"thesis": thesis, "antithesis": antithesis, "context": context})
+            perspectives.append(self._pp("pp0001"))
+            return '{"artifacts": {"perspective_hashes": ["pp0001"]}}'
+
+        monkeypatch.setattr(anchor_mod, "_anchor", fake_anchor)
+        return calls
+
+    def _weave(self, monkeypatch, perspectives: list) -> list[list[str]]:
+        import dialectical_framework.agents.advisor.tools.explore as explore_mod
+
+        woven: list[list[str]] = []
+
+        async def fake_run(*, perspective_hashes, intent, nexus_hash):
+            woven.append(list(perspective_hashes))
+            for pp in perspectives:
+                pp.in_cycle = True
+            return "{}", ["tr0001"]
+
+        monkeypatch.setattr(explore_mod, "run_exploration_detailed", fake_run)
+        return woven
+
+    async def test_an_empty_graph_gets_the_stance_anchored_then_woven(self, monkeypatch):
+        perspectives = self._graph(monkeypatch, [])
+        decision = self._decision(monkeypatch)
+        anchors = self._anchor(monkeypatch, perspectives)
+        woven = self._weave(monkeypatch, perspectives)
+        priced: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_accepted_cost_on_stance",
+            lambda self, d, report: priced.append((d.short_hash, report)),
+        )
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor,
+            "_ground_recorded_decision",
+            lambda self, h, p: grounded.append((h, list(p))),
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert [a["thesis"] for a in anchors] == ["Buy him out"], "the stance is the thesis"
+        assert anchors[0]["antithesis"] is None, "the opposition is discovered, not invented"
+        assert "Buy out the cofounder or restructure?" in anchors[0]["context"]
+        assert "He is checked out." in anchors[0]["context"]
+        assert priced == [("dec0000", '{"artifacts": {"perspective_hashes": ["pp0001"]}}')]
+        assert woven == [["pp0001"]], "the weave ran over what the anchor planted"
+        assert grounded == [("dec00001", ["tr0001"])]
+
+    async def test_a_graph_with_a_tension_is_never_anchored_from_here(self, monkeypatch):
+        """Narrow on purpose: beside a real tension the model chose not to
+        anchor another, and this seam does not second-guess that."""
+        perspectives = self._graph(monkeypatch, [self._pp("h0000")])
+        self._decision(monkeypatch)
+        anchors = self._anchor(monkeypatch, perspectives)
+        self._weave(monkeypatch, perspectives)
+        monkeypatch.setattr(_StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert anchors == []
+
+    async def test_a_decision_with_no_stance_plants_nothing(self, monkeypatch):
+        perspectives = self._graph(monkeypatch, [])
+        self._decision(monkeypatch, stance="   ")
+        anchors = self._anchor(monkeypatch, perspectives)
+        self._weave(monkeypatch, perspectives)
+        monkeypatch.setattr(_StubAdvisor, "_ground_recorded_decision", lambda self, h, p: None)
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert anchors == []
+
+    async def test_a_failing_anchor_leaves_the_record_as_it_was(self, monkeypatch):
+        """Fail-soft: the anchor raising is caught by the weave's own guard,
+        which BREAKS rather than returns, so nothing downstream is reached and
+        nothing raises out of the task."""
+        perspectives = self._graph(monkeypatch, [])
+        self._decision(monkeypatch)
+        import dialectical_framework.agents.advisor.tools.anchor as anchor_mod
+
+        async def broken(*, thesis, antithesis, context):
+            raise RuntimeError("provider down")
+
+        monkeypatch.setattr(anchor_mod, "_anchor", broken)
+        woven = self._weave(monkeypatch, perspectives)
+        grounded: list = []
+        monkeypatch.setattr(
+            _StubAdvisor, "_ground_recorded_decision", lambda self, h, p: grounded.append(h)
+        )
+
+        advisor = _StubAdvisor([])
+        advisor._schedule_pathway_construction("dec00001")
+        await advisor.wait_for_deferred_work()
+
+        assert woven == [] and grounded == []

@@ -6666,3 +6666,37 @@ What this does NOT settle, and deliberately: whether a Haiku conversation over a
 Sonnet-reasoned graph is the product's right cost shape. That is one bench run away
 (`DIALEXITY_REASONING_MODEL=<sonnet>` with the weak tier as conversation) and it is the
 first run this archive would have where the two models differ ON PURPOSE.
+
+### reasoning-sonnet: pre-registered 2026-09-21, before any cell ran
+
+THE QUESTION. Is "Haiku talking, Sonnet reasoning" the product's right cost shape? First
+run in this archive where the two models differ ON PURPOSE: weak tier (Haiku 4.5) runs
+every conversation, `DIALEXITY_E2E_REASONING_MODEL=bedrock/global.anthropic.claude-sonnet-5`
+runs every structured call, thinking unset, `cofounder_equity`, both wobble branches, 2
+replicates, arms A1 / A1.5 / A2, judge ON. A1.5's build is Sonnet-reasoned too (same
+product, dumped), so `A2 vs A1.5` stays the live-versus-static question at this cost shape.
+Also in this run, unasked but live: the empty-graph anchor (`6f98613`+, a closing on an
+empty graph plants the stance first) and the re-affirmation/duplicate guards.
+
+ENDPOINTS, in order:
+1. MACHINE, primary — what the graph holds per A2 cell (perspectives / woven /
+   transformations), the decision-integrity block (records grounded on a pathway, on a
+   priced tension), and elections by tool, read against `thinking-off` and `seam-fixes`
+   (same cells, Haiku for everything). The Sonnet-reasoned graph is expected to be at
+   least as deep; the question is whether the Haiku conversation USES it.
+2. JUDGED, secondary — `A2 vs A1` structural composite with its interval, read beside the
+   archived Haiku-only reading on this scenario (`a15-floor`: −0.06 [−0.87, +0.76]; the
+   weak-tier archive-wide loss). Not pooled with anything: the build recipe differs, and
+   `read_pooled` refuses that by design. A move of the interval's centre is a lead;
+   only exclusion of zero is a finding.
+3. COST — cell wall, build seconds, reply path per arm. Sonnet reasoning is ~1.5x per
+   structured call; the turn should not move (the conversation is still Haiku).
+
+VALIDITY. The run header prints `reasoning_model=` and every cell records it; a cell
+whose build has `perspectives=0` is invalid by the existing rules; an A2 cell with zero
+tool calls collapses to A1 as ever.
+
+WHAT WOULD CHANGE A DEFAULT. Nothing in one run. What it can do is say whether the
+5x extraction-faithfulness gap survives contact with a whole conversation, and whether
+the archive's "the framework loses on the weak tier" was in part "the framework was
+reasoning on the weak tier".

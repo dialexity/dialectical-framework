@@ -33,6 +33,7 @@ from typing import Iterable, Optional
 
 from .config import E2EConfig
 from .driver import E2EDriver
+from .modelctx import bench_reasoning_model
 from .judge import E2EJudge, MemoryJudge, StanceJudge, WobbleJudge
 from .models import (
     Arm,
@@ -243,6 +244,7 @@ class E2ERun:
                                     tier=tier,
                                     model=tier_model,
                                     conversation_thinking_level=self._container.settings().conversation_thinking_level,
+                                    reasoning_model=bench_reasoning_model(),
                                     scenario_key=scenario.key,
                                     scenario_kind=scenario.kind,
                                     replicate=replicate,

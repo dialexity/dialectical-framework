@@ -3755,6 +3755,11 @@ class TestTheConsultantArm:
             inspect.getsource(E2ERun.run_matrix)
         )
         assert "conversation_thinking_level" in RunRecord.model_fields
+        # And the two-model split, which is the other way an arm can differ
+        # from the tier label on the record.
+        assert "reasoning_model=bench_reasoning_model()" in inspect.getsource(E2EDriver.run_cell)
+        assert "reasoning_model=bench_reasoning_model()" in inspect.getsource(E2ERun.run_matrix)
+        assert "reasoning_model" in RunRecord.model_fields
 
     def test_the_build_is_per_cell_and_inside_the_cell(self):
         """The Consultant writes decisions into what it consults, so cells cannot

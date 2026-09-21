@@ -25,16 +25,18 @@ See `modelctx.using_model`. The arm answers on the tier model; the simulator
 always answers on its own fixed model so the opponent's quality never co-varies
 with the tier. Cells MUST run sequentially — the DI container is process-global.
 
-Why there is no separate "framework model" knob
-===============================================
-"Sonnet talking to a framework running on Opus" is not currently expressible.
-The Advisor's inner analysis calls (extraction, scoring, synthesis) happen
-*inside* `arm.reply()` and read the same `settings.ai_model` as the
-conversational call, so no wrapper around `reply()` can separate them. Faking it
-would mislabel which model produced what. Splitting them for real needs a seam
-in `src/` (a distinct analysis-model setting the concerns read); until then the
-whole A2 arm runs on one tier model per row — which is what the
-depreciating/durable classification actually needs.
+The "framework model" knob (2026-09-21)
+=======================================
+"Haiku talking to a framework reasoning on Sonnet" IS expressible now: the seam
+this section used to ask for exists in `src/` (`settings.reasoning_model`,
+routed in `use_brain` by call shape — every structured call is the framework's
+reasoning, the tool-path call is the conversation). The bench splits them only
+through its own knob, `DIALEXITY_E2E_REASONING_MODEL` (`modelctx`), never
+through the framework's `DIALEXITY_REASONING_MODEL` in a local .env, and every
+cell records `reasoning_model` so an archive can never hold a two-model arm
+that reads as a one-model one. Unset, the whole arm runs on one tier model per
+row — which is what the depreciating/durable classification needs, and what
+every cell before this date is.
 """
 
 from __future__ import annotations
@@ -66,6 +68,7 @@ from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.agents.advisor.mode import AdvisorMode
 
 from .arms import AdvisorArm, PromptArm, method_prompt
+from .modelctx import bench_reasoning_model
 from .models import (
     Arm,
     Beat,
@@ -697,6 +700,7 @@ class E2EDriver:
             tier=tier,
             model=tier_model,
             conversation_thinking_level=self._container.settings().conversation_thinking_level,
+            reasoning_model=bench_reasoning_model(),
             scenario_key=scenario.key,
             # Carried on the cell, not looked up later: `collapsed_to_a1` needs
             # it, and `models` cannot import `scenarios` (the dependency runs the

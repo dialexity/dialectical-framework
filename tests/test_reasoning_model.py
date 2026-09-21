@@ -101,3 +101,20 @@ class TestTheBenchHoldsBothModelsToTheTier:
                 assert ub._get_reasoning_model() == "bedrock/tier"
         finally:
             _restore(di_container, previous)
+
+    def test_the_bench_splits_only_through_its_own_knob(self, di_container, monkeypatch):
+        """`DIALEXITY_E2E_REASONING_MODEL` is the one way to run a two-model
+        arm, and it is what every cell records."""
+        from e2e.modelctx import bench_reasoning_model, using_model
+
+        monkeypatch.setenv("DIALEXITY_E2E_REASONING_MODEL", "bedrock/reason-tier")
+        assert bench_reasoning_model() == "bedrock/reason-tier"
+        previous = _with_models(di_container, "bedrock/chat", None)
+        try:
+            with using_model(di_container, "bedrock/tier"):
+                assert di_container.settings().ai_model == "bedrock/tier"
+                assert ub._get_reasoning_model() == "bedrock/reason-tier"
+        finally:
+            _restore(di_container, previous)
+        monkeypatch.setenv("DIALEXITY_E2E_REASONING_MODEL", "")
+        assert bench_reasoning_model() is None

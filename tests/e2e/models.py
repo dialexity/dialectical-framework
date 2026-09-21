@@ -709,6 +709,10 @@ class RunRecord(BaseModel):
     #: haiku. `None` on a record means the cell predates the field, not that
     #: thinking was off.
     conversation_thinking_level: Optional[str] = None
+    #: The model the framework's STRUCTURED calls ran on in this cell when it
+    #: differed from the tier (`DIALEXITY_E2E_REASONING_MODEL`); None = the
+    #: tier ran everything, which is every cell before 2026-09-21.
+    reasoning_model: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod

@@ -161,7 +161,10 @@ async def test_e2e_matrix(di_container):
         f"branches={branches or 'all'} "
         # Tool-path arms think at this level; prompt arms never think. Printed
         # so a run's header says which regime its A2/A2c cells ran in.
-        f"thinking={di_container.settings().conversation_thinking_level!r}"
+        f"thinking={di_container.settings().conversation_thinking_level!r} "
+        # The bench's deliberate two-model split, if any: the tier runs the
+        # conversation and this runs every structured call.
+        f"reasoning_model={os.getenv('DIALEXITY_E2E_REASONING_MODEL') or None!r}"
     )
 
     run = E2ERun(di_container, config)
