@@ -312,3 +312,119 @@ def _system_prompt_text(agent) -> str:
     if isinstance(content, list):
         return " ".join(getattr(part, "text", str(part)) for part in content)
     return content.text
+
+
+class TestAPinnedAdvisorCanKeepItsPersona:
+    """`Advisor(nexus_hash=, app=, persona=True)` — the pinned head for someone
+    who is not a Navigator user.
+
+    The pin alone selects the Explorer's advisory register: the Navigator
+    contract, vocabulary disclosed, "you built this exploration in the
+    interactive analysis tools". Right for the mediator toggling out of the
+    Explorer; wrong for their client, whose conversation started as
+    `Advisor(app=)`, built an exploration silently, and is then pinned to it
+    by the host — it would flip mid-history into a register that names the
+    machinery. `persona=True` keeps the persona over the same scoped tools.
+    """
+
+    def _pinned(self, nexus_hash: str | None = None, **kwargs):
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.graph.nodes.nexus import Nexus
+
+        if nexus_hash is None:
+            nexus = Nexus(intent="persona pin test")
+            nexus.save()
+            nexus.commit()
+            nexus_hash = nexus.hash[:7]
+        return Advisor(nexus_hash=nexus_hash, dialectical_context="dump", **kwargs)
+
+    def test_the_preamble_is_the_persona_and_nothing_navigator(self):
+        from dialectical_framework.agents.apps import (
+            NAVIGATOR_APP, NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER)
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            advisor = self._pinned(app=FULL_SPEC, persona=True)
+            prompt = _system_prompt_text(advisor)
+            assert PERSONA in prompt
+            assert TOOL_GUIDE in prompt
+            assert "lookup_natal_chart" in [t.__name__ for t in advisor._tools]
+            assert NAVIGATOR_APP.strip()[:80] not in prompt
+            assert "## Advisory Register" not in prompt
+            assert "## Terminology Disclosure" not in prompt
+            assert VOICING not in prompt, "voicing is Navigator-side flavor"
+            assert NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER.strip()[:80] not in prompt
+
+    def test_the_tools_are_still_the_pinned_ones(self):
+        """The flag changes the preamble only; the pin is enforced by the
+        scoped closures whatever the person is told."""
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            pinned = self._pinned(app=FULL_SPEC, persona=True)
+            navigator = self._pinned(pinned._nexus_hash, app=FULL_SPEC)
+            assert [t.__name__ for t in pinned._tools] == [
+                t.__name__ for t in navigator._tools
+            ]
+            assert pinned._nexus_hash == navigator._nexus_hash
+
+    def test_the_collapse_keeps_the_identity(self):
+        """Session 1 unscoped, session 2 pinned to what it built: the app
+        layer is byte-for-byte the same, so the history reads as one voice."""
+        from dialectical_framework.agents.advisor.advisor import Advisor
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            unscoped = Advisor(app=FULL_SPEC)
+            pinned = self._pinned(app=FULL_SPEC, persona=True)
+            assert pinned._app_preamble == unscoped._app_preamble
+
+    def test_the_default_is_still_the_navigator_register(self):
+        """Without the flag nothing changes, or the tests above prove nothing."""
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            prompt = _system_prompt_text(self._pinned(app=FULL_SPEC))
+            assert "## Advisory Register" in prompt
+            assert PERSONA not in prompt
+
+    def test_the_flag_is_refused_where_it_could_not_be_honoured(self):
+        """Same rule as `advanced`: a silently dropped flag is the defect."""
+        from dialectical_framework.graph.nodes.case import Case
+        from dialectical_framework.graph.scope_context import scope
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            # No app= to take the persona from.
+            with pytest.raises(ValueError, match="no app= to take it from"):
+                self._pinned(persona=True)
+            with pytest.raises(ValueError, match="no app= to take it from"):
+                self._pinned(app_preamble="manual", persona=True)
+            # A persona has no framework vocabulary to unlock.
+            with pytest.raises(ValueError, match="no meaning for a standalone"):
+                self._pinned(app=FULL_SPEC, persona=True, advanced=True)
+        with pytest.raises(ValueError, match="no meaning for a standalone"):
+            FULL_SPEC.advisor_preamble(scoped=True, persona=True, advanced=True)
+
+    def test_unpinned_the_flag_changes_nothing_and_does_not_raise(self):
+        """The unscoped head is already the persona — like `principal` on VIEW,
+        a flag that changes nothing a person can see is accepted, not refused."""
+        from dialectical_framework.agents.advisor.advisor import Advisor
+
+        assert (
+            Advisor(app=FULL_SPEC, persona=True)._app_preamble
+            == Advisor(app=FULL_SPEC)._app_preamble
+        )

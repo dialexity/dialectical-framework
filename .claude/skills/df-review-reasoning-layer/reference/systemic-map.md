@@ -3689,7 +3689,8 @@ uniform across Analyst/Explorer/Advisor via `agents/toolsets.py::merge_app_tools
 app, passed to EVERY head — toggle heads share literal history, and the Analyst thread owes the same
 domain resources by parity. The recommended host interface is `AppSpec` (`agents/app_spec.py`): apps
 declare pieces (voicing / advisor_persona / tool_guide / tools) and each head composes its correct base —
-NAVIGATOR_APP, NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER, or bare persona — so the composition lore stays in the framework;
+NAVIGATOR_APP, NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER, or bare persona (the unscoped head, and a pinned
+head under `persona=True`: same persona over the scoped engine, for a person who is not a Navigator user) — so the composition lore stays in the framework;
 `tool_guide` lands verbatim in every head, preventing per-head drift of app-tool usage rules —
 `tests/test_app_spec.py`); the nexus pin
 is enforced by closures in `advisor/tools/scoped.py` (`build_scoped_tools`),

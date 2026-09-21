@@ -553,8 +553,11 @@ NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER_ADVANCED = (
 
 # =============================================================================
 # ADVISORY PERSONAS — app-facing palette (*_PERSONA)
-# Identities for the STANDALONE Advisor (machinery hidden); an app ships one
-# via AppSpec.advisor_persona. Never used in Navigator territory.
+# Identities for the Advisor wherever the machinery is hidden — the STANDALONE
+# head, and a pinned head constructed with `persona=True`; an app ships one
+# via AppSpec.advisor_persona. Never used in Navigator territory: the pin's
+# default register (above) is the Navigator's, and the persona replaces it
+# only when the host says the person is not a Navigator user.
 # =============================================================================
 
 COUNSELOR_PERSONA = """## Persona

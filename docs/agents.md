@@ -8,7 +8,7 @@ flavor (persona, vocabulary). Swap the preamble and the same reasoning engine se
 a different product.
 
 They are three heads over one graph, split by **when you know what** — and four
-products, split by who is talking (see [Choosing what to build](#choosing-what-to-build)):
+categories of app, split by who is talking (see [Choosing what to build](#choosing-what-to-build)):
 
 | Agent | Metaphor | Scope | Turns... | Framework visible? |
 |-------|----------|-------|----------|--------------------|
@@ -19,11 +19,12 @@ products, split by who is talking (see [Choosing what to build](#choosing-what-t
 
 Analyst + Explorer together are the **Navigator** experience (two visible phases).
 The Advisor is a **separate app**: internally it does what Analyst + Explorer do, but
-exposes none of the machinery — pinned to one exploration for the mediator
-(`Advisor(nexus_hash=, messages=)`), or from scratch for a person with a context
-(`Advisor(app=)`). The **Consultant** is the Advisor with the build tools withheld
-(`Advisor(mode=AdvisorMode.CONSULTANT)`): a graph that already exists, nothing built —
-see [Choosing what to build](#choosing-what-to-build).
+exposes none of the machinery — pinned to one exploration for an analyst or mediator
+(`Advisor(nexus_hash=, messages=)`), or from scratch for their client (`Advisor(app=)`),
+whose sessions end up building a nexus and diving into it (`persona=True` keeps the
+persona over the pin). The **Consultant** is the Advisor with the build tools withheld
+(`Advisor(mode=AdvisorMode.CONSULTANT)`): a graph something else built — see
+[Choosing what to build](#choosing-what-to-build) and the headless builder under it.
 
 All three live in `agents/{analyst,explorer,advisor}/`. See also `docs/graph.md`
 (data model) and `docs/scoring.md` (metrics).
@@ -104,7 +105,8 @@ Construction is uniform except for what each is bound to:
 Analyst(app=None, app_preamble=None, messages=None, app_tools=None, advanced=False)              # Case-scoped (ambient)
 Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None, advanced=False) # bound to one Nexus
 Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
-        nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL, advanced=False)
+        nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
+        mode=AdvisorMode.FULL, thinking=FROM_SETTINGS, persona=False)
 ```
 
 **`app` (an `AppSpec`, `agents/app_spec.py`) is the recommended interface**: the app
@@ -361,7 +363,7 @@ mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
 nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
-mode=AdvisorMode.FULL, thinking=FROM_SETTINGS)`. `thinking` is the person's extended-thinking
+mode=AdvisorMode.FULL, thinking=FROM_SETTINGS, persona=False)`. `thinking` is the person's extended-thinking
 toggle for this session, the same per-session shape as `advanced` (pass one value to every head
 they are looking at): not given defers to the deployment's `DIALEXITY_CONVERSATION_THINKING_LEVEL`,
 `None` is off, a level is on. It reaches only the conversational call, never a concern — concerns
@@ -385,8 +387,16 @@ renders as "confirmed by agent:unattested" instead of as the person's own "Why".
 deliberately visible failure: the wording is intact and passing the argument fixes it, whereas
 a fabricated human attestation is unfixable after the fact. Closed over by the tool in code;
 the LLM cannot set it. `nexus_hash` pins the
-Advisor to one exploration — this is the **advisory mode of an Explorer session**, not a
-standalone deployment; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below.
+Advisor to one exploration. By default that is the **advisory mode of an Explorer session**
+(the Navigator's advisory register: vocabulary disclosed, the person addressed as someone who
+knows the map; see [Explorer ↔ Advisor](#handoffs-the-ux-glue) below). `persona=True` is the
+same pin for someone who is **not** a Navigator user: the app's `advisor_persona` stays the
+preamble and the machinery stays hidden, over the same scoped tools and the same scoped
+engine. It exists for the collapse a client's conversation makes — started as `Advisor(app=)`,
+built an exploration silently, and now pinned to it by the host — which without the flag would
+flip mid-history into a register that names the machinery. Per-session like `advanced` (which
+it excludes: a persona has nothing to unlock) and `thinking`; ignored without a pin; raises
+with no `app=` to take the persona from.
 `app_tools` is the app's domain-resource seam: additional `@llm.tool` functions
 (chart lookups, methodology references, knowledge-base fetches) appended to the
 built-in set. The engine prompt carries no docs for them (their tool-schema docstrings
@@ -461,8 +471,10 @@ displays it.
 - The graph exists and grows silently; an optional "show me the structure" power view is
   possible but the default is just the conversation.
 - The **unscoped** Advisor is a standalone app, not a mode of the navigator. The
-  **exploration-pinned** Advisor (`nexus_hash=...`) is the opposite: a mode of the
-  Explorer session, reached by handover, never started cold.
+  **exploration-pinned** Advisor (`nexus_hash=...`) is by default the opposite: a mode of the
+  Explorer session, reached by handover. Pinned **with `persona=True`** it is the standalone
+  app again, narrowed to one exploration — how a client's conversation continues inside the
+  exploration it built.
 - The **Consultant** (`mode=AdvisorMode.CONSULTANT`) is the one to reach for when the graph
   already exists and the person wants to talk it through and decide: same chat window, a
   turn is one graph read plus the model, decisions are recorded, nothing is built.
@@ -576,7 +588,14 @@ ASTRO_APP = AppSpec(
 Analyst(app=ASTRO_APP)
 Explorer(nexus_hash=nx, messages=msgs, app=ASTRO_APP)
 Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP)   # advisory toggle
+Advisor(app=ASTRO_APP)                                  # standalone: persona, machinery hidden
+Advisor(nexus_hash=nx, messages=msgs, app=ASTRO_APP, persona=True)  # pinned, machinery still hidden
 ```
+
+The last line is not a toggle. It is the standalone Advisor continuing inside the exploration
+it built — the same persona, the same hidden machinery, now with the pin's tool guards and
+the scoped engine. A host reaches for it when a client's session has produced an exploration
+worth staying in; a mediator toggling out of the Explorer never needs it.
 
 Both heads narrate the toggle moment without switching themselves: the Explorer suggests
 advisory mode when the conversation pulls from structure to meaning (only if the host offers
@@ -703,31 +722,74 @@ to advisory mode and forbids fake acknowledgments.
 
 ## Choosing what to build
 
-Four products share one backend (owner's framing, 2026-09-21). They differ by WHO is
-talking and WHETHER the graph is being built:
+The framework cannot predict its own applications; what can be named are the CATEGORIES
+of app that will emerge (owner's framing, 2026-09-21), and each maps to one construction.
+They differ by WHO is talking and WHETHER the graph is being built:
 
-| Product | Who | Construct | Builds | Measured |
-|---------|-----|-----------|--------|----------|
-| **Navigator** | a system scientist building the graph deliberately | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages` | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
-| **Advisor on a nexus** | the mediator: exploring ONE exploration with assisted reasoning, enriching it as they go | `Advisor(nexus_hash=, messages=)` — the Explorer's advisory register | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This surface starts from a graph the mediator already built, i.e. in the position the bench found strongest, and adds enrichment — it is the surface that should carry the framework's claim, and it has zero cells |
-| **Advisor from scratch** | an ordinary person with a context and questions | `Advisor(app=)` | silently, from nothing | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). The entry point; its record and map are what a later visit consumes |
-| **Consultant** | anyone talking to an existing graph | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
+| Category | Who | Construct | Builds | Measured |
+|----------|-----|-----------|--------|----------|
+| **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
+| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This surface starts from a graph that already exists, i.e. in the position the bench found strongest, and adds enrichment — it is the surface that should carry the framework's claim, and it has zero cells |
+| **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
+| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
 
-`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a product: the
+`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a category: the
 same conversation, nothing recorded, for a seat that is not the one doing the work.
-`messages` is resumption on every head and never a mode. `thinking=` is the person's own
-toggle on every head; `DIALEXITY_REASONING_MODEL` is the deployment's, for the structured
-calls all four products share.
+`messages` is resumption on every head and never a mode. `thinking=`, `advanced=` and
+`persona=` are properties of the person for the session, passed to every head they see;
+`DIALEXITY_REASONING_MODEL` is the deployment's, for the structured calls every category
+shares.
 
 What the bench says, stated once: counsel from a FINISHED graph beats counsel from a graph
 being built in front of the person, resolved on the weak tier; the value accrues in the
 record and the map and is collected at the return. That is not a verdict against the two
-building products — it is the reason the first session is the expensive one and the
+building categories — it is the reason the first session is the expensive one and the
 Consultant exists — and the one surface built for exactly the mediator's claim (Advisor on
-a nexus) is the one still unmeasured.
+a nexus, which the client's sessions collapse into) is the one still unmeasured.
 
 Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
 hides exactly what the Navigator exists to show. If you build both, they are two front-ends
 over one graph service, distinguished only by which agents they instantiate and which
 preamble they inject. The Consultant composes with any of them: it is the same `Advisor`
 class, handed fewer tools.
+
+### The headless builder
+
+The Consultant presupposes a graph, and the thing that built it need not be a person in a
+chat. The same pipelines every agent composes are callable directly, under a scope, with no
+conversation and no preamble. Three calls take material to a developed exploration:
+
+```python
+from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+from dialectical_framework.agents.explorer.explorer import ExplorationPipeline
+from dialectical_framework.concerns.create_nexus import CreateNexus
+from dialectical_framework.graph.scope_context import scope
+
+with scope(case.sid):                                  # the app owns the Case
+    analysis = await AnalysisPipeline(text=material, intent=intent).resolve()
+    #   -> perspective_hashes (standalone tetrads), plus thesis/polarity hashes
+    created = await CreateNexus().resolve(intent=intent,
+                                          perspective_hashes=analysis.perspective_hashes[:k])
+    exploration = await ExplorationPipeline(
+        nexus_hash=created.nexus.hash,
+        perspective_hashes=analysis.perspective_hashes[:k],
+        max_deep_wheels=1,            # the Advisor's own budget; None deepens EVERY wheel
+        refine_from_coarser=True,     # the refinement recursion; off, the top wheel refines from nothing
+    ).resolve()
+    #   -> cycle/wheel hashes, deepened_wheel_hashes, transformation hashes
+```
+
+Synthesis is a separate skill (`GenerateSynthesis`, per deepened wheel) and the Advisor's
+`explore` tool runs it after the pipeline; a headless builder that wants the same one-call
+shape, synthesis included and the perspective cap applied, calls
+`agents/advisor/tools/explore.py::run_exploration_detailed(perspective_hashes, intent,
+nexus_hash)`, which is the shared body behind the tool and is already entered directly by
+the closing seam and the probes. Three things the pipelines leave to the caller: **bound k**
+(the wheel count is combinatorial — `max_deep_wheels=None` deepens all of them, which at
+k=4 is 96 wheels and had not returned after 41 minutes with a zero-latency model); **open a
+progress scope** if a host is watching (`utils/progress.py`; the pipelines report into it
+and are silent without one); and **nothing here records decisions** — that is the
+Consultant's job on the graph this produced. An agentic builder that drives the Analyst and
+Explorer heads through `chat()` instead gets the same graph with the tool-election
+variance those prompts carry; the pipelines are deterministic in what they run.
+`tests/test_agents_e2e.py` runs exactly this sequence against a real provider.

@@ -66,3 +66,24 @@ Advisor has `discard` but NO edit tool — re-framing means discard + `anchor` t
 ## Decision provenance
 
 Only `Rationale.agent` tracks generating model (`<provider>/<model>`, auto-filled from settings; sentinel `"human"` = user-confirmed content, e.g. a Decision's rationale). Other nodes trace provenance through their Rationale — intentional, don't "fix" by adding `agent` elsewhere. **`"human"` is never a DEFAULT anywhere, and that is a rule about this field rather than a preference:** it means a person read the wording back and said yes, and both renderers then present such a rationale as that person's own unattributed "Why", so a default would be the framework making a claim about who was in the room. `Advisor(principal=...)`/`RecordDecision.resolve(principal=...)` default to `UNATTESTED_PRINCIPAL = "agent:unattested"` (`concerns/record_decision.py`); a host with a real person on the other end must pass `"human"` explicitly, and an automated one passes `"agent:<name>"`. The value is in the `agent:` family because the ledger renders NOTHING for an `agent` outside `human`/`agent:*` — a neutral placeholder would delete the recorded why from the Advisor's own prompt — and it is deliberately ugly so "confirmed by agent:unattested" reads as the contradiction it is. See the systemic map's Decision-provenance section for the census that ruled out making the argument required.
+
+## The pinned Advisor that keeps its persona (`persona=True`, 2026-09-21)
+
+The pin (`nexus_hash=`) used to select the Navigator's advisory register unconditionally,
+because the only pinned Advisor anyone had built was the Explorer toggle. The owner's
+category map exposed the shape that breaks: a mediator's client starts in `Advisor(app=)`,
+the framework builds a nexus silently, and the natural next step is to pin the later
+sessions to that exploration — at which point the head flipped into a register that says
+"you built this in the interactive analysis tools" and grants terminology disclosure, to a
+person who has never seen the machinery. So `AppSpec.advisor_preamble(scoped=True,
+persona=True)` composes `advisor_persona + tool_guide` (byte-identical to the unscoped
+preamble, which is the point: one voice across the collapse), and the Advisor takes
+`persona=` as a per-session flag with the `advanced` rules — raises with no `app=`
+(`_PERSONA_WITHOUT_SPEC`), excludes `advanced` (a persona has nothing to unlock), and is
+ignored without a pin because there it changes nothing a person can see. Tools and engine
+are untouched: `_build_scoped_tools` and `system_prompt(..., scoped_nexus_hash)` do not know
+the flag exists, and the scoped engine's consent rule (`_REJECTION_HANDLING_SCOPED`, "the
+exploration is THEIR deliverable") reads a little off for a client whose mediator built it,
+but confirming before a retraction is the right behaviour for that person too, so it was
+left alone. No AppSpec field, for the same reason `advanced` is not one: one app serves the
+mediator and their client. Unmeasured — no bench cell pins an Advisor with a persona.

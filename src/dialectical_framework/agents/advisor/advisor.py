@@ -366,7 +366,21 @@ class Advisor(SettingsAware):
         advanced: bool = False,
         mode: AdvisorMode = AdvisorMode.FULL,
         thinking: Any = FROM_SETTINGS,
+        persona: bool = False,
     ) -> None:
+        # persona: a pinned Advisor (`nexus_hash` set) for someone who is NOT a
+        # Navigator user. The pin alone selects the Explorer's advisory register
+        # — the Navigator contract, vocabulary disclosed, "you built this in the
+        # analysis tools" — which is right for the mediator toggling out of the
+        # Explorer and wrong for their client: a conversation that started as
+        # `Advisor(app=)`, built an exploration silently, and is now pinned to
+        # it by the host would flip mid-history into a register that names the
+        # machinery. `persona=True` keeps the app's `advisor_persona` instead,
+        # the same preamble the unscoped head had, over the same scoped tools
+        # and scoped engine. A per-session property of the person, like
+        # `advanced` (which it excludes: a persona has nothing to unlock) and
+        # `thinking`. Ignored without a pin, where the persona is already the
+        # preamble; raises with no `app=` to take the persona from.
         # thinking: the conversational thinking level for THIS session — the
         # person's toggle, like `advanced`, so pass the same value to every
         # head they are looking at. Not given = the deployment's
@@ -431,11 +445,15 @@ class Advisor(SettingsAware):
         # the standalone Advisor (no nexus_hash): that head's whole contract is
         # hidden machinery, so there is nothing to unlock and honouring the flag
         # would mean ignoring it.
+        if nexus_hash:
+            preamble_for = "advisor_scoped_persona" if persona else "advisor_scoped"
+        else:
+            preamble_for = "advisor_unscoped"
         app_preamble, app_tools = resolve_app_layer(
             app,
             app_preamble,
             app_tools,
-            preamble_for="advisor_scoped" if nexus_hash else "advisor_unscoped",
+            preamble_for=preamble_for,
             advanced=advanced,
         )
         if nexus_hash:
