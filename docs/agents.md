@@ -7,7 +7,8 @@ orchestrator + concern layer, while the **app preamble** supplies only user-faci
 flavor (persona, vocabulary). Swap the preamble and the same reasoning engine serves
 a different product.
 
-They are three products over one graph, split by **when you know what**:
+They are three heads over one graph, split by **when you know what** — and four
+products, split by who is talking (see [Choosing what to build](#choosing-what-to-build)):
 
 | Agent | Metaphor | Scope | Turns... | Framework visible? |
 |-------|----------|-------|----------|--------------------|
@@ -18,9 +19,11 @@ They are three products over one graph, split by **when you know what**:
 
 Analyst + Explorer together are the **Navigator** experience (two visible phases).
 The Advisor is a **separate app**: internally it does what Analyst + Explorer do, but
-exposes none of the machinery. The **Consultant** is the Advisor with the build tools
-withheld (`Advisor(mode=AdvisorMode.CONSULTANT)`): the third product surface, for a graph
-that already exists — see [Choosing what to build](#choosing-what-to-build).
+exposes none of the machinery — pinned to one exploration for the mediator
+(`Advisor(nexus_hash=, messages=)`), or from scratch for a person with a context
+(`Advisor(app=)`). The **Consultant** is the Advisor with the build tools withheld
+(`Advisor(mode=AdvisorMode.CONSULTANT)`): a graph that already exists, nothing built —
+see [Choosing what to build](#choosing-what-to-build).
 
 All three live in `agents/{analyst,explorer,advisor}/`. See also `docs/graph.md`
 (data model) and `docs/scoring.md` (metrics).
@@ -700,30 +703,31 @@ to advisory mode and forbids fake acknowledgments.
 
 ## Choosing what to build
 
-Three product surfaces share one backend, and they differ by **who builds the graph and
-whether it is built at all**:
+Four products share one backend (owner's framing, 2026-09-21). They differ by WHO is
+talking and WHETHER the graph is being built:
 
-| Surface | Heads | Who builds | Chat is... | For |
-|---------|-------|------------|------------|-----|
-| **Navigator** | Analyst + Explorer (+ the Explorer's advisory register) | the person, through chat — every tool call is visible, buttons in the app route through the same conversation | the UI for building | users who want to *see and steer* the dialectics; degrades gracefully because each step is seen and fixed |
-| **Advisor** | `Advisor(mode=FULL)` | the framework, silently, while the person talks | the whole product | users who want counsel and never the machinery; demands the framework be reliable end-to-end unattended |
-| **Consultant** | `Advisor(mode=CONSULTANT)` | nobody — the graph was built before this conversation, by either surface above | a conversation over a finished graph that records what the person decides | the return visit, the decision session over a built case; a turn is one graph read plus the model, and no turn can cost a pipeline |
+| Product | Who | Construct | Builds | Measured |
+|---------|-----|-----------|--------|----------|
+| **Navigator** | a system scientist building the graph deliberately | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages` | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
+| **Advisor on a nexus** | the mediator: exploring ONE exploration with assisted reasoning, enriching it as they go | `Advisor(nexus_hash=, messages=)` — the Explorer's advisory register | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This surface starts from a graph the mediator already built, i.e. in the position the bench found strongest, and adds enrichment — it is the surface that should carry the framework's claim, and it has zero cells |
+| **Advisor from scratch** | an ordinary person with a context and questions | `Advisor(app=)` | silently, from nothing | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). The entry point; its record and map are what a later visit consumes |
+| **Consultant** | anyone talking to an existing graph | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
 
-`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a fourth
-surface: the same conversation, nothing recorded, for a seat that is not the one doing the
-work. `messages` is resumption on every head and never a mode.
+`VIEW` (`Advisor(mode=VIEW)`) is an access level under the Consultant, not a product: the
+same conversation, nothing recorded, for a seat that is not the one doing the work.
+`messages` is resumption on every head and never a mode. `thinking=` is the person's own
+toggle on every head; `DIALEXITY_REASONING_MODEL` is the deployment's, for the structured
+calls all four products share.
 
-The bench (`tests/e2e/README.md`) is what says which surface earns its cost. The live
-Advisor answers in ~24s a turn against ~6s for a static dump of the same graph, and the
-in-session quality of the two was not distinguishable — which is what makes the Consultant
-a product surface rather than a convenience: build once, on either of the other two, and
-talk to the result. Its first measurements put it at ~18-21s a turn with extended thinking
-at `medium`, and ~6s a turn with thinking unset — the tool path thinks, the prompt arms never
-do, and that regime rather than the prompt's size is the gap (`tests/e2e/rounds.md`,
-`consultant-latency`, `consultant-cache`, `probe-consultant-prompt-cost`).
+What the bench says, stated once: counsel from a FINISHED graph beats counsel from a graph
+being built in front of the person, resolved on the weak tier; the value accrues in the
+record and the map and is collected at the return. That is not a verdict against the two
+building products — it is the reason the first session is the expensive one and the
+Consultant exists — and the one surface built for exactly the mediator's claim (Advisor on
+a nexus) is the one still unmeasured.
 
-Navigator and Advisor are **not** one UI with a toggle — the Advisor's value is that it hides
-exactly what the Navigator exists to show. If you build both, they are two front-ends over
-one graph service, distinguished only by which agents they instantiate and which preamble
-they inject. The Consultant composes with either: it is the same `Advisor` class, handed
-fewer tools.
+Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
+hides exactly what the Navigator exists to show. If you build both, they are two front-ends
+over one graph service, distinguished only by which agents they instantiate and which
+preamble they inject. The Consultant composes with any of them: it is the same `Advisor`
+class, handed fewer tools.
