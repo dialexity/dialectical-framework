@@ -6773,3 +6773,21 @@ here by construction; n is 9-16 sessions per arm on one scenario.
 THE LEVER TAKEN: render the synthesis FIRST under each wheel, before its transformations
 ("prune, don't instruct" — a rendering change, no prompt rule). Endpoint on the next run
 with a dump: the synthesis column above, per arm.
+
+### synthesis-first: the rendering move did not raise synthesis reach (2026-09-21)
+
+A2c only, one replicate, judge off, thinking unset, 12m17s, builds 5 / 2 / 18 both cells.
+Synthesis best-overlap per session: 0.22, 0.00, 0.14, 0.17 (median 0.16) against the
+earlier Consultant median of 0.33 (16 sessions). NOT SHOWN, and if anything lower — with
+two caveats that make it "unresolved" rather than "worse": n=4 sessions, and these dumps
+carry 12-13 pathway lines against 31-43 before (two syntheses to match instead of three
+or four; best-overlap has fewer chances). The instrument is also weakest exactly here:
+a synthesis is a 7-word abstract headline, and overlap cannot see paraphrase.
+
+The change stays as a rendering choice (where the arrangement heads is read before the
+twelve steps that get there; no measured harm), but it is NOT the lever that moves reach,
+and the next attempt on the synthesis must first build an endpoint that can see
+paraphrase (a judge asking "did the reply carry the synthesis's idea?"), not overlap.
+What the reach reading does establish stands: the live head uses its own map less than a
+static arm does with the same text, on every section, and that is a fact about the
+Advisor's turn, not about the dump.
