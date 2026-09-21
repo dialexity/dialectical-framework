@@ -441,6 +441,12 @@ class AdvisorArm:
     built beforehand, handed the reading and deciding tools and none of the
     build tools, so its per-turn cost is one graph read plus the model.
 
+    And A2n with `nexus_hash=`: the same pre-built graph, the head PINNED to
+    the exploration it produced with every tool kept — the Advisor on a nexus.
+    The persona stays the preamble (the manual `app_preamble=` layer is what
+    the bench uses, and it is untouched by the pin), which is the
+    `persona=True` shape a client's pinned session gets in an app.
+
     `principal` is passed as an agent identity, never "human": the user turns
     here are produced by a simulator, and a recorded decision must not claim a
     human confirmation it never got. This is the framework's own provenance
@@ -454,12 +460,14 @@ class AdvisorArm:
         principal: str,
         dialectical_context: Optional[str] = None,
         mode: AdvisorMode = AdvisorMode.FULL,
+        nexus_hash: Optional[str] = None,
     ) -> None:
         self._advisor = Advisor(
             app_preamble=persona,
             dialectical_context=dialectical_context,
             principal=principal,
             mode=mode,
+            nexus_hash=nexus_hash,
         )
 
     async def reply(self, user_text: str) -> str:

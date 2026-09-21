@@ -6791,3 +6791,40 @@ paraphrase (a judge asking "did the reply carry the synthesis's idea?"), not ove
 What the reach reading does establish stands: the live head uses its own map less than a
 static arm does with the same text, on every section, and that is a fact about the
 Advisor's turn, not about the dump.
+
+
+### nexus-pinned: pre-registered 2026-09-21, before any cell ran
+
+THE QUESTION. Does the Advisor ON A NEXUS — the category every client session collapses
+into, named on 2026-09-21 as the one built for the framework's own claim — beat consulting
+the same graph, and does it beat the static dump the unscoped builder lost to? New arm
+`A2n` (`Arm.A2N`): A2c's per-cell build, then `Advisor(nexus_hash=)` in FULL mode pinned
+to the nexus holding the most perspectives, seeded every session with the scoped render.
+Weak tier (Haiku 4.5) talking, `DIALEXITY_E2E_REASONING_MODEL` = Sonnet 5 reasoning — the
+product's cost shape as settled by `two-models` — thinking unset, `cofounder_equity`,
+both wobble branches, 2 replicates, arms A1.5 / A2c / A2n, judge ON. No A2 cell: the
+unscoped builder's readings on this exact shape are in `reasoning-sonnet` (A2 vs A1.5
+−1.47 [−1.76, −1.18], n=6) and are the comparison for endpoint 2.
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2n vs A2c` structural composite with its interval: the same
+   graph, enrichment allowed against not. The framework's claim predicts A2n ≥ A2c; the
+   archive's live-builder finding predicts the opposite (every tool call is latency,
+   election variance and a chance to leak). Zero excluded either way is a finding; a
+   centre is a lead.
+2. JUDGED, secondary — `A2n vs A1.5`, read beside `reasoning-sonnet`'s `A2 vs A1.5`
+   −1.47. If the pinned builder's interval sits well above −1.47 the unscoped loss was
+   partly "building from nothing in front of the person"; if it reproduces, the loss is
+   the live builder as such.
+3. MACHINE — per A2n cell: elections by tool inside the pin (`anchor` / `explore` /
+   `deepen` / `record_decision`), what the graph gained over the build (perspectives /
+   woven / transformations at the pin against at the end), decisions grounded on a
+   pathway, machinery leaks, and `pinned_without_nexus` count. Per-turn timing by arm.
+
+VALIDITY. `pinned_without_nexus` cells and `consultant_without_structure` cells are
+invalid and dropped; an A2n cell with zero tool calls is a seeded Consultant with more
+tools, reported as such (collapse is A2-only by definition and is not claimed here).
+n is 4 pairs per comparison per branch pooling (8 at most): a direction, not a verdict.
+
+WHAT WOULD CHANGE A DEFAULT. Nothing in one run. What it settles is whether the archive's
+"the live Advisor loses to its own dump" was measured on the wrong category.

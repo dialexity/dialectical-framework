@@ -251,6 +251,21 @@ habit, not any published number:
 | A1.7 | + a journal the model writes for itself | prose journal |
 | A2 | the full Advisor: live tools, graph, decision ceremony | live graph |
 | A2c | the Consultant: A1.5's pre-built graph consulted LIVE — reading tools + `record_decision`/`discard`/`audit_feasibility`, no build tool, no off-turn weave | live graph |
+| A2n | the Advisor on a nexus: the same pre-built graph, the FULL Advisor pinned to the exploration it produced — every tool, enrichment inside the pin | live graph |
+
+**A2n is the category every client session collapses into, and it had zero judged cells
+until 2026-09-21.** Every archived A2 cell is the unscoped Advisor building from nothing;
+`docs/agents.md` "Choosing what to build" names the Advisor on a nexus as the one built for
+the framework's own claim. Each A2n cell runs A2c's build, then pins `Advisor(nexus_hash=)` to
+the nexus holding the most perspectives (`pinned_nexus_hash` / `pinned_nexus_perspectives`
+on the cell; the build's provenance and seconds ride on the `consultant_build_*` fields,
+same build, same price), seeded on every session with the SCOPED render its own refresh
+produces. A build that wove no nexus is refused rather than run unpinned
+(`pinned_without_nexus`, invalid as evidence): unpinned it would be a seeded A2 wearing the
+label. Read `A2n−A2c` for what enrichment inside the pin buys over consulting the same
+graph, `A2n−A1.5` for pinned-live against static (the question `A2−A1.5` resolved at
+−1.47 against the UNSCOPED builder), and `A2−A2n` for the two Advisor categories side by
+side.
 
 **A2c is opt-in like A1.5 and prices the third product surface.** A1.5 answered "does a static
 dump buy the live graph's counsel?" (4x faster, quality indistinguishable) and A2c asks the

@@ -875,11 +875,18 @@ def render_report(
     # correctly invalid and silently — the archive knew, the report did not.
     empty_consults = [r for r in runs if r.consultant_without_structure]
     if empty_consults:
-        add(f"!! {len(empty_consults)} A2c run(s) consulted an EMPTY graph (the build anchored nothing).")
+        add(f"!! {len(empty_consults)} A2c/A2n run(s) were handed an EMPTY graph (the build anchored nothing).")
         for r in empty_consults:
+            add(f"   - {r.arm.value} {r.scenario_key} tier={r.tier} rep={r.replicate} branch={r.branch}")
+        add("   These runs are INVALID as evidence for their arm: a Consultant with nothing to")
+        add("   consult is a tool-less prompt arm wearing the label, and a pinned Advisor with")
+        add("   nothing under the pin is a seeded A2 wearing one.")
+    no_pin = [r for r in runs if r.pinned_without_nexus]
+    if no_pin:
+        add(f"!! {len(no_pin)} A2n run(s) had NO NEXUS to pin to (the build wove nothing).")
+        for r in no_pin:
             add(f"   - {r.scenario_key} tier={r.tier} rep={r.replicate} branch={r.branch}")
-        add("   These runs are INVALID as A2c evidence: a Consultant with nothing to")
-        add("   consult is a tool-less prompt arm wearing the label.")
+        add("   Refused by the driver rather than run unpinned; INVALID as A2n evidence.")
     # "Built a graph" is a floor, not a description. An A2 run that only
     # anchored is A1 plus a tetrad: it pays the framework's latency and cost
     # without the pathways or the record that the two claims are ABOUT, and

@@ -678,6 +678,34 @@ class E2EDriver:
         )
         return case, summary, round(time.monotonic() - started, 1)
 
+    # -- A2n support -------------------------------------------------------
+
+    @staticmethod
+    def _nexus_to_pin() -> tuple[Optional[str], Optional[int]]:
+        """The exploration an A2n cell pins to: the nexus holding the most
+        perspectives in the current scope, ties to the earliest committed.
+
+        `(None, None)` when the build produced no nexus, which the caller
+        records as an invalid cell rather than running unpinned. Fail-soft on a
+        read fault for the same reason `_graph_summary` is: cannot-tell must
+        not be reported as built nothing.
+        """
+        try:
+            ranked = []
+            for position, nexus in enumerate(NexusRepository().find_all()):
+                if not nexus.hash:
+                    continue
+                count = len(nexus.perspectives.all())
+                ranked.append((-count, position, nexus.hash, count))
+            if not ranked:
+                return None, None
+            ranked.sort()
+            _neg, _pos, nexus_hash, count = ranked[0]
+            return nexus_hash, count
+        except Exception:  # noqa: BLE001
+            logger.exception("Could not choose a nexus to pin")
+            return None, None
+
     # -- the cell ----------------------------------------------------------
 
     async def run_cell(
@@ -739,19 +767,33 @@ class E2EDriver:
 
         journal: Optional[str] = None
         try:
-            if arm is Arm.A2C:
+            if arm in (Arm.A2C, Arm.A2N):
                 # Inside the try, because the build is a full Advisor run and a
                 # cell whose build fails must be recorded as a failed cell, not
                 # raise out of the matrix. Inside `duration_s` too — unlike
                 # A1.5's build, which is one charge for many cells, this one
                 # belongs to exactly this cell — so read the arm's per-turn
                 # timing for the person's wait and `consultant_build_s` for the
-                # price of arriving at a graph to consult.
+                # price of arriving at a graph to consult. A2n shares the build
+                # and the fields: same graph, same price, a different head on it.
                 case, provenance, build_s = await self.build_consultant_case(
                     scenario, tier_model=tier_model
                 )
                 record.consultant_build_provenance = provenance
                 record.consultant_build_s = build_s
+            if arm is Arm.A2N:
+                assert case is not None
+                with scope(case.sid):
+                    nexus_hash, count = self._nexus_to_pin()
+                record.pinned_nexus_hash = nexus_hash
+                record.pinned_nexus_perspectives = count
+                if nexus_hash is None:
+                    # Refused rather than run unpinned: without the pin this is
+                    # a seeded unscoped Advisor, a different arm wearing the
+                    # label. The build's cost is kept on the record.
+                    record.error = "A2n: the build produced no nexus to pin to"
+                    record.duration_s = round(time.monotonic() - started, 1)
+                    return record
             for position, spec in enumerate(specs):
                 session, journal = await self._run_session(
                     arm=arm,
@@ -798,7 +840,7 @@ class E2EDriver:
         simulator = UserSimulator(scenario)
         session = SessionRecord(label=spec.label)
 
-        if arm in (Arm.A2, Arm.A2C):
+        if arm in (Arm.A2, Arm.A2C, Arm.A2N):
             assert case is not None
             with scope(case.sid):
                 # On a returning session the Advisor is handed the freshly
@@ -817,11 +859,20 @@ class E2EDriver:
                 # The Consultant is seeded on EVERY session, the first included:
                 # its graph was built before the conversation, and arriving with
                 # it unread would be the arm not being what it claims to be.
+                # The pinned Advisor likewise, and with the SCOPED render — the
+                # dump its own `_refresh_context` produces under the pin — so
+                # `carryover_in` is what the head actually read.
                 live_context = None
-                if not is_first or arm is Arm.A2C:
+                if not is_first or arm in (Arm.A2C, Arm.A2N):
                     try:
                         with using_model(self._container, tier_model):
-                            live_context = await DialecticalContext().resolve()
+                            live_context = await DialecticalContext(
+                                nexus_hash=(
+                                    record.pinned_nexus_hash
+                                    if arm is Arm.A2N
+                                    else None
+                                )
+                            ).resolve()
                     except Exception:  # noqa: BLE001
                         logger.exception("Live context render failed")
                 session.carryover_in = live_context
@@ -833,6 +884,9 @@ class E2EDriver:
                         AdvisorMode.CONSULTANT
                         if arm is Arm.A2C
                         else AdvisorMode.FULL
+                    ),
+                    nexus_hash=(
+                        record.pinned_nexus_hash if arm is Arm.A2N else None
                     ),
                 )
                 session.turns = await self._run_beats(

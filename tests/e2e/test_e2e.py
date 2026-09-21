@@ -3725,7 +3725,7 @@ class TestTheConsultantArm:
 
         source = inspect.getsource(E2ERun.run_matrix)
         assert "if record.consultant_without_structure:" in source
-        assert "NO STRUCTURE (A2c consulted an empty graph)" in source
+        assert "was handed an empty graph" in source
 
     def test_the_consultant_is_never_a_collapsed_a2(self):
         """`collapsed_to_a1` reads "A2 built nothing" — a Consultant builds
@@ -3736,10 +3736,10 @@ class TestTheConsultantArm:
         import inspect
 
         source = inspect.getsource(E2EDriver._run_session)
-        assert "if arm in (Arm.A2, Arm.A2C):" in source
+        assert "if arm in (Arm.A2, Arm.A2C, Arm.A2N):" in source
         assert "AdvisorMode.CONSULTANT" in source
         # Seeded on EVERY session — the graph exists before the conversation.
-        assert "if not is_first or arm is Arm.A2C:" in source
+        assert "if not is_first or arm in (Arm.A2C, Arm.A2N):" in source
 
     def test_every_cell_records_the_thinking_regime(self):
         """Tool-path arms think at the configured level and prompt arms never
@@ -12069,3 +12069,72 @@ class TestTheRungColumnIsTheBarePromptOnly:
         assert tier_model("split", "weak") != haiku, (
             "a run whose framework reasoned on Sonnet pooled as the Haiku build"
         )
+
+
+class TestThePinnedAdvisorArm:
+    """A2n: the Advisor on a nexus (2026-09-21).
+
+    The category every client session collapses into and, until this arm, the
+    one with zero judged cells — every archived A2 cell is unscoped. Same build
+    as A2c, then the FULL Advisor pinned to the exploration the build produced.
+    What it must get right: a cell with nothing to pin to is not a weak A2n, it
+    is a seeded unscoped Advisor wearing the label, and it must drop out.
+    """
+
+    def test_the_three_a2n_pairs_place_it_on_the_ladder(self):
+        from e2e.models import CARRYOVER
+
+        assert (Arm.A2N, Arm.A2C) in JUDGED_PAIRS, "enrichment over consulting"
+        assert (Arm.A2N, Arm.A1_5) in JUDGED_PAIRS, "pinned live over static"
+        assert (Arm.A2, Arm.A2N) in JUDGED_PAIRS, "unscoped over pinned"
+        assert Arm.A2N not in DEFAULT_ARMS, "a full Advisor run per cell — opt-in"
+        assert CARRYOVER[Arm.A2N] == "live_graph"
+
+    def test_a_cell_with_no_nexus_is_not_evidence(self):
+        run = _run(Arm.A2N, "weak")
+        run.consultant_build_provenance = "perspectives=2 woven=0 transformations=0"
+        assert run.pinned_without_nexus
+        assert run.invalid_as_evidence
+
+    def test_a_pinned_cell_is_evidence(self):
+        run = _run(Arm.A2N, "weak", tool_calls=["sync"])
+        run.consultant_build_provenance = "perspectives=4 woven=3 transformations=18"
+        run.pinned_nexus_hash = "abc1234"
+        run.pinned_nexus_perspectives = 3
+        assert not run.pinned_without_nexus
+        assert not run.consultant_without_structure
+        assert not run.invalid_as_evidence
+
+    def test_an_empty_build_invalidates_it_like_the_consultant(self):
+        run = _run(Arm.A2N, "weak")
+        run.consultant_build_provenance = "perspectives=0 woven=0 transformations=0"
+        assert run.consultant_without_structure
+
+    def test_the_pin_term_reaches_no_other_arm(self):
+        for arm in (Arm.A2, Arm.A2C, Arm.A1_5):
+            assert not _run(arm, "weak").pinned_without_nexus
+
+    def test_the_driver_pins_the_head_and_seeds_the_scoped_render(self):
+        import inspect
+
+        source = inspect.getsource(E2EDriver._run_session)
+        assert "record.pinned_nexus_hash if arm is Arm.A2N else None" in source
+        cell = inspect.getsource(E2EDriver.run_cell)
+        assert "if arm in (Arm.A2C, Arm.A2N):" in cell, "A2n shares A2c's build"
+        assert "the build produced no nexus to pin to" in cell, (
+            "an A2n cell with no nexus must be refused, never run unpinned"
+        )
+
+    def test_the_arm_passes_the_pin_through(self):
+        import inspect
+
+        from e2e.arms import AdvisorArm
+
+        assert "nexus_hash" in inspect.signature(AdvisorArm.__init__).parameters
+        assert "nexus_hash=nexus_hash" in inspect.getsource(AdvisorArm.__init__)
+
+    def test_no_nexus_is_loud_on_the_console(self):
+        import inspect
+
+        source = inspect.getsource(E2ERun.run_matrix)
+        assert "if record.pinned_without_nexus:" in source

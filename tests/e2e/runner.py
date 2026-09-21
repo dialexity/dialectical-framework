@@ -104,6 +104,16 @@ DEFAULT_ARMS: tuple[Arm, ...] = (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2)
 #: the turn over consulting a finished graph. A2c is opt-in for A1.5's reason
 #: (a full Advisor run per cell just to exist), so both pairs rely on the same
 #: filters as the A1.5 ones.
+#:
+#: THE THREE A2N PAIRS MEASURE THE ADVISOR ON A NEXUS (2026-09-21)
+#: ==============================================================
+#: `(A2N, A2C)` — the SAME pre-built graph, the head pinned to its exploration
+#: with every tool against the Consultant reading it: what enrichment inside the
+#: pin buys over consulting. `(A2N, A1_5)` — pinned live against the static dump,
+#: the question `(A2, A1_5)` resolved against the UNSCOPED builder (-1.47 on
+#: `reasoning-sonnet`). `(A2, A2N)` — unscoped building from nothing against
+#: pinned building on a graph: the two Advisor categories side by side. Opt-in
+#: for the same reason as A2c, same filters.
 JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A1, Arm.A0),
     (Arm.A1_5, Arm.A1),
@@ -111,6 +121,9 @@ JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A2, Arm.A1_5),
     (Arm.A2C, Arm.A1_5),
     (Arm.A2, Arm.A2C),
+    (Arm.A2N, Arm.A2C),
+    (Arm.A2N, Arm.A1_5),
+    (Arm.A2, Arm.A2N),
     (Arm.A2, Arm.A1_7),
     (Arm.A2, Arm.A0),
 )
@@ -307,7 +320,11 @@ class E2ERun:
                                 # nothing, so this cell consulted an empty graph:
                                 # a Consultant with nothing to consult is a
                                 # tool-less prompt arm wearing the label.
-                                note += " !! NO STRUCTURE (A2c consulted an empty graph)"
+                                note += (
+                                    f" !! NO STRUCTURE ({record.arm.value} was handed an empty graph)"
+                                )
+                            if record.pinned_without_nexus:
+                                note += " !! NO NEXUS (A2n had nothing to pin to)"
                             say(f"{label} done: {note}")
         return self.runs
 

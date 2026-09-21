@@ -66,6 +66,13 @@ class Arm(str, Enum):
     #: and A2 (same tools plus the four build tools). Opt-in like A1.5, for the
     #: same reason: it needs a real Advisor run per cell just to exist.
     A2C = "A2c"
+    #: The Advisor ON A NEXUS (`Advisor(nexus_hash=...)`, FULL mode): the same
+    #: pre-built graph A2c consults, but the head is PINNED to the exploration
+    #: that build produced and keeps every tool — it can enrich inside the pin.
+    #: The category every client session collapses into (`docs/agents.md`,
+    #: "Choosing what to build") and, until this arm, the one with zero judged
+    #: cells: every archived A2 cell is unscoped. Opt-in for A2c's reason.
+    A2N = "A2n"
 
 
 #: Arms that carry state across sessions, and HOW. Drives the wobble arm:
@@ -78,6 +85,7 @@ CARRYOVER: dict[Arm, str] = {
     Arm.A1_7: "prose_journal",
     Arm.A2: "live_graph",
     Arm.A2C: "live_graph",
+    Arm.A2N: "live_graph",
 }
 
 
@@ -778,6 +786,14 @@ class RunRecord(BaseModel):
     #: summing them across cells is correct here and wrong for A1.5.
     consultant_build_provenance: Optional[str] = None
     consultant_build_s: Optional[float] = None
+    #: A2n only: the exploration the head was pinned to, chosen from the same
+    #: per-cell build A2c consults (the nexus holding the most perspectives),
+    #: and how many perspectives it held at the pin. `None` on an A2n cell
+    #: means the build produced no nexus — nothing to pin, the cell is invalid
+    #: (`pinned_without_nexus`). The build's provenance and seconds travel on
+    #: the two `consultant_build_*` fields above: same build, same price.
+    pinned_nexus_hash: Optional[str] = None
+    pinned_nexus_perspectives: Optional[int] = None
     #: A2 only: did the decision ceremony fire, and with what grounds.
     decision_hashes: list[str] = Field(default_factory=list)
     accepted_cost_grounds: list[str] = Field(default_factory=list)
@@ -1201,9 +1217,21 @@ class RunRecord(BaseModel):
         provenance returns False, because cannot-tell must not read as built
         nothing.
         """
-        if self.arm is not Arm.A2C:
+        if self.arm not in (Arm.A2C, Arm.A2N):
             return False
         return perspectives_in_summary(self.consultant_build_provenance) == 0
+
+    @property
+    def pinned_without_nexus(self) -> bool:
+        """An A2n cell whose build produced no exploration to pin to.
+
+        The arm IS the pin: without one the head would be an unscoped full
+        Advisor over the pre-built graph, which is a different arm (A2 seeded)
+        wearing the A2n label. The driver refuses to run the sessions and
+        records the error; this reads it back so the pooled cuts drop the cell
+        the way they drop an empty Consultant.
+        """
+        return self.arm is Arm.A2N and not self.pinned_nexus_hash
 
     @property
     def invalid_as_evidence(self) -> bool:
@@ -1257,6 +1285,7 @@ class RunRecord(BaseModel):
             or self.collapsed_to_a1
             or self.collapsed_to_a1_without_structure
             or self.consultant_without_structure
+            or self.pinned_without_nexus
         )
 
     def session(self, label: str) -> Optional[SessionRecord]:
