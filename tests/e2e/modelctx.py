@@ -28,7 +28,11 @@ def using_model(container, model: str) -> Iterator[None]:
     unset (a bare reset would break every later injection).
     """
     previous = container.settings()
-    container.settings.override(previous.model_copy(update={"ai_model": model}))
+    # Both models: a bench tier means "this model runs everything", so a
+    # `DIALEXITY_REASONING_MODEL` in the local .env must not leak into a cell.
+    container.settings.override(
+        previous.model_copy(update={"ai_model": model, "reasoning_model": None})
+    )
     try:
         yield
     finally:

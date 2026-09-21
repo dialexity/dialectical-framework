@@ -361,8 +361,11 @@ nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advan
 mode=AdvisorMode.FULL, thinking=FROM_SETTINGS)`. `thinking` is the person's extended-thinking
 toggle for this session, the same per-session shape as `advanced` (pass one value to every head
 they are looking at): not given defers to the deployment's `DIALEXITY_CONVERSATION_THINKING_LEVEL`,
-`None` is off, a level is on. It reaches only the conversational call, never a concern — concern
-thinking is framework config per model. Measured: on Haiku 4.5 "medium" is ~3x the call with no
+`None` is off, a level is on. It reaches only the conversational call, never a concern — concerns
+do not think; what they get instead is their own MODEL: `DIALEXITY_REASONING_MODEL` runs every
+structured call when set (unset = the conversation model), which is where quality was measured to
+live (extraction: 34.6% unsupported claims on Haiku 4.5, 7.0% on Sonnet 5, identical prompts).
+Measured: on Haiku 4.5 "medium" is ~3x the call with no
 election gain; on Sonnet 5 it is close to free and close to a no-op (`tests/e2e/rounds.md`,
 `thinking-off`, `sonnet-thinking`). `messages` is resumption and nothing else — every head takes it, a host
 passes it on every turn, and the Explorer↔Advisor toggle below is built on it (construct the other

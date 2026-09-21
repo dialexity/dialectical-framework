@@ -6,10 +6,12 @@ path, ~35-39% of the theses step 2 emits are not cleanly supported by their own
 source and 13% are invented outright (`probe_support_validity.py`, instrument
 validated at specificity 93% / sensitivity 100%). Every structured concern call
 has run without extended thinking because its formatting mode forbids it;
-`settings.extraction_thinking_level` now puts the extraction concern into JSON
-mode with thinking. This prices that switch on the defect it is aimed at.
+`ConversationFacilitator(format_mode="json", thinking=...)` can put a concern
+into JSON mode with thinking. This prices that switch on the defect it is aimed
+at. (A setting for it existed for one day and was removed on this probe's
+result; the arm is built by swapping the concern's constructor.)
 
-DESIGN. Two arms, the shipped default and `extraction_thinking_level=medium`,
+DESIGN. Two arms, the shipped default and JSON mode with thinking at medium,
 over the three documents `probe_step2_isolate_ab.py` already uses, REPS reps each,
 arms interleaved per document. Each arm runs the whole of `extract_candidates`
 (step 1 + the step-2 gate) — thinking applies to both — and every emitted thesis
@@ -81,20 +83,34 @@ if MODEL == DEFAULT_TIER_STRONG:
 
 
 @contextmanager
-def _extraction_thinking(container, level: str | None) -> Iterator[None]:
-    previous = container.settings()
-    container.settings.override(
-        previous.model_copy(update={"extraction_thinking_level": level})
-    )
+def _extraction_thinking(level: str | None) -> Iterator[None]:
+    """Put the extraction concern's calls into JSON mode with thinking.
+
+    There is no setting for this any more — the knob was removed after this
+    probe showed thinking buys nothing on either tier — so the arm is built
+    here, on the facilitator capability that remains, by swapping the
+    concern's constructor for the probe's duration.
+    """
+    if not level:
+        yield
+        return
+    from dialectical_framework.agents.conversation_facilitator import \
+        ConversationFacilitator
+
+    original = ThesisExtraction.__init__
+
+    def thinking_init(self) -> None:
+        self._conversation = ConversationFacilitator(format_mode="json", thinking=level)
+
+    ThesisExtraction.__init__ = thinking_init  # type: ignore[method-assign]
     try:
         yield
     finally:
-        container.settings.reset_override()
-        container.settings.override(previous)
+        ThesisExtraction.__init__ = original  # type: ignore[method-assign]
 
 
 async def _extract(container, level: str | None, text: str) -> dict:
-    with _extraction_thinking(container, level), using_model(container, MODEL):
+    with _extraction_thinking(level), using_model(container, MODEL):
         with call_census() as census:
             started = time.monotonic()
             candidates = await ThesisExtraction().extract_candidates(text, count=COUNT)

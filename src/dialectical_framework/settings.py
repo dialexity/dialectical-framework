@@ -15,6 +15,15 @@ class Settings(BaseModel):
     )
 
     ai_model: str = Field(..., description="AI model in 'provider/model' format (e.g., 'bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0').")
+    # Two models, one seam. `ai_model` runs the CONVERSATION (the tool-path call
+    # every agent turn makes); `reasoning_model`, when set, runs every STRUCTURED
+    # call — the framework's own reasoning: tetrads, classification, extraction,
+    # transformations, the decision classifier. Routed in `use_brain` by call
+    # shape, so no concern has to know. Unset = one model for everything.
+    # Measured reason (rounds.md, `sonnet-thinking`): identical prompts, the
+    # extraction concern's unsupported-claim rate is 34.6% on Haiku 4.5 and
+    # 7.0% on Sonnet 5 — the model is the lever, not any thinking level.
+    reasoning_model: Optional[str] = Field(default=None, description="Model for the framework's structured (reasoning) calls, 'provider/model'. None = same as ai_model.")
     component_length: int = Field(default=7, description="Approximate length in words of the statement.")
     transition_length: int = Field(default=15, description="Approximate maximum length in words of a transition statement (fuller than a component headline).")
     max_wheel_layer: int = Field(default=4, description="Maximum wheel layer (PP count per wheel) to build. Layers above this are skipped regardless of nexus size.")
@@ -181,21 +190,6 @@ class Settings(BaseModel):
     # keeps while dropping the passage itself.
     extraction_step2_carries_source: bool = Field(default=True, description="Let the step-2 thesis gate see the source window it was extracted from, by carrying step 1's history into each gated call. On by default (current behaviour), and it stays the default because three A/B runs never produced a stable result to move it on: the cost saving and the gate's keep/drop decisions replicate, the judge on faithfulness does not (tests/e2e/probe_step2_isolate_ab.py). Off sends the system prompt, step 1's answer and the gate's own self-contained question, cutting the ~4x size-driven prefill cost of the ingest path; the extracted items still travel, only the raw passage is elided.")
 
-    # Extended thinking for the EXTRACTION concern's structured calls (step 1 and
-    # the step-2 gate). None = off, which is what every structured call in the
-    # framework has always been: the default formatting mode is forced tool use,
-    # and the provider rejects thinking on that shape outright. Setting a level
-    # switches this concern to JSON formatting mode (which accepts thinking) —
-    # measured on a DTO-shaped call at 4/4 parsed, less prefill than tool mode,
-    # and ~700 hidden output tokens per call at "medium"
-    # (tests/e2e/probe_format_mode_thinking.py). Separate from `conversation_thinking_level`,
-    # which reaches only the conversational TOOL path. PRICED AND DECLINED
-    # (tests/e2e/probe_extraction_thinking_ab.py, 2026-09-18): at "medium" the
-    # invented rate went 6.2% -> 12.7%, yield fell by a third, wall 4.6x, output
-    # tokens 9x, on 136 rated claims. Not shown to help, and not cheap enough
-    # to keep looking; it stays opt-in for a corpus someone has measured.
-    extraction_thinking_level: Optional[str] = Field(default=None, description="Extended thinking level for the thesis-extraction concern's structured calls, which then use JSON formatting mode. None = off (forced-tool mode, which cannot think).")
-
     # Graph database configuration (Memgraph or Neo4j)
     graph_db_vendor: str = Field(default="memgraph", description="Graph database vendor: 'memgraph' or 'neo4j'")
     graph_db_host: str = Field(default="127.0.0.1", description="Graph database host")
@@ -223,8 +217,8 @@ class Settings(BaseModel):
     # The CONVERSATIONAL thinking level — the tool-path call every agent turn
     # makes. A deployment default that a head's `thinking=` overrides per
     # session (the person's own toggle). Never reaches a structured concern
-    # call: those cannot think in their default formatting mode, and the ones
-    # that opt in do so through their own knob (`extraction_thinking_level`).
+    # call: those cannot think in their default formatting mode, and none opts
+    # in — concerns get their own MODEL instead (`reasoning_model` above).
     # Measured: on Haiku 4.5 "medium" is ~450 hidden output tokens and ~3x the
     # call with no election gain; on Sonnet 5 it is close to free and close to
     # a no-op (rounds.md: `thinking-off`, `sonnet-thinking`).
@@ -294,6 +288,7 @@ class Settings(BaseModel):
 
         return cls(
             ai_model=model,
+            reasoning_model=os.getenv("DIALEXITY_REASONING_MODEL") or None,
             component_length=int(os.getenv("DIALEXITY_DEFAULT_COMPONENT_LENGTH", 7)),
             transition_length=int(os.getenv("DIALEXITY_DEFAULT_TRANSITION_LENGTH", 15)),
             max_wheel_layer=int(os.getenv("DIALEXITY_MAX_WHEEL_LAYER", 4)),
@@ -306,7 +301,6 @@ class Settings(BaseModel):
             audit_transformations=os.getenv("DIALEXITY_AUDIT_TRANSFORMATIONS", "false").lower() == "true",
             automatic_feasibility_audit=os.getenv("DIALEXITY_AUTOMATIC_FEASIBILITY_AUDIT", "false").lower() == "true",
             extraction_step2_carries_source=os.getenv("DIALEXITY_EXTRACTION_STEP2_CARRIES_SOURCE", "true").lower() == "true",
-            extraction_thinking_level=os.getenv("DIALEXITY_EXTRACTION_THINKING_LEVEL") or None,
             graph_db_vendor=os.getenv("DIALEXITY_GRAPH_DB_VENDOR", "memgraph"),
             graph_db_host=os.getenv("DIALEXITY_GRAPH_DB_HOST", "127.0.0.1"),
             graph_db_port=int(os.getenv("DIALEXITY_GRAPH_DB_PORT", 7687)),

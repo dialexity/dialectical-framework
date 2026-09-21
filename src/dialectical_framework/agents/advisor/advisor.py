@@ -373,8 +373,9 @@ class Advisor(SettingsAware):
         # `settings.conversation_thinking_level`; None = off; a level = on.
         # Measured (rounds.md, `thinking-off`, `sonnet-thinking`): on Haiku
         # "medium" is ~3x the call for no election gain; on Sonnet 5 it is close
-        # to free and close to a no-op. It never reaches a concern — those are
-        # framework config (`settings.extraction_thinking_level`).
+        # to free and close to a no-op. It never reaches a concern: the
+        # framework's own reasoning runs on `settings.reasoning_model`, without
+        # thinking, and that is where quality was measured to live.
         # principal: WHO confirms decisions in this conversation — a host
         # attestation, fixed for the session (the counterpart doesn't change
         # mid-conversation). Pass "human" when an actual person is on the

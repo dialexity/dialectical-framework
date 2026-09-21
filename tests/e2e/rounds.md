@@ -6640,3 +6640,29 @@ Concern thinking: off; the extraction knob stays as an opt-in that neither model
 The open design question this run creates is a per-concern MODEL: extraction on Sonnet
 buys the single largest reasoning-quality improvement measured in this tree, and the
 framework has one global `DIALEXITY_DEFAULT_MODEL`.
+
+### two-models: the thinking story settled into three settings (2026-09-19)
+
+Design decision, not a measurement round, recorded here because it is what the four
+thinking rounds above add up to. The surface that survives both tiers:
+
+    DIALEXITY_DEFAULT_MODEL               the conversation (every agent turn's tool-path call)
+    DIALEXITY_REASONING_MODEL             every structured call — the framework's reasoning;
+                                          unset = same model. Routed in `use_brain` by call
+                                          shape, so no concern knows.
+    DIALEXITY_CONVERSATION_THINKING_LEVEL the deployment default for conversational thinking;
+                                          a head's `thinking=` overrides it per session (the
+                                          person's toggle, like `advanced=`).
+
+Nothing per concern, nothing composite. `DIALEXITY_EXTRACTION_THINKING_LEVEL` lived one day
+and is gone: thinking on that concern bought nothing on Haiku (worse) or Sonnet (no change),
+while the MODEL cut its unsupported-claim rate 5x with identical prompts. The facilitator's
+ability to run a structured call in JSON mode with thinking is kept as tested capability
+with no caller; the probe that priced it builds its arm by swapping the concern's
+constructor. `using_model` now holds BOTH models to the tier, so a local
+`DIALEXITY_REASONING_MODEL` cannot split a bench arm across two models unrecorded.
+
+What this does NOT settle, and deliberately: whether a Haiku conversation over a
+Sonnet-reasoned graph is the product's right cost shape. That is one bench run away
+(`DIALEXITY_REASONING_MODEL=<sonnet>` with the weak tier as conversation) and it is the
+first run this archive would have where the two models differ ON PURPOSE.

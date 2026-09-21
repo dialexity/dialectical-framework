@@ -153,16 +153,12 @@ class ThesisExtraction(ReasonableConcern[list[Statement]], SettingsAware):
     """
 
     def __init__(self) -> None:
-        # `settings.extraction_thinking_level` puts this concern's structured
-        # calls — step 1 and, through `isolate()`, every step-2 gate — into JSON
-        # formatting mode with extended thinking. Off by default; see the
-        # setting's own comment for what it costs and what it is aimed at.
-        level = self.settings.extraction_thinking_level
-        self._conversation = (
-            ConversationFacilitator(format_mode="json", thinking=level)
-            if level
-            else ConversationFacilitator()
-        )
+        # No thinking here by design: extended thinking on this concern's calls
+        # was priced on both tiers and bought nothing (rounds.md,
+        # `probe-extraction-thinking-ab`, `sonnet-thinking`). What moves its
+        # faithfulness is the MODEL — `settings.reasoning_model`, routed by
+        # `use_brain` for every structured call.
+        self._conversation = ConversationFacilitator()
 
     async def resolve(
         self,

@@ -11,10 +11,10 @@ that setting reaches only the conversational tool path.
 `ConversationFacilitator(format_mode="json", thinking=...)` is the door:
 Mirascope's JSON mode parses a DTO-shaped call 4/4 with less prefill than tool
 mode and accepts thinking (`tests/e2e/probe_format_mode_thinking.py`).
-`ThesisExtraction` opts in through `settings.extraction_thinking_level`. These
-tests pin the plumbing DB-free: what reaches `use_brain`, that the shape
-travels through `isolate()`, that the impossible combination is refused at
-construction, and that the setting reaches the concern.
+No concern opts in — by decision, after measuring it. These tests pin the
+plumbing DB-free: what reaches `use_brain`, that the shape travels through
+`isolate()`, that the impossible combination is refused at construction, and
+that no setting wires it anywhere.
 """
 
 from __future__ import annotations
@@ -95,8 +95,13 @@ class TestTheShapeTravelsThroughIsolate:
         assert bare._format_mode is None and bare._structured_thinking is None
 
 
-class TestTheExtractionConcernOptsInThroughSettings:
-    def test_unset_means_the_default_shape(self, di_container):
+class TestNoConcernIsWiredToIt:
+    """The capability exists without a caller, by decision: thinking on the
+    extraction concern was priced on both tiers and bought nothing, and the
+    setting that wired it was removed. A concern that reaches for it again
+    needs its own A/B first."""
+
+    def test_extraction_runs_in_the_default_shape(self, di_container):
         from dialectical_framework.concerns.thesis_extraction import \
             ThesisExtraction
 
@@ -104,34 +109,11 @@ class TestTheExtractionConcernOptsInThroughSettings:
         assert concern._conversation._format_mode is None
         assert concern._conversation._structured_thinking is None
 
-    def test_a_level_switches_the_concern_to_json_mode_with_thinking(
-        self, di_container
-    ):
-        from dialectical_framework.concerns.thesis_extraction import \
-            ThesisExtraction
-
-        previous = di_container.settings()
-        di_container.settings.override(
-            previous.model_copy(update={"extraction_thinking_level": "medium"})
-        )
-        try:
-            concern = ThesisExtraction()
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(previous)
-        assert concern._conversation._format_mode == "json"
-        assert concern._conversation._structured_thinking == "medium"
-        # And the step-2 fan-out inherits it.
-        assert concern._conversation.isolate()._structured_thinking == "medium"
-
-    def test_the_setting_reads_from_the_environment(self, monkeypatch):
+    def test_there_is_no_setting_for_it(self):
         from dialectical_framework.settings import Settings
 
-        assert Settings.model_fields["extraction_thinking_level"].default is None
-        monkeypatch.setenv("DIALEXITY_EXTRACTION_THINKING_LEVEL", "low")
-        assert Settings.from_env().extraction_thinking_level == "low"
-        monkeypatch.setenv("DIALEXITY_EXTRACTION_THINKING_LEVEL", "")
-        assert Settings.from_env().extraction_thinking_level is None
+        assert not any("thinking" in name and name != "conversation_thinking_level"
+                       for name in Settings.model_fields)
 
 
 class TestConversationThinkingIsPerSession:

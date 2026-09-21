@@ -114,7 +114,19 @@ def use_brain(
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
             resolved = ai_model
             if resolved is None:
-                resolved = _get_ai_model()
+                # Two models, one seam. A STRUCTURED call (`format=`) is the
+                # framework reasoning — tetrads, classification, extraction,
+                # transformations, the decision classifier — and runs on
+                # `settings.reasoning_model` when one is set; everything else
+                # (the conversational tool-path call) runs on the conversation
+                # model. Measured reason (rounds.md, `sonnet-thinking`): the
+                # extraction concern's unsupported-claim rate is 34.6% on Haiku
+                # and 7.0% on Sonnet with identical prompts — the model is the
+                # lever, so a deployment can run the chat cheaply and the
+                # reasoning on the stronger model.
+                resolved = (
+                    _get_reasoning_model() if format is not None else _get_ai_model()
+                )
 
             if resolved.startswith("bedrock/"):
                 ensure_bedrock_provider()
@@ -949,3 +961,10 @@ async def retry_transient(
 @inject
 def _get_ai_model(settings: Settings = Provide[DI.settings]) -> str:
     return settings.ai_model
+
+
+@inject
+def _get_reasoning_model(settings: Settings = Provide[DI.settings]) -> str:
+    """The model for structured (reasoning) calls: `reasoning_model`, else the
+    conversation model — unset means one model for everything, as before."""
+    return settings.reasoning_model or settings.ai_model
