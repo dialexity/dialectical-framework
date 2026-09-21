@@ -6741,3 +6741,35 @@ live Advisor's remaining case is the record at return (`ladder-return`), not the
 n is 6 pairs on one scenario, one tier; the direction has now reproduced across four
 stems (`a15-latency-rejudged`, `a15-floor`, `a15-pooled`, this) and the size grew when
 the reasoning improved, which is the opposite of what a live-builder advantage predicts.
+
+### read-reach: the graph reaches the reply least where it is built live, and the synthesis least of all (2026-09-21, FREE)
+
+`read_reach.py` (new; `probe_readside_reach.py` generalised to any stem and every arm with a
+dump) over the five recent stems — 37 sessions with a dump in context. Best-overlap of a
+dump line's content words with the session's replies, median per arm:
+
+    arm    sessions  tensions  pathways  synthesis  decisions  hashes cited
+    A1.5        12      0.83      0.50       0.41       0.55        0
+    A2c         16      0.60      0.45       0.33       0.71        0
+    A2           9      0.50      0.36       0.17       0.48        0
+
+THREE READINGS. (1) The read side is better than the archive's baseline: the pre-refresh
+A2 figures were pathways 0.26 / synthesis 0.21, and A2 sessions with a large dump now
+reach 0.7-0.8 on pathways. (2) The same structure reaches the reply LESS the more the
+head is doing: static dump > Consultant > live builder, on every section, and A2c's
+dumps are larger than A1.5's, so this is not size. A head that also elects tools, reads
+tool results into its history and builds mid-turn spends less of its reply on the map
+it was handed. (3) The SYNTHESIS is the least-used section in every arm (0.17-0.41), and
+its rendering says why: two lines (`S+:`/`S-:`), 7-word headlines, placed AFTER the
+wheel's twelve transformations — 63 lines down from the wheel heading in the dump read
+here. The one line that says where the whole arrangement heads is the last thing under
+it. `hashes cited: 0` everywhere is CORRECT for the Advisor (the silent contract bans
+them) and is dropped as a defect.
+
+Limits: overlap cannot see paraphrase, so every figure is a floor; A2 rows exist only for
+returning sessions (the dump at session start), so the live first session is unmeasured
+here by construction; n is 9-16 sessions per arm on one scenario.
+
+THE LEVER TAKEN: render the synthesis FIRST under each wheel, before its transformations
+("prune, don't instruct" — a rendering change, no prompt rule). Endpoint on the next run
+with a dump: the synthesis column above, per arm.

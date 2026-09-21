@@ -1018,16 +1018,23 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if status:
             lines.append(status)
 
+        # Synthesis FIRST, then the transformations it emerges from. Measured
+        # (`read-reach`, 2026-09-21): the synthesis was the least-used section
+        # of the dump in every arm — best overlap with the replies 0.17-0.41
+        # against 0.36-0.50 for the pathways — and it sat two lines long at the
+        # END of each wheel, ~63 lines below the wheel heading, after twelve
+        # transformations. The one line that says where the whole arrangement
+        # heads was the last thing under it. Rendering, not a prompt rule:
+        # "prune, don't instruct".
+        synth_dump = self._dump_synthesis(wheel, pp_index)
+        if synth_dump:
+            lines.append(synth_dump)
+
         # Transformations (belong to wheel)
         for tr in wheel.transformations:
             tr_dump = self._dump_transformation(tr, pp_index)
             if tr_dump:
                 lines.append(tr_dump)
-
-        # Synthesis (belongs to wheel)
-        synth_dump = self._dump_synthesis(wheel, pp_index)
-        if synth_dump:
-            lines.append(synth_dump)
 
         return "\n".join(lines) if len(lines) > 1 else None
 
