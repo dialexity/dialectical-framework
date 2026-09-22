@@ -2040,3 +2040,86 @@ class TestASharedPriceBetweenReadingsIsLocated:
                 if getattr(rel, "role", None) is None
             ]
             assert plain == [p1.hash]
+
+
+class TestTheAdoptedPathwayLocatesTheSharedPrice:
+    """`ladder-sonnet` (2026-09-22): one minus wording priced in four tetrads
+    across three nexuses, the adopted pathway's nexus holding two of them,
+    and Sonnet retrying the refused call four times identically. A recipe is
+    one step of ONE arrangement, so the wheel it sits on narrows the price to
+    its members — one member locates it outright, several fall through to the
+    sibling rule on that smaller set. Wheels are faked here (a real one is a
+    multi-second fixture); `_perspective_frame` and the sibling rule are real.
+    """
+
+    def _build(self):
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        p1 = _create_perspective_with_aspects()
+        shared, _ = p1.t_minus.get()
+        # A different tension sharing the price wording (Rule B's own case).
+        p2 = _create_perspective_with_aspects(
+            thesis_text="Speed", antithesis_text="Care", t_minus_text=shared.text
+        )
+        return p1, p2, shared
+
+    class _Wheel:
+        def __init__(self, members):
+            self._perspectives = members
+
+    class _Pathway:
+        """Duck-typed adopted pathway: what `_pathway_wheel_members` reads."""
+
+        def __init__(self, wheel, frame):
+            self._wheel = wheel
+            self.hash = "f" * 64
+            self.short_hash = "fffffff"
+            self._frame = frame
+
+        def get_wheel(self):
+            return self._wheel
+
+    def test_one_wheel_member_locates_the_price(self, monkeypatch):
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._build()
+            pathway = self._Pathway(self._Wheel([p1]), {p1.hash: p1, p2.hash: p2})
+            real_frame = RecordDecision._perspective_frame
+
+            def frame(node, role=None):
+                if isinstance(node, self._Pathway):
+                    return node._frame  # "the whole nexus": both candidates
+                return real_frame(node, role)
+
+            monkeypatch.setattr(RecordDecision, "_perspective_frame", staticmethod(frame))
+            located = RecordDecision._locate_shared_price(
+                [(shared, "accepted_cost"), (pathway, "adopted_pathway")]
+            )
+            assert located is not None and located.hash == p1.hash
+
+    def test_a_wheel_holding_both_falls_to_the_sibling_rule_and_still_refuses_across_tensions(self, monkeypatch):
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._build()
+            pathway = self._Pathway(self._Wheel([p1, p2]), {p1.hash: p1, p2.hash: p2})
+            real_frame = RecordDecision._perspective_frame
+
+            def frame(node, role=None):
+                if isinstance(node, self._Pathway):
+                    return node._frame
+                return real_frame(node, role)
+
+            monkeypatch.setattr(RecordDecision, "_perspective_frame", staticmethod(frame))
+            assert RecordDecision._locate_shared_price(
+                [(shared, "accepted_cost"), (pathway, "adopted_pathway")]
+            ) is None, "two different tensions on one wheel is still Rule B's case"
+
+    def test_the_refusal_now_says_what_to_add(self):
+        import inspect
+
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        source = inspect.getsource(RecordDecision._ground_set_inconsistency)
+        assert "EXACTLY ONE" in source and "do not resend the same grounds" in source

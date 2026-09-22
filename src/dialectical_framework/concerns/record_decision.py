@@ -534,6 +534,23 @@ class RecordDecision(ReasonableConcern[str | None]):
                 if len(narrowed) == 1:
                     continue  # already located by another ground
                 candidates = list((narrowed or frame).values())
+                # The adopted pathway locates the price more finely than its
+                # nexus: a recipe is one step of ONE arrangement, and the price
+                # it transforms is a minus of a perspective IN that wheel. So
+                # among the candidates, the wheel's members are the ones the
+                # record can be about — one member is the answer outright,
+                # several fall through to the sibling rule below on that
+                # smaller set. Measured need (`ladder-sonnet`, 2026-09-22): one
+                # minus wording priced in FOUR tetrads across THREE nexuses,
+                # the pathway's nexus holding two of them, Sonnet retrying the
+                # refused call four times identically.
+                in_wheel = cls._pathway_wheel_members(resolved)
+                if in_wheel:
+                    on_wheel = [pp for pp in candidates if pp.hash in in_wheel]
+                    if len(on_wheel) == 1:
+                        return on_wheel[0]
+                    if on_wheel:
+                        candidates = on_wheel
                 if len({cls._polarity_key(pp) for pp in candidates}) != 1:
                     return None  # genuinely different tensions: Rule B's case
                 if any(cls._polarity_key(pp) is None for pp in candidates):
@@ -566,6 +583,28 @@ class RecordDecision(ReasonableConcern[str | None]):
             return None
         except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
             return None
+
+    @staticmethod
+    def _pathway_wheel_members(
+        resolved: list[tuple[AssessableEntity, str | None]]
+    ) -> set[str]:
+        """Hashes of every perspective on the wheel(s) the adopted pathway(s)
+        belong to; empty when no pathway ground is present or the wheel cannot
+        be reached (fail-open: an unreachable wheel narrows nothing)."""
+        members: set[str] = set()
+        for node, role in resolved:
+            if role != "adopted_pathway" or not hasattr(node, "get_wheel"):
+                continue
+            try:
+                wheel = node.get_wheel()
+                if wheel is None:
+                    continue
+                members.update(
+                    pp.hash for pp in wheel._perspectives if getattr(pp, "hash", None)
+                )
+            except Exception:  # noqa: BLE001
+                continue
+        return members
 
     @staticmethod
     def _polarity_key(pp) -> tuple | None:
@@ -685,8 +724,10 @@ class RecordDecision(ReasonableConcern[str | None]):
                 f"ground says which one was decided: {cls._pp_refs(frame)}. The "
                 "ledger reads the condition that produces the price (\"— arises "
                 "when ... is held without ...\") off that one tension, so an "
-                "unlocated price is later unreadable. Add the tension decided "
-                "on as a plain ground (omit the role) beside the price."
+                "unlocated price is later unreadable. Re-record with EXACTLY ONE "
+                "of those tension hashes added as a plain ground (no role) — an "
+                "arrangement or a pathway spans several tensions and does not "
+                "locate it; do not resend the same grounds."
             )
         return None
 
