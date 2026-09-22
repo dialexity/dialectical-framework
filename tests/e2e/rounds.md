@@ -7070,3 +7070,116 @@ in-session loss was the weak model's, like the live-vs-static loss before it, an
 the return: the typed record's edge over prose is gone on the strong model too, and the
 product's distinctive claim narrows to what this bench does not measure — a shared object
 several people walk, exact enumeration of arrangements, decision provenance.
+
+### prompt-vs-machinery: RESULT — the assembly is not behind the prompt on Sonnet, the prompt loses the thread at the return, and the journal keeps pace (2026-09-22)
+
+Run as pre-registered, build 1aa27d1 (pre-registration committed as 553cab3): Sonnet 5
+talking and reasoning, thinking unset, simulator Sonnet 5, judge Fable. Both stems
+completed and judged in one pass, no memory kill, no cell errors, every A2 cell built a
+graph (equity: 3–6 perspectives, 24–69 transformations; return: 5 and 2 perspectives).
+`prompt-vs-machinery-equity` 24 cells 15:58–21:28, `prompt-vs-machinery-return` 8 cells
+21:28–23:11. Equity rows are 12 pairs (6 decide + 3 + 3); return rows are 6 pairs (2 per
+session). Slot split even on every pair; judge position bias Y +0.30..+0.53.
+
+    EQUITY (in-session)   composite   95% CI            decide   wobble_a  wobble_b   resolved dimension
+    A2   vs A1             +0.26     [-0.34, +0.87]     +0.26     -0.42     +0.94     convergence +0.92
+    A2   vs A1.7           +0.08     [-0.38, +0.53]     -0.14     +0.03     +0.56     none
+    A1   vs A0             -0.05     [-0.63, +0.53]     -0.11     +0.33     -0.31     warmth -0.33 (the prompt costs warmth)
+    A2   vs A0             +0.23     [-0.11, +0.57]     +0.28     -0.25     +0.61     tension_coverage -0.50
+
+    RETURN                composite   95% CI            session_1  ladder   followup   resolved
+    A2   vs A1             +1.07     [-0.10, +2.25]     +0.28     +0.61     +2.33     followup cells: actionability +4.0, coherence +4.0, recipe +3.0, tension +2.0
+    A2   vs A1.7           +0.22     [-0.44, +0.88]     -0.17     +0.78     +0.06     none — "nothing distinguishable from noise"
+    A1   vs A0             -0.04     [-0.55, +0.48]     +0.39     -0.11     -0.39     actionability -1.50; fit +1.00
+    A2   vs A0             +0.89     [+0.17, +1.61]     +0.50     +0.61     +1.56     RESOLVED at 6 pairs
+
+ENDPOINT 1 (the owner's hypothesis, in-session). Not confirmed and not refuted. On Haiku
+A2 sat BEHIND A1 in session 1, resolved (r18 −0.43); on Sonnet the sign flips to +0.26 and
+the interval covers zero. The report's own power line: resolving the primary endpoint at
+this effect size needs ~100 pairs. What can be said: the machinery is not measurably worse
+than the same text as prose on the production model, and the direction favours it — the
+opposite direction from the weak tier, which is the second time this archive's central
+Haiku finding has flipped sign on Sonnet (`ladder-sonnet` was the first). The README's
+"Claim 1 is expected to be depreciating" has its first counter-observation: from Haiku
+to Sonnet the in-session A2−A1 gap moved −0.43 → +0.26, not toward zero.
+
+THE MECHANISM, from the judge's prose (12 A2-vs-A1 rationales, read whole, `--all-cells`
+equivalent — every pair's note was read, not only the lost ones). One sentence recurs in
+nearly every cell: A2 CONVERGES, A1 DIAGNOSES. A2 wins convergence (resolved), closure,
+actionability and the paired recipe — "converges on a concrete, outcome-gated plan the
+person could execute immediately", "lands the decision with the user genuinely settled".
+A1 and A1.7 win diagnosis — "probes earlier and harder for the blindspot", "elicited and
+then worked the decisive hidden fact", "earned its convergence more". In TWO of six
+decide cells A2 never surfaced the anchor-account revenue concentration at all while the
+prompt arm did. So the in-session edge, such as it is, is the DECISION CEREMONY, not the
+dialectical reasoning: the same method as prose reasons as well or better, and what the
+machinery adds on the turn is a closing that lands. Read for the product: a tool-less
+surface built from A1 would keep the diagnosis and the speed and lose the closing.
+
+ENDPOINT 2 (the return). `A2 vs A1` at the followup is +2.33 with four dimensions
+resolved at n=2 — the same shape as Haiku's +2.4: A1 "has lost the thread entirely, resets
+to asking who 'he' is". `A2 vs A1.7` at the followup is +0.06 — the journal captures the
+whole return gain on Sonnet at this n, where Haiku gave the typed record a resolved
++0.78/+1.08 over it. Two pairs cannot resolve anything, but the direction is the one the
+pre-registration named as outcome (c): on the strong model the honest prose journal keeps
+pace with the graph at the return. What the typed record still does that the journal does
+not is not in the judge's rubric: the journal arm told the person their decision was
+written down when it was not (PHANTOM 1 of 1 asks here, 2 of 4 on equity; A1 3 of 6), and
+A2 recorded 6 of 6 asks across both stems.
+
+ENDPOINT 3 (the method as text). `A1 vs A0` is −0.05 and −0.04: on Sonnet the engine
+prompt buys nothing over a bare persona in judged substance, costs warmth (resolved −0.33
+on equity) and actionability (resolved −1.50 on the return), and buys conversational fit
+(+1.00 on every return pair). The dialectic-vs-no-dialectic question the README called
+too thin is now at 18 pairs on the strong tier and the answer is a null with a shape: the
+text makes Sonnet more conversational and less operational, not wiser.
+
+ENDPOINT 4 (machine). SPEED, the other half of the hypothesis, confirmed: median turn
+equity A0 12.6s / A1 11.4s / A1.7 11.1s / A2 76.8s (p90 715s — three turns waited on the
+off-turn weave, worst 750s); return A0 12.9s / A1 8.4s / A1.7 10.2s / A2 50.0s (p90 297s).
+6–7x. Elections (unscoped builder): equity anchor 14, explore 10, inspect 20,
+record_decision 15 (7 refused), audit 4, sync 3, discard 1 over six cells; return anchor 5,
+explore 3, audit 4, record 2, discard 2 (1 refused: the perspective sat in cycles) over
+two. Leaks: 2 hits, both A0 (a prose arm's own vocabulary), none on A2. Particulars USED
+≈ 0 on every arm while A2 held 23/23 and 11/12 in memory — the known prompt defect, still
+open. Erosion on the return ladder: A2's inconvenient aspect survived 0 of 2 cells against
+1 of 2 for every other arm, and BOTH A2 return records were flagged by the coherence check
+for writing the concentration risk down as refuted — the check working, on a scenario
+designed to make the person argue the risk down with real contract facts. Verbosity gap
+24% on equity (A0 wordiest, A2 shortest): read fit and warmth as length-confounded.
+
+DEFECTS SURFACED (bugs outrank measurement; none stopped the run because the repair seam
+wrote every record and the person saw nothing):
+1. **The shared-price refusal still fires after 3a555f1.** Seven refused
+   `record_decision` calls in two equity cells: one turn called the tool SEVEN times, five
+   refused identically on one hash ("a price in 2 tensions and no other ground says which
+   one was decided"), 203s; another refused once and then waited 750s on the weave. The
+   pathway narrowing had nothing to narrow — the two tensions appear to sit in one wheel.
+   The retry loop is the model's here: the refusal names the missing ground and Sonnet did
+   not add it, four and five times. The refusal's escape must be something the model can
+   do without reading a paragraph: accept the adopted pathway's own tension as the
+   tie-break, or ask for the decided reading in a field the schema forces.
+2. A fabricated full hash: the model expanded a short hash into 64 characters that name no
+   node ("no node found for ground hash"). Guarded by the tool; the retry cost a call.
+3. `accepted_cost` pointed at the Perspective (the tension itself) once — the same class
+   as (1), the model looking for any ground that will be accepted.
+
+INSTRUMENTATION GAPS (add before the next round):
+- **SDK-internal retries are invisible.** One A0 turn took 610.3s with `retry_count` 0,
+  `retry_seconds` 0.0, no error: the Anthropic SDK's own 600s read timeout plus its own
+  retry, below `use_brain`'s ladder. `CallRecord` cannot see it, so a turn's retry
+  accounting can read clean over a ten-minute stall. Documented as a rule in CLAUDE.md.
+- **Refused tool calls do not persist their arguments.** `grounding_args` is empty on the
+  refused turns and `tool_calls` holds names only, so defect (1) cannot be diagnosed from
+  the record — whether the model passed `adopted_pathway` is unknowable after the fact.
+
+WHAT THIS SETTLES, against the pre-registration. Outcome (a) did not occur: A2 vs A1 is
+not flat-or-negative in-session on Sonnet, it is positive and unresolved. Outcome (b) did
+not occur either: it did not resolve. Outcome (c) is the direction at the return: the
+journal keeps pace with the graph at n=2. So Claim 1 is neither retired nor supported, and
+its measured trend across tiers points the wrong way for "depreciating". The product
+reading: a Fast surface (the A1 prompt, no tools on the turn) is 6–7x faster, diagnoses as
+well or better, loses the closing on the turn and loses everything at the return unless it
+carries a memory, and must be forbidden from claiming a record it cannot write. What it
+should carry at the return is the open question this round makes concrete: the graph and
+the journal tied at n=2, and the graph costs 5x per turn to consult live.

@@ -146,7 +146,12 @@ independent unit is 12 replicates, not 36 comparisons — the unit-shopping erro
 Claim 1 is expected to be **depreciating** — as base models improve, they
 self-apply the method better and the gap shrinks. Claim 2 is the durable one, if
 either is. The report classifies each delta rather than reporting a win rate,
-which is why ≥2 tiers matter.
+which is why ≥2 tiers matter. **First measurement across tiers points the other
+way** (`prompt-vs-machinery`, 2026-09-22): in-session `A2−A1` went from −0.43
+resolved on Haiku to +0.26 unresolved on Sonnet 5, with the judge's prose naming
+the mechanism — A2 converges, A1 diagnoses — and `A2−A1.7` at the return a null
+on Sonnet where Haiku resolved it positive. Neither claim is supported on the
+strong tier yet; read the round before quoting either direction.
 
 **What "A2 loses to A1.7" therefore means, stated precisely.** A1.7 is not an
 independent rung: it is `persona + method_prompt() + the model's own journal`.

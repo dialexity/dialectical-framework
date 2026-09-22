@@ -830,6 +830,10 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 | live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | Consultant WINS +0.50 [+0.08, +0.92]; builder +0.38 and pinned +0.22 unresolved; pinned loses to Consultant −0.51 | `reasoning-sonnet`, `nexus-pinned`, `ladder-sonnet` |
 | median turn, live head over a built graph | Consultant 11.8s, builder 12.3s | Consultant 47s, builder 76s (worst deferred wait 174s); the dump 9.8s | `nexus-pinned`, `ladder-sonnet` |
 | decisions flagged incoherent by the coherence check | 6 of 15 | 1 of 12 | `nexus-pinned`, `ladder-sonnet` |
+| the assembly vs the same method as a tool-less prompt (`A2−A1`), in-session / at the return | −0.43 resolved / +2.4 resolved | +0.26 unresolved (A2 converges, A1 diagnoses) / +1.07, followup cells resolved | `ladder-return-r18`, `prompt-vs-machinery` |
+| the typed record vs the model's own prose journal at the return (`A2−A1.7`) | +0.78 / +1.08 resolved | +0.06 at n=2, a null | `ladder-return-r16/r18`, `prompt-vs-machinery` |
+| a prompt arm claiming a record it cannot write (PHANTOM) | not measured | A1 3 of 6 asks, A1.7 3 of 5; A2 6 of 6 recorded | `prompt-vs-machinery` |
+| median turn, builder vs the tool-less prompt | not measured | 76.8s vs 11.4s (equity), 50.0s vs 8.4s (return) | `prompt-vs-machinery` |
 
 What follows from the table, as of 2026-09-22: **Sonnet 5 is the floor for a conversation
 with tools wired**, and on it the direction of the bench's central finding flips — every
