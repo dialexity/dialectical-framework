@@ -1906,3 +1906,137 @@ class TestUnpricedAspectsResolution:
 
         texts = [text for _label, text in unpriced]
         assert len(texts) == len(set(texts)), f"a price offered twice: {unpriced}"
+
+
+class TestASharedPriceBetweenReadingsIsLocated:
+    """`nexus-pinned` (2026-09-21): 11 of 16 tool calls in the round were the
+    same `record_decision` refusal, three to five identical retries per
+    closing, and every one was a price shared between SIBLING READINGS of one
+    polarity — `ExpandPolarity`'s several tetrads on one T/A pair, whose
+    identical minus wording `commit()` dedup made one Statement. Rule B's
+    argument (a mislocated price sends the re-audit to the wrong risk) does
+    not hold between readings: same T, same A, same T-. So the framework adds
+    the reading itself, and Rule B keeps refusing only the cross-tension case.
+    """
+
+    def _siblings(self):
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        p1 = _create_perspective_with_aspects()
+        shared, _ = p1.t_minus.get()
+        # A sibling reading: same T, same A, same T- (one Statement after
+        # dedup), a different plus wording — what `ExpandPolarity` grows.
+        p2 = _create_perspective_with_aspects(
+            t_minus_text=shared.text,
+            t_plus_text="Clarity through explicit ownership",
+            a_plus_text="Trust grows where people are left room",
+        )
+        assert p2.t_minus.get()[0].hash == shared.hash
+        assert p1.hash != p2.hash, "distinct readings must be distinct nodes"
+        return p1, p2, shared
+
+    @pytest.mark.asyncio
+    async def test_the_price_is_located_on_one_reading_and_recorded(self):
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._siblings()
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="Control or freedom?",
+                stance="I'm going with control",
+                rationale="Structure is what this team is missing.",
+                grounds=[GroundLink(hash=shared.hash, role="accepted_cost")],
+            )
+            assert result is not None, concern.report.summary
+            assert concern.report.ok is True
+            located = concern.report.artifacts.get("located_price_on")
+            assert located in {p1.hash, p2.hash}
+            decision = next(
+                d for d in DecisionRepository().find_all() if d.hash == result
+            )
+            plain = [
+                g.hash
+                for g, rel in decision.grounds.all()
+                if getattr(rel, "role", None) is None
+            ]
+            assert plain == [located], "the reading is a plain ground on the record"
+
+    @pytest.mark.asyncio
+    async def test_a_reading_the_ledger_already_located_wins(self):
+        """Two records must not read one price off two tetrads."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._siblings()
+            first = RecordDecision()
+            standing = await first.resolve(
+                question="Control or freedom?",
+                stance="Control, with a review",
+                rationale="r",
+                grounds=[
+                    GroundLink(hash=shared.hash, role="accepted_cost"),
+                    GroundLink(hash=p2.hash),
+                ],
+            )
+            assert standing is not None, first.report.summary
+            second = RecordDecision()
+            result = await second.resolve(
+                question="Control or freedom, revisited?",
+                stance="Still control",
+                rationale="r",
+                grounds=[GroundLink(hash=shared.hash, role="accepted_cost")],
+            )
+            assert result is not None, second.report.summary
+            assert second.report.artifacts.get("located_price_on") == p2.hash
+
+    @pytest.mark.asyncio
+    async def test_different_tensions_are_still_refused(self):
+        """Rule B's own case is untouched: the same wording priced in two
+        DIFFERENT polarities is a guess the framework must not make."""
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1 = _create_perspective_with_aspects()
+            shared, _ = p1.t_minus.get()
+            _create_perspective_with_aspects(
+                thesis_text="Speed", antithesis_text="Care", t_minus_text=shared.text
+            )
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="q", stance="s", rationale="r",
+                grounds=[GroundLink(hash=shared.hash, role="accepted_cost")],
+            )
+            assert result is None
+            assert "no other ground says which one" in concern.report.summary
+            assert "located_price_on" not in concern.report.artifacts
+
+    @pytest.mark.asyncio
+    async def test_a_price_another_ground_already_locates_is_left_alone(self):
+        from dialectical_framework.concerns.record_decision import (
+            GroundLink, RecordDecision)
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._siblings()
+            concern = RecordDecision()
+            result = await concern.resolve(
+                question="q", stance="s", rationale="r",
+                grounds=[
+                    GroundLink(hash=shared.hash, role="accepted_cost"),
+                    GroundLink(hash=p1.hash),
+                ],
+            )
+            assert result is not None, concern.report.summary
+            assert "located_price_on" not in concern.report.artifacts
+            decision = next(
+                d for d in DecisionRepository().find_all() if d.hash == result
+            )
+            plain = [
+                g.hash for g, rel in decision.grounds.all()
+                if getattr(rel, "role", None) is None
+            ]
+            assert plain == [p1.hash]

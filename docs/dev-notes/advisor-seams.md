@@ -87,3 +87,25 @@ exploration is THEIR deliverable") reads a little off for a client whose mediato
 but confirming before a retraction is the right behaviour for that person too, so it was
 left alone. No AppSpec field, for the same reason `advanced` is not one: one app serves the
 mediator and their client. Unmeasured — no bench cell pins an Advisor with a persona.
+
+## A shared price between readings is located, not refused (2026-09-21)
+
+`nexus-pinned` was the first round to run a pinned Advisor, and its tool-outcome column was
+the finding nobody pre-registered: 11 of 16 tool calls failed, all `record_decision`, all the
+Rule B refusal ("that same wording is a price in 2 tensions and no other ground says which one
+was decided"), and the weak-tier model answered every refusal by re-sending the identical
+call — three to five times per closing, on the Consultant as much as the pinned head — until
+an `inspect_node` happened to make it cite a tension. Reading the archived dumps: every
+instance was `ExpandPolarity`'s sibling readings on one T/A pair (`Reading along: recognition
+of contribution / basis for sole ownership` beside another reading of "Buy out cofounder, run
+company solo"), whose identical T- wording `commit()` dedup had made one Statement. Rule B's
+argument is that a mislocated price sends the re-audit to the wrong RISK; between readings
+the risk is the same node and only the condition's plus wording differs, so the refusal was
+protecting nothing and costing the closing turn its rounds. `_locate_shared_price` runs
+before Rule B, and only when every candidate keys to one (T, A) statement pair — keyed on the
+statements, not the Polarity node, because a Polarity's hash carries its commit instant and
+the test helper builds one per call. Preference order is a set of reasons: a reading an
+active record already grounds beside this price (one price, one tetrad across the ledger),
+then woven, then undiscarded, then SP, then hash for a stable pick. Cross-polarity sharing
+still refuses. Four tests in `tests/test_decision.py::TestASharedPriceBetweenReadingsIsLocated`;
+disabling the step fails the two that need it. Not re-benched.

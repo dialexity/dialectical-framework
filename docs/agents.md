@@ -731,7 +731,7 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | Category | Who | Construct | Builds | Measured |
 |----------|-----|-----------|--------|----------|
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
-| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | **never on its own**: every judged A2 cell in the archive is the unscoped Advisor. This category starts from a graph that already exists, i.e. in the position the bench found strongest, and adds enrichment — it is the category that should carry the framework's claim, and it has zero cells |
+| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (2026-09-21, weak tier, n=8): indistinguishable from the Consultant on the same graph (−0.02 [−0.60, +0.55]) and a resolved loss to the static dump of it (−0.83 [−1.55, −0.12]); inside the pin the model elected no build tool in four cells and the enrichment was the closing weave's. The category built for the framework's claim does not yet carry it on the weak tier |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
 | **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
 
@@ -748,8 +748,11 @@ What the bench says, stated once: counsel from a FINISHED graph beats counsel fr
 being built in front of the person, resolved on the weak tier; the value accrues in the
 record and the map and is collected at the return. That is not a verdict against the two
 building categories — it is the reason the first session is the expensive one and the
-Consultant exists — and the one category built for exactly the mediator's claim (Advisor on
-a nexus, which the client's sessions collapse into) is the one still unmeasured.
+Consultant exists. The category built for exactly the mediator's claim (Advisor on a nexus,
+which the client's sessions collapse into) was measured on 2026-09-21 and, on the weak tier,
+behaves as a Consultant plus the closing weave: three live heads now lose to the same static
+dump by overlapping margins, so what separates them from the dump is the engine prompt and
+the tool turn, not building — the one variable no arm has yet isolated.
 
 Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
 hides exactly what the Navigator exists to show. If you build both, they are two front-ends

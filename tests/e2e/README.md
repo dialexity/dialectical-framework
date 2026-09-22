@@ -265,7 +265,12 @@ produces. A build that wove no nexus is refused rather than run unpinned
 label. Read `A2n−A2c` for what enrichment inside the pin buys over consulting the same
 graph, `A2n−A1.5` for pinned-live against static (the question `A2−A1.5` resolved at
 −1.47 against the UNSCOPED builder), and `A2−A2n` for the two Advisor categories side by
-side.
+side. First run (`nexus-pinned`, weak talking / Sonnet reasoning, judge on, n=8 pairs):
+`A2n−A2c` −0.02 [−0.60, +0.55], a null; `A2n−A1.5` −0.83 [−1.55, −0.12] and `A2c−A1.5`
+−0.78 [−1.32, −0.24], both resolved losses. Inside the pin the model elected no `anchor` and
+no `deepen` in four cells and `explore` once; the enrichment that happened was the closing
+weave's. Three live heads now lose to the same dump by overlapping margins, so the open
+variable is the engine prompt plus the tool turn, not building — see `rounds.md`.
 
 **A2c is opt-in like A1.5 and prices the third product surface.** A1.5 answered "does a static
 dump buy the live graph's counsel?" (4x faster, quality indistinguishable) and A2c asks the

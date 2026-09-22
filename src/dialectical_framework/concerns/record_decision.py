@@ -263,6 +263,15 @@ class RecordDecision(ReasonableConcern[str | None]):
                     return None
             resolved.append((node, g.role))
 
+        # 1a. A shared price whose candidate tetrads are all READINGS of one
+        # tension is located by the framework, not refused — see
+        # _locate_shared_price. Runs before 1b so Rule B only ever sees a
+        # price that is genuinely ambiguous between tensions.
+        located = self._locate_shared_price(resolved)
+        if located is not None:
+            resolved.append((located, None))
+            self._report.artifacts["located_price_on"] = located.hash
+
         # 1b. One record, one tetrad. Each ground carries its own implicit
         # claim about which tension the decision concerns, and until now
         # nothing reconciled them (see _ground_set_inconsistency). Checked on
@@ -472,6 +481,116 @@ class RecordDecision(ReasonableConcern[str | None]):
         return message
 
     @classmethod
+    def _locate_shared_price(
+        cls, resolved: list[tuple[AssessableEntity, str | None]]
+    ) -> object | None:
+        """The reading a shared price belongs to, when the TENSION is not in doubt.
+
+        Rule B (`_ground_set_inconsistency`) refuses an `accepted_cost` whose
+        wording is a price in several tetrads that no other ground narrows,
+        because the ledger reads the price's condition off one tetrad. Measured
+        on `nexus-pinned` (2026-09-21), that refusal fired 11 times across 16
+        tool calls, three to five identical retries per closing on both the
+        Consultant and the pinned Advisor — and every one of them was the SAME
+        SHAPE: sibling readings of one polarity. `ExpandPolarity` grows several
+        tetrads on one T/A pair (distinct `intent`), `commit()` dedup makes
+        their identical minus wording one Statement, and the person's price is
+        then "a price in 2 tensions" that are the same tension read twice. The
+        refusal's whole argument — a mislocated price sends the re-audit to the
+        wrong RISK — does not apply between readings: same T, same A, same T-,
+        and the condition differs only in the sibling's plus wording.
+
+        So: if the price's candidates, after the other grounds have had their
+        say, all sit on ONE polarity, pick the reading deterministically and
+        add it as a plain ground — the addition Rule B's message asks the model
+        for, made by the framework where the framework can make it without
+        guessing. Preference order, each a reason rather than a tiebreak: a
+        reading an ACTIVE decision already grounds beside this same price (the
+        ledger has located it once; two records must not read one price off two
+        tetrads); a reading woven into an arrangement (the pathways the record
+        will adopt live there); an undiscarded one; the highest SP; then the
+        hash, so the pick is stable across retries. Candidates on DIFFERENT
+        polarities are left to Rule B untouched. Fail-open on a read fault:
+        returning None means "nothing located", and Rule B then decides.
+        """
+        from dialectical_framework.graph.repositories.decision_repository import \
+            DecisionRepository
+        from dialectical_framework.graph.repositories.perspective_repository import \
+            PerspectiveRepository
+
+        try:
+            frames = [
+                (node, role, cls._perspective_frame(node, role))
+                for node, role in resolved
+            ]
+            for i, (node, role, frame) in enumerate(frames):
+                if role != "accepted_cost" or not frame or len(frame) == 1:
+                    continue
+                others: dict[str, object] = {}
+                for j, (_n, _r, other) in enumerate(frames):
+                    if j != i and other:
+                        others.update(other)
+                narrowed = {k: v for k, v in frame.items() if k in others}
+                if len(narrowed) == 1:
+                    continue  # already located by another ground
+                candidates = list((narrowed or frame).values())
+                if len({cls._polarity_key(pp) for pp in candidates}) != 1:
+                    return None  # genuinely different tensions: Rule B's case
+                if any(cls._polarity_key(pp) is None for pp in candidates):
+                    return None
+
+                located_before: set[str] = set()
+                for standing in DecisionRepository().find_all_active():
+                    grounds = list(standing.grounds.all())
+                    if not any(
+                        getattr(rel, "role", None) == "accepted_cost"
+                        and getattr(g, "hash", None) == node.hash
+                        for g, rel in grounds
+                    ):
+                        continue
+                    for g, rel in grounds:
+                        if getattr(rel, "role", None) is None and getattr(g, "hash", None):
+                            located_before.add(g.hash)
+                repo = PerspectiveRepository()
+
+                def rank(pp) -> tuple:
+                    return (
+                        0 if pp.hash in located_before else 1,
+                        0 if repo.is_in_use_by_cycle(pp) else 1,
+                        0 if not getattr(pp, "discarded", None) else 1,
+                        -(getattr(pp, "area", None) or 0.0),
+                        pp.hash or "",
+                    )
+
+                return sorted(candidates, key=rank)[0]
+            return None
+        except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
+            return None
+
+    @staticmethod
+    def _polarity_key(pp) -> tuple | None:
+        """What makes two readings the same tension: the same T and the same A.
+
+        Keyed on the two STATEMENTS rather than the Polarity node, because a
+        Polarity's hash carries its commit instant (two Polarity nodes over one
+        T/A pair are legal and `ExpandPolarity` is not the only builder), while
+        a Statement dedups on its text — which is exactly what made the price
+        shared in the first place. None when the perspective has no polarity
+        or the polarity has no poles: an unkeyable reading locates nothing.
+        """
+        try:
+            polarities = pp.polarity.all()
+            if not polarities:
+                return None
+            polarity, _rel = polarities[0]
+            t, a = polarity.get_t_component(), polarity.get_a_component()
+            if t is None or a is None or not t.hash or not a.hash:
+                return None
+            return (t.hash, a.hash)
+        except Exception:  # noqa: BLE001
+            return None
+
+    @classmethod
     def _ground_set_inconsistency(
         cls, resolved: list[tuple[AssessableEntity, str | None]]
     ) -> str | None:
@@ -513,7 +632,11 @@ class RecordDecision(ReasonableConcern[str | None]):
         and `claim2-weak-r5` recorded 5 risk-grounded costs with 0 conditions.
         The framework-derived path already grounds the perspective alongside
         (`Advisor._accepted_cost_ground`), so this refuses hand-assembled sets
-        only, and names the perspectives so the retry is an addition.
+        only, and names the perspectives so the retry is an addition. And since
+        2026-09-21 a price shared only between READINGS of one polarity never
+        reaches this rule: `_locate_shared_price` adds the reading itself,
+        because there the tension is not in doubt and the refusal cost three to
+        five identical retries per closing on the weak tier (`nexus-pinned`).
 
         Refuse rather than downgrade or guess, for the reason in
         `_accepted_cost_misplacement`: decisions with no `accepted_cost` passed

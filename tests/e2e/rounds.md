@@ -6828,3 +6828,63 @@ n is 4 pairs per comparison per branch pooling (8 at most): a direction, not a v
 
 WHAT WOULD CHANGE A DEFAULT. Nothing in one run. What it settles is whether the archive's
 "the live Advisor loses to its own dump" was measured on the wrong category.
+
+### nexus-pinned: RESULT — pinning changes nothing against consulting, and every live head loses to the dump (2026-09-21)
+
+Run as pre-registered (Haiku talking, Sonnet reasoning, thinking unset, `cofounder_equity`,
+both wobbles, 2 replicates, A1.5 / A2c / A2n, judge on), 12 cells in 2h03m, no kills, no
+invalid cell: every A2n build produced a nexus (2 perspectives under the pin in all four)
+and every A2c build produced structure. Build 2076845.
+
+    pair          composite   pairs   95% CI              read
+    A2n  vs A2c     -0.02       8    [-0.60, +0.55]      NULL: the pinned full Advisor and the Consultant are indistinguishable on the same graph; 0 of 12 dimensions resolve
+    A2n  vs A1.5    -0.83       8    [-1.55, -0.12]      RESOLVED: the pinned live head loses to the static dump of the same build
+    A2c  vs A1.5    -0.78       8    [-1.32, -0.24]      RESOLVED: the Consultant loses to the static dump too — the first JUDGED A2c-vs-A1.5 in the archive (`consultant-latency` ran judge-off)
+
+THE READING. Endpoint 1 is a null and endpoint 2 reproduces the loss. The live family now
+reads, against the same static dump on the same cost shape: unscoped builder -1.47
+(`reasoning-sonnet`), pinned builder -0.83, Consultant -0.78 — three heads, three toolsets,
+one direction. The two live intervals here overlap each other and the unscoped one almost
+entirely, so "pinning halves the loss" is not a claim this n can make; what it can say is
+that the pin did not close the gap and the build tools are not what opens it, because the
+Consultant has none and loses by the same margin. **What A1.5 and the live heads differ in
+is therefore not building: it is the Advisor ENGINE PROMPT plus a tool-electing turn against
+the A1 method prompt plus the same graph as text.** That is the next thing to isolate, and it
+is one arm away (the engine prompt over the dump with no tools); this round did not run it.
+
+WHAT THE PIN DID. Elections inside it, four cells: `sync` 3, `inspect_node` 13,
+`record_decision` 10, `explore` 1, `anchor` 0, `deepen` 0. Enrichment by election happened
+once (r2 wobble_a: transformations 18 -> 54); the off-turn weave added one woven perspective
+in two cells; two cells ended exactly as built. So the Advisor on a nexus, on the weak tier,
+is a Consultant with a closing weave — the "assisted reasoning" the category was named for
+is what the seam does, not what the model elects, which is the a15-floor election finding
+again under a pin. It did read the structure more: `read_reach` puts A2n's pathway overlap
+at 0.73 against A2c 0.62 and A1.5 0.40 (tensions 0.79 / 0.92 / 1.00), and it cited 5 hashes
+in replies where the other two cited none — reaching the pathways and leaking the machinery
+are the same behaviour here. Leaks 6/96 turns across the two live arms (5 hits each).
+Wobble accuracy A1.5 2/2, A2n 1/2, A2c 0/2. Per-turn medians A1.5 11.3s / A2c 11.8s / A2n
+12.3s — the turn is the same price on every arm now; cells 603s (A2n) and 692s (A2c) medians
+INCLUDING their builds. Verbosity: A1.5 2811 words/run against 2174 / 2355, a 29% gap the
+judge was told to ignore — read `conversational_fit` and `warmth` as length-confounded; the
+resolved structural rows (`actionability`, `convergence`, `decision_closure`,
+`paired_recipe`, `cross_turn_coherence`) are the finding. Judge position bias +0.17 / +0.18
+on two of the three pairs, alternated as always.
+
+THE DEFECT THE ROUND FOUND, FIXED IN THE SAME COMMIT. 11 of 16 tool calls FAILED, every
+one the same `record_decision` refusal, three to five IDENTICAL retries per closing on
+both live arms: "ground [[x]] is the accepted cost, but that same wording is a price in 2
+tensions and no other ground says which one was decided". Every instance was sibling
+READINGS of one polarity — `ExpandPolarity`'s several tetrads on one T/A pair share the
+minus wording, `commit()` dedup makes it one Statement, and Rule B saw two tensions where
+the person had one. `RecordDecision._locate_shared_price` now adds the reading itself when
+every candidate sits on one T/A pair (preferring the reading an active record already
+grounds beside that price, then a woven one, then undiscarded, then SP); different
+polarities still refuse. Not re-run: the fix removes wasted rounds on the closing turn, and
+whether that moves a judged figure is a later round's question.
+
+WHAT THIS SETTLES. The category built for the framework's own claim is now measured, and
+on the weak tier it does not carry it: assisted reasoning inside the pin is the seam's
+enrichment, and counsel over the live graph loses to counsel over the same graph as text
+whatever head holds it. The bench's "live vs static" question has one variable left that no
+arm has isolated — the engine prompt and the tool turn themselves — and until that runs,
+"the Consultant is the fast one" is true and "the Consultant is the good one" is not.
