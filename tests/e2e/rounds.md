@@ -7011,3 +7011,62 @@ graph; the builder is not worse than it and is the slow one; the pin as benched 
 graph and loses. The compensating seams cost nothing visible here (deferred wait 0.0s
 median on every arm, the builder's 174s worst is its own weave) and nothing here argues for
 turning any of them into a flag.
+
+### prompt-vs-machinery: pre-registered 2026-09-22, before any cell ran
+
+THE QUESTION. The owner's standing assumption, stated today: a strong enough model with
+the dialectical method in its SYSTEM prompt should give counsel as good as the whole
+assembly, and faster. That is Claim 1 (reasoning discipline), which the README already
+expects to depreciate. It has been resolved on Haiku only: in-session A2 sits BEHIND A1
+(`ladder-return` r16 −0.22 / r18 −0.43, the latter resolved) and wins only at the return
+(+2.5 resolved), of which the prose journal A1.7 takes 57–67%. On the production model the
+archive holds 16 A2−A1 cells from one early round (−0.286, unresolved), no A1.7 return
+cell, and no prompt arm at all in `ladder-sonnet`. So the owner's hypothesis has never
+been tested on the tier the product ships on. The README calls this the archive's cheapest
+open question; this round runs it.
+
+ARMS: the default ladder — A0 (bare persona), A1 (the engine's own section constants as
+method text, no tools), A1.7 (A1 plus the journal the model writes for itself), A2 (the
+full Advisor). A2c is NOT run: `JUDGED_PAIRS` carries no Consultant-vs-prompt pair, adding
+one is a code change this question does not need, and the assembly under test is the
+builder — the thing a person meets from nothing. Strong tier for everything: Sonnet 5
+talking and reasoning (`DIALEXITY_E2E_REASONING_MODEL` unset), thinking unset, simulator
+Sonnet 5, judge Fable (outside the tier). Build 1aa27d1.
+
+TWO STEMS, run back to back by one driver so a memory kill (`ladder-sonnet` died at its
+14th cell) loses one stem, not both; each checkpoints per cell and is judged from the
+checkpoint if killed:
+1. `prompt-vs-machinery-equity` — `cofounder_equity`, both wobble branches, 3 replicates:
+   24 cells, 6 of them A2 builds. The IN-SESSION question.
+2. `prompt-vs-machinery-return` — `cofounder_ladder_return`, 2 replicates: 8 cells. The
+   RETURN question, which has zero Sonnet cells.
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2 vs A1` per session on equity (`decide`, `wobble_a`, `wobble_b`),
+   n = 6 pairs per row. The owner's hypothesis predicts zero or negative. A negative
+   interval clear of zero = the machinery costs counsel on the turn on the production
+   model, as on Haiku. Positive clear of zero = Claim 1 holds one more generation.
+   Covering zero at this n = a direction; read the judge prose (`judge_notes.py
+   --all-cells`) before saying anything.
+2. JUDGED, primary — `A2 vs A1.7` on the return's `followup` session, n = 2 pairs: the
+   typed record against honest notes on Sonnet. A direction and its prose, not a number.
+   Haiku: +0.78 / +1.08 resolved. Also `A2 vs A1` there (Haiku +2.4).
+3. JUDGED, secondary — `A1 vs A0` on both scenarios: does the method as TEXT buy anything
+   on a strong model? Thin everywhere in the archive; n = 6 here, still a direction.
+4. MACHINE — median turn per arm (the SPEED half of the hypothesis; `ladder-sonnet`
+   predicts A2 ≈ 8x a prompt arm), tools elected per A2 cell, leaks, records grounded on
+   a pathway, `carried` on the return for A1.7 against A2.
+
+VALIDITY. As `ladder-sonnet`: an A2 cell that built nothing is invalid as evidence.
+Read per-session, never pooled — the design puts a loss and a win in fixed proportion.
+Read the recorded model, never the tier label.
+
+WHAT WOULD CHANGE. (a) A2 vs A1 flat or negative in-session AND A2 vs A1.7 positive at
+the return: Claim 1 is retired as a pitch at every tier; the framework's value claim is
+the record and what only state can do; the on-ramp's 5–8x latency is a cost to remove or
+hide, not a price of quality. (b) A2 beats A1 in-session clear of zero: the Haiku
+in-session loss was the weak model's, like the live-vs-static loss before it, and the
+"depreciating" expectation in the README gets a counter-example. (c) A1.7 matches A2 at
+the return: the typed record's edge over prose is gone on the strong model too, and the
+product's distinctive claim narrows to what this bench does not measure — a shared object
+several people walk, exact enumeration of arrangements, decision provenance.

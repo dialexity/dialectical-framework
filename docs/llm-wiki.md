@@ -1,6 +1,8 @@
 # LLM Wiki Mapping
 
-This framework implements the same idea as [Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — a persistent, compounding knowledge base that LLMs maintain and query rather than re-deriving understanding from raw sources on every call. The difference is substrate: where Karpathy's version uses interlinked markdown pages, ours uses a typed semantic graph with rule-constrained relationships.
+This framework runs the same loop as [Karpathy's LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) — ingest, compound, query, lint — over a persistent store that LLMs maintain rather than re-deriving understanding from raw sources on every call. What differs is the object stored, not just the substrate. A wiki (and the "company brain" products and knowledge graphs built on the same idea) stores what is known: pages, entities, and the relations between them. This graph stores what is in tension: which claims oppose, how one side's excess becomes the other side's constructive move, and what a decision costs. The lint row in the table below is the tell — a wiki lints for staleness and consistency; this lints for whether a tension is well-formed against the generative rules.
+
+The Input/digest layer below is a small wiki and is not the differentiator. The framework is a layer that can sit on any company brain, not a competitor to one: a brain answers "what do we know?", this graph answers "what pulls against what, and what would it cost to move?"
 
 ## Concept Mapping
 
