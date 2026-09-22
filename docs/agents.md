@@ -805,3 +805,35 @@ Consultant's job on the graph this produced. An agentic builder that drives the 
 Explorer heads through `chat()` instead gets the same graph with the tool-election
 variance those prompts carry; the pipelines are deterministic in what they run.
 `tests/test_agents_e2e.py` runs exactly this sequence against a real provider.
+
+## The brain: what is measured per model
+
+The products above do not depend on the model. Every category is the same construction
+whichever model sits under it — the model is the brain, the framework is what powers it
+with dialectics — and the framework enforces in code only what is true of any brain: one
+writer per sid, a decision recorded when the person confirms it, a price located to one
+tetrad, nothing built silently against consent, the pin. Elections (whether to explore,
+deepen, anchor) are reasoning and stay with the model. What the framework DOES hold is
+knowledge of how each model it has been run on behaves, so a host can pick one. Measured,
+all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quoting):
+
+| behaviour | Haiku 4.5 | Sonnet 5 | where |
+|---|---|---|---|
+| extraction claims not supported by their source | 34.6% (6.2% invented) | 7.0% (3.5%) | `sonnet-thinking` |
+| machinery leak, share of replies | 10.9% (hash cited 0.4%, bare label 1.5%) | 0.6% (never a hash or label) | `reply-hygiene` |
+| `record_decision` fired when the person confirmed | 0 of 6 | 6 of 6 | `tests/e2e/README.md` |
+| `explore` elected in an Advisor run | 6 of 55 | 17 of 25 | `a15-floor`, README |
+| build tools elected inside a nexus pin | 1 explore in 4 cells, no anchor, no deepen | pending (`ladder-sonnet`) | `nexus-pinned` |
+| a refused `record_decision` retried identically | 3–5 times per closing | pending | `nexus-pinned` |
+| extended thinking at `medium` on the tool path | ~3x the call, no election gain | close to free, close to a no-op | `thinking-off`, `sonnet-thinking` |
+| live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | pending (`ladder-sonnet`) | `reasoning-sonnet`, `nexus-pinned` |
+
+What follows from the table, as of 2026-09-22: **Sonnet 5 is the floor for a conversation
+with tools wired**, and Haiku 4.5 is a development model — every seam that compensates for
+a model not doing what the prompt says (the closing repair, the off-turn weave, the
+empty-graph anchor, the shared-price location, the hash filter) was built against the
+Haiku column, and each is either a no-op or idempotent under a model that complies.
+`DIALEXITY_DEFAULT_MODEL` and `DIALEXITY_REASONING_MODEL` are where a host makes the
+choice; the framework never checks a model name. Models not in the table (Opus, non-Claude
+providers) have no figures, which means unmeasured, not unsupported: the same bench runs
+against any provider Mirascope reaches (`DIALEXITY_E2E_TIER_*`).
