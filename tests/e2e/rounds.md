@@ -6917,3 +6917,37 @@ narration are NOT filtered: removing `T+` breaks the sentence around it and "the
 found" has to be not written. **From this commit the bench's A2-family replies are
 post-filter for hashes**, so `read_reach`'s "hashes cited" column reads 0 by construction
 on new stems and `nexus-pinned`'s 5 is the last pre-filter figure.
+
+### ladder-sonnet: pre-registered 2026-09-22, before any cell ran
+
+THE QUESTION. Every resolved "live vs static" finding in the archive is a Haiku finding,
+and the owner's production floor is Sonnet 5. Same ladder, the strong tier for
+everything: Sonnet 5 talking, Sonnet 5 reasoning (no split — `DIALEXITY_E2E_REASONING_MODEL`
+unset), thinking unset, `cofounder_equity`, both wobble branches, 2 replicates, arms
+A1.5 / A2c / A2n / A2, judge on (Fable, outside both tiers). Sixteen cells, twelve of them
+with their own full-Advisor build. Build dee8aae (hash filter in; bare labels and
+narration not filtered).
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2 vs A1.5`, `A2c vs A1.5`, `A2n vs A1.5`: does any live head beat,
+   match, or lose to the static dump of its own graph when the model is the one the
+   product ships on? On Haiku all three lost, resolved (−1.47 / −0.78 / −0.83). Each
+   interval read on its own; zero excluded either way is a finding.
+2. JUDGED, secondary — `A2n vs A2c` (enrichment inside the pin over consulting; null on
+   Haiku) and `A2 vs A2n`.
+3. MACHINE — elections by tool per live arm (does Sonnet elect `explore` / `deepen` /
+   `anchor` inside the pin where Haiku elected none), records grounded on a pathway,
+   decisions failing coherence (6 of 15 on Haiku, unexamined), wobble accuracy per arm
+   (A2c 0/2 on Haiku), `record_decision` refusals (should be ~0 after the shared-price
+   fix), leaks per arm (expected ~0 on Sonnet), per-turn timing by arm, deferred waits.
+
+VALIDITY. As `nexus-pinned`: empty builds and unpinnable cells are invalid; a Sonnet
+stem keys as the canonical STRONG build and pools with nothing weak. n is 8 pairs per
+row: a direction, and a resolved interval is a finding at this n only if it excludes zero
+by a margin the Haiku rows did.
+
+WHAT WOULD CHANGE. If the live heads match or beat the dump here, the archive's product
+story ("the Consultant is the good one") was a weak-model artifact and the seams built to
+compensate (off-turn weave, empty-graph anchor) get measured for what they cost a model
+that elects on its own. If the loss reproduces on Sonnet, it is the engine prompt plus the
+tool turn, on any model, and that becomes the next thing to isolate.
