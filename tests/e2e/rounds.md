@@ -6951,3 +6951,63 @@ story ("the Consultant is the good one") was a weak-model artifact and the seams
 compensate (off-turn weave, empty-graph anchor) get measured for what they cost a model
 that elects on its own. If the loss reproduces on Sonnet, it is the engine prompt plus the
 tool turn, on any model, and that becomes the next thing to isolate.
+
+### ladder-sonnet: RESULT — on the production model the Consultant BEATS the dump and the pin costs (2026-09-22)
+
+Run as pre-registered (Sonnet 5 talking and reasoning, thinking unset, `cofounder_equity`,
+both wobbles, 2 replicates, A1.5 / A2c / A2n / A2, judge on). The process was killed by the
+machine for memory at the 14th cell; 13 cells were checkpointed (A1.5 x4, A2 x3, A2c x3,
+A2n x3 — replicate 2's `wobble_b` live arms are missing) and judged from the checkpoint as
+`ladder-sonnet-judged`. No invalid cell: every build produced structure and every A2n cell
+found a nexus to pin. Build ac520b9 (hash filter in; the pathway narrowing of the
+shared-price refusal, 3a555f1, landed AFTER this run and was motivated by it).
+
+    pair          composite   pairs   95% CI              read
+    A2c  vs A1.5    +0.50       6    [+0.08, +0.92]      RESOLVED WIN: the Consultant beats the static dump of the same graph — bias +0.03, even slot split, 8% verbosity gap: the cleanest row
+    A2   vs A1.5    +0.38       6    [-0.46, +1.21]      positive, unresolved — and slot-confounded (A2 first x4, A1.5 first x2; bias +0.49)
+    A2n  vs A1.5    +0.22       6    [-0.37, +0.81]      positive, unresolved
+    A2n  vs A2c     -0.51       6    [-0.97, -0.05]      RESOLVED: the pinned head loses to the Consultant on the same graph (null on Haiku)
+    A2   vs A2c     +0.21       6    [-0.65, +1.07]      null
+    A2   vs A2n     +0.19       6    [-0.68, +1.07]      null
+
+THE READING. The direction flips with the model. On Haiku every live head lost to its own
+static dump, resolved (-1.47 / -0.78 / -0.83); on Sonnet 5 every live head sits ABOVE the
+dump and the Consultant does so with an interval clear of zero. "The live Advisor loses to
+the text of its own graph" was a weak-model finding — the archive's product story was
+measured on the model the product will not ship on. What stays true on both models: the
+Consultant is never worse than the builder (A2 vs A2c null here, -0.02 there), and it is
+the cheapest live head. What is NEW: the pinned Advisor loses to the Consultant, resolved,
+and the likely mechanism is a bench-design fact rather than a product one — a Sonnet build
+produces SEVERAL nexuses (three, in the cell that retried its record four times), the arm
+pins to the one holding the most perspectives (2 of 4-5), and the pin then hides most of
+the graph from a head the Consultant reads whole. The category "Advisor on a nexus"
+presumes one exploration is the subject; when the builder has made three, the pin is a
+blindfold. Re-read before acting on it: a pinned head over a single-nexus graph is not
+what this row measured.
+
+WHAT SONNET DID THAT HAIKU DID NOT. Leaks 0 of 104 replies (Haiku: 6 of 96). Decisions
+failing coherence 1 of 12 (6 of 15). Wobble accuracy correct on every complete pair, all
+arms (A2c 0/2 on Haiku). The unscoped builder elected `anchor` 7, `explore` 6,
+`audit_feasibility` 4, `record_decision` 4 in three cells; every decision on every live
+arm grounded on a pathway; the Consultant elected `audit_feasibility` unprompted. The
+graph itself is deeper: the A1.5 build came in at 4 perspectives / 4 woven / 42
+transformations (Haiku's best: 3 / 3 / 24). What did NOT change: inside the pin the model
+still elected no build tool (`discard` 1, `record_decision` 4, `inspect_node` 2, `audit` 1
+across three cells) — the enrichment the category was named for is the closing weave's on
+both models. And the shared-price refusal fired four times identically on ONE Sonnet
+closing: the retry loop is the refusal's, not the model's (fixed after: 3a555f1).
+
+THE COST. Median turn A1.5 9.8s / A2n 43.5s / A2c 47.2s / A2 76.2s, and the unscoped
+builder's worst deferred wait was 174s — on the production model the elections happen on
+the turn, and the person pays for them. The Consultant's quality win over the dump costs
+5x the dump's turn; the builder's unresolved edge costs 8x. n is 6 pairs per row from
+three cells; the two resolved rows are findings at this n only because their intervals
+clear zero by a margin, and the A2 rows carry a +0.49 position bias from the uneven slot
+split the lost cell caused.
+
+WHAT THIS SETTLES. The product story on the production model: the Consultant over a
+Sonnet-built graph is the best counsel measured, resolved against the text of the same
+graph; the builder is not worse than it and is the slow one; the pin as benched hides the
+graph and loses. The compensating seams cost nothing visible here (deferred wait 0.0s
+median on every arm, the builder's 174s worst is its own weave) and nothing here argues for
+turning any of them into a flag.

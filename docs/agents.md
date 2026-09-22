@@ -736,9 +736,9 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | Category | Who | Construct | Builds | Measured |
 |----------|-----|-----------|--------|----------|
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
-| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (2026-09-21, weak tier, n=8): indistinguishable from the Consultant on the same graph (−0.02 [−0.60, +0.55]) and a resolved loss to the static dump of it (−0.83 [−1.55, −0.12]); inside the pin the model elected no build tool in four cells and the enrichment was the closing weave's. The category built for the framework's claim does not yet carry it on the weak tier |
+| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (Haiku, n=8): equal to the Consultant, loses to the dump. `ladder-sonnet` (Sonnet 5, n=6): above the dump (+0.22, unresolved) but a resolved loss to the Consultant (−0.51 [−0.97, −0.05]) — and on both models no build tool elected inside the pin. Read with the caveat in `rounds.md`: a Sonnet build makes several nexuses and the bench pins to one, so the pin hid most of the graph |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
-| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | fastest (~6s a turn with thinking off) and the best in-session counsel measured; decisions recorded and grounded on what exists |
+| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
 
 The categories and the Advisor's `mode=` are two axes, not one list: the two Advisor
 categories run `FULL`, the Consultant runs `CONSULTANT`, and `VIEW` is an access level under
@@ -753,11 +753,12 @@ What the bench says, stated once: counsel from a FINISHED graph beats counsel fr
 being built in front of the person, resolved on the weak tier; the value accrues in the
 record and the map and is collected at the return. That is not a verdict against the two
 building categories — it is the reason the first session is the expensive one and the
-Consultant exists. The category built for exactly the mediator's claim (Advisor on a nexus,
-which the client's sessions collapse into) was measured on 2026-09-21 and, on the weak tier,
-behaves as a Consultant plus the closing weave: three live heads now lose to the same static
-dump by overlapping margins, so what separates them from the dump is the engine prompt and
-the tool turn, not building — the one variable no arm has yet isolated.
+Consultant exists — and it was the WEAK model's verdict. On Sonnet 5 (`ladder-sonnet`) every
+live head sits above the static dump and the Consultant does so resolved; the builder is not
+worse than the Consultant and costs 8x the dump's turn; the pinned head, as benched, loses
+to the Consultant because a Sonnet build makes several nexuses and a pin to one hides the
+rest. The model is the brain: the same products, a different verdict, and the production
+verdict is the one to build against.
 
 Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
 hides exactly what the Navigator exists to show. If you build both, they are two front-ends
@@ -823,13 +824,17 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 | machinery leak, share of replies | 10.9% (hash cited 0.4%, bare label 1.5%) | 0.6% (never a hash or label) | `reply-hygiene` |
 | `record_decision` fired when the person confirmed | 0 of 6 | 6 of 6 | `tests/e2e/README.md` |
 | `explore` elected in an Advisor run | 6 of 55 | 17 of 25 | `a15-floor`, README |
-| build tools elected inside a nexus pin | 1 explore in 4 cells, no anchor, no deepen | pending (`ladder-sonnet`) | `nexus-pinned` |
-| a refused `record_decision` retried identically | 3–5 times per closing | pending | `nexus-pinned` |
+| build tools elected inside a nexus pin | 1 explore in 4 cells, no anchor, no deepen | none in 3 cells (discard, record, inspect, audit only) | `nexus-pinned`, `ladder-sonnet` |
+| a refused `record_decision` retried identically | 3–5 times per closing | 4 times on one closing — the loop is the refusal's, not the model's (fixed 3a555f1) | `nexus-pinned`, `ladder-sonnet` |
 | extended thinking at `medium` on the tool path | ~3x the call, no election gain | close to free, close to a no-op | `thinking-off`, `sonnet-thinking` |
-| live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | pending (`ladder-sonnet`) | `reasoning-sonnet`, `nexus-pinned` |
+| live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | Consultant WINS +0.50 [+0.08, +0.92]; builder +0.38 and pinned +0.22 unresolved; pinned loses to Consultant −0.51 | `reasoning-sonnet`, `nexus-pinned`, `ladder-sonnet` |
+| median turn, live head over a built graph | Consultant 11.8s, builder 12.3s | Consultant 47s, builder 76s (worst deferred wait 174s); the dump 9.8s | `nexus-pinned`, `ladder-sonnet` |
+| decisions flagged incoherent by the coherence check | 6 of 15 | 1 of 12 | `nexus-pinned`, `ladder-sonnet` |
 
 What follows from the table, as of 2026-09-22: **Sonnet 5 is the floor for a conversation
-with tools wired**, and Haiku 4.5 is a development model — every seam that compensates for
+with tools wired**, and on it the direction of the bench's central finding flips — every
+live head sits above the static dump of its own graph, the Consultant resolved — so the
+"live loses to static" story was the weak model's. Haiku 4.5 is a development model — every seam that compensates for
 a model not doing what the prompt says (the closing repair, the off-turn weave, the
 empty-graph anchor, the shared-price location, the hash filter) was built against the
 Haiku column, and each is either a no-op or idempotent under a model that complies.
