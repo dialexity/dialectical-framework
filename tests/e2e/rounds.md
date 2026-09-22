@@ -6888,3 +6888,32 @@ enrichment, and counsel over the live graph loses to counsel over the same graph
 whatever head holds it. The bench's "live vs static" question has one variable left that no
 arm has isolated — the engine prompt and the tool turn themselves — and until that runs,
 "the Consultant is the fast one" is true and "the Consultant is the good one" is not.
+
+
+### reply-hygiene: the machinery leak by model, and the hash filter (2026-09-22, FREE)
+
+Archive-wide, every A2 / A2c / A2n reply, `score_machinery_leak` over the session and two
+regexes over the reply (a `[[hash]]` citation; a bare `T+`/`A-`/`S-`/`Ac+`/`Re+` label):
+
+    tier / model                       replies   leak hits   unambiguous   hash-citing   label-carrying
+    weak   / Haiku 4.5                   1331        145          117        5 (0.4%)      20 (1.5%)
+    weak   / Sonnet 5 (r18 re-point)      120          0            0        0             0
+    strong / Sonnet 5                     364          3            2        0             0
+
+THE READING. The leak is a weak-model compliance failure almost entirely: 0.6% of Sonnet
+replies against 10.9% of Haiku ones, and the two mechanical shapes — the hash and the bare
+label — never once on Sonnet. `_HOW_YOU_SPEAK` bans all three shapes by worked example, so
+this is the prompt holding on the model that reads it and not on the one that does not,
+which is the general pattern of this archive (extraction faithfulness, tool election, the
+retry loop on a refused record). It also corrects the critic's line that "Sonnet leaks
+too": three hits in 484 replies, two of them unambiguous, is the noise floor of the scorer.
+
+WHAT CHANGED. `agents/advisor/reply_hygiene.py` strips `[[hash]]` addresses from what the
+person reads, on both entry points, wherever the preamble does not grant terminology
+disclosure — a streaming filter proven equal to the regex over every chunking
+(`tests/test_reply_hygiene.py`, 300 random hash-soup strings x 4 chunkings + a corpus),
+so the `streamed=True` contract holds. History is untouched. The bare label and the
+narration are NOT filtered: removing `T+` breaks the sentence around it and "the framework
+found" has to be not written. **From this commit the bench's A2-family replies are
+post-filter for hashes**, so `read_reach`'s "hashes cited" column reads 0 by construction
+on new stems and `nexus-pinned`'s 5 is the last pre-filter figure.

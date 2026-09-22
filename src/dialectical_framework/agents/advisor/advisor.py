@@ -30,7 +30,11 @@ from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.app_spec import AppSpec, resolve_app_layer
-from dialectical_framework.agents.stream_events import ResponseComplete, StreamEvent
+from dialectical_framework.agents.advisor.reply_hygiene import (
+    HashCitationFilter, strip_hash_citations)
+from dialectical_framework.agents.stream_events import (ResponseComplete,
+                                                        StreamEvent, TextDelta,
+                                                        ToolResult, ToolStart)
 from dialectical_framework.agents.toolsets import merge_app_tools
 from dialectical_framework.agents.turn_timing import (ClosingOutcome,
                                                        DeferralOutcome,
@@ -40,6 +44,13 @@ from dialectical_framework.concerns.record_decision import \
 from dialectical_framework.protocols.has_config import SettingsAware
 
 logger = logging.getLogger(__name__)
+
+
+def _hides_hashes_of(advisor: object) -> bool:
+    """`Advisor._hides_hashes`, tolerant of a test stub that borrows `chat_stream`
+    without running `__init__` or subclassing (`tests/test_turn_finalization.py`):
+    the ordinary head hides its machinery, so that is the default."""
+    return bool(getattr(advisor, "_hides_hashes", True))
 
 
 class ChatResponse(BaseModel):
@@ -353,6 +364,9 @@ class Advisor(SettingsAware):
     #: rather than an AttributeError from inside the seam. `__init__` always
     #: shadows it.
     _mode: AdvisorMode = AdvisorMode.FULL
+    #: Same reason, same shape: a stub built around `__init__` gets the ordinary
+    #: hidden-machinery head, which filters hash addresses (`reply_hygiene`).
+    _hides_hashes: bool = True
 
     def __init__(
         self,
@@ -474,6 +488,17 @@ class Advisor(SettingsAware):
         if messages:
             self._conversation._messages = list(messages)
         self._app_preamble = app_preamble
+        # Whether `[[hash]]` addresses are stripped from what the person reads.
+        # A property of the composed preamble, not of the mode: the engine's
+        # `_HOW_YOU_SPEAK` keeps the machinery invisible unless the app preamble
+        # grants terminology disclosure, and the only preambles that do are the
+        # Navigator's advisory registers (the ordinary and the advanced one both
+        # carry the section). Everywhere else a hash in a reply is an address
+        # that escaped — measured 5 times in one weak-tier round and never on
+        # the strong tier — and the one leak shape a filter can remove without
+        # touching the sentence around it (`reply_hygiene.py`). History is not
+        # filtered; only the two entry points are.
+        self._hides_hashes = "## Terminology Disclosure" not in (app_preamble or "")
         # The context currently rendered into the system prompt. A
         # construction-time `dialectical_context` SEEDS this (saving the turn-1
         # read); `_refresh_context` owns it from then on and re-renders every turn.
@@ -634,7 +659,12 @@ class Advisor(SettingsAware):
                 context_render_s=context_render_s,
                 deferred_wait_s=deferred_wait_s,
             )
-            return result.message
+            return self._for_the_person(result.message)
+
+    def _for_the_person(self, text: str) -> str:
+        """What the person reads: the reply minus hash addresses, where hidden."""
+        return strip_hash_citations(text) if _hides_hashes_of(self) else text
+
 
     async def chat_stream(self, user_message: str) -> AsyncGenerator[StreamEvent, None]:
         """Stream one turn's events.
@@ -700,6 +730,13 @@ class Advisor(SettingsAware):
             #: consume a stream — would skip all of it. Nothing else about the
             #: stream changes: this event was already last, and it is still last.
             final_event: Optional[ResponseComplete] = None
+            # The person-facing filter for the CURRENT text segment. Reset at every
+            # tool boundary, because `streamed=True` promises `message` equals the
+            # deltas since the last ToolResult — so the filter over that segment
+            # must be the regex over that segment's raw text, which it is by
+            # `reply_hygiene`'s one contract. Nothing is held past a boundary: the
+            # held-back tail is released as its own delta before the tool event.
+            hygiene = HashCitationFilter() if _hides_hashes_of(self) else None
             # `aclosing`, not a bare `async for`: unwinding an `async for` does not
             # close what it iterates, so without this, `submit_stream`'s cleanup on
             # the ABANDONED exit — the turn's seconds, and letting go of the
@@ -727,7 +764,22 @@ class Advisor(SettingsAware):
                         # cleaner exit: the provider's connection is let go of by
                         # exhaustion rather than by a close unwinding a live frame.
                         continue
+                    if hygiene is not None:
+                        if isinstance(event, TextDelta):
+                            clean = hygiene.feed(event.text)
+                            if clean:
+                                yield TextDelta(text=clean)
+                            continue
+                        if isinstance(event, (ToolStart, ToolResult)):
+                            tail = hygiene.flush()
+                            if tail:
+                                yield TextDelta(text=tail)
+                            hygiene = HashCitationFilter()
                     yield event
+            if hygiene is not None:
+                tail = hygiene.flush()
+                if tail:
+                    yield TextDelta(text=tail)
             reply_path_s = (
                 deferred_wait_s
                 + context_render_s
@@ -764,6 +816,15 @@ class Advisor(SettingsAware):
             # in that shape this line is never reached at all, because a `break`
             # above leaves this frame suspended rather than falling through.
             if final_event is not None:
+                if _hides_hashes_of(self):
+                    # The same rule the deltas went through, applied to the whole
+                    # message, so `streamed=True` stays byte-for-byte true.
+                    clean = strip_hash_citations(final_event.message)
+                    if clean != final_event.message and hasattr(final_event.result, "model_copy"):
+                        final_event = ResponseComplete(
+                            result=final_event.result.model_copy(update={"message": clean}),
+                            streamed=final_event.streamed,
+                        )
                 yield final_event
 
     def _record_turn_timing(

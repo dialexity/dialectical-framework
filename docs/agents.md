@@ -468,7 +468,12 @@ displays it.
 
 **UX to build around it:**
 - **A chat window — essentially that.** No graph canvas, no scores, no hashes, no phase
-  buttons. The prompt forbids all framework terminology.
+  buttons. The prompt forbids all framework terminology, and the one leak shape a prompt
+  cannot be trusted with is removed in code: a `[[hash]]` address never reaches the person
+  on either entry point (`chat` and the `TextDelta`s alike, with `ResponseComplete.message`
+  still byte-for-byte the deltas), wherever the preamble does not grant terminology
+  disclosure. Measured before the filter: 0 hash citations in 484 Sonnet 5 replies, 5 in
+  1,331 Haiku ones — the filter is a floor for the weak model and a no-op for the strong.
 - Optionally a **persona picker** (which `app_preamble`).
 - The graph exists and grows silently; an optional "show me the structure" power view is
   possible but the default is just the conversation.

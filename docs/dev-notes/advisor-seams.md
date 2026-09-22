@@ -109,3 +109,25 @@ active record already grounds beside this price (one price, one tetrad across th
 then woven, then undiscarded, then SP, then hash for a stable pick. Cross-polarity sharing
 still refuses. Four tests in `tests/test_decision.py::TestASharedPriceBetweenReadingsIsLocated`;
 disabling the step fails the two that need it. Not re-benched.
+
+
+## The leak by model, and the hash filter (2026-09-22)
+
+The archive-wide 5.2% leak rate hid a split: 10.9% of Haiku replies, 0.6% of Sonnet 5
+replies, and the two mechanical shapes (a `[[hash]]` citation, a bare position label)
+appear 25 times on Haiku and never on Sonnet (`rounds.md`, `reply-hygiene`). So the silent
+contract is a compliance property of the model reading `_HOW_YOU_SPEAK`, and the owner's
+production floor (Sonnet 5) meets it. What the framework can still own is the one shape
+that is never legitimate and can be removed without touching the sentence: the hash. It
+was the pinned Advisor's specific leak in `nexus-pinned` (five citations, `[[69961e3]] Re+
+is "..."`), because reaching the pathways in the scoped dump and quoting their addresses
+turned out to be the same behaviour on the weak tier. `reply_hygiene.py` holds a regex and
+a streaming filter with one contract — equal output over any chunking — so the filter can
+sit under `chat_stream`'s deltas AND over `ResponseComplete.message` without breaking the
+`streamed=True` promise; it is reset at every tool boundary (the promise is per segment)
+and its held-back tail is released as its own delta before the tool event. Wired by
+`Advisor._hides_hashes`, decided at construction from the composed preamble: the
+Navigator's advisory registers carry `## Terminology Disclosure` and are exempt, every
+persona-shaped head filters, history is never filtered. Bare labels were deliberately left
+alone: stripping `T+` from "That's the T+ — you got ownership clarity" leaves a sentence
+with a hole, and rewriting it is the model's job.
