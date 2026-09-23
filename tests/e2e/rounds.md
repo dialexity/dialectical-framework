@@ -7222,3 +7222,38 @@ verdict was made against, and the probe is kept. What did not: a classifier prom
 that is a `/df-review-reasoning-layer` job and has to be measured, and the measured rate
 (5 of 10 at the weak tier, 0 observed on Sonnet across 24 equity cells) says which tier it
 is a problem on.
+
+### The confirmation classifier judges the person's words first (2026-09-23)
+
+The weak-tier record guard's `NO_CLOSING` exit (previous entry) got its reply captured on the
+13th run: the assistant DECLINING to record — *"I'm going to push back gently here, because
+writing down a decision before we've named what it actually costs you is exactly the move
+that leaves you undefended later"* — the ceremony-as-gate failure the review skill already
+names, on a turn where the person said "Write that down as the decision". So two defects in
+one turn: Haiku's Advisor holds the person's own decision hostage to the price (the repair
+seam exists for that), and `DecisionConfirmationCheck` let the assistant's refusal overrule
+the person's speech act. Reviewed under `/df-review-reasoning-layer`: the rule "judge the
+PERSON's words; use the reply only as context" existed as the LAST sentence of the user
+prompt, after the reply — a rule that is context, not a step — and the `confirmed` DTO
+description required the person to have "asked for or agreed to it being written down"
+while the system prompt said declaring it closed is enough. Fix: a three-step procedure at
+the top of the system prompt (1 judge the person's words alone, 2 read the reply for
+question/stance/rationale, 3 match), "the reply can never lower `confirmed`" stated once,
+conservatism scoped to LEANINGS, the DTO conflict removed, the user-prompt trailer made
+"Step 1 / Step 2". Pinned by `TestTheConfirmationClassifierJudgesThePersonFirst`.
+
+MEASURED, and the honest part. The probe (`tests/probe_confirmation_repair_turn_weak_tier.py`,
+pre-registered, old vs new prompt in one run, the captured reply vs an accepting control,
+n=8 per cell, weak tier) came back **8/8 on every cell — the OLD prompt also confirmed the
+captured reply 8/8**, so the first 400 characters of the refusal are NOT what tips the
+verdict and the probe reproduces nothing; its "LANDED" line is vacuous. The guard now prints
+the whole reply. Then the live guard with the new prompt: **6 of 6 passed** (two of them the
+fast build-nothing shape that failed before), against 10 of 17 before the edit — one-sided
+Fisher p≈0.08. A screen: the direction is right, the mechanism is not pinned, and one run
+cannot tell a fix from the favourable tail. What would pin it: one more failure with the
+whole reply captured, re-run through the probe. Full seam lane re-run after the edit:
+see the next entry.
+
+Seam lane after the classifier edit (same day): **14 passed, 1 xfailed, 0 failed** in 16m47s —
+both weak-tier record guards passed, against 2 failed / 12 passed / 1 xpassed before the edit.
+Same reading as above: a screen in the right direction, the mechanism unpinned.

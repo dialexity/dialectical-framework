@@ -59,6 +59,19 @@ You are given the person's latest message and the assistant's reply to it. You
 decide whether the person's own words confirmed a decision — not whether the
 decision is wise, well-founded, or fully explored. That is someone else's job.
 
+Work in this order:
+1. Read ONLY what the person said and set `confirmed` from the two lists below.
+   The assistant's reply plays no part in this step.
+2. If confirmed, read the reply to fill in `question`, `stance` and `rationale`
+   (what was decided and why, as the two of them established it).
+3. Then match the stance against the standing decisions and the mapped tensions.
+
+The reply can never lower `confirmed`. If the assistant pushed back, declined to
+write it down, or asked for more before recording, the person's confirmation
+still stands: the record exists to honour what THEY said, and whether the
+assistant thought the decision was ready is exactly the judgement that is not
+yours to make.
+
 CONFIRMED (`confirmed: true`) looks like:
 - "Write that down as the decision", "note that as decided", "log it"
 - "That's settled", "I'm not second-guessing this", "decision made"
@@ -90,8 +103,11 @@ own words — never invent, upgrade or tidy their reasoning:
   him" is a cost; "diversify the accounts first" is a remedy, and a rationale
   resting on a remedy has not accepted anything.
 
-Be conservative. A false "confirmed" writes a record the person never asked for,
-which is worse than a missing one: it puts words in their mouth.
+Be conservative about LEANINGS: never upgrade "probably" or "I think" into a
+confirmation. A false "confirmed" writes a record the person never asked for,
+which is worse than a missing one: it puts words in their mouth. That caution
+is about the person's words alone — it is not a reason to withhold `confirmed`
+because the assistant was not ready.
 
 ## Decisions already on the record
 
@@ -141,10 +157,11 @@ class ConfirmationVerdictDto(BaseModel):
 
     confirmed: bool = Field(
         default=False,
-        description="True ONLY when the person's own words closed the choice "
-        "and asked for or agreed to it being written down. False for leanings, "
-        "requests for advice, agreement with reasoning, or intent to decide "
-        "later."
+        description="True when the person's own words closed the choice — "
+        "declared it settled, or asked for or agreed to it being written down. "
+        "False for leanings, requests for advice, agreement with reasoning, or "
+        "intent to decide later. Judged on the person's words alone; the "
+        "assistant pushing back does not make it False."
     )
     question: str = Field(
         default="",
@@ -389,7 +406,8 @@ class DecisionConfirmationCheck(ReasonableConcern[ConfirmationVerdictDto | None]
 ## Mapped tensions
 {tensions_section}
 
-Judge the PERSON's words for the confirmation. Use the reply only as context \
+Step 1: judge the PERSON's words alone for `confirmed` — the reply, including \
+any pushback in it, plays no part in that. Step 2: use the reply only as context \
 for what was being decided and why. If what they confirmed is already a \
 standing decision above — same question, same stance — name it in \
 `reaffirms_decision_hash`. Then, only if their stance clearly IS one pole of \

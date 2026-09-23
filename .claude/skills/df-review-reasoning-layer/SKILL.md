@@ -577,7 +577,15 @@ anchors.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
-      the person has already supplied it.
+      the person has already supplied it. **And a classifier that reads the reply "for context" will inherit the
+      gate**: on Haiku the Advisor declined to record until the price was named, and `DecisionConfirmationCheck`
+      read that refusal as "not a closing" (`NO_CLOSING`, 7 of 17 weak-tier guard runs, 2026-09-23) although its
+      user prompt ended with "judge the PERSON's words". The rule was the last sentence after the reply — context,
+      not a step — and the `confirmed` DTO description contradicted the system prompt (required "asked for" where
+      the prompt said "declared closed" suffices). Fixed as a numbered procedure whose step 1 reads the person's
+      words alone, with "the reply can never lower `confirmed`" stated once; the probe on the captured reply could
+      NOT reproduce the failure (old prompt 8/8 too), so the live 6/6-after vs 10/17-before is a screen (p≈0.08).
+      When a verdict has two inputs, say in a STEP which one decides and which one only fills fields.
 - [ ] **A ceremony hardened in one direction has an unmeasured other direction — check it before hardening
       again.** `_DECISION_READINESS` has been strengthened four times against WITHHOLDING a record, and the
       opposite pole went unmeasured until a control scenario looked: on `premature_relocation`, whose

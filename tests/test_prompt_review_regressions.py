@@ -4254,3 +4254,41 @@ class TestTruncationIsMarked:
                 f"{module.__name__} lost its truncation marker — "
                 "synthesis_generation was aligned to it"
             )
+
+
+class TestTheConfirmationClassifierJudgesThePersonFirst:
+    """2026-09-23: the weak-tier record guards failed 6 of 14 runs with
+    `NO_CLOSING`. The captured reply was the assistant DECLINING to record
+    ("I'm going to push back gently here, because writing down a decision
+    before we've named what it actually costs you..."), and the classifier —
+    told only in a trailing sentence to "use the reply only as context" — let
+    that refusal overrule "Write that down as the decision". A rule that is
+    context, not a step, is the diagnosis; the fix is the step, plus removing
+    the DTO description that required the person to ASK for the record when
+    the system prompt said declaring it closed is enough.
+    Measured: `tests/probe_confirmation_repair_turn_weak_tier.py`."""
+
+    def test_judging_the_persons_words_is_step_one(self):
+        from dialectical_framework.concerns import decision_confirmation_check as m
+
+        p = m.SYSTEM_PROMPT
+        assert "1. Read ONLY what the person said" in p
+        assert "The reply can never lower `confirmed`" in p
+        # The step is stated where the reply is rendered too, ahead of the match.
+        user = m.DecisionConfirmationCheck._prompt("write that down", "no, wait", [], [])
+        assert "Step 1: judge the PERSON's words alone" in user
+
+    def test_the_dto_no_longer_requires_asking_for_the_record(self):
+        from dialectical_framework.concerns.decision_confirmation_check import (
+            ConfirmationVerdictDto,
+        )
+
+        desc = ConfirmationVerdictDto.model_fields["confirmed"].description
+        assert "and asked for or agreed to" not in desc
+        assert "pushing back does not make it False" in desc
+
+    def test_conservatism_is_scoped_to_leanings(self):
+        from dialectical_framework.concerns import decision_confirmation_check as m
+
+        assert "Be conservative about LEANINGS" in m.SYSTEM_PROMPT
+        assert "Be conservative. A false" not in m.SYSTEM_PROMPT

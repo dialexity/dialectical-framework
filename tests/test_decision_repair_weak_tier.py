@@ -110,7 +110,10 @@ class TestWeakTierStillLeavesARecord:
         # The classifier reads the reply for context, and the reply is what
         # separates its 6/6 in isolation from its NO_CLOSING here — so the
         # reply the verdict was made against is part of the failure record.
-        print(f"Reply on the closing turn: {last_reply[:400]!r}")
+        # Whole, not truncated: the first 400 characters of one captured refusal
+        # confirmed 8/8 on both the old and the new prompt in isolation, so
+        # whatever tips the verdict is further down.
+        print(f"Reply on the closing turn: {last_reply!r}")
         print(f"Active decisions: {len(decisions)}")
         for d in decisions:
             print(f"  [[{d.short_hash}]] {d.intent} -> {d.stance}")

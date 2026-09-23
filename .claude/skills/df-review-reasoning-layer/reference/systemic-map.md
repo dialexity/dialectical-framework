@@ -2439,7 +2439,9 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   EVENT in their message — so whether a record gets written must not be the model's election at the moment it is
   most inclined to just answer well. `record_decision` already host-attests WHO confirmed (`principal`); the same
   principle now covers WHETHER: `concerns/decision_confirmation_check.py` (bounded classification of the person's
-  own message, creates/mutates nothing, fail-soft) + `Advisor._repair_unrecorded_decision` (post-reply, both
+  own message, creates/mutates nothing, fail-soft; since 2026-09-23 a three-step procedure whose step 1 judges
+  the person's words ALONE — the weak-tier Advisor's own "I'll push back before writing that down" had been read
+  as "not a closing" in 7 of 17 guard runs; `TestTheConfirmationClassifierJudgesThePersonFirst`) + `Advisor._repair_unrecorded_decision` (post-reply, both
   `chat` and `chat_stream`, records under the same attested principal when the person confirmed and no SUCCESSFUL
   `record_decision` ran — a failed call still repairs, since an in-band refusal leaves the identical false
   belief). **The classifier is shown the STANDING LEDGER (2026-09-18) and names the record a confirmation merely
