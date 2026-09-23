@@ -7307,3 +7307,66 @@ best case, and the product is the institution (record, closing, checks, shared s
 (c) Most A2 cells `structure_absent`: the bench cannot answer yet; the defect is the builder
 electing one anchor on a four-tension situation, and that is the next thing to fix before
 this question can be asked again.
+
+### systemic-loop: RESULT — on the framework's own best case the prompt sees the loop as well as the machinery, and the structured cells saw LESS of it (2026-09-23)
+
+Run as pre-registered: `saas_churn_loop`, A1 / A1.7 / A2, Sonnet 5 throughout, 4 replicates,
+12 cells, 09:54–11:21, judged in one pass, no errors. Build 5bc36e0.
+
+MANIPULATION CHECK FIRST. A2 built 8 woven perspectives / 66 transformations (r1) and 7 / 60
+(r2) — the multi-tension structure the round exists to test — and ONE perspective / 6
+transformations in r3 and r4. So the systemic question has exactly two cells behind it; r3
+and r4 are `structure_absent` per the pre-registration. That the builder elected one anchor
+on a four-tension situation half the time is a finding of its own (endpoint 4c). Elections
+across the four cells: anchor 11, explore 6, inspect 4, discard 4, record 4, audit 4. Median
+turn A1 13.3s / A1.7 12.9s / A2 81.9s (max 434s). Leaks 0.
+
+    JUDGED (4 pairs)   composite         entanglement   tension_coverage   resolved
+    A2 vs A1.7          +0.00 [-0.80,+0.80]   +0.00          -0.50            none — "nothing distinguishable from noise"
+    A2 vs A1            +0.39 [-0.03,+0.81]   +0.00          +0.00            conversational_fit +1.00 only
+
+The judge's prose, all eight A2 rationales read whole: every one says BOTH transcripts traced
+the loop — "each refuses the CEO's framing, traces retention, margin, and engineering back
+to the discount-driven sales motion with real causal mechanisms". Where A2 is credited it is
+for a plan, a warmer turn, or the A/B cohort design; where it is faulted (r2, the 7-perspective
+cell) it "repeats the peer-reviewer idea until the user objects, drops the engineering thread
+entirely, and its two-option template becomes formulaic" — the plural-structure-as-menu
+defect the review skill already names, arriving with the structure.
+
+LINKS NAMED (endpoint 2, the systemic endpoint proper; blind to arm, twelve transcripts
+read whole, arm revealed after; a = discounted deals → churn, b = support load → engineers
+firefighting → roadmap slip, c = roadmap slip → CEO's reviews → CTO withdrawing, d =
+discounts → margin → board pushing volume; "closed" = said more reps accelerate it):
+
+    arm    r1   r2   r3   r4   mean   closed the loop
+    A1      3    3    3    3   3.00   4/4
+    A1.7    2    3    3    2   2.50   4/4
+    A2      2    2    3    3   2.50   4/4   — r1, r2 are the STRUCTURE-PRESENT cells: 2 and 2
+
+Every transcript named (a) and closed the loop; the discrimination is in (c) and (d). Link
+(b) was named exactly once, in A2 r3 — the only cell where the simulator volunteered the
+firefighting engineers (it holds that fact "unless pressed" and no arm pressed for it
+elsewhere), and the one-perspective builder connected it at once. So (b) measures the
+simulator, not the arms; the honest table is over a/c/d, and it reads the same way.
+
+THE READING, against the pre-registration. Outcome (b): a tie on the rubric and a LOSS on
+the link count for the cells that carried the structure. The prompt-only arm saw the loop
+as fully as any arm, in every cell, at one sixth of the turn time. The two cells where the
+builder made the multi-tension structure named FEWER links than any prompt cell — not
+because the structure hid the loop, but because those turns went to the menu, the
+repetition and the plan. Four cells and one scenario cannot resolve a number, but the
+direction is the wrong one for the reasoning claim and it agrees with every earlier cut:
+`prompt-vs-machinery` (single-tension, in-session null), `ladder-return` (the return win is
+memory), `A1 vs A0` (the method as text is a null). The reasoning claim is retired at the
+strong tier for the framework's own best case. Outcome (c) is also half true and worth
+fixing on its own terms: the unscoped builder anchored ONE perspective on a four-tension
+situation in 2 of 4 cells, so a product that wants the structure cannot rely on the
+model electing to build it.
+
+WHAT THIS DOES NOT SAY. It does not say the structure is useless; it says a Sonnet-class
+model with the method in its prompt already does the multi-tension reasoning in
+conversation, and the graph's value has to be argued from what only a graph does — the
+record that is never phantom (0 of 12 phantom claims this round, no commit beat), the
+closing, the coherence checks, the shared and inspectable object, and the return. It also
+does not say what a multi-PERSON or multi-SESSION systemic use looks like; this lane is one
+person, one session.

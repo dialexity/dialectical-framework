@@ -834,6 +834,8 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 | the typed record vs the model's own prose journal at the return (`A2−A1.7`) | +0.78 / +1.08 resolved | +0.06 at n=2, a null | `ladder-return-r16/r18`, `prompt-vs-machinery` |
 | a prompt arm claiming a record it cannot write (PHANTOM) | not measured | A1 3 of 6 asks, A1.7 3 of 5; A2 6 of 6 recorded | `prompt-vs-machinery` |
 | median turn, builder vs the tool-less prompt | not measured | 76.8s vs 11.4s (equity), 50.0s vs 8.4s (return) | `prompt-vs-machinery` |
+| causal links named on a four-tension loop (blind hand label, 0–4) | not measured | prompt 3.0, journal 2.5, builder 2.5 — and 2.0 in the two cells where it built 7–8 perspectives; every arm closed the loop | `systemic-loop` |
+| builder elects multi-perspective structure on a four-tension situation | not measured | 2 of 4 cells (8 and 7 perspectives); 1 perspective in the other two | `systemic-loop` |
 
 What follows from the table, as of 2026-09-22: **Sonnet 5 is the floor for a conversation
 with tools wired**, and on it the direction of the bench's central finding flips — every
