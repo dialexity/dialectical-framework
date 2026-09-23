@@ -14,6 +14,8 @@ Covers:
 
 from __future__ import annotations
 
+import types
+
 import pytest
 
 from dialectical_framework.exceptions.node_errors import ImmutableNodeError
@@ -2068,16 +2070,23 @@ class TestTheAdoptedPathwayLocatesTheSharedPrice:
             self._perspectives = members
 
     class _Pathway:
-        """Duck-typed adopted pathway: what `_pathway_wheel_members` reads."""
+        """Duck-typed adopted pathway: what `_pathway_wheel_members` and
+        `_pathway_source_perspectives` read."""
 
-        def __init__(self, wheel, frame):
+        def __init__(self, wheel, frame, source=None):
             self._wheel = wheel
             self.hash = "f" * 64
             self.short_hash = "fffffff"
             self._frame = frame
+            self._source = source
 
         def get_wheel(self):
             return self._wheel
+
+        def get_source_polar_segment(self):
+            if self._source is None:
+                return None
+            return types.SimpleNamespace(perspective=self._source)
 
     def test_one_wheel_member_locates_the_price(self, monkeypatch):
         from dialectical_framework.concerns.record_decision import RecordDecision
@@ -2115,6 +2124,59 @@ class TestTheAdoptedPathwayLocatesTheSharedPrice:
             assert RecordDecision._locate_shared_price(
                 [(shared, "accepted_cost"), (pathway, "adopted_pathway")]
             ) is None, "two different tensions on one wheel is still Rule B's case"
+
+    def test_the_pathways_source_segment_locates_the_price_across_tensions(self, monkeypatch):
+        """`prompt-vs-machinery` (2026-09-22, Sonnet 5): the wheel held BOTH
+        tensions, the sibling rule refused, and the model resent the same
+        call five times in one turn. A recipe transforms its SOURCE segment's
+        minuses (Ac+ and Re+ alike), so the perspective that segment belongs
+        to is the priced tetrad — read off the edge, never guessed."""
+        from dialectical_framework.concerns.record_decision import RecordDecision
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._build()
+            pathway = self._Pathway(
+                self._Wheel([p1, p2]), {p1.hash: p1, p2.hash: p2}, source=p2
+            )
+            real_frame = RecordDecision._perspective_frame
+
+            def frame(node, role=None):
+                if isinstance(node, self._Pathway):
+                    return node._frame
+                return real_frame(node, role)
+
+            monkeypatch.setattr(RecordDecision, "_perspective_frame", staticmethod(frame))
+            located = RecordDecision._locate_shared_price(
+                [(shared, "accepted_cost"), (pathway, "adopted_pathway")]
+            )
+            assert located is not None and located.hash == p2.hash
+
+    def test_a_source_segment_outside_the_candidates_locates_nothing(self, monkeypatch):
+        """The price is not a minus of the source perspective at all: the
+        locator must not invent a tetrad — fall through to the wheel and the
+        sibling rule, which still refuse across tensions."""
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._build()
+            p3 = _create_perspective_with_aspects(
+                thesis_text="Growth", antithesis_text="Stability"
+            )
+            pathway = self._Pathway(
+                self._Wheel([p1, p2, p3]), {p1.hash: p1, p2.hash: p2}, source=p3
+            )
+            real_frame = RecordDecision._perspective_frame
+
+            def frame(node, role=None):
+                if isinstance(node, self._Pathway):
+                    return node._frame
+                return real_frame(node, role)
+
+            monkeypatch.setattr(RecordDecision, "_perspective_frame", staticmethod(frame))
+            assert RecordDecision._locate_shared_price(
+                [(shared, "accepted_cost"), (pathway, "adopted_pathway")]
+            ) is None
 
     def test_the_refusal_now_says_what_to_add(self):
         import inspect

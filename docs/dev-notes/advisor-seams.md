@@ -110,6 +110,27 @@ then woven, then undiscarded, then SP, then hash for a stable pick. Cross-polari
 still refuses. Four tests in `tests/test_decision.py::TestASharedPriceBetweenReadingsIsLocated`;
 disabling the step fails the two that need it. Not re-benched.
 
+**Across tensions, the adopted pathway locates it (2026-09-23).** `ladder-sonnet` added
+the wheel narrowing (3a555f1) and `prompt-vs-machinery` measured it insufficient the same
+day: one wording priced in two tensions of ONE wheel, so the wheel held both, the
+polarity key said "different tensions", Rule B refused, and Sonnet 5 resent the call five
+times in one 203s turn — plus one attempt with a listed tension hash in the WRONG role
+and one with a fabricated 64-character expansion of a short hash. The refusal's ask ("add
+EXACTLY ONE of those tension hashes as a plain ground") did not land on the production
+model either, so the message is not the escape. The escape is a fact of the edge: a
+Transformation's Ac+ is `source.T- → target.A+` and its Re+ is `source.opposite.T- →
+target.opposite.A+` (`Transformation` docstring), so BOTH minuses a recipe transforms
+belong to its SOURCE segment's perspective — the priced tetrad is the pathway's source,
+read off `get_source_polar_segment()`, no guess between tensions. `_pathway_source_perspectives`
+runs first; the wheel narrowing stays as the fallback when the segment cannot be read; a
+source outside the candidates locates nothing (the price is not that recipe's price, and
+inventing a tetrad is the thing Rule B exists to prevent). Two tests in
+`TestTheAdoptedPathwayLocatesTheSharedPrice`. What still refuses: a cross-tension price
+with NO pathway ground — the closing seam always grounds one, so that is the hand-assembled
+case only. The bench now records the ground set of every `record_decision` call
+(`TurnRecord.decision_args`, short hashes and roles) so the next refusal can be read.
+Not re-benched.
+
 
 ## The leak by model, and the hash filter (2026-09-22)
 

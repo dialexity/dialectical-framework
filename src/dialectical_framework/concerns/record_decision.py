@@ -510,8 +510,12 @@ class RecordDecision(ReasonableConcern[str | None]):
         tetrads); a reading woven into an arrangement (the pathways the record
         will adopt live there); an undiscarded one; the highest SP; then the
         hash, so the pick is stable across retries. Candidates on DIFFERENT
-        polarities are left to Rule B untouched. Fail-open on a read fault:
-        returning None means "nothing located", and Rule B then decides.
+        polarities are left to Rule B untouched — unless an adopted pathway
+        is among the grounds, whose SOURCE segment names the priced tetrad
+        outright (its Ac+ and Re+ both transform that segment's minuses), or
+        whose wheel at least narrows the candidates to its members. Fail-open
+        on a read fault: returning None means "nothing located", and Rule B
+        then decides.
         """
         from dialectical_framework.graph.repositories.decision_repository import \
             DecisionRepository
@@ -534,8 +538,25 @@ class RecordDecision(ReasonableConcern[str | None]):
                 if len(narrowed) == 1:
                     continue  # already located by another ground
                 candidates = list((narrowed or frame).values())
-                # The adopted pathway locates the price more finely than its
-                # nexus: a recipe is one step of ONE arrangement, and the price
+                # The adopted pathway names the priced tetrad outright. Both of
+                # a Transformation's generative positions consume the SOURCE
+                # segment's minuses (Ac+ = source.T- → target.A+, Re+ =
+                # source.opposite.T- → target.opposite.A+, see `Transformation`),
+                # so the price a recipe lives with is a minus of the perspective
+                # its source segment belongs to — a fact of the edge, not a
+                # guess between tensions. Measured need (`prompt-vs-machinery`,
+                # 2026-09-22, Sonnet 5): one wording priced in two tensions of
+                # ONE wheel, the wheel narrowing below left both, and the model
+                # resent the refused call five times in one 203s turn.
+                at_source = cls._pathway_source_perspectives(resolved)
+                if at_source:
+                    priced = [pp for pp in candidates if pp.hash in at_source]
+                    if len(priced) == 1:
+                        return priced[0]
+                    if priced:
+                        candidates = priced
+                # The adopted pathway's wheel locates the price more finely than
+                # its nexus: a recipe is one step of ONE arrangement, and the price
                 # it transforms is a minus of a perspective IN that wheel. So
                 # among the candidates, the wheel's members are the ones the
                 # record can be about — one member is the answer outright,
@@ -583,6 +604,29 @@ class RecordDecision(ReasonableConcern[str | None]):
             return None
         except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
             return None
+
+    @staticmethod
+    def _pathway_source_perspectives(
+        resolved: list[tuple[AssessableEntity, str | None]]
+    ) -> set[str]:
+        """Hashes of the perspective each adopted pathway's SOURCE segment
+        belongs to (`Transformation.get_source_polar_segment`); empty when no
+        pathway ground is present or the segment cannot be read (fail-open,
+        like `_pathway_wheel_members`: an unreadable edge locates nothing)."""
+        sources: set[str] = set()
+        for node, role in resolved:
+            if role != "adopted_pathway" or not hasattr(
+                node, "get_source_polar_segment"
+            ):
+                continue
+            try:
+                pair = node.get_source_polar_segment()
+                pp = getattr(pair, "perspective", None) if pair is not None else None
+                if pp is not None and getattr(pp, "hash", None):
+                    sources.add(pp.hash)
+            except Exception:  # noqa: BLE001
+                continue
+        return sources
 
     @staticmethod
     def _pathway_wheel_members(
