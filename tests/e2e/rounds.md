@@ -7257,3 +7257,53 @@ see the next entry.
 Seam lane after the classifier edit (same day): **14 passed, 1 xfailed, 0 failed** in 16m47s —
 both weak-tier record guards passed, against 2 failed / 12 passed / 1 xpassed before the edit.
 Same reading as above: a screen in the right direction, the mechanism unpinned.
+
+### systemic-loop: pre-registered 2026-09-23, before any cell ran
+
+THE QUESTION. Every judged scenario in the archive is ONE tension, and 93% of the evidence is
+two of them; `prompt-vs-machinery` found no reasoning lift on the turn there, which a wheel
+of one or two perspectives predicts by construction. The framework's structural claim is
+about SEVERAL tensions driving one another (circular causality, R2). This round asks that
+question for the first time: on a situation whose substance is a loop across four tensions
+that the person frames as one lever, does the machinery see the loop where the same method
+as prompt does not? New scenario `saas_churn_loop` (COUNSEL, 7 beats): the person wants to
+hire four AEs; the facts that close the loop — discounted poor-fit deals → churn → support
+load → engineers firefighting → roadmap slip → CEO's weekly reviews → seniors going quiet →
+discounts → margin down → board wants volume — are volunteered one per beat, as unrelated.
+
+ARMS: A1 (the method as prompt, floor), A1.7 (prompt plus the model's own journal, the honest
+opponent), A2 (the full Advisor). Sonnet 5 talking and reasoning, thinking unset, simulator
+Sonnet 5, judge Fable. 4 replicates = 12 cells, 4 pairs per judged row. Build after aca8176
+(the classifier fix is in; the source-segment locator is in). Stem `systemic-loop`.
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2 vs A1.7` on `entanglement` and `tension_coverage` (the two rubric
+   dimensions that read the loop), then the composite. n=4 is a screen: a direction and the
+   judge's prose, read whole (`--all-cells` equivalent), never a resolved number.
+2. HAND-LABELLED, primary — LINKS NAMED: for each transcript, how many of the four causal
+   links the assistant stated as a mechanism (0–4): (a) discounted/poor-fit deals → churn,
+   (b) those accounts' support load → engineers firefighting → roadmap slip, (c) roadmap slip
+   → CEO's own delivery reviews → CTO/seniors withdrawing, (d) discounts → margin → board
+   pushing volume. Plus whether it CLOSED the loop (said that more reps accelerate it).
+   This is the systemic endpoint proper; the rubric only approximates it. Labelled blind to
+   arm from the saved transcripts, arm revealed after.
+3. JUDGED, secondary — `A2 vs A1` on the same, and the NI dimensions.
+4. MACHINE, manipulation check — an A2 cell must have built ≥3 perspectives and woven them
+   into at least one cycle (`_graph_summary`). A cell below that is `structure_absent` and
+   is EXCLUDED from endpoints 1–3 (the structure under test never existed there); the count
+   of such cells is itself a finding about the builder's election on a systemic situation.
+   Also: erosion (does the loop survive the two pushbacks), leaks, median turn per arm,
+   records (the scenario has no commit beat, so a record is not expected).
+
+VALIDITY. Four pairs resolve only a large effect; the reading is direction + prose + the link
+count. Read the recorded model. A1.7 is A1 with a journal it never gets to use here (single
+session), so `A2 vs A1.7` and `A2 vs A1` should agree; disagreement is noise, not a finding.
+
+WHAT WOULD CHANGE. (a) A2 names more links and closes the loop more often, and entanglement
+points the same way: the reasoning claim has a HOME — systemic, multi-tension situations —
+and the single-tension nulls were the scenario's ceiling, not the framework's. (b) Tie on
+links and rubric: the reasoning claim is retired at the strong tier for the framework's own
+best case, and the product is the institution (record, closing, checks, shared structure).
+(c) Most A2 cells `structure_absent`: the bench cannot answer yet; the defect is the builder
+electing one anchor on a four-tension situation, and that is the next thing to fix before
+this question can be asked again.
