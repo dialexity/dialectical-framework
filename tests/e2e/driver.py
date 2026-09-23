@@ -262,6 +262,7 @@ class E2EDriver:
                     tool_calls = list(arm.last_tool_calls)
                     tool_outcomes = list(arm.last_tool_outcomes)
                     grounding_args = list(getattr(arm, "last_grounding_args", []))
+                    decision_args = list(getattr(arm, "last_decision_args", []))
                     error = None
                 except Exception as exc:  # noqa: BLE001
                     logger.exception("Arm failed at beat %s", index)
@@ -269,6 +270,7 @@ class E2EDriver:
                     tool_calls = []
                     tool_outcomes = []
                     grounding_args = []
+                    decision_args = []
                     error = f"arm: {type(exc).__name__}: {exc}"
             # Outside the try: a turn that RAISED still cost the person its
             # seconds, and the expensive failures are the ones worth seeing.
@@ -294,6 +296,7 @@ class E2EDriver:
                     tool_calls=tool_calls,
                     tool_outcomes=tool_outcomes,
                     grounding_args=grounding_args,
+                    decision_args=decision_args,
                     duration_s=round(duration_s, 1),
                     reply_path_s=round(timing.reply_path_s, 1) if timing else None,
                     off_path_s=round(timing.off_path_s, 1) if timing else None,

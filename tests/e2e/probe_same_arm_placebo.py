@@ -993,12 +993,23 @@ def main(argv: list[str]) -> int:
 
 
 def _selection_or_skip() -> list[Pair]:
-    """Wave 1 off the local archive, or a skip.
+    """Wave 1: the SAVED selection once it has been judged, else recomputed.
 
     `tests/e2e/results/` is gitignored, so a fresh checkout has no archive and
     these guards have nothing to check. Skipping says that; failing would report
     a missing archive as a broken pre-registration.
+
+    Once `wave1.json` exists the registered set is the one on disk, not the
+    one `wave_one(candidates())` returns today: enrichment ranks by |gap| over
+    every pair in the archive, and the archive kept growing after the probe
+    closed (`ladder-sonnet`, `prompt-vs-machinery`), so the recompute became a
+    different 32 with an odd arm group and the guards failed on a probe whose
+    verdict was already written. The saved rows are what was judged; the
+    recompute is for an archive on which wave 1 has not yet run.
     """
+    if (PLACEBO_DIR / "wave1.json").exists():
+        pairs, _ = load(1)
+        return pairs
     pairs, _ = candidates()
     if len(pairs) < WAVE_ONE_N:
         pytest.skip(f"local archive holds {len(pairs)} same-arm candidates")
@@ -1012,11 +1023,22 @@ class TestThePreRegistrationIsAuditable:
 
     def test_selection_is_deterministic(self):
         """Wave 1 is reproducible from the archive with no stored state, so the
-        registered set cannot quietly become a different 32."""
+        registered set cannot quietly become a different 32 — and once judged,
+        every pair it holds is still a pair the archive holds (the transcripts
+        it scored were not rewritten or dropped)."""
         first = _selection_or_skip()
-        assert first == wave_one(candidates()[0])
         assert len(first) == WAVE_ONE_N
         assert len({p.fingerprint for p in first}) == WAVE_ONE_N
+        today = candidates()[0]
+        if (PLACEBO_DIR / "wave1.json").exists():
+            live = {p.fingerprint for p in today}
+            missing = [p for p in first if p.fingerprint not in live]
+            assert not missing, (
+                f"{len(missing)} judged pair(s) no longer in the archive: "
+                f"{[(p.stem, p.arm, p.replicate, p.label) for p in missing]}"
+            )
+        else:
+            assert first == wave_one(today)
 
     def test_side_assignment_is_length_blind(self):
         """A is the first branch NAME. Assigning the longer transcript to A would

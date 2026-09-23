@@ -420,6 +420,15 @@ class TurnRecord(BaseModel):
     #: (framework). Length only, never the text: `context` holds the person's
     #: whole case and would duplicate the transcript in every record.
     grounding_args: list[str] = Field(default_factory=list)
+    #: For each `record_decision` call: `"record_decision:grounds=88a267c:accepted_cost,5cda9a1:plain"`
+    #: — the ground SET the model sent, as short hashes and roles, never the
+    #: question, stance or rationale. `tool_outcomes` records the refusal and
+    #: nothing recorded what was refused: `prompt-vs-machinery` (2026-09-22)
+    #: had one turn call the tool seven times, five refused identically, and
+    #: whether the model had added the plain ground the refusal asked for was
+    #: unknowable after the fact. Empty on every arm without the tool, and on
+    #: records saved before this field existed.
+    decision_args: list[str] = Field(default_factory=list)
     #: Wall clock for the whole turn, timed by the driver around `arm.reply()`.
     #: The outer bound: `reply_path_s + off_path_s` should account for nearly all
     #: of it, and a gap between them is harness overhead worth seeing.

@@ -2634,9 +2634,11 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.824 over 526 judged pairs on the
+**Powered from the archive's own NI-composite sd (0.796 over 712 judged pairs on the
 canonical stems, recomputed after r22's supersession, again after r26, again after
-`a15-floor`, and again after `weave-offturn` — not a borrowed figure).** The table below was
+`a15-floor`, again after `weave-offturn`, and again after the Sonnet rounds through
+`prompt-vs-machinery` — not a borrowed figure; the 0.824 over 526 that stood through the
+first three firings is superseded, see the annotation under the table).** The table below was
 simulated at **0.831 over 414 pairs**; r26's 16 pairs moved the sd to 0.825, `a15-floor`'s 36
 moved it to 0.828 and `weave-offturn`'s 36 moved it to 0.824, and re-simulating at all four
 values moves **no cell by more than 1 point** — 0.825 gives 0.50 → 32/48/62, 0.75 →
@@ -2660,6 +2662,18 @@ and the ICC problem that dogs r21/r22 does not arise here. Simulated (40k trials
 | +0.75 | 59% | **81%** | 92% |
 | +1.00 | 83% | **96%** | 99% |
 | 0.00 (true null) | 3% | **3%** | 3% |
+
+> **Annotation, 2026-09-23 — the fourth firing, and the first that MOVED the table.**
+> The Sonnet rounds (`ladder-sonnet`, `nexus-pinned`, `prompt-vs-machinery`) took the
+> canonical NI sd from 0.824 over 526 pairs to **0.796 over 712**, and `resim_r23_ni.py
+> --sd 0.824 --sd 0.796` (200k trials) moves cells by up to **4 points**, so the table
+> above is superseded rather than re-confirmed. At 0.796: +0.50 → **34/51/65**, +0.75 →
+> **63/84/94**, +1.00 → **86/98/100**, true null → 3/2/2. Every effect cell gained power
+> (a smaller sd is the judge growing more consistent on the strong tier, which is the
+> direction a tighter instrument should move), and the knee argument below is
+> unchanged: n=12 still catches a 1-step spurious gain almost certainly. The original
+> table is left as published because it is what r23 was sized on; quote the 0.796 row
+> for any control sized from today.
 
 n=12 is the knee: it catches a 1-step spurious gain almost certainly and a 0.75 one
 four times in five, for ~2.2 h. n=16 buys 11 points at 0.75 for another 45 minutes and

@@ -3586,6 +3586,52 @@ class TestReport:
             "anchor:context=MISSING",
         ]
 
+    def test_decision_args_record_the_ground_set_and_nothing_else(self):
+        """`prompt-vs-machinery`: one turn called `record_decision` seven times,
+        five refused identically, and the record could not say whether the
+        model had added the plain ground the refusal asked for. The ground set
+        is recorded as short hashes and roles; the question, stance and
+        rationale never are. Raw dicts and model objects both arrive at the
+        tool boundary (Mirascope does not coerce nested models)."""
+        from types import SimpleNamespace
+
+        from e2e.arms import AdvisorArm
+
+        full = "88a267c4934bdb9165a33cdd472911edc7707c09feaa72b68e1ecb574e74d3c0"
+        arm = object.__new__(AdvisorArm)
+        arm._advisor = SimpleNamespace(
+            _conversation=SimpleNamespace(
+                last_tool_calls=["record_decision", "inspect_node", "record_decision", "record_decision"],
+                last_tool_call_args=[
+                    {
+                        "question": "buy him out?",
+                        "stance": "yes",
+                        "rationale": "the person's whole case",
+                        "grounds": [
+                            {"hash": full, "role": "accepted_cost"},
+                            {"hash": "5cda9a1", "role": None},
+                        ],
+                    },
+                    {"node_hash": "abc"},
+                    {"question": "q", "stance": "s", "rationale": "r"},
+                    {
+                        "question": "q",
+                        "stance": "s",
+                        "rationale": "r",
+                        "grounds": [SimpleNamespace(hash="fffffff", role="adopted_pathway")],
+                    },
+                ],
+            )
+        )
+
+        rows = arm.last_decision_args
+        assert rows == [
+            "record_decision:grounds=88a267c:accepted_cost,5cda9a1:plain",
+            "record_decision:grounds=NONE",
+            "record_decision:grounds=fffffff:adopted_pathway",
+        ]
+        assert "whole case" not in " ".join(rows) and "buy him" not in " ".join(rows)
+
     def test_flags_a_grounding_call_that_carried_no_context(self):
         """`anchor(context=...)` is optional and is the ONLY carrier of the
         person's particulars into the next session. Omitting it yields a record
@@ -10347,26 +10393,27 @@ class TestR23ControlPreRegistration:
         ]
         assert len(values) > 200, f"too few NI pairs to size a control: {len(values)}"
         # Pinned to 2dp, so this fires on a real drift and not on every round
-        # that adds a handful of pairs. It has now fired THREE times for real and
-        # the table stood every time: r26's 16 pairs took 0.831/414 to 0.825/454,
-        # `a15-floor`'s 36 took it to 0.828/490, and `weave-offturn`'s 36 took it
-        # to 0.824/526. That is the DESIGN working — re-simulation at all four sds
-        # moved no cell of the table by more than a point, so the table stood and
-        # only its provenance line changed. Three cheap firings that each
-        # confirmed the table is the ARGUMENT for the 2dp pin, not against it:
-        # widen the tolerance and all three would have been skipped silently,
-        # along with the next drift that DOES matter.
+        # that adds a handful of pairs. It has now fired FOUR times for real.
+        # The first three the table stood: r26's 16 pairs took 0.831/414 to
+        # 0.825/454, `a15-floor`'s 36 took it to 0.828/490, and `weave-offturn`'s
+        # 36 took it to 0.824/526, and re-simulation moved no cell by more than a
+        # point. The fourth (the Sonnet rounds through `prompt-vs-machinery`,
+        # 0.796/712) moved cells by up to 4 points, so the table was SUPERSEDED
+        # by an annotation under it — the drift that DOES matter, which a wider
+        # tolerance would have skipped along with the three that did not. That
+        # is the ARGUMENT for the 2dp pin.
         #
-        # The re-simulation is now a KEPT script (`resim_r23_ni.py`) rather than
-        # an ad-hoc snippet, because the first two firings were each answered
-        # with code that did not survive to answer the third.
-        assert round(st.stdev(values), 2) == 0.82, (
+        # The re-simulation is a KEPT script (`resim_r23_ni.py`) rather than an
+        # ad-hoc snippet, because the first two firings were each answered with
+        # code that did not survive to answer the third.
+        assert round(st.stdev(values), 2) == 0.80, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
-            "table was simulated at 0.831 and re-verified at 0.825, 0.828 and "
-            "0.824, and must be re-simulated before its percentages are quoted "
-            "again — `poetry run python tests/e2e/resim_r23_ni.py --sd <new>`"
+            "table was simulated at 0.831, re-verified at 0.825, 0.828 and 0.824, "
+            "and superseded at 0.796, and must be re-simulated before its "
+            "percentages are quoted again — "
+            "`poetry run python tests/e2e/resim_r23_ni.py --sd <new>`"
         )
-        assert "0.824 over 526 judged pairs" in self._block()
+        assert "0.796 over 712 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:

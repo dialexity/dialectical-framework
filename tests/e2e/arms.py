@@ -555,6 +555,35 @@ class AdvisorArm:
         return flags
 
     @property
+    def last_decision_args(self) -> list[str]:
+        """The ground SET each `record_decision` call carried, as short hashes
+        and roles — never the question, stance or rationale.
+
+        `last_tool_outcomes` records a refusal and nothing recorded what was
+        refused. `prompt-vs-machinery` (2026-09-22): one turn called the tool
+        seven times, five refused identically on one price, and whether the
+        model had added the plain ground the refusal asked for — the whole
+        question of whose loop it was — could not be read off the record.
+        A plain ground is written as `<hash7>:plain`; an empty set as `NONE`.
+        """
+        rows = []
+        conversation = self._advisor._conversation
+        for name, args in zip(conversation.last_tool_calls, conversation.last_tool_call_args):
+            if name != "record_decision":
+                continue
+            parts = []
+            for ground in args.get("grounds") or []:
+                if isinstance(ground, dict):
+                    ground_hash = ground.get("hash")
+                    role = ground.get("role")
+                else:
+                    ground_hash = getattr(ground, "hash", None)
+                    role = getattr(ground, "role", None)
+                parts.append(f"{str(ground_hash or '')[:7]}:{role or 'plain'}")
+            rows.append(f"record_decision:grounds={','.join(parts) or 'NONE'}")
+        return rows
+
+    @property
     def last_turn_timing(self) -> Optional[TurnTiming]:
         """The reply-path / off-path split, straight from the Advisor.
 
