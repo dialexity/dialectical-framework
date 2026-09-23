@@ -1002,6 +1002,10 @@ class Advisor(SettingsAware):
                 # the seam failing to, and the rate of the second is how you
                 # find out the concern is broken.
                 self._last_closing = ClosingOutcome.FAILED
+                logger.warning(
+                    "Decision confirmation check returned nothing; no record "
+                    "could be repaired this turn"
+                )
                 return
             if verdict.reaffirms_standing:
                 # "Write that down" on the turn AFTER it was written down. The
@@ -1011,6 +1015,10 @@ class Advisor(SettingsAware):
                 # and would otherwise file this as FAILED.
                 self._last_closing = ClosingOutcome.REAFFIRMED
                 self._last_deferral = DeferralOutcome.NOTHING_TO_DEFER
+                logger.info(
+                    "Decision confirmation check: re-affirms standing record [[%s]]",
+                    str(verdict.reaffirms_decision_hash or "")[:7],
+                )
                 return
             if not verdict.is_recordable:
                 # Two different turns arrive here and they are not pooled. A
@@ -1025,6 +1033,22 @@ class Advisor(SettingsAware):
                     if verdict.confirmed
                     else ClosingOutcome.NO_CLOSING
                 )
+                if verdict.confirmed:
+                    # Logged because it is otherwise indistinguishable from a
+                    # quiet non-event: a weak-tier seam guard failed 3 of 6
+                    # runs on 2026-09-23 with no line anywhere saying the
+                    # classifier had seen the closing and could not state it.
+                    logger.warning(
+                        "Decision confirmation check saw a closing it could not "
+                        "state (question=%r, stance=%r); nothing recorded",
+                        bool((verdict.question or "").strip()),
+                        bool((verdict.stance or "").strip()),
+                    )
+                else:
+                    # The ordinary outcome on most turns, at INFO — but the
+                    # only line that distinguishes "the classifier said no" from
+                    # every other silent exit when a person DID close.
+                    logger.info("Decision confirmation check: no closing this turn")
                 return
 
             # The person is closing. Build the pathways their decision is
@@ -1068,8 +1092,19 @@ class Advisor(SettingsAware):
             else:
                 # The person was closing and nothing was written — the exact
                 # failure this method exists to prevent, so it is recorded as a
-                # failure and not as a quiet no-op.
+                # failure and not as a quiet no-op. The refusal is in-band
+                # (RecordDecision reports, never raises), so it is logged here
+                # or nowhere: two seam guards failed on 2026-09-23 with no
+                # exception anywhere and no way to read WHICH refusal fired.
                 self._last_closing = ClosingOutcome.FAILED
+                logger.warning(
+                    "Decision confirmation repair wrote nothing: %s (grounds=%s)",
+                    recorder.report.summary,
+                    [
+                        f"{str(getattr(g, 'hash', ''))[:7]}:{getattr(g, 'role', None) or 'plain'}"
+                        for g in grounds
+                    ],
+                )
         except Exception:
             self._last_closing = ClosingOutcome.FAILED
             logger.exception("Decision confirmation repair failed (fail-soft)")

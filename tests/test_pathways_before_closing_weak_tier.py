@@ -119,8 +119,11 @@ class TestWeakTierClosesWithoutBuilding:
             woven = [p for p in perspectives if repo.is_in_use_by_cycle(p)]
             # Read inside the scope: `grounds` is a live relationship query.
             grounds = {d.short_hash: len(list(d.grounds.all())) for d in decisions}
+            # The seam's own name for the exit it took on the closing turn.
+            closing = advisor._last_closing
 
         print(f"\nTool calls per turn: {tool_calls_per_turn}")
+        print(f"Closing outcome on the last turn: {closing}")
         print(f"Perspectives: {len(perspectives)} (woven into a cycle: {len(woven)})")
         print(f"Active decisions: {len(decisions)}")
         for d in decisions:
@@ -135,11 +138,14 @@ class TestWeakTierClosesWithoutBuilding:
         # pathway lookup, so the assertion outlives the change.
         assert decisions, (
             "The person explicitly confirmed a decision and no Decision node "
-            "reached the graph. The confirmation classifier is NOT the suspect "
-            "— it returns confirmed=True on this exact turn at this exact tier "
-            "(tests/e2e/probe_confirmation_on_r8_wobble_b.py). Look for a "
-            "fail-soft exception logged between the verdict and RecordDecision, "
-            "which is where the pathway LOOKUP now sits."
+            "reached the graph. Read the closing outcome first: NO_CLOSING means "
+            "the confirmation classifier said this was not a closing — measured "
+            "on 2026-09-23 at this tier in 5 of 10 runs, always in a run where "
+            "the model built little or nothing and answered fast, while the same "
+            "classifier on the same turn against a stand-in reply confirmed 6 of "
+            "6 (tests/probe_confirmation_repair_turn_weak_tier.py). FAILED means "
+            "look for the seam's own WARNING between the verdict and "
+            f"RecordDecision. Closing outcome: {closing}."
         )
 
         # (2) Who built, if anyone. No skip on perspective count any more: under

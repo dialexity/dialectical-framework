@@ -7197,3 +7197,28 @@ well or better, loses the closing on the turn and loses everything at the return
 carries a memory, and must be forbidden from claiming a record it cannot write. What it
 should carry at the return is the open question this round makes concrete: the graph and
 the journal tied at n=2, and the graph costs 5x per turn to consult live.
+
+### seam lane after the source-segment locator: the weak-tier record guards are flaky on the CLASSIFIER, not the locator (2026-09-23)
+
+`pytest -m seam --real-llm` after a369034: 12 passed, 1 xpassed, 2 failed — both the
+weak-tier "a confirmed decision leaves a record" guards (`test_decision_repair_weak_tier`,
+`test_pathways_before_closing_weak_tier`). Re-run ten times on the first guard: 5 of 10
+failed, and the pre-fix `record_decision.py` passed its one run — a coin flip, not a
+regression. The locator was never reached: every failing run shows the model anchoring
+once or not at all and never calling `record_decision`, and the repair seam writing nothing.
+The seam had FOUR silent exits (empty verdict, unstatable closing, in-band refusal, "not a
+closing"), so it took three rounds of added logging and printing `Advisor._last_closing`
+from the guard to name the one taken: **`NO_CLOSING` — `DecisionConfirmationCheck` said
+"Yeah, that lands. I'm doing the buyout — that's settled... Write that down as the
+decision" was not a closing**, on all three turns of a 25s run where the model built
+nothing. The same classifier on the same user turn against a stand-in reply confirmed 6 of
+6 (`tests/probe_confirmation_repair_turn_weak_tier.py`), so the real reply is what tips it:
+the classifier reads the reply "for context" and Haiku lets a weak reply overrule an
+unambiguous user speech act. Pre-existing and untouched by this session's change; the
+second guard's message claimed "the classifier is NOT the suspect" off an older probe and
+now says the opposite. What landed: the seam logs every exit (refusal text and ground set
+at WARNING, the rest at INFO), both guards print the closing outcome and the reply the
+verdict was made against, and the probe is kept. What did not: a classifier prompt change —
+that is a `/df-review-reasoning-layer` job and has to be measured, and the measured rate
+(5 of 10 at the weak tier, 0 observed on Sonnet across 24 equity cells) says which tier it
+is a problem on.

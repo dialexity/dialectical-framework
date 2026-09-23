@@ -83,9 +83,11 @@ class TestWeakTierStillLeavesARecord:
             advisor = Advisor(app_preamble=COUNSELOR_PERSONA)
 
             tool_calls_per_turn: list[list[str]] = []
+            last_reply = ""
             for turn in TURNS:
                 reply = await advisor.chat(turn)
                 assert isinstance(reply, str) and reply.strip()
+                last_reply = reply
                 tool_calls_per_turn.append(
                     list(advisor._conversation.last_tool_calls)
                 )
@@ -96,10 +98,19 @@ class TestWeakTierStillLeavesARecord:
                 for d in decisions
                 for node, rel in d.grounds.all()
             ]
+            # The seam names every exit it takes on this field; on 2026-09-23
+            # this guard failed 5 of 9 runs with nothing in the captured log,
+            # and the outcome was the one thing that would have said why.
+            closing = advisor._last_closing
 
         # Instrumentation first — a failure here should say WHY, and whether
         # the model recorded it itself or the repair did is the whole point.
         print(f"\nTool calls per turn: {tool_calls_per_turn}")
+        print(f"Closing outcome on the last turn: {closing}")
+        # The classifier reads the reply for context, and the reply is what
+        # separates its 6/6 in isolation from its NO_CLOSING here — so the
+        # reply the verdict was made against is part of the failure record.
+        print(f"Reply on the closing turn: {last_reply[:400]!r}")
         print(f"Active decisions: {len(decisions)}")
         for d in decisions:
             print(f"  [[{d.short_hash}]] {d.intent} -> {d.stance}")
@@ -114,7 +125,7 @@ class TestWeakTierStillLeavesARecord:
             "reached the graph. Either the confirmation check failed to detect "
             "an unambiguous 'write that down as the decision', or the repair "
             "did not run. Measured baseline without the repair: 0/6 at this "
-            "tier — see tests/e2e/README.md."
+            f"tier — see tests/e2e/README.md. Closing outcome: {closing}."
         )
 
         # The record must carry the person's actual choice, not a paraphrase of
