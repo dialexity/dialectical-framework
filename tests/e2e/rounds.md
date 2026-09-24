@@ -7370,3 +7370,116 @@ record that is never phantom (0 of 12 phantom claims this round, no commit beat)
 closing, the coherence checks, the shared and inspectable object, and the return. It also
 does not say what a multi-PERSON or multi-SESSION systemic use looks like; this lane is one
 person, one session.
+
+### critics' review: three adversarial reviews of the 2026-09-22/23 conclusions, and what they withdrew (2026-09-24)
+
+Three critics (one with the full session, two fresh with a written brief and the repo) were
+asked to attack conclusions C1–C3 (reasoning lift retired; the record/closing/checks/return
+held; Consultant as THE person-facing surface with the Advisor demoted) and the proposal to
+make the Consultant grow its graph off the turn. Pre-registered text above is not edited;
+this entry is the correction, and the docs that quoted the withdrawn sentences were changed
+the same day (CLAUDE.md, README "The two claims", agents.md brain table).
+
+WITHDRAWN.
+1. **"Claim 1 is retired."** Every in-session `A2−A1` row on Sonnet is positive and none
+   resolves (+0.26 at 12 pairs, +0.39 [−0.03,+0.81] at 4 — the latter the pre-registered
+   endpoint 3 of `systemic-loop`, one hundredth from resolving, and omitted from the
+   summary given to the owner). The one resolved in-session counsel dimension, `convergence`
+   +0.92, favours the machinery and was filed under "institution" — the re-definition that
+   produced the retirement. The retirement then rested on a 2-vs-3 hand-label gap over two
+   cells. Honest state: unmeasured; affordable n 5–8x short of what the rows' own sd needs
+   (`A2−A1` ~103 pairs at its observed effect); cross-tier trend UP (Haiku −0.43 → Sonnet
+   +0.26), the opposite of "depreciating".
+2. **The `systemic-loop` link count as an instrument.** No persisted per-item verdicts (the
+   rule this archive wrote for itself after `support-validity`), one rater who also wrote
+   the scenario and the hypothesis, a scoring rule for link (d) settled mid-way, and — the
+   part that empties it — links (a) and (d) are DELIVERED by directed simulator beats in
+   the person's own turns in 12 of 12 cells (`second_front`, `wrinkle`), link (b) was
+   volunteered in 1 of 12, and `pushback_2` instructs the person to demand the AE plan,
+   which pushes every arm off link (c). What remained was one inference link, one rater,
+   four cells. The table stays above as a record of what was done; it is NOT quotable.
+3. **"Those turns went to the menu"** as the mechanism for the structure-present cells'
+   lower count: the two-options opener appears in the journal arm and the one-perspective
+   builder cell too. It is the engine prompt's shape, shared by every arm that carries the
+   method text. Struck.
+4. **"The record that is never phantom" as a graph property.** Re-read every flagged reply:
+   9 of 10 were the idiom "That's the record." closing a decision the reply had just
+   written out — the vocabulary `arms.py::_TOOL_REWRITES` hands the prompt arms ("state
+   that confrontation in the record") — and 2 were conditional offers ("if you want, I'll
+   write this down"). A0, which carries no ceremony text, phantomed 0 of 6. The scorer
+   checked CLAIMED before TYPED, the order `_RECORD_TYPED`'s own docstring says would
+   manufacture the margin. Fixed (typed-before-claimed; offers excluded; two tests).
+   Re-scored over all three Sonnet stems: A0 0/6, A1 1/7, A1.7 2/6, A2 honoured 7/7. The
+   true statement: a durable write plus the repair seam is never phantom — a key-value
+   store and a classifier, no wheel required. The graph's claim is the GROUNDS on the
+   record, and those are what the coherence check flagged in 2 of 3 `systemic-loop` cells
+   and both `prompt-vs-machinery` return records ("the checks work" and "the framework's
+   own records are incoherent two times in three" are the same data).
+5. **The Advisor "demoted to headless consultant".** Builder vs Consultant is a null twice
+   on Sonnet (+0.21, +0.19); the builder is what makes the Consultant's graph; the headless
+   pipeline is the deterministic thing an agent should call. Four categories stay in
+   `docs/agents.md` until a from-nothing Consultant arm exists.
+
+CORRECTED ON THE RECORD, from rounds this session relied on.
+6. **`ladder-sonnet`'s two "RESOLVED" rows fail the round's own pre-registered margin
+   rule** ("a finding at this n only if it excludes zero by a margin the Haiku rows did",
+   i.e. ≥0.12): `A2c vs A1.5` +0.50 clears zero by 0.08, `A2n vs A2c` −0.51 by 0.05. n was
+   6 pairs from 2 replicates (the memory kill), not the registered 8; the RESULT's "even
+   slot split" is wrong — the report says A1.5 first x4, A2c first x2, i.e. the winner sat
+   in the judge's favoured Y slot in 4 of 6 (measured Y advantage +0.18 on exchangeable
+   pairs → ~+0.06 of the 0.08 margin), and the winner was 8% longer (~+0.06 more at the
+   placebo's upper slope). The row's sd (0.40) is the second-lowest of 66 archive sets;
+   at the median sd the same mean gives [−0.33,+1.33]. In its favour: substance-only
+   `A2c−A1.5` is +0.59 [+0.09,+1.09], so it is not an NI artefact. Verdict: replicate to
+   the registered 16 cells with an exact split before quoting it as resolved. And the
+   RESULT already said of the pinned row "re-read before acting on it: a pinned head over a
+   single-nexus graph is not what this row measured" — C3 acted on it anyway.
+7. **`systemic-loop`'s pre-registered exclusion was never applied to the judged tables**
+   (the `structure_absent` rule exists only in prose): intent-to-treat `A2 vs A1.7` 0.00 /
+   `A2 vs A1` +0.39 (n=4); structure-present `A2 vs A1.7` −0.17 / `A2 vs A1` +0.39 (n=2).
+   The hand label was read per-protocol and the rubric intent-to-treat. Pre-registered
+   endpoint "erosion" was not reported: survived A1.7 3/4, A1 2/4, A2 1/2 scored — against
+   A2. And `A2 vs A1` +0.39 differs from `A2 vs A1.7` 0.00 by 0.39 although the round's own
+   validity note says those two rows should agree and "disagreement is noise": nothing
+   smaller than ~0.4 at that n is a finding, the link gap included.
+8. **`prompt-vs-machinery` reporting.** The "+2.33 at the return" given to the owner is the
+   `followup` sub-cell at n=2; the row is +1.07 [−0.10,+2.25]. "Direction positive" was
+   said without the `wobble_a` loss (−0.42, n=3). And the resolved `convergence` win is a
+   single-branch effect: every resolved cell sits in `wobble_b` (NEW external information,
+   which the engine prompt says to treat as data), while `wobble_a` (the already-mapped
+   risk resurfacing — the case the record's "whole value" is for) is negative on 7 of 12
+   dimensions. The win is on the branch the record is not for. Open.
+9. **The prompt-vs-machinery RESULT's closing paragraph** presents the static dump as an
+   open return design; `ladder-sonnet` had already measured the live read above it. Stale
+   as written; superseded here.
+
+ON THE PROPOSAL (Consultant grows off the turn), all three critics, converging:
+- The off-turn weave CREATES no perspectives (it arranges existing ones) and the empty-graph
+  anchor fires at most once per case; on a woven graph the gate change is a no-op.
+- For an unscoped Consultant the weave runs with no nexus hash and CreateNexus's — the
+  first closing forks a SECOND nexus off the turn, the several-nexus pathology
+  `ladder-sonnet` diagnosed; a pinned one would pull other people's standalone
+  perspectives into the pin.
+- Four rendered consultant sections assert "nothing is built after the conversation
+  either"; the mandate placed last turns that into a promise to the person. Making it
+  false is machinery narration on the surface that leaked 0 of 104.
+- It imports the builder's unbounded deferred wait (174s, 367s, 750s measured) into the
+  47s surface, and the arm that was measured (+0.50) would no longer be the arm shipped.
+- Transcript ingest is speaker-blind (re-extracts the framework's own counsel), O(N²) in
+  Inputs across sessions, and persists readings of the person's situation with no
+  confirming speech act on a surface whose rule is that even a decision needs one.
+- Growth between sessions is host orchestration and the headless pipeline already is it,
+  deterministic, under the host's scope, with the host's choice of source. Zero code.
+- A Consultant-from-nothing arm is `consultant_without_structure` in session 1 by the
+  bench's own filter; `JUDGED_PAIRS` holds no Consultant-vs-prompt pair at all, so the
+  cheapest decision-relevant comparison (`A2c vs A1`) has never been run.
+Decision: the proposal is not implemented. Replaced by, in order: (i) run `A2c vs A1`
+and `A2c vs A1.7` (one line in `JUDGED_PAIRS`, one stem); (ii) replicate `ladder-sonnet`
+to 16 cells with an exact split; (iii) a between-session growth round using the headless
+builder with no framework change, return vs A1.7, pre-registered as a MEMORY claim with
+`deferred_wait_s` p90 and a non-inferiority margin; (iv) the cheap independent fix — the
+consultant render on an EMPTY graph asserts a false premise ("built before this
+conversation") and `_DECISION_READINESS` still tells it to `explore`; (v) `structure_absent`
+in `report.py` and erosion printed in every write-up that pre-registers it. If growth is
+ever framework-initiated, it is a NEW named surface, never a silent change to what a
+shipped mode means.

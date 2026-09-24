@@ -151,12 +151,14 @@ way** (`prompt-vs-machinery`, 2026-09-22): in-session `A2−A1` went from −0.4
 resolved on Haiku to +0.26 unresolved on Sonnet 5, with the judge's prose naming
 the mechanism — A2 converges, A1 diagnoses — and `A2−A1.7` at the return a null
 on Sonnet where Haiku resolved it positive. Neither claim is supported on the
-strong tier yet; read the round before quoting either direction. **And Claim 1's
-best case was then run and lost** (`systemic-loop`, 2026-09-23): on the first
-multi-tension scenario, the prompt-only arm named 3 of 4 causal links in every
-cell, the builder 2 in the two cells where it actually built the 7–8 perspective
-structure, every arm closed the loop, and the rubric was a null. Claim 1 is
-retired at the strong tier; Claim 2 and the institution are what remain to argue.
+strong tier yet; read the round before quoting either direction. **Claim 1's
+best case was then run at n=4** (`systemic-loop`, 2026-09-23) and the round
+first wrote "retired", which three critics withdrew the next day (`rounds.md`,
+`### critics' review`): `A2 vs A1` there is +0.39 [−0.03, +0.81], the hand
+label of causal links has no instrument behind it, and two of the four links
+were scripted into the person's own turns. The honest state: unresolved at
+every n run, direction favouring the machinery against A1 and flat against
+A1.7, ~5–8x short of the n its own sd needs.
 
 **What "A2 loses to A1.7" therefore means, stated precisely.** A1.7 is not an
 independent rung: it is `persona + method_prompt() + the model's own journal`.
