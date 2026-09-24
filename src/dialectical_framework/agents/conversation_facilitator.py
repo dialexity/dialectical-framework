@@ -31,6 +31,7 @@ from dialectical_framework.agents.stream_events import (
 from dialectical_framework.agents.turn_timing import ToolRound
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.call_census import record_call
+from dialectical_framework.utils.thinking_compat import conversational_round
 from dialectical_framework.utils.retry_accounting import (RetryAccount,
                                                           retry_account)
 from dialectical_framework.utils.use_brain import (prefill_token_kwargs,
@@ -498,7 +499,10 @@ class ConversationFacilitator(SettingsAware):
                     )
                     self._record_tool_results(response.tool_calls, tool_outputs)
                     self._strip_caller_from_messages(response.messages)
-                    response = await response.resume(tool_outputs)
+                    # The continuation is a conversational round too (and it is
+                    # Mirascope's own request, so nothing in `use_brain` marks it).
+                    with conversational_round():
+                        response = await response.resume(tool_outputs)
 
                 # Sync full conversation history from the response chain
                 self._messages = list(response.messages)
@@ -633,7 +637,7 @@ class ConversationFacilitator(SettingsAware):
         # ~60k-char prompt — happens between the two, and it is the framework's own
         # cost on the person's critical path.
         call_started = time.monotonic()
-        with retry_account(turn):
+        with retry_account(turn), conversational_round():
             start = await self._start_stream_round(
                 self._open_tools_stream, what="Stream open"
             )
@@ -804,7 +808,7 @@ class ConversationFacilitator(SettingsAware):
 
             self._strip_caller_from_messages(stream.messages)
             resuming = stream
-            with retry_account(turn):
+            with retry_account(turn), conversational_round():
                 call_started = time.monotonic()
                 start = await self._start_stream_round(
                     lambda: resuming.resume(tool_outputs), what="Stream resume"
@@ -1174,7 +1178,13 @@ class ConversationFacilitator(SettingsAware):
         async def _llm_call():
             return messages
 
-        return await _llm_call()
+        # A conversational round: with no level set, "unset" is sent as off here
+        # (Bedrock's default for Claude 5 is thinking ON, and on a tool-wired
+        # turn over a real graph that was ~2,500 hidden tokens of the model
+        # deliberating over tools — `probe_consultant_42s`). The tools this call
+        # may elect run OUTSIDE this scope, so the concerns keep their default.
+        with conversational_round():
+            return await _llm_call()
 
     @staticmethod
     def _response_text(response: Any) -> str:

@@ -28,7 +28,9 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Mapping, Optional
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Iterator, Mapping, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,36 @@ _LEVEL_TO_EFFORT = {
 
 #: Model name -> shape, learned from a 400. Overrides the name heuristic.
 _LEARNED: dict[str, str] = {}
+
+#: True while a CONVERSATIONAL provider round is being opened — the facilitator's
+#: tool-path call and its resumes — and nowhere else. Read by
+#: `with_thinking_compat` to send "disabled" where an unset level would otherwise
+#: fall to the provider's default (thinking ON for Claude 5). A ContextVar rather
+#: than an argument because the request is encoded three layers below the caller
+#: that knows which kind of call it is; a task inherits the value, and the
+#: structured concern calls a TOOL makes run outside the `with`, so they keep
+#: the default.
+_CONVERSATIONAL_ROUND: ContextVar[bool] = ContextVar(
+    "dialexity_conversational_round", default=False
+)
+
+
+@contextmanager
+def conversational_round() -> Iterator[None]:
+    """Mark the provider call(s) inside as a conversational round.
+
+    Entered by `ConversationFacilitator` around `_call_with_tools`, each
+    `response.resume(...)` and each streamed round start — the calls a person
+    is waiting on and whose thinking, with no level set, is double work over a
+    graph that already holds the reasoning. NOT entered around tool execution:
+    the concerns a tool runs are the framework's own reasoning steps and keep
+    the provider default.
+    """
+    token = _CONVERSATIONAL_ROUND.set(True)
+    try:
+        yield
+    finally:
+        _CONVERSATIONAL_ROUND.reset(token)
 
 #: Claude 5+ naming puts the family before the version (``claude-sonnet-5``);
 #: 3.x/4.x put it after or hyphenate the minor (``claude-3-5-sonnet``,
@@ -93,12 +125,20 @@ def with_thinking_compat(
     # call came back with a `thinking` block and `thinking_tokens` in usage —
     # ~500 on a plain reply, ~2,500 on a tool-wired turn over a real graph,
     # which is the whole of the Consultant's 42s turn against the dump's 13s
-    # (`probe_consultant_42s`). The framework's contract is that nothing thinks
-    # unless a level is set (CLAUDE.md, observability), so "unset" is sent as
-    # "disabled" — accepted by both shapes — where the default would think.
-    # Budgeted-shape models do not think unless asked and are left alone.
+    # (`probe_consultant_42s`).
+    #
+    # WHERE "unset" is sent as "disabled" is a policy, and it is scoped on
+    # purpose: only inside a CONVERSATIONAL round (`conversational_round()`,
+    # entered by the facilitator around the tool loop's own provider calls and
+    # nothing else). There the hidden tokens are double work — the model
+    # deliberating over tools about structure the graph already holds. The
+    # structured calls that BUILD that structure (tetrads, extraction,
+    # transformations, the checks) are the reasoning steps, and the provider's
+    # default thinking there is the sub-technique doing its job; they are left
+    # at the default. Think where you build, read where you consult. Budgeted-
+    # shape models do not think unless asked and are left alone either way.
     if thinking is None:
-        if thinking_shape(model_name) == ADAPTIVE:
+        if _CONVERSATIONAL_ROUND.get() and thinking_shape(model_name) == ADAPTIVE:
             out["thinking"] = {"type": "disabled"}
         return out
     # "disabled" is accepted by both shapes, and a request without thinking has

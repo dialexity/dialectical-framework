@@ -120,3 +120,57 @@ async def test_probe_tool_path_hidden_output(di_container):
             print(f"  census: {[(r.label[:36], round(r.seconds, 1), r.output_tokens) for r in census.calls]}")
             _describe(response)
     assert True
+
+
+@pytest.mark.real_llm
+@pytest.mark.asyncio
+@pytest.mark.timeout(600)
+async def test_probe_where_thinking_lands_now(di_container, monkeypatch):
+    """After the scoped policy (2026-09-24): a conversational round sends
+    "disabled" when unset; a structured concern call is left at the provider
+    default. Prints the raw provider usage of each, captured at the provider
+    seam, so both halves of "think where you build, read where you consult"
+    are visible as thinking_tokens."""
+    import dialectical_framework.utils.bedrock_provider as bp
+    from dialectical_framework.concerns.decision_confirmation_check import \
+        DecisionConfirmationCheck
+
+    provider_cls = next(
+        obj for name, obj in vars(bp).items()
+        if isinstance(obj, type) and hasattr(obj, "_create_async") and name.endswith("Provider")
+    )
+    captured: list[tuple[dict, object]] = []
+    original = provider_cls._create_async
+
+    async def spy(self, kwargs, params):
+        message = await original(self, kwargs, params)
+        captured.append((dict(kwargs), message))
+        return message
+
+    monkeypatch.setattr(provider_cls, "_create_async", spy)
+
+    def report(label):
+        for kwargs, message in captured:
+            usage = getattr(message, "usage", None)
+            details = getattr(usage, "output_tokens_details", None)
+            blocks = [getattr(b, "type", "?") for b in getattr(message, "content", [])]
+            print(f"  {label}: thinking kwarg={kwargs.get('thinking')!r} tools={'tools' in kwargs} "
+                  f"out={getattr(usage, 'output_tokens', None)} details={details} blocks={blocks}")
+        captured.clear()
+
+    print(f"\nmodel: {MODEL}  thinking: {di_container.settings().conversation_thinking_level!r}")
+    with scope(SEED_SID), using_model(di_container, MODEL):
+        advisor = Advisor(app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT)
+        await advisor._refresh_context()
+        engine_prompt = _prompt_text(advisor)
+        conversation = ConversationFacilitator(tools=_build_consultant_tools("agent:probe"))
+        conversation.set_system_prompt(engine_prompt)
+        conversation._messages.append(llm.messages.user(QUESTION))
+        await conversation._call_with_tools()
+        report("conversational round (tools wired, level unset)")
+        await DecisionConfirmationCheck().resolve(
+            user_message="Write that down as the decision: I'm doing the buyout.",
+            assistant_message="Understood.",
+        )
+        report("structured concern call (format, level unset)")
+    assert True

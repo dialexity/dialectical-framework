@@ -59,3 +59,10 @@ before this date — turn times, the extraction rate, the ladder rows — was ta
 thinking on; none is a no-thinking figure. And `CallRecord.output_tokens` was the instrument
 that found it, exactly as its docstring promised: a slow call is only a finding once it is
 read beside its output count.
+
+Correction, same day: the structured `format` path never thought by default — tool choice
+suppresses adaptive thinking, measured as 0 thinking tokens with no parameter sent. The
+policy is therefore scoped: `conversational_round()` wraps the four provider calls a person
+waits on (tool-path call, awaited resume, streamed open, streamed resume) and nothing else;
+the builders' calls are untouched and were never thinking. The prompt arms answer through the
+format path, so every bench row pitted a thinking machinery arm against non-thinking prompts.

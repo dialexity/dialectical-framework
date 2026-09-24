@@ -7546,3 +7546,21 @@ the closing clause must say what the choice is FOR (the S+ in their words) when 
 arrangement has one — the off-turn wisdom-unit build already IS the closing weave; (6)
 `(A2C, A1)` and `(A2C, A1_7)` wired into `JUDGED_PAIRS`, not yet run. (3)-(5) are prompt
 and rendering changes and are UNMEASURED; the pins are structural.
+
+CORRECTION, same day, after scoping the policy. The structured (forced-tool `format`) path
+NEVER thought by default: `test_probe_where_thinking_lands_now` captured the raw provider
+usage at the seam — a conversational round inside `conversational_round()` returns
+`thinking_tokens: 0`, and a `DecisionConfirmationCheck` call with NO parameter sent also
+returns `thinking_tokens: 0` (tool choice suppresses adaptive thinking). So: the concerns
+that build the graph were unthinking before and after; the 7.0% extraction rate is a
+no-thinking figure and the sentence above re-reading it is withdrawn; and the PROMPT arms,
+which answer through the same format path (`PromptArm.reply` → `submit(ChatResponse)` with
+no tools), never thought either. What thought by default was the conversational
+text/tools call — A2, A2c, A2n. **The bench was comparing thinking machinery against
+non-thinking prompts**, and the machinery only tied or edged them. The policy as shipped:
+"disabled" is sent only inside the four conversational provider calls (think where you
+build, read where you consult); the builders keep the provider default, which for them is
+none. The open question this leaves is the one the owner asked: the machinery's counsel
+quality with the conversational round no longer thinking, against the same prompt arms.
+Unmeasured; first thing to run, and cheap — one scenario, A1/A2, thinking off vs
+`medium` on A2 only, 2 replicates.

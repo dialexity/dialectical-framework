@@ -102,23 +102,67 @@ class TestTranslation:
             "type": "disabled"
         }
 
-    def test_no_thinking_means_disabled_on_an_adaptive_model(self):
-        """The contract is "nothing thinks unless a level is set", and on a
-        Claude 5 model an ABSENT thinking key does not deliver it: Bedrock's
-        default for the adaptive shape is thinking on. Measured 2026-09-24
+    def test_no_thinking_is_disabled_inside_a_conversational_round(self):
+        """Bedrock's default for the adaptive shape is thinking ON, so an ABSENT
+        thinking key does not mean off on a Claude 5 model. Measured 2026-09-24
         (`probe_tool_path_hidden_output`): every unset call returned a
         `thinking` block, ~500 tokens on a plain reply and ~2,500 on a
         tool-wired turn over a real graph — the Consultant's 42s against the
-        dump's 13s. So unset is sent as "disabled" where the default thinks."""
+        dump's 13s. Inside a conversational round that is double work over a
+        graph that already holds the reasoning, so unset is sent as disabled."""
+        from dialectical_framework.utils.thinking_compat import conversational_round
+
         kwargs = {"model": "global.anthropic.claude-sonnet-5", "max_tokens": 1024}
-        out = with_thinking_compat(kwargs["model"], kwargs, {})
+        with conversational_round():
+            out = with_thinking_compat(kwargs["model"], kwargs, {})
         assert out["thinking"] == {"type": "disabled"}
         assert "thinking" not in kwargs, "input must not be mutated"
 
-    def test_no_thinking_stays_absent_on_a_budgeted_model(self):
-        """A 4.x model does not think unless asked; nothing to send."""
-        kwargs = {"model": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_tokens": 1024}
+    def test_no_thinking_keeps_the_provider_default_outside_a_conversational_round(self):
+        """The structured concern calls BUILD the structure — tetrads,
+        extraction, transformations, the checks — and the provider's default
+        thinking there is the sub-technique doing its job (think where you
+        build, read where you consult). Outside the scope nothing is sent."""
+        kwargs = {"model": "global.anthropic.claude-sonnet-5", "max_tokens": 1024}
         assert "thinking" not in with_thinking_compat(kwargs["model"], kwargs, {})
+
+    def test_no_thinking_stays_absent_on_a_budgeted_model_either_way(self):
+        """A 4.x model does not think unless asked; nothing to send."""
+        from dialectical_framework.utils.thinking_compat import conversational_round
+
+        kwargs = {"model": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_tokens": 1024}
+        with conversational_round():
+            assert "thinking" not in with_thinking_compat(kwargs["model"], kwargs, {})
+        assert "thinking" not in with_thinking_compat(kwargs["model"], kwargs, {})
+
+    def test_the_scope_is_left_on_exit(self):
+        from dialectical_framework.utils.thinking_compat import (
+            _CONVERSATIONAL_ROUND, conversational_round)
+
+        with conversational_round():
+            assert _CONVERSATIONAL_ROUND.get() is True
+        assert _CONVERSATIONAL_ROUND.get() is False
+
+
+class TestTheFacilitatorOpensItsRoundsInScope:
+    """The four provider calls a person waits on — the tool-path call, its
+    awaited resume, the streamed open and the streamed resume — are the only
+    sites wrapped. Tool EXECUTION is not: a concern a tool runs must keep the
+    provider default. Pinned on the source because the resumes are Mirascope's
+    own requests and no runtime seam of ours sees them."""
+
+    def test_four_sites_and_only_those(self):
+        import inspect
+
+        from dialectical_framework.agents import conversation_facilitator as cf
+
+        src = inspect.getsource(cf.ConversationFacilitator)
+        assert src.count("conversational_round()") == 4
+        assert "with conversational_round():\n            return await _llm_call()" in src
+        assert "with conversational_round():\n                        response = await response.resume(tool_outputs)" in src
+        assert src.count("with retry_account(turn), conversational_round():") == 2
+        # Never around the tools.
+        assert "conversational_round():\n                        tool_outputs = await response.execute_tools()" not in src
 
     def test_unknown_level_drops_effort_but_still_adapts(self):
         """A bad level must not resurrect the shape the model rejects."""
