@@ -7564,3 +7564,43 @@ none. The open question this leaves is the one the owner asked: the machinery's 
 quality with the conversational round no longer thinking, against the same prompt arms.
 Unmeasured; first thing to run, and cheap — one scenario, A1/A2, thinking off vs
 `medium` on A2 only, 2 replicates.
+
+### thinking-check: pre-registered 2026-09-24, before any cell ran
+
+THE QUESTION. Every judged A2/A2c/A2n row on Sonnet 5 was a THINKING arm (Bedrock's default
+adaptive thinking on the conversational call) against prompt arms that never thought (the
+format path). The conversational round is now sent as off when no level is set, and the
+machinery's counsel quality without thinking is unmeasured. Does the machinery hold its
+in-session standing against the same prompt arm once its round stops thinking — or was the
+default thinking what it was standing on?
+
+DESIGN. `cofounder_equity`, both wobble branches, Sonnet 5 talking and reasoning, judge
+Fable, 2 replicates, arms A1 and A2. Two stems, back to back by one driver:
+1. `thinking-check-off` — `DIALEXITY_CONVERSATION_THINKING_LEVEL` unset (today's default:
+   the conversational round is sent as disabled; the prompt arm is unaffected either way).
+2. `thinking-check-medium` — level `medium` (adaptive shape, effort medium), so A2's round
+   thinks explicitly, roughly the pre-2026-09-24 configuration.
+8 cells per stem, 8 judged pairs per row (decide n=4, wobble_a n=2, wobble_b n=2). Build
+7f328a7. Both stems record the level on every cell.
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2 vs A1` composite in each stem, read side by side, per session.
+   The prompt arm is the common reference (it never thinks). The reading is the DIFFERENCE
+   between the two stems' rows: if off ≈ medium, the machinery's standing did not rest on
+   thinking; if off falls where medium holds, it did, and the level should default to
+   medium on the conversational path (a cost, ~30s a turn, that then has to be paid or
+   redesigned around). Judge prose read whole.
+2. CONTROL — `A1` cells across the two stems should be exchangeable (same arm, same
+   configuration); a systematic A1 difference between stems is provider drift, and the
+   stem comparison is read against it.
+3. MACHINE — median reply path per arm and stem (expected: A2-off ≈ 16s on a no-tool turn,
+   A2-medium ≈ 40s+), elections per A2 cell, records, leaks, coherence flags.
+
+VALIDITY. n=8 per row is a screen: direction and prose, not a resolved number; nothing
+smaller than ~0.4 composite at this n is a finding. Read the recorded level, never the
+stem name.
+
+WHAT WOULD CHANGE. (a) A2−A1 comparable in both stems: the 16s turn is free, keep the
+default. (b) A2−A1 drops without thinking: the machinery's counsel WAS the model's private
+reasoning over the graph; either the conversational default becomes `medium` and the turn
+cost is accepted, or the reply obligation (todo 5) has to carry what thinking carried.
