@@ -87,6 +87,20 @@ def with_thinking_compat(
     """
     out = dict(kwargs)
     thinking = out.get("thinking")
+    # A request WITHOUT thinking is not a request without thinking on a Claude 5
+    # model: Bedrock's default for the adaptive shape is thinking ON. Measured
+    # 2026-09-24 (`probe_tool_path_hidden_output`, Sonnet 5, level unset): every
+    # call came back with a `thinking` block and `thinking_tokens` in usage —
+    # ~500 on a plain reply, ~2,500 on a tool-wired turn over a real graph,
+    # which is the whole of the Consultant's 42s turn against the dump's 13s
+    # (`probe_consultant_42s`). The framework's contract is that nothing thinks
+    # unless a level is set (CLAUDE.md, observability), so "unset" is sent as
+    # "disabled" — accepted by both shapes — where the default would think.
+    # Budgeted-shape models do not think unless asked and are left alone.
+    if thinking is None:
+        if thinking_shape(model_name) == ADAPTIVE:
+            out["thinking"] = {"type": "disabled"}
+        return out
     # "disabled" is accepted by both shapes, and a request without thinking has
     # nothing to translate.
     if not isinstance(thinking, dict) or thinking.get("type") != "enabled":

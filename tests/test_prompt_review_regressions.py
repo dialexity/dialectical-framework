@@ -4292,3 +4292,102 @@ class TestTheConfirmationClassifierJudgesThePersonFirst:
 
         assert "Be conservative about LEANINGS" in m.SYSTEM_PROMPT
         assert "Be conservative. A false" not in m.SYSTEM_PROMPT
+
+
+class TestTheConsultantIsNotToldToBuild:
+    """Critics' review, 2026-09-24, on the RENDERED consultant shape: Decision
+    Readiness (gated on `record_decision`) told the head to "`explore` what you
+    have before the ceremony", and the feasibility wobble note (gated on
+    `audit_feasibility`) told it to `deepen` — two tools the Consultant does
+    not hold, cancelled only by a mandate 46k characters later. The repo's own
+    rule: a section gated on one tool that names another holds that passage
+    out behind a placeholder gated on the second name. Now it does. The
+    mid-paragraph mentions in Reading Your Understanding are left to the
+    mandate ON PURPOSE (see the comment above `mandate` in `system_prompt`).
+    Also: the consultant's eager section asserted the understanding "was built
+    before this conversation" on a graph that may be empty; it now says so."""
+
+    def _consultant_names(self):
+        from dialectical_framework.agents.advisor import advisor as adv
+
+        return [t.__name__ for t in adv._build_consultant_tools("agent:test")]
+
+    def _decision_readiness(self, prompt: str) -> str:
+        assert "## Decision Readiness" in prompt
+        return prompt.split("## Decision Readiness")[1].split("\n## ")[0]
+
+    def test_the_consultant_shape_names_no_build_tool_in_decision_readiness(self):
+        import re
+
+        from dialectical_framework.agents.advisor.system_prompts import system_prompt
+
+        section = self._decision_readiness(system_prompt(tool_names=self._consultant_names()))
+        assert not re.findall(r"`(explore|deepen|anchor|ingest)`", section)
+        assert "Here the pathways are whatever the understanding already holds." in section
+        assert "record on what exists" in section
+        assert "if the understanding holds one" in section
+
+    def test_the_full_shape_still_carries_both(self):
+        from dialectical_framework.agents.advisor.system_prompts import system_prompt
+
+        section = self._decision_readiness(system_prompt())
+        assert "`explore` what you have before the ceremony." in section
+        assert "`deepen` for alternatives on" in section
+        assert "{" not in section.replace("{dialectical_context}", "")
+
+    def test_no_render_leaks_a_placeholder(self):
+        import re
+
+        from dialectical_framework.agents.advisor.system_prompts import system_prompt
+
+        for names in (None, self._consultant_names(), ["sync", "inspect_node", "read_digest"]):
+            leaked = [p for p in re.findall(r"\{[a-z_]+\}", system_prompt(tool_names=names)) if p != "{dialectical_context}"]
+            assert not leaked, names
+
+    def test_a1_carries_the_building_form_as_a_mental_act(self):
+        from e2e.arms import method_prompt
+
+        text = method_prompt()
+        assert "{" not in text
+        assert "Work out their pathways before the ceremony." in text
+        assert "ONE mapped\ntension is enough" in text
+
+    def test_the_consultant_admits_the_understanding_may_be_thin(self):
+        from dialectical_framework.agents.advisor.system_prompts import _EAGER_CONSULTANT
+
+        assert "may be rich, thin, or not there yet" in _EAGER_CONSULTANT
+        assert "was built before this conversation, and here" not in _EAGER_CONSULTANT
+
+
+class TestTheSynthesisWhyReachesThePrompt:
+    """The synthesis trace, critics' review 2026-09-24: the generation call was
+    asked HOW S+ emerges, the answer was discarded at creation, the dump
+    rendered a seven-word headline and `inspect_node` the same headline, and
+    the synthesis was the least-used section of the dump in every arm. Now the
+    explanation is a roled Rationale on the node, the dump renders it as a
+    `Why S+:` line, and Reading Your Understanding says what it is for."""
+
+    def test_reading_your_understanding_says_what_synthesis_is_for(self):
+        from dialectical_framework.agents.advisor import system_prompts as sp
+
+        assert "Synthesis is the arrangement's destination" in sp._SCORE_READING
+        assert "`Why S+`" in sp._SCORE_READING
+        assert "A pathway is a\nstep; the synthesis is what the steps add up to." in sp._SCORE_READING
+
+    def test_the_explanation_fields_are_bounded_and_kept(self):
+        from dialectical_framework.concerns.synthesis_generation import SynthesisPairDto
+
+        for name in ("s_plus_explanation", "s_minus_explanation"):
+            desc = SynthesisPairDto.model_fields[name].description
+            assert "one or two sentences" in desc
+            assert "Kept on the" in desc or "kept on the graph" in desc
+
+    def test_the_skill_attaches_a_roled_rationale_per_pole(self):
+        import inspect
+
+        from dialectical_framework.agents.explorer.skills import generate_synthesis as gs
+
+        src = inspect.getsource(gs.GenerateSynthesis)
+        assert 'set_explanation_target(synthesis, role=role)' in src
+        assert '("s_plus", result.s_plus_explanation)' in src
+        assert '("s_minus", result.s_minus_explanation)' in src

@@ -93,14 +93,19 @@ class SynthesisPairDto(BaseModel):
                     "a new qualitative dimension. Declarative, naming the emergent state"
     )
     s_plus_explanation: str = Field(
-        description="How S+ emerges from the circular causality of the Ac+/Re+ transformations"
+        description="How S+ emerges from the circular causality of the Ac+/Re+ "
+        "transformations — the mechanism, in one or two sentences, naming which "
+        "pathways feed each other. This is kept on the graph and read back to "
+        "the person as the WHY behind the synthesis."
     )
     s_minus_statement: str = Field(
         description="S- statement — negative synthesis: collapse pattern (1+1<2), "
                     "dominance or oscillation. Declarative, naming the degraded state"
     )
     s_minus_explanation: str = Field(
-        description="How S- emerges when the failure modes (Ac-/Re-) reinforce each other"
+        description="How S- emerges when the failure modes (Ac-/Re-) reinforce "
+        "each other — the trap's mechanism, in one or two sentences. Kept on the "
+        "graph and read back as the WHY behind the trap."
     )
 
 

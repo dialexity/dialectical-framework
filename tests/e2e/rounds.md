@@ -2634,7 +2634,7 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.796 over 712 judged pairs on the
+**Powered from the archive's own NI-composite sd (0.795 over 720 judged pairs on the
 canonical stems, recomputed after r22's supersession, again after r26, again after
 `a15-floor`, again after `weave-offturn`, and again after the Sonnet rounds through
 `prompt-vs-machinery` — not a borrowed figure; the 0.824 over 526 that stood through the
@@ -2665,7 +2665,9 @@ and the ICC problem that dogs r21/r22 does not arise here. Simulated (40k trials
 
 > **Annotation, 2026-09-23 — the fourth firing, and the first that MOVED the table.**
 > The Sonnet rounds (`ladder-sonnet`, `nexus-pinned`, `prompt-vs-machinery`) took the
-> canonical NI sd from 0.824 over 526 pairs to **0.796 over 712**, and `resim_r23_ni.py
+> canonical NI sd from 0.824 over 526 pairs to **0.796 over 712** (0.795 over 720 after
+> `systemic-loop`'s 8 pairs the next day — 0.001 below the re-simulated value, which moves
+> no cell: the table moved ~1 point per 0.008 of sd between 0.824 and 0.796), and `resim_r23_ni.py
 > --sd 0.824 --sd 0.796` (200k trials) moves cells by up to **4 points**, so the table
 > above is superseded rather than re-confirmed. At 0.796: +0.50 → **34/51/65**, +0.75 →
 > **63/84/94**, +1.00 → **86/98/100**, true null → 3/2/2. Every effect cell gained power
@@ -7483,3 +7485,64 @@ conversation") and `_DECISION_READINESS` still tells it to `explore`; (v) `struc
 in `report.py` and erosion printed in every write-up that pre-registers it. If growth is
 ever framework-initiated, it is a NEW named surface, never a silent change to what a
 shipped mode means.
+
+### the 42 seconds: Bedrock's default adaptive thinking on Claude 5, and "unset" now means off (2026-09-24)
+
+THE FACT. `ladder-sonnet` A2c turns that elected NO tool: median reply path 38.5s against
+9.8s for the static dump of the same graph, same model, same persona (16 turns, recomputed
+from `ladder-sonnet-judged.json`). Nobody had attributed it. `consultant-cache` had ruled out
+the render; `probe-consultant-prompt-cost` had ruled out the prompt text on a 3-perspective
+seed (main call 5-6s on Sonnet) and attributed the Consultant's turn to tool round trips.
+
+THE PROBE. `probe_consultant_42s.py`: a REAL graph built by the headless pipeline (5
+perspectives, 3 woven, 36 transformations, 11.8k-char dump), then the same question through
+four shapes, three reps interleaved, census on. BEFORE the fix (Sonnet 5, level unset):
+
+    A  Consultant (engine+tools)      turn 45.9s   call 42.4s   out 3192 tokens   456 words
+    B  A1.5 (method+dump, no tools)   turn 13.1s   call 13.1s   out  733          437
+    C  engine text, no tools          turn 13.0s   call 13.0s   out  668          391
+    E  engine+tools, bare facilitator turn 46.3s   call 46.3s   out 3544          390
+
+One provider call, no structured fallback (extractions 0), no tool elected, prefill within
+10% across A/C/E — and 2,500 more OUTPUT tokens on the tool-wired call for a reply of the
+same length. `probe_tool_path_hidden_output.py` then printed the raw provider message:
+**a `thinking` content block and `output_tokens_details={'thinking_tokens': …}` on every
+call, level unset** — 224 on a small-graph tool call, 493 on the plain reply. Bedrock's
+default for the adaptive shape (Claude 5) is thinking ON, and with six tools wired over a
+real graph the model spent ~2,500 tokens of it deciding. The framework sent no `thinking`
+key when no level was set, so "unset" meant "provider default", not "off".
+
+THE FIX. `with_thinking_compat` now sends `{"type": "disabled"}` when the request carries no
+thinking and the model's shape is adaptive (budgeted models are left alone: they think only
+when asked). Two tests. Structured (forced-tool) calls accept it (checked directly). AFTER:
+
+    A  Consultant (engine+tools)      turn 24.4s   call 15.7s   out 778   456 words
+    B  A1.5 (method+dump, no tools)   turn 13.3s   call 13.3s   out 740   437
+    C  engine text, no tools          turn 13.1s   call 13.1s   out 673   405
+    E  engine+tools, bare facilitator turn 14.1s   call 14.1s   out 762   469
+
+The tool-wired call is 14-16s, two seconds over the dump; the rest of A's `turn` is a fresh
+Advisor's first render and the off-path closing check (2.4-2.9s), not the reply path in
+steady state. The Consultant's 4x turn was default thinking, not the prompt, not the
+tools, not the graph.
+
+WHAT THIS RE-READS. Every Sonnet 5 figure in this archive before today was measured with
+default adaptive thinking on: `sonnet-thinking`'s "medium is close to free and close to a
+no-op" compared thinking to thinking; the 7.0% extraction rate; every Consultant and
+builder turn time, including the 47s / 76s the product discussion was held on; and the
+ladder-return rows. None is wrong as a measurement of that configuration; none is a
+no-thinking figure. Quality under "off" is unmeasured on Sonnet and must be measured
+before any of them is quoted as such. One odd event, not chased: the first post-fix
+rebuild of the probe's graph produced zero perspectives (a fail-soft somewhere in the
+pipeline); the second built the usual five.
+
+TODOS FROM THE CRITICS' ROUND, same day: (1) between-session growth documented as the
+headless builder on the person's material (`docs/agents.md`); (2) this entry; (3) the
+Consultant's Decision Readiness no longer names `explore`/`deepen` (name-gated like the
+feasibility notes; the eager section admits the understanding may be thin); (4) the
+synthesis WHY is kept as a roled Rationale, rendered as `Why S+:`/`Why S-:` in the dump,
+read by `inspect_node`, and Reading Your Understanding says what a synthesis is for; (5)
+the closing clause must say what the choice is FOR (the S+ in their words) when the
+arrangement has one — the off-turn wisdom-unit build already IS the closing weave; (6)
+`(A2C, A1)` and `(A2C, A1_7)` wired into `JUDGED_PAIRS`, not yet run. (3)-(5) are prompt
+and rendering changes and are UNMEASURED; the pins are structural.

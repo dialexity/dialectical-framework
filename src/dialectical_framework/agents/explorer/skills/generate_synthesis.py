@@ -20,6 +20,7 @@ from dialectical_framework.concerns.synthesis_generation import (
     SynthesisResult,
 )
 from dialectical_framework.enums.di import DI
+from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.nodes.synthesis import (
     POSITION_S_MINUS,
@@ -181,6 +182,29 @@ class GenerateSynthesis(ReasonableConcern[GenerateSynthesisResult]):
         )
         synthesis.target.connect(wheel, relationship=SynthesisOfRelationship())
         synthesis.commit()
+
+        # The mechanism, kept. The generation call is asked HOW S+ emerges from
+        # the pathways running together and how S- emerges when they degrade
+        # together, and until 2026-09-24 both answers were paid for and dropped
+        # here — the dump rendered a seven-word headline, `inspect_node` printed
+        # the same headline, and the synthesis was the least-used section of the
+        # dump in every arm (`read-reach`, 0.17-0.41). A Rationale per pole,
+        # roled on the EXPLAINS edge so the dump can say which is which. Fail-
+        # soft: a synthesis without its why is what we had, never a lost synthesis.
+        for role, explanation in (
+            ("s_plus", result.s_plus_explanation),
+            ("s_minus", result.s_minus_explanation),
+        ):
+            text = (explanation or "").strip()
+            if not text:
+                continue
+            try:
+                rationale = Rationale(text=text)
+                rationale.set_explanation_target(synthesis, role=role)
+                rationale.commit()
+                self._report.node_created(rationale)
+            except Exception:  # noqa: BLE001
+                logger.exception("Synthesis rationale (%s) not attached (fail-soft)", role)
 
         # Report
         self._report.node_committed(synthesis)

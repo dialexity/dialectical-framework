@@ -47,8 +47,10 @@ from dialectical_framework.agents.advisor.system_prompts import (
     _CONVERSATION_USE,
     _DECISION_READINESS,
     _EAGER,
+    _EXPLORE_BEFORE_CEREMONY,
     _HOW_YOU_SPEAK,
     _INTERNAL_MODEL,
+    _ONE_TENSION_IS_ENOUGH,
     _ROLE,
 )
 from dialectical_framework.agents.conversation_facilitator import (
@@ -277,6 +279,14 @@ def method_prompt(include_decision: bool = True) -> str:
             "{feasibility_wobble_note}",
         ):
             decision = decision.replace(f"\n\n{placeholder}", "")
+        # The two build-tool passages are name-gated in the engine (2026-09-24,
+        # so the Consultant is not told to `explore`). A1 is the FULL engine's
+        # method as text, so it carries the building form — which the rewrite
+        # table below then turns into a mental act, as it always has. Taking
+        # the non-building form here would hand A1 less method than A2 reads.
+        decision = decision.replace(
+            "{explore_before_ceremony_note}", _EXPLORE_BEFORE_CEREMONY
+        ).replace("{one_tension_note}", _ONE_TENSION_IS_ENOUGH)
         # The engine's ceremony section is written around a recording tool.
         # Keep the convergence REASONING (readiness, discrimination test,
         # saturation, confronting the cost) and let the model "record" in prose.

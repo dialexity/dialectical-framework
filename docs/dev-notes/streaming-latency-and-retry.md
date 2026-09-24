@@ -38,3 +38,24 @@ Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 6
 ## Parallelization points, measured
 
 **Parallelization points:** `ExplorationPipeline` runs wheels concurrently. `ExploreTransformations` parallelizes edge pairs, Phase 1 edges, Phase 2 candidates, audits (when enabled). `TransformationAudit` gathers its own Ac+/Re+ pair (invisible under the eager path, but it IS the wait on the on-demand `audit_feasibility` path). `AnalysisPipeline` parallelizes `expand_polarities`/`find_polarities`. On the `anchor` path, `IntroducePolarity` gathers its TWO POLES' classification+headline work (`_classify_statement`) and commits them one at a time afterwards (`_commit_statement`, deliberately `def` not `async def` so a future caller cannot gather it) — the STAGE frees a directly measured ~6.2s (12.5s serial -> 6.3s gathered, near-perfect overlap, `probe_pole_overlap.py`) while the TOOL moved ~3.3s of ~40s (`probe_anchor_retry_cost.py`); the difference is NOT in the pole stage — pole spread explains 0.33s, contention ~0.5s, **framework overhead growth is OUT** (`tests/probe_pole_gather_overhead.py`, free — mock brain, and the argument is a BUDGET not a null: total non-provider wall for the whole both-poles path is 0.3-0.6s by machine load, which ceilings overhead GROWTH since gathering cannot add more than exists, an order of magnitude under the gap; the gathered-vs-serialized row itself only bounds it at ~±0.1s, so quote the ceiling. The saving reaches the tool in FULL at 2x the per-call delay to within 2ms, confirming the pole stage is two submits deep), and what is left is the 3.3s itself being low — a difference of medians at n=3 with two retrying calls; and `AnchorTheses` gathers classification with headlining in ONE gather rather than two sequential ones (worth ~1.0s at most, usually nothing, since `StatementHeadline` short-circuits at `component_length`). Graph writes stay sequential after gather.
+
+## "Unset" was not "off": Bedrock's default thinking on Claude 5 (2026-09-24)
+
+The Consultant's no-tool turn measured 38.5s median against the static dump's 9.8s on the
+same graph and model (`ladder-sonnet`), and three rounds had ruled out the render, the
+prompt text and the tools without finding it. `probe_consultant_42s.py` held everything
+fixed on a real 5-perspective graph and the census showed the shape: one call, no
+structured fallback, prefill within 10%, and ~2,500 more OUTPUT tokens on the tool-wired
+call than the reply contained. `probe_tool_path_hidden_output.py` printed the raw provider
+message: a `thinking` block and `output_tokens_details.thinking_tokens` on every call with
+the level unset. Bedrock's default for the adaptive shape is thinking on; the framework
+sent no `thinking` key when no level was set; and with six tools wired over a real graph
+Sonnet 5 spent ~2,500 tokens deciding what not to call. `with_thinking_compat` now sends
+`{"type": "disabled"}` where the request carries no thinking and the model's shape is
+adaptive — budgeted models think only when asked and are left alone. After: the tool-wired
+call is 14-16s against the dump's 13s. Two readings follow. The "medium is a no-op on
+Sonnet" result (`sonnet-thinking`) compared thinking to thinking, and every Sonnet 5 figure
+before this date — turn times, the extraction rate, the ladder rows — was taken with default
+thinking on; none is a no-thinking figure. And `CallRecord.output_tokens` was the instrument
+that found it, exactly as its docstring promised: a slow call is only a finding once it is
+read beside its output count.

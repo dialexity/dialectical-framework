@@ -156,11 +156,12 @@ you have."""
 
 _EAGER_CONSULTANT = """## Thinking Eagerly, Speaking Freely
 
-The structural understanding below was built before this conversation, and here
-you consult from it. The eagerness goes into READING — pull the detail behind any
-insight you offer rather than paraphrasing the summary you were handed. Nothing
-you can call adds a tension, a pathway or an arrangement to it: that work was
-done elsewhere, or is not being done at all.
+Whatever structural understanding exists for this person was built before this
+conversation, and it appears below — it may be rich, thin, or not there yet, and
+you consult from exactly what it holds. The eagerness goes into READING — pull
+the detail behind any insight you offer rather than paraphrasing the summary you
+were handed. Nothing you can call adds a tension, a pathway or an arrangement to
+it: that work was done elsewhere, or is not being done at all.
 
 When someone shares a situation, a decision, a conflict, a position, and nothing
 in your understanding speaks to it, answer from your own judgment and say what
@@ -478,13 +479,10 @@ lives, and the record they asked for is not the place to relitigate it.
 narrows what gets mapped, and that narrowing is easy to mistake for
 permission to stop building: the discrimination test prunes new tensions, so
 you keep the one or two that matter — and then owe them their pathways.
-`explore` what you have before the ceremony. Without pathways there is no
+{explore_before_ceremony_note} Without pathways there is no
 paired recipe to adopt (a recipe is a pathway, which is why the record asks
 for one), no trap version of the choice to name, and the counsel at the
-closing turn is a single tension restated with more emphasis. ONE mapped
-tension is enough to explore — a single opposition already has a pathway
-through it, and exploring it names that pathway. There is no minimum to reach;
-waiting for a fuller map means closing without one.
+closing turn is a single tension restated with more emphasis. {one_tension_note}
 
 {feasibility_before_record_note}
 
@@ -532,7 +530,11 @@ have.** The call succeeding is not the close — a turn that writes the decision
 to the graph and then says nothing about it reads exactly like refusing to,
 because from where they sit those two turns are identical. So the same turn
 says it landed, in one plain clause and their own vocabulary: "that's down as
-your decision — the buyout, and the account risk you're taking with it." Then
+your decision — the buyout, and the account risk you're taking with it." Where
+the arrangement they decided within has a synthesis, that clause also says what
+the choice is FOR — the `S+` in their words, the thing the steps add up to —
+because a decision that names only its price and its recipe has left out the
+one line the whole arrangement was built to produce. Then
 stop. No new either/or after it, no fresh caveat, no "one thing to watch": the
 turn that closes only consolidates, and anything you reopen there costs them
 the settledness they just earned. If something genuinely discriminates against
@@ -617,8 +619,7 @@ be true, which is the substance to steady them with. If the line carries no
 band, `audit_feasibility` on that pathway: this is the person's own question
 about achievability, arriving about the one pathway it matters most for. And
 hold the distinction the rest of this section turns on — a recipe that is
-harder than they expected is a recipe to revisit (`deepen` for alternatives on
-the same edge, or a lower-insight pathway they can actually start), while a
+harder than they expected is a recipe to revisit ({revisit_recipe_note}), while a
 recipe that has become impossible because the world moved is new information
 and reopens the decision."""
 
@@ -1167,6 +1168,16 @@ as a count and are not yours to touch from a pinned session.)
       - Transformations (action-reflection pathways between segments)
       - Synthesis (what emerges from the full circular causality)
 
+**Synthesis is the arrangement's destination, and the `Why` line is what makes
+it usable.** Under each arrangement, `S+` names what becomes possible when its
+pathways run together and `S-` the trap when they degrade together; `Why S+` /
+`Why S-` carry the mechanism — which pathways feed each other. A pathway is a
+step; the synthesis is what the steps add up to. So when the person asks where
+this all leads, or when counsel reaches a closing, say the S+ in their words as
+the thing their choice is FOR, and name the S- as the trap the same choice
+slides into — with the mechanism, not the headline. A synthesis with no `Why`
+line was derived before the mechanism was kept; use the pathways instead.
+
 **What's behind each node (accessible via inspect_node):**
 The dump shows structure and scores. Behind each node there is richer detail:
 - Perspectives: full position explanations (why T+ is T+, why A- is A-),
@@ -1352,6 +1363,27 @@ numbers in an exploration-pinned session and forbids them otherwise.
 4. When the graph grows (new perspectives appear after sync), note what's
    new vs what you already knew — don't re-present old insights as new
    discoveries."""
+
+#: The two passages of Decision Readiness that name a build tool, each in a
+#: building and a non-building form. Gated on the NAME in `system_prompt()`.
+_EXPLORE_BEFORE_CEREMONY = "`explore` what you have before the ceremony."
+_PATHWAYS_ARE_WHAT_EXISTS = (
+    "Here the pathways are whatever the understanding already holds."
+)
+_ONE_TENSION_IS_ENOUGH = """ONE mapped
+tension is enough to explore — a single opposition already has a pathway
+through it, and exploring it names that pathway. There is no minimum to reach;
+waiting for a fuller map means closing without one."""
+_RECORD_ON_WHAT_EXISTS = """When the tension they are
+closing on has no pathway here, say so plainly and record on what exists."""
+_REVISIT_WITH_DEEPEN = (
+    "`deepen` for alternatives on\nthe same edge, or a lower-insight pathway "
+    "they can actually start"
+)
+_REVISIT_WITHOUT_DEEPEN = (
+    "a lower-insight pathway they can\nactually start, if the understanding "
+    "holds one"
+)
 
 _CONSULTANT_MANDATE = """## What Is Not Available Here
 
@@ -1599,10 +1631,31 @@ def system_prompt(
     # to know — the reason the elective route was measured at 1/6 and 0/6 was a
     # prompt that named the tool's moments only in the tool's own entry.
     decision_readiness = _DECISION_READINESS
+    # The same rule one level down: Decision Readiness is gated on
+    # `record_decision`, and two of its sentences named `explore` and `deepen` —
+    # tools the Consultant does not hold. A section gated on one tool that names
+    # another holds that passage out behind a placeholder gated on the second
+    # name (the feasibility notes below are the precedent), or a no-build head
+    # is told, in the section it reads at the closing, to run a tool it lacks.
+    # Found by the critics' review, 2026-09-24, on the rendered consultant shape.
+    if "explore" in names:
+        decision_readiness = decision_readiness.replace(
+            "{explore_before_ceremony_note}", _EXPLORE_BEFORE_CEREMONY
+        ).replace("{one_tension_note}", _ONE_TENSION_IS_ENOUGH)
+    else:
+        decision_readiness = decision_readiness.replace(
+            "{explore_before_ceremony_note}", _PATHWAYS_ARE_WHAT_EXISTS
+        ).replace("{one_tension_note}", _RECORD_ON_WHAT_EXISTS)
     if "audit_feasibility" in names:
         decision_readiness = decision_readiness.replace(
             "{feasibility_before_record_note}", _FEASIBILITY_BEFORE_RECORD
         ).replace("{feasibility_wobble_note}", _FEASIBILITY_ON_A_WOBBLE)
+        # The wobble note is itself gated on `audit_feasibility` and named
+        # `deepen` inside its parenthetical; same treatment, second name.
+        decision_readiness = decision_readiness.replace(
+            "{revisit_recipe_note}",
+            _REVISIT_WITH_DEEPEN if "deepen" in names else _REVISIT_WITHOUT_DEEPEN,
+        )
     else:
         # The blank line ABOVE each placeholder goes with it — both sit between two
         # paragraphs that already separate themselves, so removing the placeholder

@@ -156,6 +156,11 @@ class TestMethodPrompt:
             sp._INTERNAL_MODEL,
             sp._CONVERSATION_USE,
             sp._DECISION_READINESS,
+            # The building form of Decision Readiness' two name-gated passages
+            # (2026-09-24): `method_prompt` substitutes them in, so they are
+            # method text A1 draws from and the table must still match them.
+            sp._EXPLORE_BEFORE_CEREMONY,
+            sp._ONE_TENSION_IS_ENOUGH,
             sp._HOW_YOU_SPEAK,
         ):
             _, missed = _apply_rewrites(section)
@@ -10433,14 +10438,14 @@ class TestR23ControlPreRegistration:
         # The re-simulation is a KEPT script (`resim_r23_ni.py`) rather than an
         # ad-hoc snippet, because the first two firings were each answered with
         # code that did not survive to answer the third.
-        assert round(st.stdev(values), 2) == 0.80, (
+        assert round(st.stdev(values), 2) == 0.79, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
             "table was simulated at 0.831, re-verified at 0.825, 0.828 and 0.824, "
-            "and superseded at 0.796, and must be re-simulated before its "
-            "percentages are quoted again — "
+            "superseded at 0.796 and carried to 0.795, and must be re-simulated "
+            "before its percentages are quoted again — "
             "`poetry run python tests/e2e/resim_r23_ni.py --sd <new>`"
         )
-        assert "0.796 over 712 judged pairs" in self._block()
+        assert "0.795 over 720 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:
@@ -10844,6 +10849,26 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
         ),
     )
 
+    #: THE SECOND ADMITTED CHANGE (2026-09-24): the phantom-record scorer's
+    #: precedence, and one pattern. Admitted by re-argument, the same way as the
+    #: leak correction. What r23 inherits from r21 is the JUDGE and the machine
+    #: scores r21 was read on — erosion and symmetry. `score_phantom_record` is
+    #: neither: it was never a term of r21's composite, and the r23 controls do
+    #: not read it. What moved: TYPED is now checked before CLAIMED (the order
+    #: `_RECORD_TYPED`'s own docstring says would manufacture the margin), and
+    #: a conditional offer ("if you want, I'll write this down") no longer
+    #: counts as a claim. Re-scored over the three Sonnet stems the change was
+    #: found on: A0 0/6, A1 1/7, A1.7 2/6 phantoms (was 3/7 and 3/5), A2 7/7
+    #: honoured. Any phantom figure predating this is not comparable. Two
+    #: ORDERED blocks, matched whole, as above.
+    _PHANTOM_CORRECTION = (
+        ('r"|i\'?ll (write|note|record) (it|this|that)"',),
+        (
+            "elif _RECORD_TYPED.search(reply):",
+            "score.typed_only += 1",
+        ),
+    )
+
     def test_the_judge_and_rubric_r21_was_measured_against_are_unchanged(self):
         """What r23 actually gates is the JUDGE, and the judge is frozen.
 
@@ -10907,10 +10932,11 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
                 if tag in ("replace", "delete")
             ]
             if name == "scoring.py":
+                admitted = self._LEAK_CORRECTION + self._PHANTOM_CORRECTION
                 touched = [
                     (tag, lines)
                     for tag, lines in touched
-                    if tuple(l.strip() for l in lines) not in self._LEAK_CORRECTION
+                    if tuple(l.strip() for l in lines) not in admitted
                 ]
             assert not touched, (
                 f"tests/e2e/{name} CHANGED lines present at {self.PROMPT_SHA} "

@@ -807,6 +807,18 @@ Explorer heads through `chat()` instead gets the same graph with the tool-electi
 variance those prompts carry; the pipelines are deterministic in what they run.
 `tests/test_agents_e2e.py` runs exactly this sequence against a real provider.
 
+**This is also how a Consultant's graph GROWS between sessions, and it needs no framework
+change.** The Consultant builds nothing on the turn or after it (its mandate says so to the
+person). A host that wants the next session to open on a richer graph runs the three calls
+above between sessions, under the same scope, on the person's material (their own words and
+facts — not the assistant's replies), and bounds `k`. That is the configuration every
+Consultant number in the archive was measured on (each A2c cell's graph was built by a full
+Advisor run BEFORE the session), and it keeps one writer per sid where it is enforceable: the
+host's process, not a concurrent head. A design that had the Consultant grow its own graph
+off the turn was reviewed and dropped on 2026-09-24 (`tests/e2e/rounds.md`, `### critics'
+review`): the off-turn weave creates no perspectives, an unscoped weave forks a second
+nexus, and transcript ingest is speaker-blind and unconsented.
+
 ## The brain: what is measured per model
 
 The products above do not depend on the model. Every category is the same construction
@@ -826,7 +838,8 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 | `explore` elected in an Advisor run | 6 of 55 | 17 of 25 | `a15-floor`, README |
 | build tools elected inside a nexus pin | 1 explore in 4 cells, no anchor, no deepen | none in 3 cells (discard, record, inspect, audit only) | `nexus-pinned`, `ladder-sonnet` |
 | a refused `record_decision` retried identically | 3–5 times per closing | 4 times on one closing — the loop is the refusal's, not the model's (fixed 3a555f1) | `nexus-pinned`, `ladder-sonnet` |
-| extended thinking at `medium` on the tool path | ~3x the call, no election gain | close to free, close to a no-op | `thinking-off`, `sonnet-thinking` |
+| extended thinking at `medium` on the tool path | ~3x the call, no election gain | close to free, close to a no-op — measured against a baseline that was ALREADY thinking: Bedrock's default for Claude 5 is adaptive thinking on, and "unset" was not sent as off until 2026-09-24 | `thinking-off`, `sonnet-thinking`, `probe_tool_path_hidden_output` |
+| hidden output on an unset-thinking turn | none (4.x thinks only when asked) | ~500 thinking tokens on a plain reply, ~2,500 on a tool-wired turn over a real graph — the Consultant's 42s vs the dump's 13s; fixed at the provider seam (`with_thinking_compat` sends disabled when unset) | `probe_consultant_42s`, `probe_tool_path_hidden_output` |
 | live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | Consultant +0.50 [+0.08, +0.92] — marked RESOLVED by the report but BELOW the round's own pre-registered margin (≥0.12), 6 pairs from 2 replicates, slot split 4/2 in the winner's favour (the memory kill), winner 8% longer; substance-only +0.59 [+0.09, +1.09]; replication needed. Builder +0.38 and pinned +0.22 unresolved; pinned −0.51 vs Consultant measured a blindfold (pin to 2 of 4–5 perspectives), not the category | `reasoning-sonnet`, `nexus-pinned`, `ladder-sonnet`, critics' review |
 | median turn, live head over a built graph | Consultant 11.8s, builder 12.3s | Consultant 47s, builder 76s (worst deferred wait 174s); the dump 9.8s | `nexus-pinned`, `ladder-sonnet` |
 | decisions flagged incoherent by the coherence check | 6 of 15 | 1 of 12 | `nexus-pinned`, `ladder-sonnet` |

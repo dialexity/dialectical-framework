@@ -114,12 +114,26 @@ DEFAULT_ARMS: tuple[Arm, ...] = (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2)
 #: `reasoning-sonnet`). `(A2, A2N)` — unscoped building from nothing against
 #: pinned building on a graph: the two Advisor categories side by side. Opt-in
 #: for the same reason as A2c, same filters.
+#:
+#: THE TWO CONSULTANT-VS-PROMPT PAIRS (2026-09-24, critics' review)
+#: ================================================================
+#: `(A2C, A1)` and `(A2C, A1_7)` — the Consultant against the same method as a
+#: tool-less prompt, with and without the model's own journal. Never run before:
+#: the archive priced the Consultant only against the static dump of its own
+#: graph and against the builder, and the product decision that named it THE
+#: person-facing surface rested on those two rows. Chaining the archive's own
+#: numbers (`A2 ≈ A1` in-session, `A2 ≈ A2c`) leaves `A2c ≈ A1` the likeliest
+#: state of the world, at 47s against 11s a turn — the comparison that answers
+#: whether a person feels the graph. Same filters as every A2c pair: a session
+#: whose build produced no structure is `consultant_without_structure`.
 JUDGED_PAIRS: tuple[tuple[Arm, Arm], ...] = (
     (Arm.A1, Arm.A0),
     (Arm.A1_5, Arm.A1),
     (Arm.A2, Arm.A1),
     (Arm.A2, Arm.A1_5),
     (Arm.A2C, Arm.A1_5),
+    (Arm.A2C, Arm.A1),
+    (Arm.A2C, Arm.A1_7),
     (Arm.A2, Arm.A2C),
     (Arm.A2N, Arm.A2C),
     (Arm.A2N, Arm.A1_5),

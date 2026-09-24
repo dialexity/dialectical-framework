@@ -1091,12 +1091,29 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 lines.append(stamp)
             s_plus = synth.s_plus.get()
             s_minus = synth.s_minus.get()
+            # The WHY beside each pole, from the rationales the generation call
+            # produced (roled `s_plus` / `s_minus` on the EXPLAINS edge). Without
+            # them the synthesis is a seven-word headline the model reads least
+            # of anything in the dump; the mechanism is what makes it usable.
+            # `one_line`: model-written prose on a line-prefixed dump.
+            whys: dict[str, str] = {}
+            try:
+                for rationale, rel in synth.rationales.all():
+                    role = getattr(rel, "role", None)
+                    if role in ("s_plus", "s_minus") and rationale.text:
+                        whys.setdefault(role, one_line(rationale.text))
+            except Exception:  # noqa: BLE001 - a missing why renders as before
+                whys = {}
             if s_plus:
                 stmt, _ = s_plus
                 lines.append(f"S+: \"{stmt.text}\"")
+                if whys.get("s_plus"):
+                    lines.append(f"Why S+: {whys['s_plus']}")
             if s_minus:
                 stmt, _ = s_minus
                 lines.append(f"S-: \"{stmt.text}\"")
+                if whys.get("s_minus"):
+                    lines.append(f"Why S-: {whys['s_minus']}")
         return "\n".join(lines) if lines else None
 
     def _synthesis_stamp(self, synth: Synthesis) -> Optional[str]:

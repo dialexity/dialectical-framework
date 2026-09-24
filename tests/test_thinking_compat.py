@@ -102,8 +102,22 @@ class TestTranslation:
             "type": "disabled"
         }
 
-    def test_no_thinking_stays_absent(self):
+    def test_no_thinking_means_disabled_on_an_adaptive_model(self):
+        """The contract is "nothing thinks unless a level is set", and on a
+        Claude 5 model an ABSENT thinking key does not deliver it: Bedrock's
+        default for the adaptive shape is thinking on. Measured 2026-09-24
+        (`probe_tool_path_hidden_output`): every unset call returned a
+        `thinking` block, ~500 tokens on a plain reply and ~2,500 on a
+        tool-wired turn over a real graph — the Consultant's 42s against the
+        dump's 13s. So unset is sent as "disabled" where the default thinks."""
         kwargs = {"model": "global.anthropic.claude-sonnet-5", "max_tokens": 1024}
+        out = with_thinking_compat(kwargs["model"], kwargs, {})
+        assert out["thinking"] == {"type": "disabled"}
+        assert "thinking" not in kwargs, "input must not be mutated"
+
+    def test_no_thinking_stays_absent_on_a_budgeted_model(self):
+        """A 4.x model does not think unless asked; nothing to send."""
+        kwargs = {"model": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_tokens": 1024}
         assert "thinking" not in with_thinking_compat(kwargs["model"], kwargs, {})
 
     def test_unknown_level_drops_effort_but_still_adapts(self):

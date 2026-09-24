@@ -288,7 +288,10 @@ variable is the engine prompt plus the tool turn, not building — see `rounds.m
 dump buy the live graph's counsel?" (4x faster, quality indistinguishable) and A2c asks the
 next question: does a LIVE read of that same graph, with decisions recorded, keep A1.5's
 latency? Read `A2c−A1.5` for the price of the live read and the decision tools, and
-`A2−A2c` for what the four build tools buy on the turn. Each A2c cell builds its own graph
+`A2−A2c` for what the four build tools buy on the turn. **`A2c−A1` and `A2c−A1.7`
+(wired 2026-09-24, never yet run) are the rows the product decision needs**: the
+Consultant against the method as a tool-less prompt, with and without the model's own
+journal — whether a person feels the graph at all, at 47s against 11s a turn. Each A2c cell builds its own graph
 (a full Advisor run over the base sessions, carried as `consultant_build_s` on the cell and
 INSIDE its `duration_s`, never inside its per-turn timing) rather than sharing one across
 replicates: the Consultant WRITES decisions into the graph it consults, and a shared graph

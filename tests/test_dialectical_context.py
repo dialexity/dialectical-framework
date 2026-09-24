@@ -723,3 +723,57 @@ class TestScopedDumpCarriesTheCase:
         # in the tetrad block: the hoist exists because per-block grounding was
         # measured referenced 0.04 of the time.
         assert "- Founder's spouse co-signed the lease." in result
+
+
+class TestTheSynthesisDumpCarriesItsWhy:
+    """`_dump_synthesis` renders the roled rationales beside each pole (critics'
+    review, 2026-09-24). Duck-typed: a real wheel is a multi-second fixture and
+    the renderer reads only `wheel.synthesis`, `synth.s_plus/s_minus`,
+    `synth.rationales` and `format_spiral`, which is patched out."""
+
+    def _synth(self, whys):
+        import types
+
+        def rel(role):
+            return types.SimpleNamespace(role=role)
+
+        stmt = lambda text: types.SimpleNamespace(text=text)
+        rationales = [(types.SimpleNamespace(text=text), rel(role)) for role, text in whys]
+        synth = types.SimpleNamespace(
+            short_hash="synth01",
+            completeness=None,
+            s_plus=types.SimpleNamespace(get=lambda: (stmt("Trust that compounds"), None)),
+            s_minus=types.SimpleNamespace(get=lambda: (stmt("Control that hollows out"), None)),
+            rationales=types.SimpleNamespace(all=lambda: rationales),
+        )
+        wheel = types.SimpleNamespace(synthesis=types.SimpleNamespace(all=lambda: [(synth, None)]))
+        return wheel
+
+    def test_why_lines_render_by_role(self, monkeypatch):
+        from dialectical_framework.concerns import dialectical_context as dc
+
+        monkeypatch.setattr(dc, "format_spiral", lambda wheel, idx: "")
+        ctx = dc.DialecticalContext()
+        monkeypatch.setattr(ctx, "_synthesis_stamp", lambda synth: None)
+        out = ctx._dump_synthesis(
+            self._synth([
+                ("s_plus", "The handoff credit feeds the retention\nclause, which feeds trust."),
+                ("s_minus", "Speed without the credit erodes the accounts."),
+                (None, "unrelated note"),
+            ]),
+            {},
+        )
+        assert 'S+: "Trust that compounds"' in out
+        assert "Why S+: The handoff credit feeds the retention clause, which feeds trust." in out
+        assert 'S-: "Control that hollows out"' in out
+        assert "Why S-: Speed without the credit erodes the accounts." in out
+        assert "unrelated note" not in out
+
+    def test_a_synthesis_without_a_why_renders_as_before(self, monkeypatch):
+        from dialectical_framework.concerns import dialectical_context as dc
+
+        monkeypatch.setattr(dc, "format_spiral", lambda wheel, idx: "")
+        ctx = dc.DialecticalContext()
+        monkeypatch.setattr(ctx, "_synthesis_stamp", lambda synth: None)
+        out = ctx._dump_synthesis(self._synth([]), {})
+        assert "Why" not in out and 'S+: "Trust that compounds"' in out
