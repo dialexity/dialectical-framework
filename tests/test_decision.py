@@ -2151,6 +2151,38 @@ class TestTheAdoptedPathwayLocatesTheSharedPrice:
             )
             assert located is not None and located.hash == p2.hash
 
+    def test_a_cited_tension_is_not_unlocated_by_the_pathways_wheel(self, monkeypatch):
+        """`thinking-check-off` (2026-09-24): the model sent one of the listed
+        tensions as a plain ground, as the refusal asked, beside an adopted
+        pathway whose wheel held the OTHER candidates — and was refused nine
+        times in one turn, because the narrowing unioned the pathway's frame
+        back in. A plain single-tension ground settles the location; a wide
+        ground cannot widen it. Here the cited tension (p2) is not even on
+        the pathway's wheel, which is the shape the run had."""
+        from dialectical_framework.concerns.record_decision import RecordDecision
+        from test_dialectical_context import _create_perspective_with_aspects
+
+        with scope(_new_sid()):
+            p1, p2, shared = self._build()
+            p3 = _create_perspective_with_aspects(
+                thesis_text="Growth", antithesis_text="Stability", t_minus_text=shared.text
+            )
+            # The pathway's wheel holds p1 and p3; p2 is cited plainly.
+            pathway = self._Pathway(self._Wheel([p1, p3]), {p1.hash: p1, p3.hash: p3})
+            real_frame = RecordDecision._perspective_frame
+
+            def frame(node, role=None):
+                if isinstance(node, self._Pathway):
+                    return node._frame
+                return real_frame(node, role)
+
+            monkeypatch.setattr(RecordDecision, "_perspective_frame", staticmethod(frame))
+            resolved = [(shared, "accepted_cost"), (p2, None), (pathway, "adopted_pathway")]
+            # Located by the cited tension: nothing to add...
+            assert RecordDecision._locate_shared_price(resolved) is None
+            # ...and Rule B agrees instead of refusing.
+            assert RecordDecision._ground_set_inconsistency(resolved) is None
+
     def test_a_source_segment_outside_the_candidates_locates_nothing(self, monkeypatch):
         """The price is not a minus of the source perspective at all: the
         locator must not invent a tetrad — fall through to the wheel and the

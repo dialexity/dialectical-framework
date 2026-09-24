@@ -7604,3 +7604,45 @@ WHAT WOULD CHANGE. (a) A2−A1 comparable in both stems: the 16s turn is free, k
 default. (b) A2−A1 drops without thinking: the machinery's counsel WAS the model's private
 reasoning over the graph; either the conversational default becomes `medium` and the turn
 cost is accepted, or the reply obligation (todo 5) has to carry what thinking carried.
+
+### thinking-check: RESULT — without its default thinking the machinery falls below the prompt arm in-session, confounded by a refusal loop the same run exposed (2026-09-24)
+
+Run as pre-registered, both stems on 7f328a7, levels recorded (`None` / `medium`), one
+scenario, 8 cells and 8 judged pairs each, slot split even (4/4) in both.
+
+    A2 vs A1              composite            decide  wobble_a  wobble_b   A2 turn   refusals
+    off (today's default) -0.27 [-1.31,+0.76]   -0.52    -0.88     +0.83     17.9s     14
+    medium                +0.35 [-0.54,+1.25]   +0.33    +0.62     +0.12     49.1s      3
+    A1 (control)          same arm both stems; median turn 12.0s / 11.1s
+
+ENDPOINT 1. The difference between the rows is 0.62 composite — above the ~0.4 this n
+can produce by noise — while neither row resolves alone. Direction: outcome (b). The
+machinery's in-session standing on Sonnet rested, in part, on the thinking its
+conversational round was doing by default. Off, it loses `decide` and `wobble_a` (the
+already-mapped risk resurfacing) and wins only `wobble_b` (new information); at medium it
+is ahead on every session and elects `inspect_node` 14 times against 5 — it READS the graph
+more when it thinks.
+
+THE CONFOUND, and it is the same defect for the third time with a better instrument. The
+off arm was refused by `record_decision` 14 times (one turn: nine refusals, 102s); the
+medium arm 3. `TurnRecord.decision_args` (new this week) shows what the earlier rounds
+could not: the model SENT one of the tensions the refusal listed, as a plain ground, and
+was refused anyway — `_ground_set_inconsistency`'s narrowing unioned every other ground's
+frame, and the adopted pathway's frame is its whole wheel, which put the other candidates
+straight back. The refusal's own text says a pathway "does not locate it"; the code let it
+un-locate it. The source-segment locator (a369034) never reached this case. Fixed after
+both stems ran (neither has it): a plain ground that IS one candidate tension settles the
+location and wide grounds cannot widen it (`_named_tensions`; test
+`test_a_cited_tension_is_not_unlocated_by_the_pathways_wheel`). How much of the off arm's
+−0.62 is the loop and how much is the missing thinking cannot be read off this run.
+
+ENDPOINT 3. The latency half is exact: 17.9s against 49.1s median, 2.7x, on the same
+prompt arm baseline.
+
+WHAT THIS DECIDES. Nothing flips yet. Next, in order: (i) re-run the OFF stem on the
+refusal fix — one hour — and read it against `medium`; if the gap closes, the 18s turn is
+free and the loop was the cost; if it does not, the conversational default becomes
+`medium` and the 49s turn is the price of the machinery's counsel, which is the honest
+statement of what it was always paying. (ii) Either way, the reply obligation added today
+(the S+ clause) is untested and the wobble_a loss — the branch the record exists for — is
+where to look first.

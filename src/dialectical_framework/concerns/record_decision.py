@@ -530,14 +530,31 @@ class RecordDecision(ReasonableConcern[str | None]):
             for i, (node, role, frame) in enumerate(frames):
                 if role != "accepted_cost" or not frame or len(frame) == 1:
                     continue
+                # A plain ground that IS one tension names it, and nothing wide
+                # may widen it back. Measured (`thinking-check-off`, 2026-09-24,
+                # the first round whose record carries the ground sets): the
+                # model sent one of the three tensions the refusal listed, as a
+                # plain ground, exactly as asked — and was refused nine times in
+                # one 102s turn, because the narrowing below unioned EVERY other
+                # ground's frame and the adopted pathway's frame is its whole
+                # wheel, which put the other two candidates straight back. The
+                # refusal's own text says a pathway "does not locate it"; the
+                # code let it UN-locate it. So: what a plain single-tension
+                # ground names is settled first, and only where nothing names a
+                # tension does the union, the pathway's edge, its wheel and the
+                # sibling rule get a say.
+                named = cls._named_tensions(frames, skip=i)
+                by_name = {k: v for k, v in frame.items() if k in named}
+                if len(by_name) == 1:
+                    continue  # located by a plain tension ground; Rule B agrees
                 others: dict[str, object] = {}
                 for j, (_n, _r, other) in enumerate(frames):
                     if j != i and other:
                         others.update(other)
                 narrowed = {k: v for k, v in frame.items() if k in others}
-                if len(narrowed) == 1:
+                if not by_name and len(narrowed) == 1:
                     continue  # already located by another ground
-                candidates = list((narrowed or frame).values())
+                candidates = list((by_name or narrowed or frame).values())
                 # The adopted pathway names the priced tetrad outright. Both of
                 # a Transformation's generative positions consume the SOURCE
                 # segment's minuses (Ac+ = source.T- → target.A+, Re+ =
@@ -604,6 +621,23 @@ class RecordDecision(ReasonableConcern[str | None]):
             return None
         except Exception:  # noqa: BLE001 - never lose a confirmed decision to this
             return None
+
+    @staticmethod
+    def _named_tensions(
+        frames: list[tuple[AssessableEntity, str | None, dict[str, object] | None]],
+        skip: int,
+    ) -> set[str]:
+        """The tensions the record NAMES: hashes from plain (roleless) grounds
+        whose frame is exactly one perspective — a Perspective cited directly,
+        or a Statement that sits in only one. A pathway, an arrangement or a
+        nexus has a wide frame and names nothing; that is the distinction the
+        refusal text draws and the narrowing used to ignore."""
+        named: set[str] = set()
+        for j, (_node, role, frame) in enumerate(frames):
+            if j == skip or role is not None or not frame or len(frame) != 1:
+                continue
+            named.update(frame.keys())
+        return named
 
     @staticmethod
     def _pathway_source_perspectives(
@@ -759,8 +793,14 @@ class RecordDecision(ReasonableConcern[str | None]):
         for i, (node, role, frame) in enumerate(frames):
             if role != "accepted_cost" or not frame or len(frame) == 1:
                 continue
+            # Same precedence as `_locate_shared_price`: a plain ground that IS
+            # one of the candidate tensions locates the price, whatever wider
+            # frames (a pathway's wheel, an arrangement) also sit on the record.
+            by_name = {k: v for k, v in frame.items() if k in cls._named_tensions(frames, skip=i)}
+            if len(by_name) == 1:
+                continue
             narrowed = {k: v for k, v in frame.items() if k in others_of(i)}
-            if len(narrowed) == 1:
+            if not by_name and len(narrowed) == 1:
                 continue
             return (
                 f"ground [[{node.short_hash}]] is the accepted cost, but that "
