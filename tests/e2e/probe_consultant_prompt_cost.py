@@ -77,8 +77,8 @@ import statistics
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import (
-    Advisor, ChatResponse, _build_consultant_tools)
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+    Advisor, ChatResponse, _build_tools)
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.concerns.dialectical_context import \
@@ -141,7 +141,7 @@ def _main_call(census):
 async def _run_advisor(dump: str) -> dict:
     advisor = Advisor(
         app_preamble=E2E_PERSONA,
-        mode=AdvisorMode.CONSULTANT,
+        build=BuildPolicy.NEVER,
         principal="agent:probe",
     )
     with call_census() as census:
@@ -194,7 +194,7 @@ async def test_probe_consultant_prompt_cost(di_container):
         dump = await DialecticalContext().resolve()
         # The engine text the Consultant actually carries, with THIS dump in it.
         engine_advisor = Advisor(
-            app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT
+            app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER
         )
         await engine_advisor._refresh_context()
         engine_prompt = _prompt_text(engine_advisor)
@@ -211,12 +211,12 @@ async def test_probe_consultant_prompt_cost(di_container):
             "B method+no tools (A1.5)": lambda: _run_facilitator(method, None),
             "C engine+no tools": lambda: _run_facilitator(engine_prompt, None),
             "D method+tools": lambda: _run_facilitator(
-                method, _build_consultant_tools("agent:probe")
+                method, _build_tools("agent:probe", build=BuildPolicy.NEVER)
             ),
             # E isolates the Advisor's own plumbing (settle, refresh, seam) from
             # the provider call: same text and tools as A, bare facilitator.
             "E engine+tools (bare)": lambda: _run_facilitator(
-                engine_prompt, _build_consultant_tools("agent:probe")
+                engine_prompt, _build_tools("agent:probe", build=BuildPolicy.NEVER)
             ),
         }
         results: dict[str, list[dict]] = {k: [] for k in conditions}

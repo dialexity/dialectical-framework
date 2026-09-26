@@ -23,7 +23,8 @@ exposes none of the machinery — pinned to one exploration for an analyst or me
 (`Advisor(nexus_hash=, messages=)`), or from scratch for their client (`Advisor(app=)`),
 whose sessions end up building a nexus and diving into it (`persona=True` keeps the
 persona over the pin). The **Consultant** is the Advisor with the build tools withheld
-(`Advisor(mode=AdvisorMode.CONSULTANT)`): a graph something else built — see
+(`Advisor(build=BuildPolicy.NEVER)`, or `ON_CONSENT` to let the graph grow on the person's
+word between turns): a graph something else built — see
 [Choosing what to build](#choosing-what-to-build) and the headless builder under it.
 
 All three live in `agents/{analyst,explorer,advisor}/`. See also `docs/graph.md`
@@ -106,7 +107,7 @@ Analyst(app=None, app_preamble=None, messages=None, app_tools=None, advanced=Fal
 Explorer(nexus_hash, app=None, app_preamble=None, messages=None, app_tools=None, advanced=False) # bound to one Nexus
 Advisor(app=None, app_preamble=None, dialectical_context=None, messages=None,
         nexus_hash=None, app_tools=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
-        mode=AdvisorMode.FULL, thinking=FROM_SETTINGS, persona=False)
+        build=BuildPolicy.ON_ELECTION, records=True, thinking=FROM_SETTINGS, persona=False)
 ```
 
 **`app` (an `AppSpec`, `agents/app_spec.py`) is the recommended interface**: the app
@@ -363,7 +364,7 @@ mechanics stay in the engine's Decision Readiness section).
 
 **Construct:** `Advisor(app_preamble=None, dialectical_context=None, messages=None,
 nexus_hash=None, app_tools=None, app=None, principal=UNATTESTED_PRINCIPAL, advanced=False,
-mode=AdvisorMode.FULL, thinking=FROM_SETTINGS, persona=False)`. `thinking` is the person's extended-thinking
+build=BuildPolicy.ON_ELECTION, records=True, thinking=FROM_SETTINGS, persona=False)`. `thinking` is the person's extended-thinking
 toggle for this session, the same per-session shape as `advanced` (pass one value to every head
 they are looking at): not given defers to the deployment's `DIALEXITY_CONVERSATION_THINKING_LEVEL`,
 `None` is off, a level is on. It reaches only the conversational call, never a concern — concerns
@@ -405,32 +406,41 @@ built-in set. The engine prompt carries no docs for them (their tool-schema docs
 reach the LLM automatically) — introduce them and their usage rules in the app
 preamble, where domain vocabulary lives. Shadowing a built-in tool name raises.
 
-`mode=` selects which of the Advisor's **three modes** this head runs in
-(`agents/advisor/mode.py`) — a different axis from the four app categories in
-[Choosing what to build](#choosing-what-to-build): a category says WHO is talking, a mode
-says what the head is allowed to do to the graph. The axis is *builds structure* versus
-*does not*, not read versus write: what costs a person minutes on a turn is the four build tools (`ingest`, `anchor`,
-`explore`, `deepen`), while recording a confirmed decision is one call of a few seconds and
-discarding is free.
+`build=` says WHEN this head builds structure and `records=` WHETHER it may write at all
+(`agents/advisor/build_policy.py`) — a different axis from the four app categories in
+[Choosing what to build](#choosing-what-to-build): a category says WHO is talking, the policy
+says what the head is allowed to do to the graph, and when. What costs a person minutes on a
+turn is the four build tools (`ingest`, `anchor`, `explore`, `deepen`), while recording a
+confirmed decision is one call of a few seconds and discarding is free — so the question is not
+"may it write" but "when may it build".
 
-| Mode | Tools | Builds | Records decisions | For |
-|------|-------|--------|-------------------|-----|
-| `FULL` (default) | all ten | yes, on and off the turn | yes | the two Advisor categories: from scratch, and on a nexus (the advisory register or a pinned persona) |
-| `CONSULTANT` | `sync`, `inspect_node`, `read_digest`, `record_decision`, `discard`, `audit_feasibility` | **never** — not on the turn, and the closing seam records without starting the off-turn weave | yes, grounded on the pathways that already exist | **the Consultant**: a conversation over a graph that was built before it. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
-| `VIEW` | `sync`, `inspect_node`, `read_digest` | no | **no** — the closing seam declines | a second reader on someone else's Case, a shared or public view, a support seat |
+| `build=` | Tools | Builds on the turn | Builds off the turn | For |
+|----------|-------|--------------------|---------------------|-----|
+| `ON_ELECTION` (default) | all ten | yes, whenever the model elects to | yes — the closing seam weaves what was left unwoven | the two Advisor categories: from scratch, and on a nexus (the advisory register or a pinned persona) |
+| `ON_CONSENT` | `sync`, `inspect_node`, `read_digest`, `record_decision`, `discard`, `audit_feasibility`, **`note`** | **never** — a reply is one graph read plus the model | yes, on the person's word: what they ask to have written down (`note`: `anchor`'s parameters, queued and planted after the reply) and a decision they confirm start the same off-turn task, anchored first if the graph is empty. In an exploration (the pin, or the case's one exploration) a note is woven into it; outside any, a note is the analysis part alone — planted as a tension, not woven — and a closing is what creates the exploration | a consultation whose understanding should keep growing without ever making the person wait for it — the "write that down" surface. Unbenched |
+| `NEVER` | the same minus `note` | never | **never** — the closing seam records without starting the weave | **the Consultant**: a conversation over a graph that was built before it and stays as built. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
 
-All three compose with `nexus_hash=`. Enforced by the TOOLSET and, for the framework's own
+`records=False` narrows any of them to the three reads (`sync`, `inspect_node`, `read_digest`):
+a second reader on someone else's Case, a shared or public view, a support seat. A permission,
+not a policy: it composes with `NEVER` (the reading seat) and with `ON_ELECTION` (a head that
+builds what the model elects and keeps no ledger), and raises with `ON_CONSENT`, whose two
+triggers are both writes. Pinned (`nexus_hash=`), the permission also withholds the build
+tools — they would be writes into someone's deliverable.
+
+All of them compose with `nexus_hash=`. Enforced by the TOOLSET and, for the framework's own
 initiative, by the closing seam — never by prompt, the same division of labour as the nexus
 pin. That is a deliberate choice against a "prefer reading" preamble: tool-election
 instructions measurably do not hold (`anchor` fired 6/6, `explore` 2/6, `deepen` 0/6 under
-the full prompt), so a prompt-deprioritised mode would be fast on most turns and take a
-minute on whichever turn the model anchors anyway. What `VIEW` costs, and it must be said to
-whoever picks it: a person who states a decision in that conversation gets **no record of it**
-(the seam that catches the model not calling `record_decision` is exactly what is switched
-off — measured 0/6 at the weak tier). `principal` is accepted and ignored on `VIEW`;
-`app_tools` are still merged on both narrow modes, deliberately — the framework cannot tell
-a host's chart lookup from a host's write, so the mode governs the framework's tools and the
-host owns its own. The Consultant's latency against the full Advisor and against a static dump
+the full prompt), so a prompt-deprioritised policy would be fast on most turns and take a
+minute on whichever turn the model anchors anyway. What `records=False` costs, and it must be
+said to whoever picks it: a person who states a decision in that conversation gets **no record
+of it** (the seam that catches the model not calling `record_decision` is exactly what is
+switched off — measured 0/6 at the weak tier). `principal` is accepted and ignored without
+`records`; `app_tools` are still merged on every surface, deliberately — the framework cannot
+tell a host's chart lookup from a host's write, so the policy governs the framework's tools and
+the host owns its own. And the host obligation does not change: `wait_for_deferred_work()`
+before the process goes away, on `ON_CONSENT` as on `ON_ELECTION` — a note is planted by the
+same task a closing's weave runs on. The Consultant's latency against the full Advisor and against a static dump
 is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says the build
 tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
 the same graph. The per-turn graph render (3.2s) has since been removed by a fingerprint-gated
@@ -484,10 +494,12 @@ displays it.
   Explorer session, reached by handover. Pinned **with `persona=True`** it is the standalone
   app again, narrowed to one exploration — how a client's conversation continues inside the
   exploration it built.
-- The **Consultant** (`mode=AdvisorMode.CONSULTANT`) is the one to reach for when the graph
+- The **Consultant** (`build=BuildPolicy.NEVER`) is the one to reach for when the graph
   already exists and the person wants to talk it through and decide: same chat window, a
   turn is one graph read plus the model, decisions are recorded, nothing is built.
-- The **View** (`mode=AdvisorMode.VIEW`) is for a seat that is not the one doing the work —
+  `build=ON_CONSENT` is the same window with one more thing the person can say — "write
+  that down" — and the graph grows from it between turns.
+- A **reading seat** (`records=False`) is for a seat that is not the one doing the work —
   a viewer, a second reader, a support agent. The conversation looks identical; the graph is
   untouched, and nothing said in it is recorded.
 
@@ -740,12 +752,13 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
 | **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (Haiku, n=8): equal to the Consultant, loses to the dump. `ladder-sonnet` (Sonnet 5, n=6): above the dump (+0.22, unresolved) but a resolved loss to the Consultant (−0.51 [−0.97, −0.05]) — and on both models no build tool elected inside the pin. Read with the caveat in `rounds.md`: a Sonnet build makes several nexuses and the bench pins to one, so the pin hid most of the graph |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
-| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(mode=CONSULTANT)`, with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
+| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(build=NEVER)` (or `ON_CONSENT`, to let it grow on their word), with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
 
-The categories and the Advisor's `mode=` are two axes, not one list: the two Advisor
-categories run `FULL`, the Consultant runs `CONSULTANT`, and `VIEW` is an access level under
-the Consultant rather than a fifth category — the same conversation, nothing recorded, for a
-seat that is not the one doing the work.
+The categories and the Advisor's `build=`/`records=` are two axes, not one list: the two
+Advisor categories run `ON_ELECTION`, the Consultant runs `NEVER` (as benched) or `ON_CONSENT`
+(unbenched), and `records=False` is an access level under any of them rather than a fifth
+category — the same conversation, nothing recorded, for a seat that is not the one doing the
+work.
 `messages` is resumption on every head and never a mode. `thinking=`, `advanced=` and
 `persona=` are properties of the person for the session, passed to every head they see;
 `DIALEXITY_REASONING_MODEL` is the deployment's, for the structured calls every category

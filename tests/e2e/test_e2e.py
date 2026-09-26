@@ -3731,7 +3731,7 @@ class TestReport:
 class TestTheConsultantArm:
     """A2c: the third product surface on the ladder (2026-09-18).
 
-    Same build as A1.5, consulted live with `Advisor(mode=CONSULTANT)`. What
+    Same build as A1.5, consulted live with `Advisor(build=NEVER)`. What
     the arm must get right is the same thing A1.5 had to: a cell handed no
     structure is not a weak Consultant, it is a full-Advisor-without-tools cell
     wearing the label, and it must drop out of every pooled cut.
@@ -3788,7 +3788,7 @@ class TestTheConsultantArm:
 
         source = inspect.getsource(E2EDriver._run_session)
         assert "if arm in (Arm.A2, Arm.A2C, Arm.A2N):" in source
-        assert "AdvisorMode.CONSULTANT" in source
+        assert "BuildPolicy.NEVER" in source
         # Seeded on EVERY session — the graph exists before the conversation.
         assert "if not is_first or arm in (Arm.A2C, Arm.A2N):" in source
 

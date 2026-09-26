@@ -30,8 +30,8 @@ from e2e.probe_consultant_42s import INTENT, K, MATERIAL
 from e2e.probe_consultant_prompt_cost import QUESTION, _prompt_text
 
 from dialectical_framework.agents.advisor.advisor import (
-    Advisor, _build_consultant_tools)
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+    Advisor, _build_tools)
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.tools.explore import \
     run_exploration_detailed
 from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
@@ -103,12 +103,12 @@ async def test_probe_tool_path_hidden_output(di_container):
             hashes = list(analysis.perspective_hashes)[:K]
             created = await CreateNexus().resolve(intent=INTENT, perspective_hashes=hashes)
             await run_exploration_detailed(hashes, INTENT, created.nexus.hash)
-        advisor = Advisor(app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT)
+        advisor = Advisor(app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER)
         await advisor._refresh_context()
         engine_prompt = _prompt_text(advisor)
         print(f"engine prompt {len(engine_prompt)}c")
         for label, tools in (
-            ("engine + consultant tools", _build_consultant_tools("agent:probe")),
+            ("engine + consultant tools", _build_tools("agent:probe", build=BuildPolicy.NEVER)),
             ("engine, no tools", None),
         ):
             conversation = ConversationFacilitator(tools=tools)
@@ -160,10 +160,10 @@ async def test_probe_where_thinking_lands_now(di_container, monkeypatch):
 
     print(f"\nmodel: {MODEL}  thinking: {di_container.settings().conversation_thinking_level!r}")
     with scope(SEED_SID), using_model(di_container, MODEL):
-        advisor = Advisor(app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT)
+        advisor = Advisor(app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER)
         await advisor._refresh_context()
         engine_prompt = _prompt_text(advisor)
-        conversation = ConversationFacilitator(tools=_build_consultant_tools("agent:probe"))
+        conversation = ConversationFacilitator(tools=_build_tools("agent:probe", build=BuildPolicy.NEVER))
         conversation.set_system_prompt(engine_prompt)
         conversation._messages.append(llm.messages.user(QUESTION))
         await conversation._call_with_tools()

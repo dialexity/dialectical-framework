@@ -59,7 +59,7 @@ class Arm(str, Enum):
     A1_5 = "A1.5"  # + pre-built graph dumped as static text
     A1_7 = "A1.7"  # + self-maintained prose decision journal
     A2 = "A2"  # full Advisor: live tools, graph, ceremony
-    #: The Consultant (`Advisor(mode=CONSULTANT)`): a graph built beforehand by
+    #: The Consultant (`Advisor(build=NEVER)`): a graph built beforehand by
     #: the full Advisor — the same build A1.5 dumps — then consulted LIVE with
     #: the reading tools plus `record_decision`/`discard`/`audit_feasibility`,
     #: and never built on. Sits between A1.5 (same graph, no tools, static text)

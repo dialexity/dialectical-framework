@@ -4310,7 +4310,12 @@ class TestTheConsultantIsNotToldToBuild:
     def _consultant_names(self):
         from dialectical_framework.agents.advisor import advisor as adv
 
-        return [t.__name__ for t in adv._build_consultant_tools("agent:test")]
+        from dialectical_framework.agents.advisor.build_policy import BuildPolicy
+
+        return [
+            t.__name__
+            for t in adv._build_tools("agent:test", build=BuildPolicy.NEVER)
+        ]
 
     def _decision_readiness(self, prompt: str) -> str:
         assert "## Decision Readiness" in prompt

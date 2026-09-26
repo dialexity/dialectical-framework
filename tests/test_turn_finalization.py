@@ -514,6 +514,11 @@ class _StubAdvisor:
     async def _repair_unrecorded_decision(self, user, assistant) -> None:
         self.repairs.append((user, assistant))
 
+    def _schedule_noted_tensions(self) -> None:
+        """No-op stand-in for the consent surface's note scheduler (the loop
+        calls it right after the seam); the real one is tested in
+        `tests/test_advisor_build_policy.py`."""
+
     chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
     _settle_deferred_work = Advisor._settle_deferred_work

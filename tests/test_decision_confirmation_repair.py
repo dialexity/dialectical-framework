@@ -30,7 +30,7 @@ import pytest
 
 from dialectical_framework.agents.advisor.advisor import (_DEFERRED_WORK,
                                                             Advisor)
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.agents.stream_events import ToolResult
 from dialectical_framework.agents.turn_timing import (ClosingOutcome,
@@ -71,15 +71,17 @@ class _StubAdvisor:
         nexus_hash: str | None = None,
         automatic_feasibility_audit: bool = True,
         # Mirrors the real class, and defaulted the same way. The seam declines
-        # outright on the VIEW surface and withholds the weave on CONSULTANT, so
-        # a stub defaulting to either would turn tests in this file green by
-        # never running what they assert on — `tests/test_advisor_modes.py` is
-        # what passes the narrower ones.
-        mode: AdvisorMode = AdvisorMode.FULL,
+        # outright without `records` and withholds the weave under NEVER, so a
+        # stub defaulting to either would turn tests in this file green by
+        # never running what they assert on — `tests/test_advisor_build_policy.py`
+        # is what passes the narrower ones.
+        build: BuildPolicy = BuildPolicy.ON_ELECTION,
+        records: bool = True,
     ) -> None:
         self._principal = principal
         self._nexus_hash = nexus_hash
-        self._mode = mode
+        self._build = build
+        self._records = records
         # Settings reach the real class through DI (`SettingsAware`), which wants
         # a live container these DB-free tests do not build. A per-instance
         # stand-in keeps the audit MODE switchable per test — and it defaults to
@@ -161,6 +163,13 @@ class _StubAdvisor:
     _deferred_work_keys = Advisor._deferred_work_keys
     _deferred_pathway_task = Advisor.__dict__["_deferred_pathway_task"]
     _decisions_awaiting_pathway = Advisor.__dict__["_decisions_awaiting_pathway"]
+    _notes_awaiting_anchor = Advisor.__dict__["_notes_awaiting_anchor"]
+    # The consent surface's half of the drain, bound for the reason the audit
+    # is: unbound, it fails inside the task where nothing can see it.
+    _anchor_noted_tensions = Advisor._anchor_noted_tensions
+    _weave_target_nexus = Advisor._weave_target_nexus
+    _queue_note = Advisor._queue_note
+    _schedule_noted_tensions = Advisor._schedule_noted_tensions
 
 
 def _ok_report() -> ExecutionReport:

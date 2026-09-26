@@ -61,8 +61,8 @@ from e2e.probe_consultant_prompt_cost import QUESTION, _prompt_text
 from e2e.scenarios import COFOUNDER
 
 from dialectical_framework.agents.advisor.advisor import (
-    Advisor, ChatResponse, _build_consultant_tools)
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+    Advisor, ChatResponse, _build_tools)
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.tools.explore import \
     run_exploration_detailed
 from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
@@ -101,7 +101,7 @@ def _census_columns(census) -> dict:
 
 
 async def _run_advisor() -> dict:
-    advisor = Advisor(app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT, principal="agent:probe")
+    advisor = Advisor(app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER, principal="agent:probe")
     with call_census() as census:
         reply = await advisor.chat(QUESTION)
     timing = advisor.last_turn_timing
@@ -156,7 +156,7 @@ async def test_probe_consultant_42s(di_container):
         )
 
         dump = await DialecticalContext().resolve()
-        engine_advisor = Advisor(app_preamble=E2E_PERSONA, mode=AdvisorMode.CONSULTANT)
+        engine_advisor = Advisor(app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER)
         await engine_advisor._refresh_context()
         engine_prompt = _prompt_text(engine_advisor)
         method = "\n\n".join([E2E_PERSONA, method_prompt(), _STATIC_CONTEXT_INTRO + dump])
@@ -166,7 +166,7 @@ async def test_probe_consultant_42s(di_container):
             "A Consultant (engine+tools)": _run_advisor,
             "B A1.5 (method+dump, no tools)": lambda: _run_facilitator(method, None),
             "C engine, no tools": lambda: _run_facilitator(engine_prompt, None),
-            "E engine+tools, bare": lambda: _run_facilitator(engine_prompt, _build_consultant_tools("agent:probe")),
+            "E engine+tools, bare": lambda: _run_facilitator(engine_prompt, _build_tools("agent:probe", build=BuildPolicy.NEVER)),
         }
         results: dict[str, list[dict]] = {k: [] for k in conditions}
         for rep in range(REPS):

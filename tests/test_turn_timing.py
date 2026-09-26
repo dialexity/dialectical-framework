@@ -309,8 +309,17 @@ class _StubAdvisor:
         await asyncio.sleep(_REPAIR_SLEEP)
         self.repaired = True
 
+    def _schedule_noted_tensions(self) -> None:
+        """The consent surface's note scheduler, run by both loops right after
+        the seam. Nothing is noted in this module, so a no-op stand-in — the
+        real one is exercised in `tests/test_advisor_build_policy.py`."""
+
     chat = Advisor.chat
     chat_stream = Advisor.chat_stream
+    # The awaited loop returns through the hash filter; bound so the stub
+    # keeps up with `chat` (it did not when the filter landed, and every test
+    # through `chat` here failed on the missing attribute).
+    _for_the_person = Advisor._for_the_person
     _record_turn_timing = Advisor._record_turn_timing
     _settle_deferred_work = Advisor._settle_deferred_work
     wait_for_deferred_work = Advisor.wait_for_deferred_work

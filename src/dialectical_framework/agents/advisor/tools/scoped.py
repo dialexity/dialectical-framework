@@ -25,21 +25,23 @@ record_decision persists confirmed decisions (Case-level, unguarded by the
 pin). Only `ingest` is excluded — bulk extraction belongs to the unscoped
 flow.
 
-Two narrower configurations keep less than all of that (`advisor/mode.py`):
-`AdvisorMode.CONSULTANT` drops the three BUILD tools (`anchor`, `explore`,
-`deepen`) and keeps reading, `discard`, `audit_feasibility` and
-`record_decision`; `AdvisorMode.VIEW` keeps the pinned `sync` plus
-`inspect_node`/`read_digest` and builds no write tool at all.
+The build policy and the records permission narrow that the same way they
+narrow the unscoped head (`advisor/build_policy.py`): without `ON_ELECTION` the
+three BUILD tools (`anchor`, `explore`, `deepen`) are not built; under
+`ON_CONSENT` the pinned head gets `note` instead, and what it notes is woven
+INTO the pinned exploration off the turn; without `records` only the pinned
+`sync` plus `inspect_node`/`read_digest` are built, and no write tool at all.
 """
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Optional
 
 from mirascope import llm
 from pydantic import Field
 
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
+from dialectical_framework.agents.advisor.tools.note import NoteSink
 from dialectical_framework.concerns.record_decision import \
     UNATTESTED_PRINCIPAL
 
@@ -47,7 +49,9 @@ from dialectical_framework.concerns.record_decision import \
 def build_scoped_tools(
     nexus_hash: str,
     principal: str = UNATTESTED_PRINCIPAL,
-    mode: AdvisorMode = AdvisorMode.FULL,
+    build: BuildPolicy = BuildPolicy.ON_ELECTION,
+    records: bool = True,
+    note_sink: Optional[NoteSink] = None,
 ) -> list:
     """
     Build the tool set for an exploration-pinned Advisor (advisory mode).
@@ -60,13 +64,15 @@ def build_scoped_tools(
     tools/record_decision.py. It defaults to no attestation rather than to
     "human", which is a claim only a host can make.
 
-    `mode=AdvisorMode.VIEW` returns the READING tools alone — the pinned `sync`,
+    `records=False` returns the READING tools alone — the pinned `sync`,
     `inspect_node`, `read_digest` — and nothing else is built, so `principal`
-    reaches nobody. `mode=AdvisorMode.CONSULTANT` adds the pinned `discard`,
-    `audit_feasibility` and `record_decision`, and builds none of the three
-    build tools. Same enforcement mechanism as the pin itself: what the head
-    cannot do is what it was never handed, not what a prompt asked it to avoid.
-    See `Advisor.__init__` for what each surface is for and what it costs.
+    reaches nobody. With `records` the pinned `discard`, `audit_feasibility`
+    and `record_decision` are added; the three build tools only under
+    `build=ON_ELECTION`, and `note` (closed over `note_sink`, the Advisor's
+    queue) only under `ON_CONSENT`. Same enforcement mechanism as the pin
+    itself: what the head cannot do is what it was never handed, not what a
+    prompt asked it to avoid. See `Advisor.__init__` for what each surface is
+    for and what it costs.
     """
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
         inspect_node
@@ -84,11 +90,14 @@ def build_scoped_tools(
         concern = DialecticalContext(nexus_hash=pinned_hash)
         return await concern.resolve()
 
-    if mode is AdvisorMode.VIEW:
+    if not records:
         # Returned before anything else is even imported: `discard` and
         # `audit_feasibility` below are guarded by scope refusals, and a reader
         # coming to this file should not have to check whether those guards
-        # happen to make them safe. They do not — both write.
+        # happen to make them safe. They do not — both write. (A building head
+        # without the permission is coherent for the unscoped factory; pinned,
+        # the build tools would still be writes into someone's deliverable, so
+        # the permission gates them here too.)
         return [sync, inspect_node, read_digest]
 
     from dialectical_framework.agents.advisor.tools.record_decision import \
@@ -112,11 +121,12 @@ def build_scoped_tools(
         await concern.resolve(hash=hash, reason=reason)
         return str(concern.report)
 
-    if mode is AdvisorMode.CONSULTANT:
-        # `audit_feasibility` is defined below `explore`/`deepen` in the FULL
-        # order; it is hoisted here so the consultant surface never even defines
-        # a build tool. Decisions stay Case-level and unguarded, as in FULL.
-        return [
+    if not build.on_turn:
+        # `audit_feasibility` is defined below `explore`/`deepen` in the
+        # election order; it is hoisted here so a surface that does not build
+        # on the turn never even defines a build tool. Decisions stay
+        # Case-level and unguarded, as under election.
+        tools = [
             sync,
             inspect_node,
             read_digest,
@@ -124,6 +134,15 @@ def build_scoped_tools(
             _pinned_audit_feasibility(pinned_hash),
             record_decision,
         ]
+        if build is BuildPolicy.ON_CONSENT and note_sink is not None:
+            # The pin is not closed over here: the note queues, and the task
+            # that plants and weaves it runs under the Advisor's own pin
+            # (`_weave_target_nexus`), which is this hash.
+            from dialectical_framework.agents.advisor.tools.note import \
+                build_note
+
+            tools.append(build_note(note_sink))
+        return tools
 
     from dialectical_framework.agents.advisor.tools.anchor import anchor
 
@@ -179,10 +198,11 @@ def build_scoped_tools(
 
 
 def _pinned_audit_feasibility(pinned_hash: str):
-    """The pinned `audit_feasibility`, shared by the FULL and CONSULTANT surfaces.
+    """The pinned `audit_feasibility`, shared by every surface with `records`.
 
-    A factory rather than a closure inside `build_scoped_tools` so the consultant
-    return above does not have to reach past `explore`/`deepen` to get it.
+    A factory rather than a closure inside `build_scoped_tools` so the
+    no-build return above does not have to reach past `explore`/`deepen` to
+    get it.
     """
 
     @llm.tool

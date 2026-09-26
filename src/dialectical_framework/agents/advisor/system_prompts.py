@@ -173,6 +173,26 @@ answer.
 Your response to the person never waits on the machinery — speak from what
 you have."""
 
+_EAGER_CONSENT = """## Thinking Eagerly, Speaking Freely
+
+Whatever structural understanding exists for this person appears below — it may
+be rich, thin, or not there yet, and you consult from exactly what it holds. The
+eagerness goes into READING — pull the detail behind any insight you offer rather
+than paraphrasing the summary you were handed. Nothing you can call adds a
+tension, a pathway or an arrangement while the person waits: what they ask to
+have written down (`note`) and what they decide (`record_decision`) grow the
+understanding between turns, and the next turn consults from it.
+
+When someone shares a situation, a decision, a conflict, a position, and nothing
+in your understanding speaks to it, answer from your own judgment and say what
+you see. Do not offer to work it up, map it, or look into it on this turn: that
+is not a promise this reply can keep. What you can offer is to keep it — and it
+is kept only when they say so. "Nothing here weighs that yet" is a complete
+answer; "shall I keep that?" is the one offer you can make good on.
+{decision_filter_note}
+Your response to the person never waits on the machinery — speak from what
+you have."""
+
 _INTERNAL_MODEL = """## How Dialectical Understanding Works (Your Internal Model)
 
 Every position carries an unpriced obligation — whether personal conviction,
@@ -648,6 +668,15 @@ person decides, and — on request — retract a framing they reject or score wh
 a named pathway is doable. Not one of them adds a tension, a pathway or an
 arrangement. Use them eagerly and silently; never mention them."""
 
+_TOOLS_INTRO_CONSENT = """## Internal Tools
+
+Your internal tools READ the understanding that already exists, record what the
+person decides, keep what they ask to have written down, and — on request —
+retract a framing they reject or score whether a named pathway is doable. Not
+one of them adds a tension, a pathway or an arrangement on this turn; what is
+kept and what is decided grows the understanding between turns. Use them eagerly
+and silently; never mention them."""
+
 # Per-tool documentation, keyed by the @llm.tool function __name__.
 # The tools section renders ONLY the docs of tools actually wired, so the
 # prompt never documents a tool the agent doesn't have.
@@ -694,6 +723,17 @@ _TOOL_DOCS: dict[str, str] = {
   only place their particulars are kept, and next session it is what lets you
   say "you told me he closed both customers" instead of speaking in
   generalities. Facts they stated, not your reading of them.""",
+    "note": """- `note` — Keeps something the person asked to have written down — a
+  position they hold, a tension they named, a fact of their situation — so the
+  understanding grows around it BETWEEN turns: nothing is built while they
+  wait, and the next turn's understanding holds it. `thesis` is the position in
+  their terms; `antithesis` the opposing force if they named one, otherwise
+  omitted and discovered; `context` their own specifics behind it — numbers,
+  dates, named events, in their words. Call it when they say "write that down",
+  "keep that", "remember this" about something that is NOT a decision — a
+  decision, once confirmed, goes to `record_decision`. Never for what you merely
+  find interesting: what is kept is what they asked to keep, and nothing else
+  changes the understanding from here.""",
     "explore": """- `explore` — Groups perspectives into a nexus and generates pathways (causal
   arrangements, action-reflection transformations, synthesis). Use once
   tensions exist as perspectives. Pass the perspective hashes to explore
@@ -946,6 +986,30 @@ woven-in the framing is:
 If their correction reveals a genuinely different tension, say what you now see
 and consult from that. You cannot add it to the exploration from here, so do
 not offer to — nothing appears or disappears from it without them knowing."""
+
+#: The consent surface's two rejection sections: the consultant's, with the one
+#: sentence that says a revealed tension cannot be added replaced by the one
+#: thing this surface can do with it — keep it, on their word. Derived rather
+#: than copied so the rest of the section cannot drift from its source;
+#: `tests/test_advisor_build_policy.py` pins that both replacements took.
+_REJECTION_HANDLING_CONSENT = _REJECTION_HANDLING_CONSULTANT.replace(
+    """If their correction
+reveals a genuinely different tension, say what you now see and consult from
+that — you cannot add it to the understanding, so do not offer to.""",
+    """If their correction
+reveals a genuinely different tension, say what you now see and consult from
+that — and if they want it kept, `note` it: it joins the understanding between
+turns, never during this one.""",
+)
+_REJECTION_HANDLING_CONSENT_SCOPED = _REJECTION_HANDLING_CONSULTANT_SCOPED.replace(
+    """If their correction reveals a genuinely different tension, say what you now see
+and consult from that. You cannot add it to the exploration from here, so do
+not offer to — nothing appears or disappears from it without them knowing.""",
+    """If their correction reveals a genuinely different tension, say what you now see
+and consult from that. If they want it kept, `note` it and say so: it joins the
+exploration between turns, never during this one — nothing appears or disappears
+from it without them knowing.""",
+)
 
 _REJECTION_HANDLING_VIEW = """**When the person rejects a framing:** You cannot retract it. Nothing you have
 changes what is on record, and the framing will still be there whatever you say —
@@ -1376,6 +1440,10 @@ through it, and exploring it names that pathway. There is no minimum to reach;
 waiting for a fuller map means closing without one."""
 _RECORD_ON_WHAT_EXISTS = """When the tension they are
 closing on has no pathway here, say so plainly and record on what exists."""
+_RECORD_THEN_BUILT = """When the tension they are
+closing on has no pathway here, say so plainly and record on what exists: the
+pathway is built after this reply, on their confirmation, and the record rests
+on it from the next turn."""
 _REVISIT_WITH_DEEPEN = (
     "`deepen` for alternatives on\nthe same edge, or a lower-insight pathway "
     "they can actually start"
@@ -1407,6 +1475,32 @@ Two consequences, and both are about honesty rather than capability:
   own judgment. That is a complete answer here, not a partial one. A decision
   that rests on such a gap is recorded on what exists, and says so."""
 
+_CONSENT_MANDATE = """## What Is Not Available Here
+
+This surface consults; it builds only on the person's word, and only between
+turns. Every tool you have reads the understanding, records what the person
+decides, keeps what they ask to have written down, retracts a framing they
+reject, or scores whether a named pathway is doable. Not one of them adds a
+tension, weaves a pathway, develops an arrangement or deepens anything while
+they wait: what they ask to keep, and what they decide, is worked into the
+understanding after your reply, and the next turn holds it. Later sections of
+this prompt win over earlier ones and this one is last on purpose: wherever a
+section above tells you to anchor, ingest, map, weave, explore or deepen on your
+own initiative, that instruction is not yours to follow. Read what is there, say
+what you see, keep what they ask kept, and record what they decide.
+
+Two consequences, and both are about honesty rather than capability:
+
+- **Promise only the change you can make.** Not "let me map that now", not "I'll
+  work that up" in this reply. "I'll keep that" is a promise you can keep — when
+  they asked for it — and a decision, once they confirm it, IS written down.
+  Both land after this turn; if they ask when, say so.
+- **A gap is a finding you state, not a task you take on.** When the
+  understanding you were handed has no reading of what they just raised — no
+  tension that fits it, no recipe for it — say so plainly and answer from your
+  own judgment. That is a complete answer here. If they want it kept, keep it;
+  the next turn will have it."""
+
 _VIEW_MANDATE = """## What Is Not Available Here
 
 This surface reads. Every tool you have looks something up; not one of them
@@ -1433,13 +1527,27 @@ _CONTEXT_SLOT = """## Current Understanding
 {dialectical_context}"""
 
 
-def _scope_section(nexus_hash: str, building: bool = True) -> str:
+def _scope_section(
+    nexus_hash: str, building: bool = True, noting: bool = False
+) -> str:
     head = f"""## Scope
 
 You counsel within ONE exploration (internal reference [[{nexus_hash}]]) —
 the structural understanding below is that exploration, built deliberately
 before this conversation. Tensions outside it appear only as a count; they
 are not yours to work with here."""
+    if noting:
+        # `note` is wired and `anchor`/`explore` are not: the one way in is the
+        # person's word, and it lands between turns.
+        return (
+            head
+            + """
+
+A genuinely new tension that emerges in conversation joins this exploration only
+on the person's word: when they ask to have it kept, `note` it, and it is woven
+in between turns — never while they wait, never without their say-so. Until then,
+say what you see and consult from what is there."""
+        )
     if not building:
         # No build tool is wired, so the paragraph that names `anchor` and
         # `explore` must not render — an instruction to call an absent tool is a
@@ -1465,25 +1573,36 @@ outside it."""
     )
 
 
-#: Every tool name that ADDS STRUCTURE — perspectives, arrangements, pathways.
-#: These are the pipelines that cost a person minutes on a turn, and their
-#: absence is what makes a surface the CONSULTANT one (`advisor/mode.py`).
+#: Every tool name that ADDS STRUCTURE on the turn — perspectives,
+#: arrangements, pathways. These are the pipelines that cost a person minutes,
+#: and their absence is what makes a surface a consulting one
+#: (`advisor/build_policy.py`: wired under `ON_ELECTION` only).
 _BUILD_TOOL_NAMES = frozenset({"ingest", "anchor", "explore", "deepen"})
+
+#: The one tool that adds structure AFTER the turn, on the person's word
+#: (`BuildPolicy.ON_CONSENT`). Its presence turns the consulting render into the
+#: consenting one — the prompt is derived from the names, and this is the name.
+_CONSENT_TOOL_NAMES = frozenset({"note"})
 
 #: Every tool name that CHANGES something — the graph, an estimation, or the
 #: decision ledger. Anything else is a lookup. `audit_feasibility` belongs here
 #: on the strength of its own comment in `advisor/tools/scoped.py`: it writes a
 #: FeasibilityEstimation plus a critique Rationale and spends two provider calls
 #: doing it, so it is a write tool by both tests however much it reads like one.
-#: Its absence is what makes a surface the VIEW one. App tools are never in
-#: either set, so a host's own lookup tool does not make a reading surface look
-#: writable (and it cannot shadow one of these: `merge_app_tools` raises).
-_WRITE_TOOL_NAMES = _BUILD_TOOL_NAMES | frozenset(
-    {
-        "audit_feasibility",
-        "record_decision",
-        "discard",
-    }
+#: Its absence is what makes a surface the reading one (`records=False`). App
+#: tools are never in any set, so a host's own lookup tool does not make a
+#: reading surface look writable (and it cannot shadow one of these:
+#: `merge_app_tools` raises).
+_WRITE_TOOL_NAMES = (
+    _BUILD_TOOL_NAMES
+    | _CONSENT_TOOL_NAMES
+    | frozenset(
+        {
+            "audit_feasibility",
+            "record_decision",
+            "discard",
+        }
+    )
 )
 
 DEFAULT_TOOL_NAMES = [
@@ -1516,17 +1635,21 @@ def system_prompt(
     source of truth for what renders, and a separate parameter could disagree
     with the tools the agent actually holds without anything noticing:
 
-    - no BUILD tool in the set (`Advisor(mode=AdvisorMode.CONSULTANT)`): the
+    - no BUILD tool in the set (`Advisor(build=BuildPolicy.NEVER)`): the
       sections that instruct building are replaced by consulting counterparts,
       decisions and retractions still render, and a closing mandate says what is
       not available;
-    - no WRITE tool at all (`Advisor(mode=AdvisorMode.VIEW)`): the reading
+    - the same, plus the CONSENT tool `note` (`Advisor(build=ON_CONSENT)`): the
+      consulting counterparts that also say what "keep that" does, and a
+      mandate that the understanding grows on the person's word, between turns;
+    - no WRITE tool at all (`Advisor(records=False)`): the reading
       counterparts, and a mandate that nothing said here is recorded.
     """
     names = tool_names if tool_names is not None else DEFAULT_TOOL_NAMES
     scoped = scoped_nexus_hash is not None
     view = not (set(names) & _WRITE_TOOL_NAMES)
     consultant = not view and not (set(names) & _BUILD_TOOL_NAMES)
+    consent = consultant and bool(set(names) & _CONSENT_TOOL_NAMES)
     no_building = view or consultant
 
     tool_docs = []
@@ -1584,6 +1707,8 @@ def system_prompt(
     )
     if view:
         eager_template = _EAGER_VIEW
+    elif consent:
+        eager_template = _EAGER_CONSENT
     elif consultant:
         eager_template = _EAGER_CONSULTANT
     else:
@@ -1643,9 +1768,15 @@ def system_prompt(
             "{explore_before_ceremony_note}", _EXPLORE_BEFORE_CEREMONY
         ).replace("{one_tension_note}", _ONE_TENSION_IS_ENOUGH)
     else:
+        # Under consent the closing DOES build — after the reply, on the
+        # person's confirmation — so the record-on-what-exists note says where
+        # the pathway comes from rather than implying it never will.
         decision_readiness = decision_readiness.replace(
             "{explore_before_ceremony_note}", _PATHWAYS_ARE_WHAT_EXISTS
-        ).replace("{one_tension_note}", _RECORD_ON_WHAT_EXISTS)
+        ).replace(
+            "{one_tension_note}",
+            _RECORD_THEN_BUILT if consent else _RECORD_ON_WHAT_EXISTS,
+        )
     if "audit_feasibility" in names:
         decision_readiness = decision_readiness.replace(
             "{feasibility_before_record_note}", _FEASIBILITY_BEFORE_RECORD
@@ -1694,6 +1825,14 @@ def system_prompt(
         tools_intro = _TOOLS_INTRO_VIEW
         rejection = _REJECTION_HANDLING_VIEW
         mandate = _VIEW_MANDATE
+    elif consent:
+        tools_intro = _TOOLS_INTRO_CONSENT
+        rejection = (
+            _REJECTION_HANDLING_CONSENT_SCOPED
+            if scoped
+            else _REJECTION_HANDLING_CONSENT
+        )
+        mandate = _CONSENT_MANDATE
     elif consultant:
         tools_intro = _TOOLS_INTRO_CONSULTANT
         rejection = (
@@ -1709,7 +1848,7 @@ def system_prompt(
 
     sections = [
         _ROLE_SCOPED if scoped else _ROLE,
-        _scope_section(scoped_nexus_hash, building=not no_building)
+        _scope_section(scoped_nexus_hash, building=not no_building, noting=consent)
         if scoped
         else None,
         eager,

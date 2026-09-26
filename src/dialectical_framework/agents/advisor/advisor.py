@@ -22,7 +22,8 @@ from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.advisor.system_prompts import \
     system_prompt
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
+from dialectical_framework.agents.advisor.tools.note import NoteSink
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.graph.scope_context import (get_current_sid,
                                                         require_current_sid)
@@ -93,11 +94,17 @@ class _DeferredWork:
     tells hosts not to create.
     """
 
-    __slots__ = ("task", "decisions", "waiting")
+    __slots__ = ("task", "decisions", "notes", "waiting")
 
     def __init__(self) -> None:
         self.task: Optional[asyncio.Task] = None
         self.decisions: list[str] = []
+        #: What the person asked to have written down this turn, on the
+        #: `ON_CONSENT` surface (`tools/note.py`): (thesis, antithesis, context)
+        #: triples, planted by the task before it weaves. Same key, same task,
+        #: same single flight as the decisions — a note is a closing's weave
+        #: without the closing.
+        self.notes: list[tuple[str, Optional[str], str]] = []
         #: A turn is blocked in `_settle_deferred_work` on this task. The weave
         #: reads it between rounds and yields: the person's next message is
         #: worth more than a second exploration round, and unbounded here meant
@@ -107,7 +114,11 @@ class _DeferredWork:
     @property
     def idle(self) -> bool:
         """Nothing running, nothing queued — the entry carries no information."""
-        return not self.decisions and (self.task is None or self.task.done())
+        return (
+            not self.decisions
+            and not self.notes
+            and (self.task is None or self.task.done())
+        )
 
 
 #: Off-turn work by sid. Process-global because the point is to be found by an
@@ -275,41 +286,60 @@ class Advisor(SettingsAware):
                 app_tools=[lookup_natal_chart],   # @llm.tool from the app
             )
 
-    Usage (the Consultant — a graph that already exists, consulted, never built on):
-        # The fast surface. Reads the understanding, records what the person
-        # decides and grounds it on the pathways already there, may retract a
-        # framing they reject and may score a named pathway's feasibility on
-        # request — and never builds: no `ingest`, `anchor`, `explore` or
-        # `deepen` is handed to it, and the closing seam records without
-        # starting the off-turn weave. Every turn is one graph read plus the
-        # model; the pipelines that cost minutes are simply not reachable.
+    Usage (building on consent — the graph grows on the person's word, between turns):
+        # No build tool on the turn, so a reply is one graph read plus the
+        # model. The understanding still grows: what the person asks to have
+        # written down is planted after the reply (`note`, `tools/note.py`),
+        # and a decision they confirm starts the same off-turn weave the
+        # election policy gets — anchored first if the graph is empty. Nothing
+        # changes while they wait, and nothing without their say-so.
         with scope(case.sid):
             advisor = Advisor(
                 app_preamble=COUNSELOR_PERSONA,
-                mode=AdvisorMode.CONSULTANT,
+                build=BuildPolicy.ON_CONSENT,
                 principal="human",
             )
             response = await advisor.chat("Given all this, what would you do?")
+            ...
+            await advisor.wait_for_deferred_work()  # a host obligation, as always
 
-        # Composes with `nexus_hash=` for a consultant pinned to one exploration.
-
-    Usage (the View — read and nothing else):
-        # Three tools (`sync`, `inspect_node`, `read_digest`), no decision
-        # recorded, no perspective anchored, no pathway built, no feasibility
-        # scored. For a second reader on a Case someone else is working, a
-        # shared or public view of an exploration, a support seat, or any host
-        # that wants counsel without granting write access.
+    Usage (never building — a graph something else finished):
+        # Reads the understanding, records what the person decides and grounds
+        # it on the pathways already there, may retract a framing they reject
+        # and may score a named pathway's feasibility on request — and never
+        # builds, on the turn or off it: the closing seam records without
+        # starting the weave. The Consultant of the bench's `A2c` arm.
         with scope(case.sid):
-            advisor = Advisor(app_preamble=COUNSELOR_PERSONA, mode=AdvisorMode.VIEW)
+            advisor = Advisor(
+                app_preamble=COUNSELOR_PERSONA,
+                build=BuildPolicy.NEVER,
+                principal="human",
+            )
+
+        # Both compose with `nexus_hash=` for a head pinned to one exploration.
+
+    Usage (a seat that may not write — `records=False`):
+        # Three tools (`sync`, `inspect_node`, `read_digest`), no decision
+        # recorded, no feasibility scored, nothing retracted. For a second
+        # reader on a Case someone else is working, a shared or public view of
+        # an exploration, a support seat, or any host that wants counsel
+        # without granting write access. A permission, not a policy: it
+        # composes with `build=NEVER` (the reading seat) and with
+        # `ON_ELECTION` (a building head that keeps no ledger); with
+        # `ON_CONSENT` it raises, because both consent triggers are writes.
+        with scope(case.sid):
+            advisor = Advisor(
+                app_preamble=COUNSELOR_PERSONA, build=BuildPolicy.NEVER, records=False
+            )
             response = await advisor.chat("What does this look like to you?")
 
         # What it costs, so the choice is made with open eyes: the decision seam
         # does not run, so a person who states a decision in this conversation
         # gets no record of it (the seam is what catches the model not calling
-        # `record_decision` — measured 0/6 at the weak tier). Both narrower
-        # surfaces still WAIT for a weave another instance on the same sid left
-        # running, and still re-read the graph every turn — reading a half-built
-        # graph is the one thing worse than reading a shallow one.
+        # `record_decision` — measured 0/6 at the weak tier). Every surface
+        # still WAITS for a weave another instance on the same sid left
+        # running, and still re-reads the graph every turn — reading a
+        # half-built graph is the one thing worse than reading a shallow one.
 
     Usage (Advisor mode of an exploration session — Explorer handover):
         # User was chatting in Explorer (operator mode) and asks "what does
@@ -357,13 +387,14 @@ class Advisor(SettingsAware):
     #: instance. Dropping it would be a regression dressed as a fix.
     _deferred_work_keys: frozenset[str] | set[str] = frozenset()
 
-    #: Which surface this head is (`advisor/mode.py`). Declared at CLASS level
-    #: for the same reason as the set above: the closing seam reads it, and a
-    #: subclass or stand-in reaching that method without running `__init__`
-    #: should get the FULL behaviour every caller had before modes existed
-    #: rather than an AttributeError from inside the seam. `__init__` always
-    #: shadows it.
-    _mode: AdvisorMode = AdvisorMode.FULL
+    #: When this head builds, and whether it may write (`advisor/build_policy.py`).
+    #: Declared at CLASS level for the same reason as the set above: the closing
+    #: seam reads both, and a subclass or stand-in reaching that method without
+    #: running `__init__` should get the behaviour every caller had before the
+    #: policy existed rather than an AttributeError from inside the seam.
+    #: `__init__` always shadows them.
+    _build: BuildPolicy = BuildPolicy.ON_ELECTION
+    _records: bool = True
     #: Same reason, same shape: a stub built around `__init__` gets the ordinary
     #: hidden-machinery head, which filters hash addresses (`reply_hygiene`).
     _hides_hashes: bool = True
@@ -378,7 +409,8 @@ class Advisor(SettingsAware):
         app: Optional[AppSpec] = None,
         principal: str = UNATTESTED_PRINCIPAL,
         advanced: bool = False,
-        mode: AdvisorMode = AdvisorMode.FULL,
+        build: BuildPolicy = BuildPolicy.ON_ELECTION,
+        records: bool = True,
         thinking: Any = FROM_SETTINGS,
         persona: bool = False,
     ) -> None:
@@ -423,30 +455,45 @@ class Advisor(SettingsAware):
         # docstring carries the whole argument) exists to stop being possible.
         self._principal = principal
         self._nexus_hash = nexus_hash
-        # mode: which surface this head is — FULL builds, CONSULTANT records
-        # but never builds, VIEW reads and nothing else (`advisor/mode.py`).
+        # build: WHEN this head builds structure — ON_ELECTION (the build tools
+        # are wired, the model builds mid-turn, the closing seam weaves off it),
+        # ON_CONSENT (no build tool on the turn; what the person asks to keep and
+        # what they decide grows the graph after the reply), NEVER.
+        # records: WHETHER this seat may write decisions and retractions at all
+        # — a permission, not a policy (`advisor/build_policy.py`).
         # Enforced by the TOOLSET (below) and, for the framework's own
         # initiative, by the closing seam (`_repair_unrecorded_decision`
-        # declines on VIEW; `_schedule_pathway_construction` withholds the weave
-        # on CONSULTANT) — never by prompt, which is the same division of labour
-        # the nexus pin uses: the prompt's job is to stop the head spending
-        # turns reaching for something it does not have, and the code's job is
-        # to make sure reaching would fail anyway.
+        # declines without `records`; `_schedule_pathway_construction` withholds
+        # the weave under NEVER) — never by prompt, which is the same division
+        # of labour the nexus pin uses: the prompt's job is to stop the head
+        # spending turns reaching for something it does not have, and the code's
+        # job is to make sure reaching would fail anyway.
         #
-        # What it does NOT cover is `app_tools`, and that is deliberate rather
+        # What they do NOT cover is `app_tools`, and that is deliberate rather
         # than an oversight: the framework cannot tell a host's chart lookup from
-        # a host's write, so the mode governs the FRAMEWORK's surface and the
+        # a host's write, so the policy governs the FRAMEWORK's surface and the
         # host owns its own. Refusing app tools here was the alternative and it
-        # is worse — it would make the narrower modes unusable for exactly the
-        # apps that have domain lookups, and push them onto `app_preamble=`
+        # is worse — it would make the narrower surfaces unusable for exactly
+        # the apps that have domain lookups, and push them onto `app_preamble=`
         # instead, which is the trap `advanced` fell into (an escape hatch that
         # silently unwires something else).
         #
-        # `principal` is accepted and unused on VIEW: nothing attests anything
-        # there, because nothing is recorded. Unlike `advanced`, ignoring it
-        # changes nothing a person can see, so it does not raise — a host passes
-        # one principal to every head it constructs.
-        self._mode = AdvisorMode(mode)
+        # `principal` is accepted and unused without `records`: nothing attests
+        # anything there, because nothing is recorded. Unlike `advanced`,
+        # ignoring it changes nothing a person can see, so it does not raise — a
+        # host passes one principal to every head it constructs.
+        self._build = BuildPolicy(build)
+        self._records = bool(records)
+        if self._build is BuildPolicy.ON_CONSENT and not self._records:
+            # Not silently NEVER: both consent triggers — the note and the
+            # confirmed decision — are writes, so a consenting head that may not
+            # write has no way to ever build. A host that meant a reading seat
+            # says `NEVER`; one that wrote this meant something else.
+            raise ValueError(
+                "build=ON_CONSENT needs records=True: the person's note and "
+                "confirmed decision are what the policy builds on, and both are "
+                "writes. Pass build=NEVER for a seat that reads and nothing else."
+            )
         # app: declarative app definition — composition depends on the mode:
         # advisory toggle (nexus_hash set) keeps the Navigator contract
         # (NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER + voicing + tool_guide); standalone uses
@@ -472,13 +519,20 @@ class Advisor(SettingsAware):
         )
         if nexus_hash:
             self._validate_nexus(nexus_hash)
-            self._tools = _build_scoped_tools(nexus_hash, principal, mode=self._mode)
-        elif self._mode is AdvisorMode.VIEW:
-            self._tools = _build_view_tools()
-        elif self._mode is AdvisorMode.CONSULTANT:
-            self._tools = _build_consultant_tools(principal)
+            self._tools = _build_scoped_tools(
+                nexus_hash,
+                principal,
+                build=self._build,
+                records=self._records,
+                note_sink=self._queue_note,
+            )
         else:
-            self._tools = _build_tools(principal)
+            self._tools = _build_tools(
+                principal,
+                build=self._build,
+                records=self._records,
+                note_sink=self._queue_note,
+            )
         # App-provided @llm.tool functions (domain resources: chart lookups,
         # methodology references, ...) — see toolsets.merge_app_tools.
         self._tools = merge_app_tools(self._tools, app_tools)
@@ -586,6 +640,53 @@ class Advisor(SettingsAware):
         """
         return _deferred_work(self._deferred_work_key()).decisions
 
+    @property
+    def _notes_awaiting_anchor(self) -> list[tuple[str, Optional[str], str]]:
+        """What the person asked to keep, queued for the next off-turn task on
+        this sid. Same in-place contract as the decisions above."""
+        return _deferred_work(self._deferred_work_key()).notes
+
+    async def _queue_note(
+        self, thesis: str, antithesis: Optional[str], context: str
+    ) -> str:
+        """The `note` tool's body: queue, and say what will happen.
+
+        Nothing is planted here — the turn is the one place this surface never
+        builds. The task that plants it is started by `_schedule_noted_tensions`
+        once the reply is out, so the model's own words to the person can say
+        "kept", and be true on the next turn.
+        """
+        thesis = (thesis or "").strip()
+        if not thesis:
+            return "Nothing kept: the position to keep was empty."
+        self._notes_awaiting_anchor.append(
+            (thesis, (antithesis or "").strip() or None, (context or "").strip())
+        )
+        return (
+            "Kept. It is worked into the understanding after this reply and "
+            "appears on the next turn — tell the person it is written down; do "
+            "not describe it as mapped or analysed yet."
+        )
+
+    def _schedule_noted_tensions(self) -> None:
+        """Start the off-turn task for the notes this turn queued, if nothing else did.
+
+        Called after the closing seam on both turn loops. A closing that was
+        recorded has already started (or joined) the task, and the task drains
+        both queues; this is for the turn that noted and did not close, which
+        the seam's `NO_CLOSING` exit never schedules. The outcome field is left
+        alone where the seam already concluded something about deferral —
+        `_last_deferral` is a claim about the closing, and a note is not one.
+        """
+        if not self._notes_awaiting_anchor:
+            return
+        if self._last_deferral in (
+            DeferralOutcome.STARTED,
+            DeferralOutcome.JOINED,
+        ):
+            return  # the closing's task will drain the notes too
+        self._schedule_pathway_construction(None)
+
     @staticmethod
     def _validate_nexus(nexus_hash: str) -> None:
         from dialectical_framework.graph.repositories.nexus_repository import \
@@ -653,6 +754,7 @@ class Advisor(SettingsAware):
             # archive of `off_path_s` figures is on the blocking path.
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, result.message)
+            self._schedule_noted_tensions()
             self._record_turn_timing(
                 reply_path_s,
                 time.monotonic() - repair_started,
@@ -795,6 +897,7 @@ class Advisor(SettingsAware):
             # graph and no longer builds on it.
             repair_started = time.monotonic()
             await self._repair_unrecorded_decision(user_message, reply)
+            self._schedule_noted_tensions()
             first_delta = self._conversation.last_submit_first_delta_s
             self._record_turn_timing(
                 reply_path_s,
@@ -930,23 +1033,22 @@ class Advisor(SettingsAware):
         # field left over from the last turn would be read as this turn's.
         self._last_closing = None
         self._last_deferral = None
-        if not self._mode.records:
-            # The VIEW surface's whole contract is that it writes nothing, and
-            # this seam is the framework writing on its own initiative — a
-            # Decision, then a weave that builds perspectives, cycles and wheels
-            # off the turn. So it does not run, and the gate is HERE rather than at
-            # the two turn loops: this is the one place every caller passes
-            # through, including a future third entry point and the tests that
-            # drive the seam directly.
+        if not self._records:
+            # A seat that may not write: this seam is the framework writing on
+            # its own initiative — a Decision, then a weave that builds
+            # perspectives, cycles and wheels off the turn. So it does not run,
+            # and the gate is HERE rather than at the two turn loops: this is the
+            # one place every caller passes through, including a future third
+            # entry point and the tests that drive the seam directly.
             #
             # Both outcome fields therefore stay None, which is already documented
-            # on `ClosingOutcome` as "the seam did not run" — a VIEW turn is a
-            # third way into that state, and it must not read as NO_CLOSING: the
-            # classifier never looked, so nothing was concluded about whether the
-            # person was closing. A host that needs decisions recorded has the
-            # CONSULTANT surface for it; that is the choice VIEW makes. (The
-            # CONSULTANT runs this seam in full and withholds only the weave —
-            # see `_schedule_pathway_construction`.)
+            # on `ClosingOutcome` as "the seam did not run" — a turn without the
+            # permission is a third way into that state, and it must not read as
+            # NO_CLOSING: the classifier never looked, so nothing was concluded
+            # about whether the person was closing. A host that needs decisions
+            # recorded grants the permission; that is the choice it makes. (A
+            # head that records but never builds runs this seam in full and
+            # withholds only the weave — see `_schedule_pathway_construction`.)
             return
         if self._recorded_decision_this_turn():
             # The record is written, so there is nothing to repair — but a
@@ -1342,20 +1444,22 @@ class Advisor(SettingsAware):
         Fail-soft and silent: the reply is already delivered, and a pathway the
         person never asked about must not surface to them as an error.
         """
-        if not self._mode.builds:
-            # The CONSULTANT surface: the decision is already recorded, and
-            # already grounded on whatever pathways existed (both branches of
+        if not self._build.off_turn:
+            # `BuildPolicy.NEVER`: the decision is already recorded, and already
+            # grounded on whatever pathways existed (both branches of
             # `_repair_unrecorded_decision` attach before reaching here). What
             # is withheld is only the weave — the one thing on this surface that
             # would add structure, and it would do so on a graph the person
             # brought here as finished. Gated BEFORE the queue rather than at the
-            # task, so a FULL instance resuming the same sid later does not find
-            # a consultant's decisions waiting and weave on their behalf.
+            # task, so a building instance resuming the same sid later does not
+            # find this head's decisions waiting and weave on their behalf.
+            # (`ON_CONSENT` passes: a confirmed decision IS the person's word,
+            # and the weave it starts is the one their record rests on.)
             self._last_deferral = DeferralOutcome.NOT_BUILDING
             return
         if decision_hash and decision_hash not in self._decisions_awaiting_pathway:
             self._decisions_awaiting_pathway.append(decision_hash)
-        if not self._decisions_awaiting_pathway:
+        if not self._decisions_awaiting_pathway and not self._notes_awaiting_anchor:
             # Nothing to ground. The graph may still be unwoven, and weaving it
             # would leave a better graph behind — but no record would point at
             # the result, and an exploration run on no one's behalf is the kind
@@ -1421,17 +1525,35 @@ class Advisor(SettingsAware):
         grounded: list[str] = []
         try:
             while (
-                self._decisions_awaiting_pathway and rounds < self._MAX_WEAVE_ROUNDS
-            ):
+                self._decisions_awaiting_pathway or self._notes_awaiting_anchor
+            ) and rounds < self._MAX_WEAVE_ROUNDS:
                 rounds += 1
                 pending = list(self._decisions_awaiting_pathway)
                 self._decisions_awaiting_pathway.clear()
+                noted = list(self._notes_awaiting_anchor)
+                self._notes_awaiting_anchor.clear()
                 try:
+                    # What the person asked to keep is planted FIRST, so the
+                    # weave below picks it up in the same round and a decision
+                    # closed on the noted tension can ground on its pathway.
+                    await self._anchor_noted_tensions(noted)
                     # A closing on an EMPTY graph has nothing to weave: plant
                     # the decided stance as a tension first, so the weave and
                     # the grounds below have something to work on.
                     await self._anchor_when_empty(pending)
-                    pathways = await self._weave_unwoven_perspectives()
+                    if pending or self._weave_target_nexus() is not None:
+                        pathways = await self._weave_unwoven_perspectives()
+                    else:
+                        # Notes alone, and no exploration to join: a note is
+                        # "keep this", not "build me a map". The tension is
+                        # planted and read from the next turn on; the
+                        # exploration is born at a closing, which is what the
+                        # weave exists for (`_weave_target_nexus`).
+                        pathways = []
+                        logger.info(
+                            "Noted tension(s) kept as tensions: no exploration "
+                            "to join and no closing to weave for"
+                        )
                 except Exception:
                     logger.exception(
                         "Deferred pathway construction failed (fail-soft); the "
@@ -1468,6 +1590,7 @@ class Advisor(SettingsAware):
                 entry is not None
                 and entry.task is asyncio.current_task()
                 and not entry.decisions
+                and not entry.notes
             ):
                 del _DEFERRED_WORK[key]
 
@@ -1681,9 +1804,9 @@ class Advisor(SettingsAware):
 
         Bounded and narrow: only when the graph is empty (never a second anchor
         beside real ones), only the first resolvable decision (one anchor per
-        empty closing), only on a surface that builds (the task does not exist on
-        CONSULTANT/VIEW). Fail-soft in every direction — a failed anchor leaves
-        the record exactly as it was.
+        empty closing), only on a surface that builds off the turn (the task
+        does not exist under `BuildPolicy.NEVER`). Fail-soft in every direction
+        — a failed anchor leaves the record exactly as it was.
 
         Returns True when a tension was planted.
         """
@@ -1726,6 +1849,94 @@ class Advisor(SettingsAware):
         )
         self._ground_accepted_cost_on_stance(decision, report_json)
         return True
+
+    async def _anchor_noted_tensions(
+        self, noted: list[tuple[str, Optional[str], str]]
+    ) -> int:
+        """Plant what the person asked to have written down, off the turn.
+
+        The `ON_CONSENT` surface's build step (`tools/note.py`): each note is
+        `anchor`'s own body run after the reply — with both poles when the
+        person named them, thesis-only otherwise, and their specifics as the
+        tension's grounding — so a note leaves behind exactly what the model's
+        elective `anchor` would have, at a moment nobody is waiting for it. The
+        weave that follows in the same round picks the new tension up like any
+        other unwoven one.
+
+        One at a time, and each in its own fail-soft guard: the graph writes
+        inside `_anchor` are sequential by contract, and a note the pipeline
+        cannot plant must not cost the person the others. A repeated note is
+        absorbed by `commit()`'s exact-match dedup on the statement, so saying
+        "keep that" twice is one tension.
+
+        Returns how many were planted (a report with perspective hashes).
+        """
+        if not noted:
+            return 0
+        import json
+
+        from dialectical_framework.agents.advisor.tools.anchor import _anchor
+
+        planted = 0
+        for thesis, antithesis, context in noted:
+            try:
+                report_json = await _anchor(
+                    thesis=thesis, antithesis=antithesis, context=context
+                )
+                hashes = (json.loads(report_json).get("artifacts") or {}).get(
+                    "perspective_hashes"
+                ) or []
+                if hashes:
+                    planted += 1
+                logger.info(
+                    "Noted tension planted off the turn (%d perspective(s))",
+                    len(hashes),
+                )
+            except Exception:
+                logger.exception(
+                    "Planting a noted tension failed (fail-soft); the other "
+                    "notes of this round are still planted"
+                )
+        return planted
+
+    def _weave_target_nexus(self) -> Optional[str]:
+        """Which exploration the off-turn weave joins.
+
+        The pin, where there is one — the weave writes under this instance's
+        pin by contract (`_DeferredWork`). Unpinned, the election policy keeps
+        the behaviour every measured round ran under: `run_exploration_detailed`
+        with no hash creates a new exploration for the unwoven perspectives,
+        exactly as the model's own unscoped `explore` does.
+
+        `ON_CONSENT` is different, and the difference is the surface's whole
+        premise: the person is in conversation over a graph that already holds
+        their case, and a note is "add this to what you know", not "start a
+        second map". So when the case holds exactly ONE exploration, the weave
+        expands it (`ExpandNexus` through the hash) rather than forking a
+        sibling that the dump would render as a separate constellation with one
+        tension in it. Several explorations, or none, return None — choosing
+        among several is a judgement the model is not asked to make here and
+        the framework cannot make for it — and what None means depends on who
+        asked: a CLOSING still weaves and creates the exploration its record
+        rests on, while notes alone are kept as tensions and not woven
+        (`_run_deferred_pathway_construction`). The exploration is born at the
+        closing, on this surface. Fail-soft to None.
+        """
+        if self._nexus_hash:
+            return self._nexus_hash
+        if self._build is not BuildPolicy.ON_CONSENT:
+            return None
+        try:
+            from dialectical_framework.graph.repositories.nexus_repository import \
+                NexusRepository
+
+            nexuses = [n for n in NexusRepository().find_all() if n.hash]
+        except Exception:
+            logger.exception("Could not read the case's explorations (fail-soft)")
+            return None
+        if len(nexuses) == 1:
+            return nexuses[0].hash
+        return None
 
     def _ground_accepted_cost_on_stance(self, decision, report_json: str) -> None:
         """The price of the stance just anchored: the new tension's T-.
@@ -1821,6 +2032,7 @@ class Advisor(SettingsAware):
             PerspectiveRepository
 
         built: list[str] = []
+        target_nexus = self._weave_target_nexus()
         for _ in range(self._MAX_WEAVE_ROUNDS):
             repo = PerspectiveRepository()
             unwoven = [
@@ -1842,7 +2054,7 @@ class Advisor(SettingsAware):
                     "The person is closing a decision on these tensions. Build "
                     "the causal arrangements so the decision rests on a pathway."
                 ),
-                nexus_hash=self._nexus_hash,
+                nexus_hash=target_nexus,
             )
             built += [h for h in (round_built or []) if h not in built]
             if self._turn_is_waiting():
@@ -2390,49 +2602,33 @@ class Advisor(SettingsAware):
         return self._conversation._messages
 
 
-def _build_tools(principal: str = UNATTESTED_PRINCIPAL) -> list:
-    from dialectical_framework.agents.advisor.tools.anchor import anchor
-    from dialectical_framework.agents.advisor.tools.deepen import deepen
-    from dialectical_framework.agents.advisor.tools.explore import explore
-    from dialectical_framework.agents.advisor.tools.ingest import ingest
-    from dialectical_framework.agents.advisor.tools.record_decision import \
-        build_record_decision
-    from dialectical_framework.agents.advisor.tools.sync import sync
-    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
-        audit_feasibility
-    from dialectical_framework.agents.orchestrator.tools.inspect_node import \
-        inspect_node
-    from dialectical_framework.agents.orchestrator.tools.read_digest import \
-        read_digest
-    from dialectical_framework.agents.orchestrator.tools.discard import \
-        discard
+def _build_tools(
+    principal: str = UNATTESTED_PRINCIPAL,
+    build: BuildPolicy = BuildPolicy.ON_ELECTION,
+    records: bool = True,
+    note_sink: Optional[NoteSink] = None,
+) -> list:
+    """The unscoped Advisor's toolset, composed from the policy and the permission.
 
-    return [
-        ingest,
-        anchor,
-        explore,
-        deepen,
-        audit_feasibility,
-        build_record_decision(principal),
-        sync,
-        inspect_node,
-        read_digest,
-        discard,
-    ]
+    Three layers, and each is exactly one of the prompt's name sets in
+    `system_prompts.py` (`tests/test_advisor_build_policy.py` holds them
+    together):
 
+    - the READS, always: `sync`, `inspect_node`, `read_digest`;
+    - the WRITES that add no structure, with `records`: `audit_feasibility`,
+      `record_decision`, `discard`. `audit_feasibility` looks like a read and is
+      not — a FeasibilityEstimation plus a critique Rationale, two provider
+      calls per pathway (its own guard in `tools/scoped.py` says so); `discard`
+      is a write with the softest possible name;
+    - the BUILD tools, under `ON_ELECTION` only: `ingest`, `anchor`, `explore`,
+      `deepen` — every pipeline that adds structure and costs a person minutes
+      on a turn; or, under `ON_CONSENT`, the one CONSENT tool `note`, which
+      costs the turn nothing and builds after it.
 
-def _build_view_tools() -> list:
-    """The reading third of `_build_tools` — nothing here changes the graph.
-
-    Three tools, and the two omissions worth stating. `audit_feasibility` looks
-    like a read and is not: it writes a FeasibilityEstimation plus a critique
-    Rationale and spends two provider calls per pathway doing it (its own guard in
-    `tools/scoped.py` says so in as many words). `discard` is a write with the
-    softest possible name — a soft-marked node is excluded from every active query
-    afterwards.
-
-    No `principal` parameter, because there is nobody to attest to: the only tool
-    that reads one is `record_decision`, which is not here.
+    `principal` reaches only `record_decision`, so a seat without `records` has
+    nobody to attest to. `note_sink` is the Advisor's own queue; without one the
+    consent tool is not built (a bare factory call in a test has no turn to
+    queue for).
     """
     from dialectical_framework.agents.advisor.tools.sync import sync
     from dialectical_framework.agents.orchestrator.tools.inspect_node import \
@@ -2440,39 +2636,44 @@ def _build_view_tools() -> list:
     from dialectical_framework.agents.orchestrator.tools.read_digest import \
         read_digest
 
-    return [sync, inspect_node, read_digest]
+    tools: list = []
+    if build.on_turn:
+        from dialectical_framework.agents.advisor.tools.anchor import anchor
+        from dialectical_framework.agents.advisor.tools.deepen import deepen
+        from dialectical_framework.agents.advisor.tools.explore import explore
+        from dialectical_framework.agents.advisor.tools.ingest import ingest
 
+        tools += [ingest, anchor, explore, deepen]
+    if records:
+        from dialectical_framework.agents.advisor.tools.record_decision import \
+            build_record_decision
+        from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
+            audit_feasibility
 
-def _build_consultant_tools(principal: str = UNATTESTED_PRINCIPAL) -> list:
-    """`_build_tools` minus the four BUILD tools — what the Consultant is handed.
+        tools += [audit_feasibility, build_record_decision(principal)]
+    tools += [sync, inspect_node, read_digest]
+    if records:
+        from dialectical_framework.agents.orchestrator.tools.discard import \
+            discard
 
-    Reads, records decisions, retracts, scores a named pathway on request. What
-    is missing is exactly `_BUILD_TOOL_NAMES` in `system_prompts.py`: `ingest`,
-    `anchor`, `explore`, `deepen` — every pipeline that adds structure and costs
-    a person minutes on a turn. `tests/test_advisor_modes.py` holds the two
-    lists together.
-    """
-    from dialectical_framework.agents.advisor.tools.record_decision import \
-        build_record_decision
-    from dialectical_framework.agents.orchestrator.tools.audit_feasibility import \
-        audit_feasibility
-    from dialectical_framework.agents.orchestrator.tools.discard import \
-        discard
+        tools.append(discard)
+    if build is BuildPolicy.ON_CONSENT and records and note_sink is not None:
+        from dialectical_framework.agents.advisor.tools.note import build_note
 
-    return [
-        *_build_view_tools(),
-        audit_feasibility,
-        build_record_decision(principal),
-        discard,
-    ]
+        tools.append(build_note(note_sink))
+    return tools
 
 
 def _build_scoped_tools(
     nexus_hash: str,
     principal: str = UNATTESTED_PRINCIPAL,
-    mode: AdvisorMode = AdvisorMode.FULL,
+    build: BuildPolicy = BuildPolicy.ON_ELECTION,
+    records: bool = True,
+    note_sink: Optional[NoteSink] = None,
 ) -> list:
     from dialectical_framework.agents.advisor.tools.scoped import \
         build_scoped_tools
 
-    return build_scoped_tools(nexus_hash, principal, mode=mode)
+    return build_scoped_tools(
+        nexus_hash, principal, build=build, records=records, note_sink=note_sink
+    )

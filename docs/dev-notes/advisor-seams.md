@@ -4,7 +4,11 @@
 "counsel register" / "counsel toggle" is now the ADVISORY mode / register / toggle
 (`NAVIGATOR_APP_EXPLORER_AGENT_ADVISORY_REGISTER`), and `Advisor(read_only=True)` became
 `Advisor(mode=AdvisorMode.VIEW)`, with a new `AdvisorMode.CONSULTANT` between it and FULL
-(`agents/advisor/mode.py`). The reasoning below is unchanged; read the old names as the new. -->
+(`agents/advisor/mode.py`). On 2026-09-26 that one axis became two parameters,
+`Advisor(build=BuildPolicy.ON_ELECTION|ON_CONSENT|NEVER, records=True|False)`
+(`agents/advisor/build_policy.py`, no alias): FULL = `ON_ELECTION`, CONSULTANT = `NEVER`,
+VIEW = `NEVER, records=False`; see "The build policy" at the end of this note. The reasoning
+below is unchanged; read the old names as the new. -->
 
 <!-- Moved verbatim out of CLAUDE.md on 2026-09-18. This is lab-notebook material:
 the reasoning behind a change, the measurements that justified it, and the traps hit
@@ -152,3 +156,69 @@ Navigator's advisory registers carry `## Terminology Disclosure` and are exempt,
 persona-shaped head filters, history is never filtered. Bare labels were deliberately left
 alone: stripping `T+` from "That's the T+ — you got ownership clarity" leaves a sentence
 with a hole, and rewriting it is the model's job.
+
+## The build policy and the `note` tool (2026-09-26)
+
+**What was wrong with three modes.** The owner's question that ended the surface review: "the
+consultant is useless, it should be some sort of a flag on Advisor to not build anything, just
+discuss/decide". Two defects behind it. (1) CONSULTANT on an empty case recorded a decision that
+rested on nothing — the model called `record_decision` with no grounds, and `_anchor_when_empty`
+only ran where the off-turn task existed, i.e. FULL — so the surface that measured best as
+counsel was hollow as a product on its own. (2) A person who says "write that down" about
+something that is not a decision had no way to make the graph keep it, so "only reading without
+ability to enrich" was, in the owner's words, "quite weird". The axis was also conflating two
+questions: whether the head may WRITE (a host permission) and WHEN it may BUILD (a latency
+policy).
+
+**What replaced it.** `build=` is when structure is built — `ON_ELECTION` (the shipped head),
+`ON_CONSENT`, `NEVER` — and `records=` is whether the seat may write at all. `ON_CONSENT` is the
+new surface: no build tool on the turn, so a reply stays one graph read plus the model, and two
+triggers start the same off-turn task a closing's weave runs on — the `note` tool and a confirmed
+decision. `note(thesis, antithesis=None, context="")` is `anchor`'s signature with its moment
+moved: on the turn it queues into the sid-keyed `_DeferredWork.notes` and returns "Kept."; after
+the reply `_schedule_noted_tensions` (both turn loops, right after the seam, because the seam's
+`NO_CLOSING` exit schedules nothing) starts the task; the drain plants each note with `_anchor`
+FIRST, then `_anchor_when_empty` for a closing on an empty graph, then the weave — so a decision
+closed on a noted tension grounds on the pathway woven in the same round. A note that fails to
+plant costs the person none of the others (per-note guard); the queue is emptied per round, the
+registry entry survives while a note is queued (`idle` reads it), and the task's own cleanup
+checks both queues.
+
+**Where the weave lands.** `_weave_unwoven_perspectives` used to pass `nexus_hash=self._nexus_hash`
+— the pin, or `None` — and `None` reaches `CreateNexus`, so an unpinned closing on a case with an
+existing exploration forked a sibling holding one tension. Under election that is measured
+behaviour (every benched A2 cell; changing it is a bench round, and `TestWhereTheWeaveLands`
+pins that it stays). Under consent it is the wrong default — a note is "add this to what you
+know" — so `_weave_target_nexus` expands the case's ONE exploration when there is exactly one.
+With no target (none, or several and no pin) the two triggers part ways — the owner's rule,
+2026-09-26: a closing still weaves and CREATES the exploration its record rests on, while notes
+alone are the analysis part only, planted as tensions and not woven ("a note is 'keep this',
+not 'build me a map'"; the exploration is born at the closing). Read once per drain, not per
+round. The trade-off, stated: between the first note and a decision, counsel reads from
+tensions without pathways.
+
+**The prompt got a fifth shape, derived like the others.** `note` is in `_WRITE_TOOL_NAMES`
+via `_CONSENT_TOOL_NAMES` and not in `_BUILD_TOOL_NAMES`, so `consent = consultant and "note"
+in names`. Forked: `_EAGER_CONSENT`, `_TOOLS_INTRO_CONSENT`, `_CONSENT_MANDATE` (last, as the
+others), a `noting=` branch of `_scope_section`, and two rejection sections DERIVED from the
+consultant's by replacing the one sentence that said a revealed tension cannot be added (a test
+pins that both replacements took). Decision Readiness' record-on-what-exists note becomes
+`_RECORD_THEN_BUILT` under consent — under NEVER the pathway never comes, under consent it comes
+after the reply, and the section the model reads at the closing must not say otherwise. The
+consultant mandate's "nothing is built after the conversation either" stays exactly where it
+still holds (`NEVER`) and is the sentence the consent mandate exists to replace.
+
+**Two refusals, stated.** `ON_CONSENT` with `records=False` raises: both triggers are writes,
+so the combination would be NEVER wearing another name, and a silently dropped flag is the
+defect (`persona=` set the precedent). A pinned head without `records` gets no build tool
+either, unlike the unscoped factory — pinned, `anchor`/`explore` are writes into someone else's
+deliverable.
+
+**Unmeasured.** No bench cell runs `ON_CONSENT`; `A2c` stays `NEVER`, which is what every
+Consultant figure in `rounds.md` was measured on. The claims that need a round before anyone
+quotes them: that a noted tension is planted with the person's particulars intact (the
+`context` path is `anchor`'s, so `TestAnchorContext`'s guarantees carry, but nobody has read a
+consent session's dump), and that expanding the one exploration beats forking (`ExpandNexus`
+re-weaves the whole nexus, so a note on a 4-tension case is a k=5 build off the turn — the
+`_MAX_WEAVE_ROUNDS` and yield-to-a-waiting-turn bounds apply, and the next turn's
+`deferred_wait_s` is where the cost would show).

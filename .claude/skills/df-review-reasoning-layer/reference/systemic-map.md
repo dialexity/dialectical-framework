@@ -3637,32 +3637,43 @@ Independently-authored prompts that share a concept which MUST stay identical or
 | Explorer(nexus_hash) | ❌ (but ✅ `create_dx_input` — a Case-Input write that STARTS the round-trip; analysis of it stays Analyst-side) | ✅ (prompt-steered hash) | ❌ | ❌ | — | full case dump via tools |
 | Advisor (unscoped) | ✅ (via `explore` w/o hash) | ✅ | ✅ | ✅ (consent-first, prompt-enforced) | ✅ sid-wide (incl. Decisions) | full case (render at construction) |
 | Advisor(nexus_hash) | ❌ unreachable | ✅ pinned (closure) | ✅ anchor (standalone until woven) | ✅ unguarded (Decisions are Case-level, not exploration members) | ✅ pinned members + standalone PPs + Decisions; ❌ other explorations' members (code guard) | one nexus + unattached PPs (quality-floored) + Decisions (Case-wide) + a count of other explorations' tensions — the render scope now MATCHES the write scope to its left, which it did not until 2026-09-15 |
-| Advisor(mode=CONSULTANT) | ❌ | ❌ | ❌ | ✅ (own tool + the seam, grounded on EXISTING pathways; **the weave is withheld**, `DeferralOutcome.NOT_BUILDING`) | ✅ (`discard`), plus `audit_feasibility` on request | same as the row it narrows (full case, or one nexus with `nexus_hash=`) — reading is untouched |
-| Advisor(mode=VIEW) | ❌ | ❌ | ❌ | ❌ **and the seam declines too** | ❌ | same as the row it narrows — reading is untouched |
+| Advisor(build=ON_CONSENT) | ❌ on the turn; off it, a CLOSING's weave joins the pin or the case's ONE exploration, else creates; notes alone never create one | ❌ on the turn; ✅ off it (same rule) | ❌ on the turn; ✅ off it — `note` (anchor's parameters, queued) is planted by the drain FIRST, and a closing on an empty graph is anchored (`_anchor_when_empty`) | ✅ (own tool + the seam; **the weave runs**, as under election) | ✅ (`discard`), plus `audit_feasibility` on request | same as the row it narrows — reading is untouched |
+| Advisor(build=NEVER) | ❌ | ❌ | ❌ | ✅ (own tool + the seam, grounded on EXISTING pathways; **the weave is withheld**, `DeferralOutcome.NOT_BUILDING`) | ✅ (`discard`), plus `audit_feasibility` on request | same as the row it narrows (full case, or one nexus with `nexus_hash=`) — reading is untouched |
+| Advisor(records=False) | ❌ | ❌ | ❌ (pinned, the permission withholds the build tools too) | ❌ **and the seam declines too** | ❌ | same as the row it narrows — reading is untouched |
 
-**The Advisor's surfaces are one `mode` parameter (`advisor/mode.py`, 2026-09-18, replacing
-`read_only=`), and the axis is BUILDS STRUCTURE versus DOES NOT — not read versus write.** What costs a
+**The Advisor's surfaces are two parameters (`advisor/build_policy.py`, 2026-09-26, replacing the
+one-axis `mode=` of 2026-09-18, itself replacing `read_only=`): `build=` is WHEN structure is built —
+`ON_ELECTION`, `ON_CONSENT`, `NEVER` — and `records=` is WHETHER the seat may write at all.** What costs a
 person minutes on a turn is the four build tools (`_BUILD_TOOL_NAMES`: `ingest`, `anchor`, `explore`,
-`deepen`); recording a decision is one call of seconds and discarding is free. So CONSULTANT — the product's
-third surface, a conversation over a graph that already exists — keeps `record_decision`, `discard` and
-`audit_feasibility` and is handed no build tool, while VIEW keeps only the three reads. **Why a toolset and
+`deepen`); recording a decision is one call of seconds and discarding is free. So `NEVER` — the Consultant,
+a conversation over a graph that already exists — keeps `record_decision`, `discard` and
+`audit_feasibility` and is handed no build tool; `ON_CONSENT` keeps the same and adds the one CONSENT tool
+`note` (`_CONSENT_TOOL_NAMES`), which builds AFTER the turn on the person's word; `records=False` keeps only
+the three reads. `ON_CONSENT` without `records` raises — both its triggers are writes. **Why a toolset and
 not a "prefer reading" preamble:** tool-election instructions measurably do not hold (`anchor` 6/6,
 `explore` 2/6, `deepen` 0/6 under the full prompt), so a prompt-deprioritised surface would have stochastic
 latency — fast on most turns, 40-90s on whichever turn the model anchors anyway.
 
 **Both narrow rows gate the framework's OWN initiative as well, and differently — that is the transferable
-part.** Every ❌ is a tool the model does not get; VIEW also stops `_repair_unrecorded_decision` outright
+part.** Every ❌ is a tool the model does not get; `records=False` also stops `_repair_unrecorded_decision` outright
 (gated at that ONE method rather than at the two turn loops — the single place every caller passes
 through, tests included — with both `TurnTiming` outcome fields left `None`, which `ClosingOutcome`
 documents as "the seam did not run"; deliberately no member, because `NO_CLOSING` would turn "nobody
-asked" into "the answer was no"). CONSULTANT lets that seam run to its conclusion — the person's "write that
+asked" into "the answer was no"). `NEVER` lets that seam run to its conclusion — the person's "write that
 down" is honoured, and both branches ground the record on whatever pathways `_ensure_pathways_before_closing`
-READS — and gates `_schedule_pathway_construction` instead, BEFORE the sid-keyed queue is touched, so a FULL
-instance resuming the same sid cannot find a consultant's decisions waiting and weave on their behalf.
-`_settle_deferred_work` and `_refresh_context` still run on both (ONE WRITER PER SID, and the refresh is a
-read). `app_tools` are still merged, deliberately: the framework cannot tell a host's chart lookup from a
-host's write, so the mode governs the FRAMEWORK's surface and refusing them would push those apps onto
-`app_preamble=` — the trap `advanced` fell into. `principal` is accepted and ignored on VIEW only.
+READS — and gates `_schedule_pathway_construction` instead, BEFORE the sid-keyed queue is touched, so a
+building instance resuming the same sid cannot find that head's decisions waiting and weave on their behalf.
+`ON_CONSENT` passes that gate (a confirmed decision IS the person's word) and adds a second way into the same
+task: `note` queues into `_DeferredWork.notes`, `_schedule_noted_tensions` starts the task from both turn
+loops right after the seam (whose `NO_CLOSING` exit schedules nothing), and the drain plants notes FIRST so
+the same round's weave covers them; unpinned, `_weave_target_nexus` joins the case's ONE exploration when
+there is exactly one (election keeps the measured create-a-new-one behaviour), and with no target a note
+alone is kept as a tension and not woven — only a closing creates an exploration on this surface.
+`_settle_deferred_work` and `_refresh_context` still run on every surface (ONE WRITER PER SID, and the
+refresh is a read). `app_tools` are still merged, deliberately: the framework cannot tell a host's chart
+lookup from a host's write, so the policy governs the FRAMEWORK's surface and refusing them would push those
+apps onto `app_preamble=` — the trap `advanced` fell into. `principal` is accepted and ignored without
+`records` only.
 **The prompt side is the review lesson: gating the toolset does NOT gate the prompt.** Only the tool DOCS
 and two name-gated sections (`_DECISION_READINESS` on `record_decision`, the two feasibility passages on
 `audit_feasibility`) follow the names; `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`, `_DEFAULT_ARC`,
@@ -3672,13 +3683,16 @@ forks mirroring the existing `*_SCOPED` ones (`_EAGER_VIEW`/`_EAGER_CONSULTANT`,
 `_REJECTION_HANDLING_CONSULTANT_SCOPED`, a `building=` flag on `_scope_section`), two literal heading swaps
 in `_CONVERSATION_USE` (phase labels named after the tool that produces the phase), `_DEFAULT_ARC` dropped
 for the reason it is dropped when scoped (the arc IS the building sequence), and ONE mandate per surface
-(`_VIEW_MANDATE`, `_CONSULTANT_MANDATE`) placed LAST among the instruction sections so **later sections win**
+(`_VIEW_MANDATE`, `_CONSULTANT_MANDATE`, and since 2026-09-26 `_CONSENT_MANDATE` for the shape keyed on
+`note` — with `_EAGER_CONSENT`, `_TOOLS_INTRO_CONSENT`, a `noting=` branch of `_scope_section`,
+`_RECORD_THEN_BUILT` in Decision Readiness, and two rejection sections DERIVED from the consultant's by one
+sentence) placed LAST among the instruction sections so **later sections win**
 over what `_SCORE_READING` and `_CONVERSATION_USE` still say — those two deliberately NOT forked, because
 their tool references sit mid-paragraph inside reasoning about what the scores MEAN, which is where prompt
-drift lives. Tests: `tests/test_advisor_modes.py`, whose `TestTheListsAreOne` is the only thing holding
-`_BUILD_TOOL_NAMES`/`_WRITE_TOOL_NAMES` (prompt) and the three toolset factories together, and
-`TestTheGateHasThreeSites` the only thing stopping a "not building means do nothing" edit from taking the
-settle and the refresh.
+drift lives. Tests: `tests/test_advisor_build_policy.py`, whose `TestTheListsAreOne` is the only thing
+holding `_BUILD_TOOL_NAMES`/`_CONSENT_TOOL_NAMES`/`_WRITE_TOOL_NAMES` (prompt) and the toolset factory
+together, and `TestTheGatesHaveTheirSites` the only thing stopping a "not building means do nothing" edit
+from taking the settle and the refresh.
 
 `Advisor(nexus_hash=...)` is NOT a standalone variant — it is the **advisory mode of an Explorer↔Advisor
 session toggle**: the host hands the Explorer conversation (messages + nexus_hash) to an Advisor head

@@ -65,7 +65,7 @@ from dialectical_framework.graph.repositories.perspective_repository import (
 )
 from dialectical_framework.graph.scope_context import scope
 
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 
 from .arms import AdvisorArm, PromptArm, method_prompt
 from .modelctx import bench_reasoning_model
@@ -883,10 +883,10 @@ class E2EDriver:
                     E2E_PERSONA,
                     principal=E2E_PRINCIPAL,
                     dialectical_context=live_context,
-                    mode=(
-                        AdvisorMode.CONSULTANT
+                    build=(
+                        BuildPolicy.NEVER
                         if arm is Arm.A2C
-                        else AdvisorMode.FULL
+                        else BuildPolicy.ON_ELECTION
                     ),
                     nexus_hash=(
                         record.pinned_nexus_hash if arm is Arm.A2N else None

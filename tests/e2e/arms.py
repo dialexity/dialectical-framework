@@ -42,7 +42,7 @@ import re
 from typing import Optional, Protocol
 
 from dialectical_framework.agents.advisor.advisor import Advisor, ChatResponse
-from dialectical_framework.agents.advisor.mode import AdvisorMode
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.system_prompts import (
     _CONVERSATION_USE,
     _DECISION_READINESS,
@@ -447,7 +447,7 @@ class PromptArm:
 class AdvisorArm:
     """A2 — the full Advisor: live tools, graph persistence, ceremony.
 
-    Also A2c with `mode=AdvisorMode.CONSULTANT`: the same class over a graph
+    Also A2c with `build=BuildPolicy.NEVER`: the same class over a graph
     built beforehand, handed the reading and deciding tools and none of the
     build tools, so its per-turn cost is one graph read plus the model.
 
@@ -469,14 +469,14 @@ class AdvisorArm:
         *,
         principal: str,
         dialectical_context: Optional[str] = None,
-        mode: AdvisorMode = AdvisorMode.FULL,
+        build: BuildPolicy = BuildPolicy.ON_ELECTION,
         nexus_hash: Optional[str] = None,
     ) -> None:
         self._advisor = Advisor(
             app_preamble=persona,
             dialectical_context=dialectical_context,
             principal=principal,
-            mode=mode,
+            build=build,
             nexus_hash=nexus_hash,
         )
 

@@ -555,9 +555,10 @@ anchors.
       `_INTERNAL_MODEL` mid-sentence placeholder exist for — and when you gate a sentence, keep the part that
       carries the RULE outside the gate and put only the pointer inside it.
 - [ ] **Gating the TOOLSET does not gate the PROMPT — and at mode scale that is not one dangling sentence but
-      most of the render.** `Advisor(mode=VIEW)` (2026-09-17 as `read_only=`, the engine's THIRD render shape;
-      `mode=CONSULTANT` added 2026-09-18 as the FOURTH — both DERIVED in `system_prompt()` from the names, never
-      passed, so they cannot disagree with the tools the head actually holds) removes a class of tools, and only
+      most of the render.** `Advisor(records=False)` (2026-09-17 as `read_only=`, the engine's THIRD render shape;
+      `build=NEVER` added 2026-09-18 as the FOURTH and `build=ON_CONSENT` on 2026-09-26 as the FIFTH, keyed on the
+      one consent name `note` — all DERIVED in `system_prompt()` from the names, never passed, so they cannot
+      disagree with the tools the head actually holds) removes a class of tools, and only
       tool DOCS plus the two name-gated sections followed it. `_EAGER`, `_CONVERSATION_USE`,
       `_REJECTION_HANDLING*`, `_DEFAULT_ARC`, `_TOOLS_INTRO_SCOPED`, `_scope_section` and `_SCORE_READING` all
       still instructed a head to `ingest`, `anchor`, `explore` and `discard` with none of them wired. So when you
@@ -569,11 +570,18 @@ anchors.
       reasoning about what the scores MEAN, do not fork it** — that is where drift lives; state one mandate and
       place it LAST among the instruction sections, immediately before `_CONTEXT_SLOT`, because later sections
       win and the cache seam requires the dump to stay last. Enforcement stays in CODE (the toolset, and the
-      closing seam: `_repair_unrecorded_decision` declines on VIEW, `_schedule_pathway_construction` withholds
-      the weave on CONSULTANT); the prompt's only job is to stop the head spending turns reaching for what it
-      does not have. `tests/test_advisor_modes.py` pins both halves, including that `DEFAULT_TOOL_NAMES` is
-      exactly the read set ∪ `_WRITE_TOOL_NAMES` and `_BUILD_TOOL_NAMES` ⊂ `_WRITE_TOOL_NAMES`, so a new tool
-      cannot be added without being classified on both axes.
+      closing seam: `_repair_unrecorded_decision` declines without `records`, `_schedule_pathway_construction`
+      withholds the weave under `NEVER`); the prompt's only job is to stop the head spending turns reaching for
+      what it does not have. `tests/test_advisor_build_policy.py` pins both halves, including that
+      `DEFAULT_TOOL_NAMES` is exactly the read set ∪ (`_WRITE_TOOL_NAMES` − `_CONSENT_TOOL_NAMES`) and
+      `_BUILD_TOOL_NAMES`, `_CONSENT_TOOL_NAMES` are disjoint strict subsets of `_WRITE_TOOL_NAMES`, so a new
+      tool cannot be added without being classified on every axis. **A shape that changes WHEN a thing happens
+      has to re-gate every sentence that said it never would**: the consent shape's closing still records on
+      what exists, but the pathway now arrives after the reply, so the Decision Readiness note the consultant
+      shape renders (`_RECORD_ON_WHAT_EXISTS`) became `_RECORD_THEN_BUILT` there, and the two rejection sections
+      are DERIVED from the consultant's by replacing exactly the sentence that said a revealed tension cannot be
+      added — with a test that the replacement took, because a `.replace` on a sentence that has since been
+      edited is a silent no-op.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =
       confirmation): a ritual with no way to be already-satisfied reads as a gate holding the person's own
       decision, which is the failure the ritual exists to prevent. Check any new precondition for the case where
