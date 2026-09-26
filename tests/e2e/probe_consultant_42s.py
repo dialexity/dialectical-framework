@@ -53,7 +53,8 @@ import time
 
 import pytest
 
-from e2e.arms import _STATIC_CONTEXT_INTRO, method_prompt
+from dialectical_framework.agents.advisor.method import method_prompt
+from e2e.arms import _STATIC_CONTEXT_INTRO
 from e2e.config import DEFAULT_TIER_STRONG
 from e2e.driver import E2E_PERSONA
 from e2e.modelctx import using_model

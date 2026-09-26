@@ -258,7 +258,7 @@ habit, not any published number:
 | Arm | Assembly | Cross-session carryover |
 |-----|----------|-------------------------|
 | A0 | bare persona | none |
-| A1 | + the dialectical method as prompt text | none |
+| A1 | + the dialectical method as prompt text — `method_prompt()` from `agents/advisor/method.py`, the shipped `MethodAdvisor`'s own prompt since 2026-09-26 | none |
 | A1.5 | + a real Advisor-built graph, dumped as static text | static dump |
 | A1.7 | + a journal the model writes for itself | prose journal |
 | A2 | the full Advisor: live tools, graph, decision ceremony | live graph |

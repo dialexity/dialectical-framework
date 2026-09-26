@@ -85,7 +85,8 @@ from dialectical_framework.concerns.dialectical_context import \
     DialecticalContext
 from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.utils.call_census import call_census
-from e2e.arms import _STATIC_CONTEXT_INTRO, method_prompt
+from dialectical_framework.agents.advisor.method import method_prompt
+from e2e.arms import _STATIC_CONTEXT_INTRO
 from e2e.config import DEFAULT_TIER_WEAK
 from e2e.driver import E2E_PERSONA
 from e2e.modelctx import using_model

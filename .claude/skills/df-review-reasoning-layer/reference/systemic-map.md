@@ -35,6 +35,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - Explorer: `explorer/explorer.py` — system prompt is a **function** `system_prompt(nexus_hash, nexus_intent)`
   (`explorer/system_prompts.py`) that f-string-injects the live nexus hash/intent (DB read at construction)
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
+- MethodAdvisor: `advisor/method.py` — preamble + `method_prompt()`, which is NOT a prompt of its own but the
+  engine's `_ROLE`/`_EAGER`/`_INTERNAL_MODEL`/`_CONVERSATION_USE`/`_DECISION_READINESS`/`_HOW_YOU_SPEAK`
+  passed through `_TOOL_REWRITES` (tool verb → mental act, whitespace-insensitive) and `_TOOL_TOKENS`
+  (paragraphs still about machinery are dropped). So an edit to any of those engine sections lands in this
+  head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
+  `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
+  guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
   The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash)`

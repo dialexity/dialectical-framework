@@ -10,7 +10,10 @@ These tests are the guard.
 The load-bearing one is `test_rewrite_table_has_no_stale_keys`: A1's prompt is
 derived from the live engine prompt, so editing `system_prompts.py` can silently
 drop method text out of the baseline and hand the framework a win it did not
-earn. That assert turns a silent bias into a failing test.
+earn. That assert turns a silent bias into a failing test. The prompt lives in
+`agents/advisor/method.py` since 2026-09-26 (it is the shipped `MethodAdvisor`'s
+prompt as well as A1's); the guard stays here because its subject is the
+baseline's fairness.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from unittest import mock
 import pytest
 
 from e2e import scoring
-from e2e.arms import (
+from dialectical_framework.agents.advisor.method import (
     _TOOL_REWRITES,
     _TOOL_TOKENS,
     _apply_rewrites,
@@ -10769,7 +10772,7 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
             system_prompt,
         )
 
-        from e2e.arms import method_prompt
+        from dialectical_framework.agents.advisor.method import method_prompt
 
         start = _INTERNAL_MODEL.index("**A correction about their situation")
         end = _INTERNAL_MODEL.index("**Control statements are your internal test")

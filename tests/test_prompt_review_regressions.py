@@ -4350,7 +4350,7 @@ class TestTheConsultantIsNotToldToBuild:
             assert not leaked, names
 
     def test_a1_carries_the_building_form_as_a_mental_act(self):
-        from e2e.arms import method_prompt
+        from dialectical_framework.agents.advisor.method import method_prompt
 
         text = method_prompt()
         assert "{" not in text

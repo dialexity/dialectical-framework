@@ -503,6 +503,30 @@ displays it.
   a viewer, a second reader, a support agent. The conversation looks identical; the graph is
   untouched, and nothing said in it is recorded.
 
+### Advise and forget — `MethodAdvisor`
+
+`MethodAdvisor(app_preamble=None, messages=None, app=None, thinking=FROM_SETTINGS,
+include_decision=True)` (`agents/advisor/method.py`) is the Advisor's method as a prompt
+and nothing behind it: no Case, no `scope(sid)`, no graph, no tools, no memory beyond the
+`messages` of this one conversation. A host can run it with no database at all. It is the
+surface for the shallow application — "I have a problem with my wife…", counsel that
+reasons dialectically, and nothing written anywhere. What it cannot do, by construction and
+stated in its own prompt: keep a record (a confirmed decision is restated in the reply, and
+that restatement is the only record), remember the person at the return, or read a graph
+someone else built — everything the bench has measured the framework's value to live in.
+
+Its prompt, `method_prompt()`, is DERIVED from the engine's own sections (`_ROLE`, `_EAGER`,
+`_INTERNAL_MODEL`, `_CONVERSATION_USE`, `_DECISION_READINESS`, `_HOW_YOU_SPEAK`) with every
+tool verb rewritten into a mental act ("anchor the pair" → "take the pair as it comes",
+"explore what you have" → "work out their pathways") and every paragraph that stays about
+machinery dropped — so the method cannot drift between the two heads. It is byte-for-byte the
+bench's A1 arm (`tests/e2e/README.md`), which means A1 now measures a shipped surface and every
+edit to this prompt moves the baseline every `A2−A1` figure was read against;
+`tests/e2e/test_e2e.py::TestMethodPrompt` is the guard. `app=` takes the AppSpec's
+`advisor_persona`; app tools are refused rather than dropped (the prompt says "You have no
+tools"). `chat()` / `chat_stream()` / `messages` / `last_turn_timing` as on every head, with
+`closing` and `deferral` `None` because there is no seam to conclude anything.
+
 ---
 
 ## Handoffs: the UX glue
@@ -752,6 +776,7 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
 | **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (Haiku, n=8): equal to the Consultant, loses to the dump. `ladder-sonnet` (Sonnet 5, n=6): above the dump (+0.22, unresolved) but a resolved loss to the Consultant (−0.51 [−0.97, −0.05]) — and on both models no build tool elected inside the pin. Read with the caveat in `rounds.md`: a Sonnet build makes several nexuses and the bench pins to one, so the pin hid most of the graph |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
+| **Advise and forget** | anyone, once: a situation described, counsel that reasons dialectically, nothing kept | `MethodAdvisor(app_preamble=)` — the method as a prompt, no graph, no tools, no Case | never | the bench's A1 arm IS this head's prompt: in-session `A2−A1` is positive and unresolved on Sonnet 5 (+0.26 at 12 pairs, `prompt-vs-machinery`; `thinking-check` +0.35 with thinking, −0.27 without); at the return it has nothing to return to |
 | **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(build=NEVER)` (or `ON_CONSENT`, to let it grow on their word), with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
 
 The categories and the Advisor's `build=`/`records=` are two axes, not one list: the two
