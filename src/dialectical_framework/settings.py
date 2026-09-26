@@ -8,6 +8,26 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from dialectical_framework.enums.causality_preset import CausalityPreset
 
+#: Spellings of "off" for `DIALEXITY_CONVERSATION_THINKING_LEVEL`. Mirrored in
+#: `ConversationFacilitator._THINKING_OFF_WORDS`, which reads the field.
+_THINKING_OFF_WORDS = frozenset({"none", "off", "false", "0", "disabled"})
+
+
+def _env_thinking_level() -> dict[str, Optional[str]]:
+    """The `conversation_thinking_level` kwarg from the environment, or nothing.
+
+    Empty dict when the variable is unset or blank — the field's own default
+    ("medium") then applies. An explicit off-word becomes `None`. Anything else
+    is passed as the level. Returned as kwargs so an unset variable sends NO
+    argument: `conversation_thinking_level=None` would be an explicit disable.
+    """
+    raw = (os.getenv("DIALEXITY_CONVERSATION_THINKING_LEVEL") or "").strip()
+    if not raw:
+        return {}
+    if raw.lower() in _THINKING_OFF_WORDS:
+        return {"conversation_thinking_level": None}
+    return {"conversation_thinking_level": raw}
+
 
 class Settings(BaseModel):
     model_config = ConfigDict(
@@ -203,9 +223,9 @@ class Settings(BaseModel):
     # When set, graph mutations and tool calls are logged to <dir>/<sid>/<agent>.jsonl
     effect_log_dir: Optional[str] = Field(default=None, description="Directory for effect JSONL logs. None = disabled.")
 
-    # Extended thinking: None = disabled, or one of the levels below.
+    # Extended thinking for the CONVERSATIONAL call — the tool-path call every
+    # agent turn makes. One of the levels below; None (or "none"/"off") = disabled.
     # Levels map to provider-specific token budgets (% of max_tokens for Anthropic):
-    #   "none"    - disable thinking entirely
     #   "minimal" - minimum budget (1024 tokens)
     #   "low"     - 20% of max_tokens
     #   "medium"  - 40% of max_tokens
@@ -214,15 +234,20 @@ class Settings(BaseModel):
     # Claude 5 models take no token budget — they accept only adaptive thinking with a
     # coarse effort label, so the level is mapped there instead (utils/thinking_compat.py).
     # If the model doesn't support thinking, the setting is silently ignored (warning logged).
-    # The CONVERSATIONAL thinking level — the tool-path call every agent turn
-    # makes. A deployment default that a head's `thinking=` overrides per
-    # session (the person's own toggle). Never reaches a structured concern
-    # call: those cannot think in their default formatting mode, and none opts
-    # in — concerns get their own MODEL instead (`reasoning_model` above).
-    # Measured: on Haiku 4.5 "medium" is ~450 hidden output tokens and ~3x the
-    # call with no election gain; on Sonnet 5 it is close to free and close to
-    # a no-op (rounds.md: `thinking-off`, `sonnet-thinking`).
-    conversation_thinking_level: Optional[str] = Field(default=None, description="Extended thinking level for the conversational (tool-path) call; the deployment default a head's thinking= overrides per session. None = disabled.")
+    # A deployment default that a head's `thinking=` overrides per session (the
+    # person's own toggle). Never reaches a structured concern call: those cannot
+    # think in their default formatting mode (forced tool choice suppresses it,
+    # measured), and none opts in — the constraint prompts ARE the concerns'
+    # reasoning, and concerns get their own MODEL instead (`reasoning_model`).
+    # DEFAULT "medium" since 2026-09-26, by decision on `thinking-check`
+    # (rounds.md): with the conversational round not thinking the machinery sat
+    # BELOW the same method as a tool-less prompt in-session (-0.27 against
+    # +0.35 at medium, 8 pairs each, one scenario), at 18s a turn against 49s.
+    # The price is the turn; the toggle lets a person trade it back. Before
+    # 2026-09-24 "unset" was not off on Claude 5 anyway (Bedrock's default is
+    # adaptive thinking on for a plain text/tools call), so every Sonnet figure
+    # in the archive was a thinking arm; "medium" keeps that regime explicit.
+    conversation_thinking_level: Optional[str] = Field(default="medium", description="Extended thinking level for the conversational (tool-path) call; the deployment default a head's thinking= overrides per session. None = disabled.")
 
     # TCP connect timeout for the Bedrock client, in seconds.
     #
@@ -308,7 +333,12 @@ class Settings(BaseModel):
             graph_db_password=os.getenv("DIALEXITY_GRAPH_DB_PASSWORD"),
             graph_db_encrypted=os.getenv("DIALEXITY_GRAPH_DB_ENCRYPTED", "false").lower() == "true",
             graph_db_client_name=os.getenv("DIALEXITY_GRAPH_DB_CLIENT_NAME", "dialectical_framework"),
-            conversation_thinking_level=os.getenv("DIALEXITY_CONVERSATION_THINKING_LEVEL") or None,
+            # Unset keeps the field's default ("medium"); "none"/"off" is an
+            # explicit disable. Passed as a plain `None` would STOMP the default
+            # — `from_partial` protects against that with exclude_unset, this
+            # constructor does not — so the kwarg is only sent when the env says
+            # something. `**` on an empty dict sends nothing.
+            **_env_thinking_level(),
             llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

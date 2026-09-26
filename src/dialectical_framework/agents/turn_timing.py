@@ -271,7 +271,8 @@ class TurnTiming:
     #:
     #: - thinking ON — this is a genuine ~2s "something is happening", every turn
     #:   shape, and the old warning does not apply;
-    #: - thinking OFF (`conversation_thinking_level` defaults to `None`) — it collapses onto first
+    #: - thinking OFF (`conversation_thinking_level` "none", or a head's `thinking=None`;
+    #:   the default has been "medium" since 2026-09-26) — it collapses onto first
     #:   text and the old warning is exactly right, tool round included.
     #:
     #: Never quote it without saying which. The prefill-sensitive figure lives on

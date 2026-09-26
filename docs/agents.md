@@ -370,9 +370,11 @@ they are looking at): not given defers to the deployment's `DIALEXITY_CONVERSATI
 do not think; what they get instead is their own MODEL: `DIALEXITY_REASONING_MODEL` runs every
 structured call when set (unset = the conversation model), which is where quality was measured to
 live (extraction: 34.6% unsupported claims on Haiku 4.5, 7.0% on Sonnet 5, identical prompts).
-Measured: on Haiku 4.5 "medium" is ~3x the call with no
-election gain; on Sonnet 5 it is close to free and close to a no-op (`tests/e2e/rounds.md`,
-`thinking-off`, `sonnet-thinking`). `messages` is resumption and nothing else — every head takes it, a host
+The deployment default is `medium` since 2026-09-26 (`thinking-check`: with the conversational
+round not thinking the framework's counsel sat below the same method as a tool-less prompt
+in-session, −0.27 against +0.35 at medium, at ~18s a turn against ~49s; the turn is the price
+and the toggle trades it back). On Haiku 4.5 "medium" is ~3x the call with no election gain
+(`thinking-off`). `messages` is resumption and nothing else — every head takes it, a host
 passes it on every turn, and the Explorer↔Advisor toggle below is built on it (construct the other
 class with the same history); it is not a mode. `dialectical_context` is an
 optional pre-rendered graph snapshot (from `DialecticalContext().resolve()`) injected into the

@@ -52,6 +52,11 @@ T = TypeVar("T")
 #: not be read as "the person turned it off".
 FROM_SETTINGS: Any = object()
 
+#: The spellings of "off" a level may carry (settings, env, a head's `thinking=`).
+#: Kept next to the sentinel because both answer the same question: is this
+#: session thinking. `Settings` accepts the same words from the environment.
+_THINKING_OFF_WORDS = frozenset({"none", "off", "false", "0", "disabled"})
+
 #: Injected in the user role before the structured-extraction call (see
 #: `_call_with_response_model`) because Bedrock requires a conversation to end
 #: with a user message. It is machinery, so it says so: the model must not read
@@ -1166,7 +1171,10 @@ class ConversationFacilitator(SettingsAware):
             level = self._conversation_thinking
         else:
             level = self.settings.conversation_thinking_level
-        if level:
+        # "none"/"off" are spelled disables (the env has to say SOMETHING to
+        # turn the default off); passed through as a level they would reach the
+        # provider as adaptive thinking with no effort — i.e. ON.
+        if level and str(level).strip().lower() not in _THINKING_OFF_WORDS:
             return {"thinking": level}
         return {}
 

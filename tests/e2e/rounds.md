@@ -2634,7 +2634,7 @@ exactly the three non-inferiority dimensions (`warmth`, `actionability`,
 `convergence` (verified, not assumed). That is correct design — on a control **no gain
 is the target**, so the reading is an interval around zero, not a delta to maximise.
 
-**Powered from the archive's own NI-composite sd (0.795 over 720 judged pairs on the
+**Powered from the archive's own NI-composite sd (0.796 over 736 judged pairs on the
 canonical stems, recomputed after r22's supersession, again after r26, again after
 `a15-floor`, again after `weave-offturn`, and again after the Sonnet rounds through
 `prompt-vs-machinery` — not a borrowed figure; the 0.824 over 526 that stood through the
@@ -2666,7 +2666,7 @@ and the ICC problem that dogs r21/r22 does not arise here. Simulated (40k trials
 > **Annotation, 2026-09-23 — the fourth firing, and the first that MOVED the table.**
 > The Sonnet rounds (`ladder-sonnet`, `nexus-pinned`, `prompt-vs-machinery`) took the
 > canonical NI sd from 0.824 over 526 pairs to **0.796 over 712** (0.795 over 720 after
-> `systemic-loop`'s 8 pairs the next day — 0.001 below the re-simulated value, which moves
+> `systemic-loop`'s 8 pairs the next day, 0.796 over 736 after `thinking-check`'s 16 — ±0.001 around the re-simulated value, which moves
 > no cell: the table moved ~1 point per 0.008 of sd between 0.824 and 0.796), and `resim_r23_ni.py
 > --sd 0.824 --sd 0.796` (200k trials) moves cells by up to **4 points**, so the table
 > above is superseded rather than re-confirmed. At 0.796: +0.50 → **34/51/65**, +0.75 →
@@ -7646,3 +7646,32 @@ free and the loop was the cost; if it does not, the conversational default becom
 statement of what it was always paying. (ii) Either way, the reply obligation added today
 (the S+ clause) is untested and the wobble_a loss — the branch the record exists for — is
 where to look first.
+
+### decision: the conversational thinking default is `medium` (2026-09-26)
+
+On `thinking-check` (previous entry): off, the machinery sat below the same method as a
+tool-less prompt in-session (−0.27 vs +0.35 at medium, 8 pairs each, one scenario,
+confounded by the refusal loop fixed in d725fa7), at 17.9s a turn against 49.1s. The owner's
+call: leave thinking to the person as a toggle on the conversation and OFF on the concerns,
+since the constraint prompts are the concerns' reasoning — and, since most people never
+toggle, let the measurement pick the default: `medium`. The turn is the price.
+
+THE AUDIT of every place thinking is decided, so nothing is on or off unexpectedly:
+- `Settings.conversation_thinking_level`: default "medium"; env `DIALEXITY_CONVERSATION_THINKING_LEVEL`
+  unset or blank keeps the default (the constructor no longer sends an explicit None that
+  would stomp it); `none`/`off`/`false`/`0`/`disabled` disable. **The bench's off regime
+  is now spelled `none`, not an empty variable** — `thinking-check-off` was run with the
+  variable unset, which before today meant off and now means medium.
+- A head's `thinking=` (Advisor, Analyst, Explorer): per session; `None` = off; not given
+  = settings. Unchanged.
+- `ConversationFacilitator._thinking_kwargs`: the only reader; treats the off-words as off
+  (a literal "none" reaching the provider would have been adaptive thinking with no effort,
+  i.e. ON); passed to `use_brain(thinking=)` on `_call_with_tools` only.
+- `with_thinking_compat` at the provider: budgeted vs adaptive shape by model name; inside
+  `conversational_round()` an ABSENT level is sent as disabled, so off means off on Claude 5.
+- The structured path (`_call_with_response_model`, every concern): never thinks — forced
+  tool choice suppresses the provider default (0 thinking tokens measured, no parameter
+  sent); the one opt-in (`format_mode="json", thinking=`) has no caller.
+- The bench records the level on every cell (`RunRecord.conversation_thinking_level`).
+No other switch exists. Tests: `TestTheConversationalDefaultIsMedium`,
+`TestConversationThinkingIsPerSession`, `test_thinking_compat.py`.

@@ -10438,14 +10438,18 @@ class TestR23ControlPreRegistration:
         # The re-simulation is a KEPT script (`resim_r23_ni.py`) rather than an
         # ad-hoc snippet, because the first two firings were each answered with
         # code that did not survive to answer the third.
-        assert round(st.stdev(values), 2) == 0.79, (
+        # 0.795 → 0.796 across two rounds is the rounding boundary of a 2dp pin,
+        # not a drift: the table moved ~1 point per 0.008 of sd, so ±0.001 is
+        # nothing. The pin stays at 2dp on purpose (see the argument above); the
+        # provenance string is what moves.
+        assert round(st.stdev(values), 2) == 0.80, (
             f"the NI-composite sd is now {st.stdev(values):.3f}; the r23 power "
             "table was simulated at 0.831, re-verified at 0.825, 0.828 and 0.824, "
-            "superseded at 0.796 and carried to 0.795, and must be re-simulated "
-            "before its percentages are quoted again — "
+            "superseded at 0.796 (carried through 0.795 and back), and must be "
+            "re-simulated before its percentages are quoted again — "
             "`poetry run python tests/e2e/resim_r23_ni.py --sd <new>`"
         )
-        assert "0.795 over 720 judged pairs" in self._block()
+        assert "0.796 over 736 judged pairs" in self._block()
 
 
 class TestR23ControlResultIsWrittenUp:

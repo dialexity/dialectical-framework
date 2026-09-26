@@ -176,13 +176,15 @@ class TestConversationThinkingIsPerSession:
 
         monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", "low")
         assert Settings.from_env().conversation_thinking_level == "low"
-        # Empty means unset (the bench relies on `DIALEXITY_CONVERSATION_THINKING_LEVEL=`
-        # to run a regime), and the old name is ignored rather than honoured — set
-        # to empty rather than deleted, because a local .env may carry a value.
+        # Empty means UNSET, which since 2026-09-26 is the field's default
+        # ("medium"), not off — the bench's off regime is spelled `none`. The old
+        # name is ignored rather than honoured — set the new one to empty rather
+        # than deleted, because a local .env may carry a value.
         monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", "")
-        monkeypatch.setenv("DIALEXITY_THINKING_LEVEL", "medium")  # the old name
-        assert Settings.from_env().conversation_thinking_level is None, (
-            "no alias: the old environment name must be ignored, not honoured"
+        monkeypatch.setenv("DIALEXITY_THINKING_LEVEL", "high")  # the old name
+        assert Settings.from_env().conversation_thinking_level == "medium", (
+            "no alias: the old environment name must be ignored, not honoured; "
+            "and empty is the default, not off"
         )
 
 
@@ -229,3 +231,56 @@ class TestTheStructuredFallbackNeverSendsAnEmptyMessage:
 
         source = inspect.getsource(cf_module)
         assert "messages = _without_empty_messages(messages)" in source
+
+
+class TestTheConversationalDefaultIsMedium:
+    """Decided 2026-09-26 on `thinking-check` (rounds.md): with the conversational
+    round not thinking the machinery sat below the tool-less prompt in-session
+    (-0.27 vs +0.35 at medium). The default is "medium"; the environment must say
+    an off-word to disable it, and an UNSET variable must not stomp the default
+    with an explicit None (the constructor has no exclude_unset protection)."""
+
+    def test_the_field_default_is_medium(self):
+        from dialectical_framework.settings import Settings
+
+        assert Settings.model_fields["conversation_thinking_level"].default == "medium"
+
+    def test_an_unset_env_keeps_the_default(self, monkeypatch):
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_DEFAULT_MODEL", "bedrock/global.anthropic.claude-sonnet-5")
+        monkeypatch.delenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", raising=False)
+        assert Settings.from_env().conversation_thinking_level == "medium"
+
+    @pytest.mark.parametrize("word", ["none", "off", "NONE", "false", "0", "disabled"])
+    def test_an_off_word_disables(self, monkeypatch, word):
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_DEFAULT_MODEL", "bedrock/global.anthropic.claude-sonnet-5")
+        monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", word)
+        assert Settings.from_env().conversation_thinking_level is None
+
+    def test_a_level_passes_through(self, monkeypatch):
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_DEFAULT_MODEL", "bedrock/global.anthropic.claude-sonnet-5")
+        monkeypatch.setenv("DIALEXITY_CONVERSATION_THINKING_LEVEL", "high")
+        assert Settings.from_env().conversation_thinking_level == "high"
+
+    def test_the_facilitator_treats_an_off_word_as_off(self, di_container):
+        """A level that reached settings as the string "none" (e.g. an override
+        set by a host) must not go to the provider as a level — it would be
+        adaptive thinking with no effort, i.e. ON."""
+        previous = di_container.settings()
+        di_container.settings.override(previous.model_copy(update={"conversation_thinking_level": "none"}))
+        try:
+            assert ConversationFacilitator()._thinking_kwargs() == {}
+        finally:
+            di_container.settings.reset_override()
+            di_container.settings.override(previous)
+
+    def test_the_env_example_documents_the_default(self):
+        from pathlib import Path
+
+        text = Path(__file__).resolve().parent.parent.joinpath(".env.example").read_text()
+        assert "# DIALEXITY_CONVERSATION_THINKING_LEVEL=medium" in text
