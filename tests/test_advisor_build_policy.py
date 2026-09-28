@@ -991,6 +991,9 @@ class TestTheGatesHaveTheirSites:
             "__init__",
             "_schedule_pathway_construction",
             "_weave_target_nexus",
+            # A host call, not a turn: refuses to migrate into a head that
+            # would plant what it may never weave.
+            "migrate_conversation",
         }, (
             "a new read of `self._build` — if it is a turn-loop gate, "
             "`_settle_deferred_work` and `_refresh_context` are exactly what "
@@ -1001,6 +1004,7 @@ class TestTheGatesHaveTheirSites:
         assert self._readers("self._records") == {
             "__init__",
             "_repair_unrecorded_decision",
+            "migrate_conversation",  # same reason: nothing to migrate into
         }
 
     def test_both_turn_loops_schedule_the_notes_after_the_seam(self):
