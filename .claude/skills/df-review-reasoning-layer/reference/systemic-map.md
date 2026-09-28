@@ -3792,6 +3792,12 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   is the advisory-side override: advisory register for a Navigator-built exploration, transparent-mutation
   rule, and a "Terminology Disclosure" section that the engine's "How You Speak" escape hatch honors —
   deferring to `NAVIGATOR_APP`'s vocabulary rules (so "Nexus" stays internal even with disclosure granted).
+- **Disclosure has two NON-prompt enforcement points reading one flag** (`Advisor._hides_hashes` =
+  `"## Terminology Disclosure" not in app_preamble`, public as `Advisor.hides_terminology`):
+  `reply_hygiene` strips `[[hash]]` from person-facing TEXT, and a host draws a widget through
+  `graph/views.py::…without_terminology()` (positions, aliases, hashes, numbers off; texts, axes and
+  geometry kept). Reviewing a disclosure change means reviewing both — a prompt edit that moves the
+  section heading silently moves the picture too.
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
 - **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.

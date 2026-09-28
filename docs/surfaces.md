@@ -147,6 +147,43 @@ What to know before shipping it:
   `ON_ELECTION` (grows on the model's election) or `ON_CONSENT` (grows on "write that
   down") for a case that is meant to keep growing.
 
+## Drawing it: the view schema
+
+`graph/views.py` is the picture side of the graph — typed frozen dataclasses with
+`to_dict()`, for a widget in a chat or a side pane. `rendering.py` next door renders prose
+for a prompt; these two have different rules and are deliberately separate modules.
+
+```python
+with scope(case.sid):
+    picture = tension_map_view()              # every active tetrad in the Case
+    picture = tension_map_view(nexus)         # one exploration's, numbered as the prompts number it
+    picture = tetrad_view(perspective)        # one tension
+    picture = wheel_view(wheel)               # segments + spiral + synthesis
+    if advisor.hides_terminology:             # the SAME flag reply_hygiene reads
+        picture = picture.without_terminology()
+    return picture.to_dict()                  # str / float / bool / None / list / dict
+```
+
+Three things to know:
+
+- **Absence is `None`, in every field.** An unscored aspect, an unaudited wheel, an
+  unvalidated tetrad: `None`, never `0.0`. In particular a wheel's `causality` is `None`
+  when nobody estimated it — the `-1.0` in `explorer._causality_probability` is a ranking
+  sentinel and never reaches a view.
+- **Terminology is the optional half.** Structure (the six poles, the two diagonals, the
+  segments, the spiral) is always there; positions (`T+`), stored aliases (`T1+`), hashes
+  and every number come off with `without_terminology()`. The host does not decide this:
+  `Advisor.hides_terminology` is the flag, and it is the same one that strips `[[hash]]`
+  from the reply text. A widget that disagreed with the filter would put `T+` on screen
+  inside a conversation whose prose is scrubbed of it.
+- **It is priced for a user-triggered widget, not a per-turn dump.** A tetrad is ~20
+  relationship reads; `RelationshipManager.prefetch` first when drawing many.
+
+Not built: a graphless filler (a `Consultant` has no graph to read, so it cannot reach
+these functions yet) and any tool that lets the model open a picture itself. Both are open
+decisions, not omissions — and an LLM-elected `show` tool would be unreliable anyway
+(measured election rates: `anchor` 6/6, `explore` 2/6, `deepen` 0/6).
+
 ## What the host owns, on every surface with memory
 
 - **The Case.** Nothing in `src/` creates one. Open `scope(sid)` around every turn.

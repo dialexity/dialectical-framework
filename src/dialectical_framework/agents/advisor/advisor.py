@@ -2926,6 +2926,21 @@ class Advisor(SettingsAware):
     def messages(self) -> list:
         return self._conversation._messages
 
+    @property
+    def hides_terminology(self) -> bool:
+        """Whether this seat's surfaces must show the person no machinery.
+
+        The public reading of `_hides_hashes` — one flag, two enforcement
+        points. `reply_hygiene` uses it to strip `[[hash]]` from the TEXT the
+        person reads; a host drawing a widget uses it to pick
+        `graph/views.py::…without_terminology()`, which drops positions,
+        aliases, hashes and scores from the PICTURE. A host that decided this
+        for itself would eventually disagree with the filter, and the
+        disagreement would show up as `T+` on screen inside a conversation whose
+        prose is scrubbed of it.
+        """
+        return self._hides_hashes
+
 
 def _build_tools(
     principal: str = UNATTESTED_PRINCIPAL,

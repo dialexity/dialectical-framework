@@ -113,6 +113,8 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 `build_pp_index(nexus)` is the canonical source of perspective indices — `dialectical_context` and `inspect_node` both use it so T1 always means the same perspective. Indices are stable over the full `nexus.perspectives.all()` ordering (including discarded): gaps appear rather than re-numbering. Helpers: `component_alias`, `format_edge_label`, `format_spiral`, `find_nexus_for_*`.
 
+**`graph/views.py` is the same graph for a SCREEN, and it is a separate module because the rules invert.** `rendering.py` writes prose into a prompt (a truncated text is a reasoning defect); `views.py` returns frozen JSON-ready dataclasses for a widget (`tetrad_view`, `wheel_view`, `tension_map_view`). Two rules hold everywhere in it: **absence is `None`, never a sentinel** — a wheel's `causality` is `None` when unestimated, and `explorer._causality_probability`'s `-1.0` exists only to lose a ranking, so the two must never be unified — and **structure is always present while TERMINOLOGY is optional**: `without_terminology()` drops positions, aliases, hashes and every number, keeping the poles' texts, the axes and the geometry. That projection is the PICTURE half of one disclosure policy whose TEXT half is `reply_hygiene`; both read one flag (`Advisor.hides_terminology`, the public reading of `_hides_hashes`), because a host deciding it separately puts `T+` on screen in a conversation whose prose is scrubbed of it. Metric fields call the `Perspective` properties that own their formulas rather than re-deriving them. Nothing in `src/` consumes this module — it exists for hosts, and there is no graphless filler and no model-facing `show` tool yet (both open decisions; see `docs/surfaces.md`). Tests: `tests/test_views.py`.
+
 ### Discarding Nodes
 
 `discarded: Optional[str]` on Statement/Perspective/Decision soft-marks a node as excluded from active queries; `discard_uncommitted()` (PerspectiveRepository) deletes uncommitted ones. The `discard` tool unifies both. Replacing a Decision = record new + discard old (reason names the replacement) — no supersede machinery.
@@ -226,6 +228,7 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 | Shared agent tools | `agents/orchestrator/tools/` |
 | Agent skills/tools | `agents/{analyst,explorer,advisor}/` |
 | Dialectical context (graph→natural language) | `concerns/dialectical_context.py` |
+| Views (graph→JSON, for a host that draws pictures) | `graph/views.py` |
 | Build status (derived pause/resume state, typed for host apps) | `concerns/build_status.py` |
 | LLM abstraction / Bedrock provider | `utils/use_brain.py`, `utils/bedrock_provider.py` |
 | Input context (digest→prompt) | `utils/input_context.py` |
