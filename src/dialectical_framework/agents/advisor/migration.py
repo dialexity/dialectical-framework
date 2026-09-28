@@ -6,9 +6,12 @@ Advisor brings one thing with them — `messages`. The Advisor resumes them like
 any head (`Advisor(messages=)`), but resumption alone leaves the Case empty:
 nothing was ever written, and the closing seam only runs on NEW turns, so a
 decision the person settled in prose is just a reply in the history.
-`Advisor.migrate_conversation` closes that gap, and this module holds the two
-pure pieces of it — WHICH words are mined, and how an exchange is paired for the
-seam — so they can be pinned DB-free.
+`advisor_from_consultation` is the factory that closes that gap: it makes the
+Advisor AND seeds the Case from the conversation, once, and hands both back. A
+factory rather than a method on the Advisor because a migration is a way of
+MAKING an Advisor, not something an Advisor does to itself — and because the
+seam and the weave it composes are the Advisor's own private machinery, which
+this module, living beside it, may reach.
 
 SPEAKER-AWARE, BY RULE
 ======================
@@ -24,8 +27,22 @@ pairing a live turn gets.
 
 from __future__ import annotations
 
+import json
+import logging
 from dataclasses import dataclass, field
-from typing import Any, Iterator
+from typing import TYPE_CHECKING, Any, Iterator, Optional
+
+from dialectical_framework.agents.advisor.build_policy import BuildPolicy
+from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
+from dialectical_framework.agents.turn_timing import ClosingOutcome
+from dialectical_framework.concerns.record_decision import UNATTESTED_PRINCIPAL
+from dialectical_framework.graph.scope_context import require_current_sid
+
+if TYPE_CHECKING:
+    from dialectical_framework.agents.advisor.advisor import Advisor
+    from dialectical_framework.agents.app_spec import AppSpec
+
+logger = logging.getLogger(__name__)
 
 
 def message_text(message: Any) -> str:
@@ -108,7 +125,7 @@ MIGRATION_INTENT = (
 
 @dataclass
 class MigrationReport:
-    """What `Advisor.migrate_conversation` did, for the host to show or log."""
+    """What `advisor_from_consultation` did, for the host to show or log."""
 
     #: The person's turns that were mined (0 = nothing to migrate).
     turns: int = 0
@@ -121,3 +138,103 @@ class MigrationReport:
     #: Exchanges the seam saw a closing in and could not write (its own
     #: `FAILED` outcome) — worth surfacing, never worth raising.
     decisions_failed: int = 0
+
+
+async def advisor_from_consultation(
+    messages: list,
+    *,
+    app: Optional[AppSpec] = None,
+    app_preamble: Optional[str] = None,
+    app_tools: Optional[list] = None,
+    principal: str = UNATTESTED_PRINCIPAL,
+    build: BuildPolicy = BuildPolicy.ON_ELECTION,
+    thinking: Any = FROM_SETTINGS,
+) -> tuple[Advisor, MigrationReport]:
+    """Make an Advisor over a fresh Case, seeded from a Consultant's conversation.
+
+    The upgrade path, as one host call inside the new Case's scope (the Case is
+    the host's to create; nothing in `src/` makes one):
+
+        with scope(case.sid):
+            advisor, report = await advisor_from_consultation(
+                consultant.messages, app=spec, principal="human"
+            )
+        # then `advisor.chat(...)` as usual; the next turn's refresh shows the graph
+
+    What it does, once, in order:
+
+    1. constructs the Advisor resumed with `messages` — the same head a host
+       would build by hand, with `records=True` because there is nothing to
+       migrate into otherwise;
+    2. plants structure from the PERSON's turns only (`person_turns`; the
+       module docstring says why speaker-aware): one ingest over their words;
+    3. weaves what that planted, synchronously — the same bounded weave a
+       closing runs off the turn, so step 4 has pathways to ground on;
+    4. runs the closing seam over every (person, reply) exchange in order, so
+       a decision confirmed in the Consultant session is recorded with the
+       grounds a live closing gets, and a re-affirmation is filed as such;
+    5. drains the off-turn work those closings started, and clears the turn
+       fields so the first real turn starts clean.
+
+    Takes as long as one ingest plus one classifier call per exchange. Refuses
+    `build=NEVER`: it would plant tensions the head may never weave — migrate
+    into `ON_ELECTION` or `ON_CONSENT`. Elections are not relied on anywhere in
+    it: the person's whole reason to upgrade is that they want it kept.
+    """
+    from dialectical_framework.agents.advisor.advisor import Advisor
+    from dialectical_framework.agents.advisor.tools.ingest import _ingest
+
+    require_current_sid()
+    build = BuildPolicy(build)
+    if not build.off_turn:
+        raise ValueError(
+            "advisor_from_consultation needs build=ON_ELECTION or ON_CONSENT: "
+            "build=NEVER would plant tensions the Advisor may never weave."
+        )
+    advisor = Advisor(
+        app=app,
+        app_preamble=app_preamble,
+        app_tools=app_tools,
+        messages=messages,
+        principal=principal,
+        build=build,
+        records=True,
+        thinking=thinking,
+    )
+    report = MigrationReport()
+    turns = person_turns(messages)
+    report.turns = len(turns)
+    if not turns:
+        return advisor, report
+
+    ingest_json = await _ingest(
+        text="\n\n".join(turns), intent=MIGRATION_INTENT, input_hashes=None
+    )
+    try:
+        report.perspectives = list(
+            (json.loads(ingest_json).get("artifacts") or {}).get("perspective_hashes")
+            or []
+        )
+    except (ValueError, AttributeError):
+        report.perspectives = []
+    report.pathways = await advisor._weave_unwoven_perspectives()
+
+    for person_said, reply in exchanges(messages):
+        await advisor._repair_unrecorded_decision(person_said, reply)
+        if advisor._last_closing is ClosingOutcome.REPAIRED:
+            report.decisions_recorded += 1
+        elif advisor._last_closing is ClosingOutcome.FAILED:
+            report.decisions_failed += 1
+    await advisor.wait_for_deferred_work()
+    # A turn's fields, left over from calls that were not turns. Cleared so the
+    # first upgraded turn does not inherit the last exchange's verdict as its
+    # own (`None` between turns is load-bearing).
+    advisor._last_closing = None
+    advisor._last_deferral = None
+    logger.info(
+        "Migrated a consultation: %d turn(s), %d perspective(s), %d pathway(s), "
+        "%d decision(s) recorded, %d failed",
+        report.turns, len(report.perspectives), len(report.pathways),
+        report.decisions_recorded, report.decisions_failed,
+    )
+    return advisor, report

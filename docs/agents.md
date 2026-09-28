@@ -534,18 +534,20 @@ tools"). `chat()` / `chat_stream()` / `messages` / `last_turn_timing` as on ever
 `closing` and `deferral` `None` because there is no seam to conclude anything.
 
 **The upgrade.** A Consultant session becomes a Case with an Advisor over it in two steps,
-both the host's: create the Case, then inside its scope construct
-`Advisor(app=, principal="human", messages=consultant.messages)` and `await
-advisor.migrate_conversation()` once before the first turn. Resumption alone would leave the
-Case empty and lose any decision the person settled in prose (the seam runs only on new
-turns), so the migration plants structure from the PERSON's turns only (the replies are
+both the host's: create the Case, then inside its scope
+`advisor, report = await advisor_from_consultation(consultant.messages, app=, principal="human")`
+(`agents/advisor/migration.py`). A factory, not a method on the Advisor: a migration is a way
+of making one. Resumption alone would leave the Case empty and lose any decision the person
+settled in prose (the seam runs only on new turns), so the factory constructs the Advisor
+resumed with the conversation, plants structure from the PERSON's turns only (the replies are
 counsel, not statements of the situation — the reason a transcript-ingesting design was
 rejected in review), weaves it synchronously, runs the closing seam over every (person, reply)
 exchange in order so a confirmed decision is recorded with the grounds a live closing gets and
-a re-affirmation is not a second record, and drains. Returns a `MigrationReport` (turns mined,
-perspectives, pathways, decisions recorded / failed). Costs one ingest plus one classifier
-call per exchange. Refused into `records=False` (no seam) and `build=NEVER` (tensions it may
-never weave). Unbenched; `tests/test_migration.py` pins what is mined and the order.
+a re-affirmation is not a second record, drains, and hands back the Advisor with a
+`MigrationReport` (turns mined, perspectives, pathways, decisions recorded / failed). Costs one
+ingest plus one classifier call per exchange. Refuses `build=NEVER` (tensions it may never
+weave); `records` is always on. Unbenched; `tests/test_migration.py` pins what is mined and
+the order.
 
 ---
 
