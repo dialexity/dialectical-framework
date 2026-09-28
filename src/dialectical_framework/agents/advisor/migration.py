@@ -7,8 +7,11 @@ any head (`Advisor(messages=)`), but resumption alone leaves the Case empty:
 nothing was ever written, and the closing seam only runs on NEW turns, so a
 decision the person settled in prose is just a reply in the history.
 `advisor_from_consultation` is the factory that closes that gap: it makes the
-Advisor AND seeds the Case from the conversation, once, and hands both back. A
-factory rather than a method on the Advisor because a migration is a way of
+Advisor, seeds the Case from the conversation, and then lets the Advisor SAY
+what it kept — the migration ends as one more exchange in the history (the
+person's request to keep the conversation, the Advisor's reply over the graph
+it now holds), and the conversation simply goes on from there, graph-backed.
+A factory rather than a method on the Advisor because a migration is a way of
 MAKING an Advisor, not something an Advisor does to itself — and because the
 seam and the weave it composes are the Advisor's own private machinery, which
 this module, living beside it, may reach.
@@ -123,9 +126,21 @@ MIGRATION_INTENT = (
 )
 
 
+#: The person's turn that closes the migration — what the upgrade button
+#: says, in the person's voice, so the Advisor's first reply is its account of
+#: what it kept. A host may pass its own wording (`request=`); the reply is
+#: whatever the Advisor says over the graph it now holds, and it is the last
+#: message in `advisor.messages` when the factory returns.
+MIGRATION_REQUEST = (
+    "Keep what we have talked through so far as my case, and tell me what you "
+    "have kept: the tensions you see, and anything I decided."
+)
+
+
 @dataclass
 class MigrationReport:
-    """What `advisor_from_consultation` did, for the host to show or log."""
+    """What the seeding did, logged; the person's account of it is the Advisor's
+    own reply to `MIGRATION_REQUEST`."""
 
     #: The person's turns that were mined (0 = nothing to migrate).
     turns: int = 0
@@ -149,17 +164,19 @@ async def advisor_from_consultation(
     principal: str = UNATTESTED_PRINCIPAL,
     build: BuildPolicy = BuildPolicy.ON_ELECTION,
     thinking: Any = FROM_SETTINGS,
-) -> tuple[Advisor, MigrationReport]:
+    request: str = MIGRATION_REQUEST,
+) -> Advisor:
     """Make an Advisor over a fresh Case, seeded from a Consultant's conversation.
 
     The upgrade path, as one host call inside the new Case's scope (the Case is
     the host's to create; nothing in `src/` makes one):
 
         with scope(case.sid):
-            advisor, report = await advisor_from_consultation(
+            advisor = await advisor_from_consultation(
                 consultant.messages, app=spec, principal="human"
             )
-        # then `advisor.chat(...)` as usual; the next turn's refresh shows the graph
+        advisor.messages[-1]   # the Advisor's own account of what it kept
+        # then `advisor.chat(...)` as usual — the conversation goes on, graph-backed
 
     What it does, once, in order:
 
@@ -174,15 +191,20 @@ async def advisor_from_consultation(
        a decision confirmed in the Consultant session is recorded with the
        grounds a live closing gets, and a re-affirmation is filed as such;
     5. drains the off-turn work those closings started, and clears the turn
-       fields so the first real turn starts clean.
+       fields;
+    6. runs ONE ordinary turn on `request` — the person's ask to keep the
+       conversation — so the Advisor's first reply, over the graph it now
+       holds, is its account of what was kept. That exchange is the last two
+       messages in `advisor.messages`; nothing else reports to the person.
 
-    Takes as long as one ingest plus one classifier call per exchange. Refuses
-    `build=NEVER`: it would plant tensions the head may never weave — migrate
-    into `ON_ELECTION` or `ON_CONSENT`. Elections are not relied on anywhere in
-    it: the person's whole reason to upgrade is that they want it kept.
+    Takes as long as one ingest, one classifier call per exchange, and one
+    turn. Refuses `build=NEVER`: it would plant tensions the head may never
+    weave — migrate into `ON_ELECTION` or `ON_CONSENT`. Elections are not
+    relied on anywhere in the seeding: the person's whole reason to upgrade is
+    that they want it kept. Nothing is skipped when the history holds no
+    person's turn — the Advisor is still made and still asked, and says so.
     """
     from dialectical_framework.agents.advisor.advisor import Advisor
-    from dialectical_framework.agents.advisor.tools.ingest import _ingest
 
     require_current_sid()
     build = BuildPolicy(build)
@@ -204,8 +226,21 @@ async def advisor_from_consultation(
     report = MigrationReport()
     turns = person_turns(messages)
     report.turns = len(turns)
-    if not turns:
-        return advisor, report
+    if turns:
+        await _seed(advisor, turns, messages, report)
+    logger.info(
+        "Migrated a consultation: %d turn(s), %d perspective(s), %d pathway(s), "
+        "%d decision(s) recorded, %d failed",
+        report.turns, len(report.perspectives), len(report.pathways),
+        report.decisions_recorded, report.decisions_failed,
+    )
+    await advisor.chat(request)
+    return advisor
+
+
+async def _seed(advisor: Advisor, turns: list[str], messages: list, report: MigrationReport) -> None:
+    """Steps 2–5 of `advisor_from_consultation`, on the Advisor it made."""
+    from dialectical_framework.agents.advisor.tools.ingest import _ingest
 
     ingest_json = await _ingest(
         text="\n\n".join(turns), intent=MIGRATION_INTENT, input_hashes=None
@@ -231,10 +266,3 @@ async def advisor_from_consultation(
     # own (`None` between turns is load-bearing).
     advisor._last_closing = None
     advisor._last_deferral = None
-    logger.info(
-        "Migrated a consultation: %d turn(s), %d perspective(s), %d pathway(s), "
-        "%d decision(s) recorded, %d failed",
-        report.turns, len(report.perspectives), len(report.pathways),
-        report.decisions_recorded, report.decisions_failed,
-    )
-    return advisor, report

@@ -3702,7 +3702,10 @@ together, and `TestTheGatesHaveTheirSites` the only thing stopping a "not buildi
 from taking the settle and the refresh.
 
 **Consultant → Advisor (2026-09-28):** `advisor_from_consultation(consultant.messages, app=, principal=)`
-(`agents/advisor/migration.py`), a factory the host calls inside the new Case's scope; it returns the Advisor. Two prompt-relevant facts: the analysis is run over the PERSON's turns only
+(`agents/advisor/migration.py`), a factory the host calls inside the new Case's scope; it returns the Advisor after
+ONE ordinary turn on `MIGRATION_REQUEST` (a synthetic user turn in the person's voice, `request=` to reword), so the
+report the person reads is the Advisor's own reply over the seeded graph — the closing seam runs on that turn like
+any other, and the eager rule may elect a build on it; both unmeasured. Two prompt-relevant facts: the analysis is run over the PERSON's turns only
 (`migration.person_turns`; the model's replies would otherwise be mined as the person's positions — the
 transcript-ingest objection from the critics' review), under `MIGRATION_INTENT`, a deliberately neutral focus;
 and the closing seam is replayed over every (person, reply) exchange in order, so `DecisionConfirmationCheck`
