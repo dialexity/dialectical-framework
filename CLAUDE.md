@@ -525,6 +525,7 @@ When fixing prompt output bugs: follow the revision methodology in `/df-review-r
 | Doc | Purpose |
 |-----|---------|
 | `docs/graph.md` | Full graph data model (positions, transformations, cardinality, layers, intent) |
+| `docs/surfaces.md` | The one-page map: four heads, seven axes, the Advisor's `build=`×`records=` matrix, recipes from app idea to construction. Update it whenever a constructor parameter is added, renamed or removed |
 | `docs/agents.md` | The three agents, their tools, handoffs, and the host obligations |
 | `docs/theory/` | Theory→implementation wiki: every Structured Dialectics claim mapped to its encoding site with status (implemented/partial/absent/diverges). Gaps may carry `**Tracked:** #NN` linking a GitHub issue (orthogonal to status — see `index.md`). Maintained by `/df-sync-theory` — consult it instead of the theory PDFs; keep it synced when implementing theory-encoding code. Start at `index.md` (status ledger + standing cautions). |
 | `tests/e2e/README.md` | The bench: ablation ladder, lanes, what keeps the comparison honest. Numbers: `tests/e2e/status.py`. Rounds: `tests/e2e/rounds.md`. |

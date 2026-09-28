@@ -1,5 +1,8 @@
 # Agents: Analyst, Explorer, Advisor
 
+> The one-page map of heads, axes and combinations is [`docs/surfaces.md`](surfaces.md);
+> this document is the detail behind each row.
+
 The three conversational agents are the primary building blocks for any application
 on top of the dialectical framework. Each is a thin LLM orchestrator that owns a set
 of tools and a system prompt; the dialectical reasoning ("wisdom") lives in the
