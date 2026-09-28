@@ -124,7 +124,7 @@ def with_thinking_compat(
     # 2026-09-24 (`probe_tool_path_hidden_output`, Sonnet 5, level unset): every
     # call came back with a `thinking` block and `thinking_tokens` in usage —
     # ~500 on a plain reply, ~2,500 on a tool-wired turn over a real graph,
-    # which is the whole of the Consultant's 42s turn against the dump's 13s
+    # which is the whole of the sealed Advisor's 42s turn against the dump's 13s
     # (`probe_consultant_42s`).
     #
     # WHERE "unset" is sent as "disabled" is a policy, and it is scoped on

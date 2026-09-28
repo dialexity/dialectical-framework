@@ -4294,20 +4294,20 @@ class TestTheConfirmationClassifierJudgesThePersonFirst:
         assert "Be conservative. A false" not in m.SYSTEM_PROMPT
 
 
-class TestTheConsultantIsNotToldToBuild:
-    """Critics' review, 2026-09-24, on the RENDERED consultant shape: Decision
+class TestTheSealedHeadIsNotToldToBuild:
+    """Critics' review, 2026-09-24, on the RENDERED sealed shape: Decision
     Readiness (gated on `record_decision`) told the head to "`explore` what you
     have before the ceremony", and the feasibility wobble note (gated on
-    `audit_feasibility`) told it to `deepen` — two tools the Consultant does
+    `audit_feasibility`) told it to `deepen` — two tools the sealed Advisor does
     not hold, cancelled only by a mandate 46k characters later. The repo's own
     rule: a section gated on one tool that names another holds that passage
     out behind a placeholder gated on the second name. Now it does. The
     mid-paragraph mentions in Reading Your Understanding are left to the
     mandate ON PURPOSE (see the comment above `mandate` in `system_prompt`).
-    Also: the consultant's eager section asserted the understanding "was built
+    Also: the sealed head's eager section asserted the understanding "was built
     before this conversation" on a graph that may be empty; it now says so."""
 
-    def _consultant_names(self):
+    def _sealed_names(self):
         from dialectical_framework.agents.advisor import advisor as adv
 
         from dialectical_framework.agents.advisor.build_policy import BuildPolicy
@@ -4321,12 +4321,12 @@ class TestTheConsultantIsNotToldToBuild:
         assert "## Decision Readiness" in prompt
         return prompt.split("## Decision Readiness")[1].split("\n## ")[0]
 
-    def test_the_consultant_shape_names_no_build_tool_in_decision_readiness(self):
+    def test_the_sealed_shape_names_no_build_tool_in_decision_readiness(self):
         import re
 
         from dialectical_framework.agents.advisor.system_prompts import system_prompt
 
-        section = self._decision_readiness(system_prompt(tool_names=self._consultant_names()))
+        section = self._decision_readiness(system_prompt(tool_names=self._sealed_names()))
         assert not re.findall(r"`(explore|deepen|anchor|ingest)`", section)
         assert "Here the pathways are whatever the understanding already holds." in section
         assert "record on what exists" in section
@@ -4345,23 +4345,23 @@ class TestTheConsultantIsNotToldToBuild:
 
         from dialectical_framework.agents.advisor.system_prompts import system_prompt
 
-        for names in (None, self._consultant_names(), ["sync", "inspect_node", "read_digest"]):
+        for names in (None, self._sealed_names(), ["sync", "inspect_node", "read_digest"]):
             leaked = [p for p in re.findall(r"\{[a-z_]+\}", system_prompt(tool_names=names)) if p != "{dialectical_context}"]
             assert not leaked, names
 
     def test_a1_carries_the_building_form_as_a_mental_act(self):
-        from dialectical_framework.agents.advisor.method import method_prompt
+        from dialectical_framework.agents.consultant.consultant import method_prompt
 
         text = method_prompt()
         assert "{" not in text
         assert "Work out their pathways before the ceremony." in text
         assert "ONE mapped\ntension is enough" in text
 
-    def test_the_consultant_admits_the_understanding_may_be_thin(self):
-        from dialectical_framework.agents.advisor.system_prompts import _EAGER_CONSULTANT
+    def test_the_sealed_head_admits_the_understanding_may_be_thin(self):
+        from dialectical_framework.agents.advisor.system_prompts import _EAGER_SEALED
 
-        assert "may be rich, thin, or not there yet" in _EAGER_CONSULTANT
-        assert "was built before this conversation, and here" not in _EAGER_CONSULTANT
+        assert "may be rich, thin, or not there yet" in _EAGER_SEALED
+        assert "was built before this conversation, and here" not in _EAGER_SEALED
 
 
 class TestTheSynthesisWhyReachesThePrompt:

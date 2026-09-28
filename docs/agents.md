@@ -18,14 +18,14 @@ categories of app, split by who is talking (see [Choosing what to build](#choosi
 | **Analyst** | workbench | Case | raw material → structured tensions, up to grouping | yes (structure-forward) |
 | **Explorer** | lab bench | one Nexus | one group of tensions → causal pathways + synthesis | yes (structure-forward) |
 | **Advisor** | conversation | Case | anything → counsel, framework runs silent | no (hidden) |
-| **Advisor (Consultant)** | conversation | Case or one Nexus | a built graph → counsel and recorded decisions, nothing built | no (hidden) |
+| **Advisor (sealed)** | conversation | Case or one Nexus | a built graph → counsel and recorded decisions, nothing built | no (hidden) |
 
 Analyst + Explorer together are the **Navigator** experience (two visible phases).
 The Advisor is a **separate app**: internally it does what Analyst + Explorer do, but
 exposes none of the machinery — pinned to one exploration for an analyst or mediator
 (`Advisor(nexus_hash=, messages=)`), or from scratch for their client (`Advisor(app=)`),
 whose sessions end up building a nexus and diving into it (`persona=True` keeps the
-persona over the pin). The **Consultant** is the Advisor with the build tools withheld
+persona over the pin). The **sealed Advisor** is the Advisor with the build tools withheld
 (`Advisor(build=BuildPolicy.NEVER)`, or `ON_CONSENT` to let the graph grow on the person's
 word between turns): a graph something else built — see
 [Choosing what to build](#choosing-what-to-build) and the headless builder under it.
@@ -421,7 +421,7 @@ confirmed decision is one call of a few seconds and discarding is free — so th
 |----------|-------|--------------------|---------------------|-----|
 | `ON_ELECTION` (default) | all ten | yes, whenever the model elects to | yes — the closing seam weaves what was left unwoven | the two Advisor categories: from scratch, and on a nexus (the advisory register or a pinned persona) |
 | `ON_CONSENT` | `sync`, `inspect_node`, `read_digest`, `record_decision`, `discard`, `audit_feasibility`, **`note`** | **never** — a reply is one graph read plus the model | yes, on the person's word: what they ask to have written down (`note`: `anchor`'s parameters, queued and planted after the reply) and a decision they confirm start the same off-turn task, anchored first if the graph is empty. In an exploration (the pin, or the case's one exploration) a note is woven into it; outside any, a note is the analysis part alone — planted as a tension, not woven — and a closing is what creates the exploration | a consultation whose understanding should keep growing without ever making the person wait for it — the "write that down" surface. Unbenched |
-| `NEVER` | the same minus `note` | never | **never** — the closing seam records without starting the weave | **the Consultant**: a conversation over a graph that was built before it and stays as built. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
+| `NEVER` | the same minus `note` | never | **never** — the closing seam records without starting the weave | **the sealed Advisor**: a conversation over a graph that was built before it and stays as built. Measured (`consultant-latency`, weak tier): median turn 17.6s against the full Advisor's 24.3s and a static dump's 6.3s — faster, not yet fast; see the note below the table |
 
 `records=False` narrows any of them to the three reads (`sync`, `inspect_node`, `read_digest`):
 a second reader on someone else's Case, a shared or public view, a support seat. A permission,
@@ -443,14 +443,14 @@ switched off — measured 0/6 at the weak tier). `principal` is accepted and ign
 tell a host's chart lookup from a host's write, so the policy governs the framework's tools and
 the host owns its own. And the host obligation does not change: `wait_for_deferred_work()`
 before the process goes away, on `ON_CONSENT` as on `ON_ELECTION` — a note is planted by the
-same task a closing's weave runs on. The Consultant's latency against the full Advisor and against a static dump
+same task a closing's weave runs on. The sealed Advisor's latency against the full Advisor and against a static dump
 is measured by the bench's `A2c` arm (`tests/e2e/README.md`). Its first run says the build
 tools were a small part of the gap: tool-free turns are still ~15s against the dump's ~6s over
 the same graph. The per-turn graph render (3.2s) has since been removed by a fingerprint-gated
 cache. What remains is not the prompt's size (measured: under a second) but **extended
 thinking on the tool path**: `conversation_thinking_level`, when set, applies to every tool-enabled call
 and never to the structured path the prompt arms answer through, and at `medium` it is ~450
-hidden output tokens and ~6s a turn on the weak tier. Unset, the Consultant answers in ~6s
+hidden output tokens and ~6s a turn on the weak tier. Unset, the sealed Advisor answers in ~6s
 and elects no fewer tools (`tests/e2e/rounds.md`, `probe-consultant-prompt-cost`,
 `thinking-off`). Whether thinking earns that in counsel quality is unmeasured. None of this
 is the mode's enforcement.
@@ -497,7 +497,7 @@ displays it.
   Explorer session, reached by handover. Pinned **with `persona=True`** it is the standalone
   app again, narrowed to one exploration — how a client's conversation continues inside the
   exploration it built.
-- The **Consultant** (`build=BuildPolicy.NEVER`) is the one to reach for when the graph
+- The **sealed Advisor** (`build=BuildPolicy.NEVER`) is the one to reach for when the graph
   already exists and the person wants to talk it through and decide: same chat window, a
   turn is one graph read plus the model, decisions are recorded, nothing is built.
   `build=ON_CONSENT` is the same window with one more thing the person can say — "write
@@ -506,10 +506,13 @@ displays it.
   a viewer, a second reader, a support agent. The conversation looks identical; the graph is
   untouched, and nothing said in it is recorded.
 
-### Advise and forget — `MethodAdvisor`
+### Advise and forget — `Consultant`
 
-`MethodAdvisor(app_preamble=None, messages=None, app=None, thinking=FROM_SETTINGS,
-include_decision=True)` (`agents/advisor/method.py`) is the Advisor's method as a prompt
+(Vocabulary since 2026-09-28: `Consultant` is this agent. The Advisor that never builds,
+`build=NEVER`, is the **sealed Advisor**; it was called "the Consultant" before.)
+
+`Consultant(app_preamble=None, messages=None, app=None, thinking=FROM_SETTINGS,
+include_decision=True)` (`agents/consultant/consultant.py`) is the Advisor's method as a prompt
 and nothing behind it: no Case, no `scope(sid)`, no graph, no tools, no memory beyond the
 `messages` of this one conversation. A host can run it with no database at all. It is the
 surface for the shallow application — "I have a problem with my wife…", counsel that
@@ -777,13 +780,13 @@ They differ by WHO is talking and WHETHER the graph is being built:
 | Category | Who | Construct | Builds | Measured |
 |----------|-----|-----------|--------|----------|
 | **Navigator** | a system scientist building and navigating the wheel at the same time | `Analyst(app=)`, then `Explorer(nexus_hash=)`, switching heads by resuming with the same `messages`; the advisory register (`Advisor(nexus_hash=, messages=)`) is its third head | yes, in the open — every tool call is visible, buttons in the app route through the same chat | tool contracts and skills; never benched as counsel |
-| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (Haiku, n=8): equal to the Consultant, loses to the dump. `ladder-sonnet` (Sonnet 5, n=6): above the dump (+0.22, unresolved) but a resolved loss to the Consultant (−0.51 [−0.97, −0.05]) — and on both models no build tool elected inside the pin. Read with the caveat in `rounds.md`: a Sonnet build makes several nexuses and the bench pins to one, so the pin hid most of the graph |
+| **Advisor on a nexus** | an analyst or mediator exploring ONE constellation of perspectives with assisted reasoning | `Advisor(nexus_hash=, messages=, app=)` — the Navigator's advisory register, vocabulary disclosed; or `persona=True` for a person who never used the Navigator | silently, inside the pin | `nexus-pinned` (Haiku, n=8): equal to the sealed Advisor, loses to the dump. `ladder-sonnet` (Sonnet 5, n=6): above the dump (+0.22, unresolved) but a resolved loss to the sealed Advisor (−0.51 [−0.97, −0.05]) — and on both models no build tool elected inside the pin. Read with the caveat in `rounds.md`: a Sonnet build makes several nexuses and the bench pins to one, so the pin hid most of the graph |
 | **Advisor from scratch** | the client of a mediator, psychologist or similar, resolving an issue with a dialectically thinking LLM | `Advisor(app=)` | silently, from nothing — and **it ends up building a nexus and diving into it**, i.e. it collapses into the row above: the host pins the later sessions with `Advisor(nexus_hash=, app=, persona=True)` | the benched A2 arm: the first session loses to a static dump of the graph it builds (−1.47 [−1.76, −1.18], `reasoning-sonnet`); it wins at the return (`ladder-return`). What the bench has measured is the on-ramp, not the destination |
-| **Advise and forget** | anyone, once: a situation described, counsel that reasons dialectically, nothing kept | `MethodAdvisor(app_preamble=)` — the method as a prompt, no graph, no tools, no Case | never | the bench's A1 arm IS this head's prompt: in-session `A2−A1` is positive and unresolved on Sonnet 5 (+0.26 at 12 pairs, `prompt-vs-machinery`; `thinking-check` +0.35 with thinking, −0.27 without); at the return it has nothing to return to |
-| **Consultant** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(build=NEVER)` (or `ON_CONSENT`, to let it grow on their word), with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
+| **Advise and forget** | anyone, once: a situation described, counsel that reasons dialectically, nothing kept | `Consultant(app_preamble=)` — the method as a prompt, no graph, no tools, no Case | never | the bench's A1 arm IS this head's prompt: in-session `A2−A1` is positive and unresolved on Sonnet 5 (+0.26 at 12 pairs, `prompt-vs-machinery`; `thinking-check` +0.35 with thinking, −0.27 without); at the return it has nothing to return to |
+| **Sealed Advisor** | a person talking to a graph that something else built — typically an agentic LLM running the [headless builder](#the-headless-builder) | `Advisor(build=NEVER)` (or `ON_CONSENT`, to let it grow on their word), with or without `nexus_hash` | never — reads, records decisions, retracts, scores a pathway on request | the best counsel measured on both models, and on Sonnet 5 a RESOLVED win over the static dump of the same graph (+0.50 [+0.08, +0.92], `ladder-sonnet`); never worse than the builder; ~47s a turn on Sonnet against the dump's ~10s |
 
 The categories and the Advisor's `build=`/`records=` are two axes, not one list: the two
-Advisor categories run `ON_ELECTION`, the Consultant runs `NEVER` (as benched) or `ON_CONSENT`
+Advisor categories run `ON_ELECTION`, the sealed Advisor runs `NEVER` (as benched) or `ON_CONSENT`
 (unbenched), and `records=False` is an access level under any of them rather than a fifth
 category — the same conversation, nothing recorded, for a seat that is not the one doing the
 work.
@@ -796,22 +799,22 @@ What the bench says, stated once: counsel from a FINISHED graph beats counsel fr
 being built in front of the person, resolved on the weak tier; the value accrues in the
 record and the map and is collected at the return. That is not a verdict against the two
 building categories — it is the reason the first session is the expensive one and the
-Consultant exists — and it was the WEAK model's verdict. On Sonnet 5 (`ladder-sonnet`) every
-live head sits above the static dump and the Consultant does so resolved; the builder is not
-worse than the Consultant and costs 8x the dump's turn; the pinned head, as benched, loses
-to the Consultant because a Sonnet build makes several nexuses and a pin to one hides the
+Sealed Advisor exists — and it was the WEAK model's verdict. On Sonnet 5 (`ladder-sonnet`) every
+live head sits above the static dump and the sealed Advisor does so resolved; the builder is not
+worse than the sealed Advisor and costs 8x the dump's turn; the pinned head, as benched, loses
+to the sealed Advisor because a Sonnet build makes several nexuses and a pin to one hides the
 rest. The model is the brain: the same products, a different verdict, and the production
 verdict is the one to build against.
 
 Navigator and the Advisors are **not** one UI with a toggle — the Advisor's value is that it
 hides exactly what the Navigator exists to show. If you build both, they are two front-ends
 over one graph service, distinguished only by which agents they instantiate and which
-preamble they inject. The Consultant composes with any of them: it is the same `Advisor`
+preamble they inject. The sealed Advisor composes with any of them: it is the same `Advisor`
 class, handed fewer tools.
 
 ### The headless builder
 
-The Consultant presupposes a graph, and the thing that built it need not be a person in a
+The sealed Advisor presupposes a graph, and the thing that built it need not be a person in a
 chat. The same pipelines every agent composes are callable directly, under a scope, with no
 conversation and no preamble. Three calls take material to a developed exploration:
 
@@ -845,19 +848,19 @@ the closing seam and the probes. Three things the pipelines leave to the caller:
 k=4 is 96 wheels and had not returned after 41 minutes with a zero-latency model); **open a
 progress scope** if a host is watching (`utils/progress.py`; the pipelines report into it
 and are silent without one); and **nothing here records decisions** — that is the
-Consultant's job on the graph this produced. An agentic builder that drives the Analyst and
+Sealed Advisor's job on the graph this produced. An agentic builder that drives the Analyst and
 Explorer heads through `chat()` instead gets the same graph with the tool-election
 variance those prompts carry; the pipelines are deterministic in what they run.
 `tests/test_agents_e2e.py` runs exactly this sequence against a real provider.
 
-**This is also how a Consultant's graph GROWS between sessions, and it needs no framework
-change.** The Consultant builds nothing on the turn or after it (its mandate says so to the
+**This is also how a sealed Advisor's graph GROWS between sessions, and it needs no framework
+change.** The sealed Advisor builds nothing on the turn or after it (its mandate says so to the
 person). A host that wants the next session to open on a richer graph runs the three calls
 above between sessions, under the same scope, on the person's material (their own words and
 facts — not the assistant's replies), and bounds `k`. That is the configuration every
-Consultant number in the archive was measured on (each A2c cell's graph was built by a full
+Sealed Advisor number in the archive was measured on (each A2c cell's graph was built by a full
 Advisor run BEFORE the session), and it keeps one writer per sid where it is enforceable: the
-host's process, not a concurrent head. A design that had the Consultant grow its own graph
+host's process, not a concurrent head. A design that had the sealed Advisor grow its own graph
 off the turn was reviewed and dropped on 2026-09-24 (`tests/e2e/rounds.md`, `### critics'
 review`): the off-turn weave creates no perspectives, an unscoped weave forks a second
 nexus, and transcript ingest is speaker-blind and unconsented.
@@ -882,10 +885,10 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 | build tools elected inside a nexus pin | 1 explore in 4 cells, no anchor, no deepen | none in 3 cells (discard, record, inspect, audit only) | `nexus-pinned`, `ladder-sonnet` |
 | a refused `record_decision` retried identically | 3–5 times per closing | 4 times on one closing — the loop is the refusal's, not the model's (fixed 3a555f1) | `nexus-pinned`, `ladder-sonnet` |
 | extended thinking at `medium` on the tool path | ~3x the call, no election gain | close to free, close to a no-op — measured against a baseline that was ALREADY thinking: Bedrock's default for Claude 5 on a plain text/tools call is adaptive thinking on, and "unset" was not sent as off until 2026-09-24 | `thinking-off`, `sonnet-thinking`, `probe_tool_path_hidden_output` |
-| hidden output on an unset-thinking CONVERSATIONAL round | none (4.x thinks only when asked) | ~500 thinking tokens on a plain reply, ~2,500 on a tool-wired turn over a real graph — the Consultant's 42s vs the dump's 13s; now sent as disabled inside `conversational_round()` only | `probe_consultant_42s`, `probe_tool_path_hidden_output` |
+| hidden output on an unset-thinking CONVERSATIONAL round | none (4.x thinks only when asked) | ~500 thinking tokens on a plain reply, ~2,500 on a tool-wired turn over a real graph — the sealed Advisor's 42s vs the dump's 13s; now sent as disabled inside `conversational_round()` only | `probe_consultant_42s`, `probe_tool_path_hidden_output` |
 | hidden output on a structured (forced-tool `format`) concern call, level unset | none | none — 0 thinking tokens with no parameter sent; tool choice suppresses the default, so the graph builders never thought and the prompt arms (which answer through the same path) never thought either | `probe_tool_path_hidden_output::test_probe_where_thinking_lands_now` |
-| live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | Consultant +0.50 [+0.08, +0.92] — marked RESOLVED by the report but BELOW the round's own pre-registered margin (≥0.12), 6 pairs from 2 replicates, slot split 4/2 in the winner's favour (the memory kill), winner 8% longer; substance-only +0.59 [+0.09, +1.09]; replication needed. Builder +0.38 and pinned +0.22 unresolved; pinned −0.51 vs Consultant measured a blindfold (pin to 2 of 4–5 perspectives), not the category | `reasoning-sonnet`, `nexus-pinned`, `ladder-sonnet`, critics' review |
-| median turn, live head over a built graph | Consultant 11.8s, builder 12.3s | Consultant 47s, builder 76s (worst deferred wait 174s); the dump 9.8s | `nexus-pinned`, `ladder-sonnet` |
+| live head vs static dump of its own graph | loses, resolved (−1.47 / −0.83 / −0.78) | sealed Advisor +0.50 [+0.08, +0.92] — marked RESOLVED by the report but BELOW the round's own pre-registered margin (≥0.12), 6 pairs from 2 replicates, slot split 4/2 in the winner's favour (the memory kill), winner 8% longer; substance-only +0.59 [+0.09, +1.09]; replication needed. Builder +0.38 and pinned +0.22 unresolved; pinned −0.51 vs sealed Advisor measured a blindfold (pin to 2 of 4–5 perspectives), not the category | `reasoning-sonnet`, `nexus-pinned`, `ladder-sonnet`, critics' review |
+| median turn, live head over a built graph | sealed Advisor 11.8s, builder 12.3s | sealed Advisor 47s, builder 76s (worst deferred wait 174s); the dump 9.8s | `nexus-pinned`, `ladder-sonnet` |
 | decisions flagged incoherent by the coherence check | 6 of 15 | 1 of 12 | `nexus-pinned`, `ladder-sonnet` |
 | the assembly vs the same method as a tool-less prompt (`A2−A1`), in-session / at the return | −0.43 resolved / +2.4 resolved | +0.26 unresolved (A2 converges, A1 diagnoses) / +1.07, followup cells resolved | `ladder-return-r18`, `prompt-vs-machinery` |
 | the typed record vs the model's own prose journal at the return (`A2−A1.7`) | +0.78 / +1.08 resolved | +0.06 at n=2, a null | `ladder-return-r16/r18`, `prompt-vs-machinery` |
@@ -896,7 +899,7 @@ all figures from `tests/e2e/rounds.md` (never from memory; re-derive before quot
 
 What follows from the table, as of 2026-09-22: **Sonnet 5 is the floor for a conversation
 with tools wired**, and on it the direction of the bench's central finding flips — every
-live head sits above the static dump of its own graph, the Consultant resolved — so the
+live head sits above the static dump of its own graph, the sealed Advisor resolved — so the
 "live loses to static" story was the weak model's. Haiku 4.5 is a development model — every seam that compensates for
 a model not doing what the prompt says (the closing repair, the off-turn weave, the
 empty-graph anchor, the shared-price location, the hash filter) was built against the

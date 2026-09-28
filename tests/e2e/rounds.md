@@ -6,6 +6,13 @@ grown to 3406 lines of which 3006 were this, so the document a new session read
 first was 88% provenance. Nothing was deleted in the split and nothing was
 reworded.
 
+**Vocabulary note (2026-09-28, an annotation, nothing below reworded):** every "Consultant"
+in this log names the Advisor that never builds — `Advisor(mode=CONSULTANT)` at the time,
+`Advisor(build=NEVER)` since 2026-09-26, and "the sealed Advisor" in the docs since 2026-09-28,
+when `Consultant` became the name of the tool-less one-off agent (`agents/consultant/`,
+whose prompt is the `A1` arm's). The `A2c` arm, the `consultant-*` stems and the
+`consultant_build_*` fields keep their identifiers.
+
 **This file is append-only.** A round's write-up is not revised when a later round
 supersedes it — it is annotated, in place, with what changed and when. That rule is
 not stylistic: `mutate23a.py` carries a mutation named *"README's pre-registered

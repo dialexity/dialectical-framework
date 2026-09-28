@@ -1,15 +1,15 @@
 """
-probe_consultant_prompt_cost — WHY is a Consultant turn ~16s when A1.5 answers in ~6s?
+probe_consultant_prompt_cost — WHY is a sealed Advisor turn ~16s when A1.5 answers in ~6s?
 
 `consultant-cache` (2026-09-18) left one difference standing between the two
 arms over the SAME graph and model: the render is cached (0.01s), tools cost
 7s over 16 turns, reply length matches — so what remains is the prompt itself,
 the full engine (~17k tokens) plus six tool schemas against A1.5's rewritten
-method text. That is a hypothesis, and a trimmed consultant render built on it
+method text. That is a hypothesis, and a trimmed sealed render built on it
 would be a prompt-design change with a quality risk. So this measures the
 mechanism first, with a 2x2 that holds everything else fixed:
 
-    A  engine prompt  + tools      the Consultant as shipped (`Advisor.chat`)
+    A  engine prompt  + tools      the sealed Advisor as shipped (`Advisor.chat`)
     B  method text    + no tools   A1.5 as the bench runs it
     C  engine prompt  + no tools   is it the TEXT?
     D  method text    + tools      is it the TOOLS (schemas, tool-use mode)?
@@ -45,13 +45,13 @@ median of 4-5 reps, conditions interleaved):
 
 THE PROMPT-SIZE HYPOTHESIS IS REFUTED. The full engine prompt (16.6k prefill,
 64k chars) without tools answers in 3.6s against the method text's 2.9s — the
-text costs well under a second. What costs the Consultant its turn is the TOOL
+text costs well under a second. What costs the sealed Advisor its turn is the TOOL
 PATH THINKING: `ConversationFacilitator._call_with_tools` passes the configured
 `conversation_thinking_level` and `_call_with_response_model` (the path every prompt arm
 answers through) never does, so with `medium` set — as it is in this
 environment — the tool-enabled call generates ~450 output tokens the reply does
 not contain (674 against 190 for ~150 words) and takes 9.5s instead of 3.6s.
-Unset, the Consultant lands at 5.8s: ~1s for the engine text over the method
+Unset, the sealed Advisor lands at 5.8s: ~1s for the engine text over the method
 text, ~0.5s render + settle, and 0.3 tool elections a turn (`read_digest`).
 
 ON SONNET 5 (2026-09-19, `DIALEXITY_PROBE_MODEL`) the Haiku finding does NOT
@@ -85,7 +85,7 @@ from dialectical_framework.concerns.dialectical_context import \
     DialecticalContext
 from dialectical_framework.graph.scope_context import scope
 from dialectical_framework.utils.call_census import call_census
-from dialectical_framework.agents.advisor.method import method_prompt
+from dialectical_framework.agents.consultant.consultant import method_prompt
 from e2e.arms import _STATIC_CONTEXT_INTRO
 from e2e.config import DEFAULT_TIER_WEAK
 from e2e.driver import E2E_PERSONA
@@ -193,7 +193,7 @@ async def test_probe_consultant_prompt_cost(di_container):
     print(f"model: {MODEL}  conversation thinking: {di_container.settings().conversation_thinking_level!r}")
     with scope(sid), using_model(di_container, MODEL):
         dump = await DialecticalContext().resolve()
-        # The engine text the Consultant actually carries, with THIS dump in it.
+        # The engine text the sealed Advisor actually carries, with THIS dump in it.
         engine_advisor = Advisor(
             app_preamble=E2E_PERSONA, build=BuildPolicy.NEVER
         )
@@ -208,7 +208,7 @@ async def test_probe_consultant_prompt_cost(di_container):
         )
 
         conditions = {
-            "A engine+tools (Consultant)": lambda: _run_advisor(dump),
+            "A engine+tools (sealed Advisor)": lambda: _run_advisor(dump),
             "B method+no tools (A1.5)": lambda: _run_facilitator(method, None),
             "C engine+no tools": lambda: _run_facilitator(engine_prompt, None),
             "D method+tools": lambda: _run_facilitator(

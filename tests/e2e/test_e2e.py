@@ -11,7 +11,7 @@ The load-bearing one is `test_rewrite_table_has_no_stale_keys`: A1's prompt is
 derived from the live engine prompt, so editing `system_prompts.py` can silently
 drop method text out of the baseline and hand the framework a win it did not
 earn. That assert turns a silent bias into a failing test. The prompt lives in
-`agents/advisor/method.py` since 2026-09-26 (it is the shipped `MethodAdvisor`'s
+`agents/consultant/consultant.py` since 2026-09-26 (it is the shipped `Consultant`'s
 prompt as well as A1's); the guard stays here because its subject is the
 baseline's fairness.
 """
@@ -25,7 +25,7 @@ from unittest import mock
 import pytest
 
 from e2e import scoring
-from dialectical_framework.agents.advisor.method import (
+from dialectical_framework.agents.consultant.consultant import (
     _TOOL_REWRITES,
     _TOOL_TOKENS,
     _apply_rewrites,
@@ -3731,27 +3731,27 @@ class TestReport:
         assert "DIALECTICAL FRAMEWORK BENCH" in render_report([], [], {}, [])
 
 
-class TestTheConsultantArm:
+class TestTheSealedArm:
     """A2c: the third product surface on the ladder (2026-09-18).
 
     Same build as A1.5, consulted live with `Advisor(build=NEVER)`. What
     the arm must get right is the same thing A1.5 had to: a cell handed no
-    structure is not a weak Consultant, it is a full-Advisor-without-tools cell
+    structure is not a weak sealed Advisor, it is a full-Advisor-without-tools cell
     wearing the label, and it must drop out of every pooled cut.
     """
 
-    def test_the_two_a2c_pairs_bracket_the_consultant(self):
+    def test_the_two_a2c_pairs_bracket_the_sealed_advisor(self):
         assert (Arm.A2C, Arm.A1_5) in JUDGED_PAIRS
         assert (Arm.A2, Arm.A2C) in JUDGED_PAIRS
         assert Arm.A2C not in DEFAULT_ARMS, "a full Advisor run per cell — opt-in"
 
-    def test_a_consultant_cell_without_structure_is_not_evidence(self):
+    def test_a_sealed_cell_without_structure_is_not_evidence(self):
         run = _run(Arm.A2C, "weak")
         run.consultant_build_provenance = "perspectives=0 woven=0 transformations=0"
         assert run.consultant_without_structure
         assert run.invalid_as_evidence
 
-    def test_a_consultant_cell_with_structure_is_evidence(self):
+    def test_a_sealed_cell_with_structure_is_evidence(self):
         run = _run(Arm.A2C, "weak")
         run.consultant_build_provenance = "perspectives=6 woven=5 transformations=42"
         assert not run.consultant_without_structure
@@ -3781,12 +3781,12 @@ class TestTheConsultantArm:
         assert "if record.consultant_without_structure:" in source
         assert "was handed an empty graph" in source
 
-    def test_the_consultant_is_never_a_collapsed_a2(self):
-        """`collapsed_to_a1` reads "A2 built nothing" — a Consultant builds
+    def test_the_sealed_advisor_is_never_a_collapsed_a2(self):
+        """`collapsed_to_a1` reads "A2 built nothing" — a sealed Advisor builds
         nothing BY DESIGN, so the tripwire must not fire on it."""
         assert not _run(Arm.A2C, "weak").collapsed_to_a1
 
-    def test_the_driver_runs_it_on_the_advisor_path_in_consultant_mode(self):
+    def test_the_driver_runs_it_on_the_advisor_path_sealed(self):
         import inspect
 
         source = inspect.getsource(E2EDriver._run_session)
@@ -3816,7 +3816,7 @@ class TestTheConsultantArm:
         assert "reasoning_model" in RunRecord.model_fields
 
     def test_the_build_is_per_cell_and_inside_the_cell(self):
-        """The Consultant writes decisions into what it consults, so cells cannot
+        """The sealed Advisor writes decisions into what it consults, so cells cannot
         share a build; and the build is inside `duration_s`, unlike A1.5's."""
         import inspect
 
@@ -10772,7 +10772,7 @@ class TestR23RunsOnB28ebf5BecauseTheAlternativeCannotBeRun:
             system_prompt,
         )
 
-        from dialectical_framework.agents.advisor.method import method_prompt
+        from dialectical_framework.agents.consultant.consultant import method_prompt
 
         start = _INTERNAL_MODEL.index("**A correction about their situation")
         end = _INTERNAL_MODEL.index("**Control statements are your internal test")
@@ -12153,7 +12153,7 @@ class TestTheRungColumnIsTheBarePromptOnly:
         assert _opponent_bucket("A1") == "rung"
         assert _opponent_bucket("A1.7") == "journal"
         assert _opponent_bucket("A1.5") is None, "the static dump is not a prompt"
-        assert _opponent_bucket("A2c") is None, "the Consultant is not a prompt"
+        assert _opponent_bucket("A2c") is None, "the sealed Advisor is not a prompt"
 
     def test_a_distinct_reasoning_model_is_a_different_build(self, monkeypatch):
         from e2e import across_runs
@@ -12212,7 +12212,7 @@ class TestThePinnedAdvisorArm:
         assert not run.consultant_without_structure
         assert not run.invalid_as_evidence
 
-    def test_an_empty_build_invalidates_it_like_the_consultant(self):
+    def test_an_empty_build_invalidates_it_like_the_sealed_advisor(self):
         run = _run(Arm.A2N, "weak")
         run.consultant_build_provenance = "perspectives=0 woven=0 transformations=0"
         assert run.consultant_without_structure

@@ -691,7 +691,7 @@ def _opponent_bucket(opponent: str) -> str | None:
 
     "rung" is the BARE PROMPT — A0 (no persona) or A1 (persona) — and "journal"
     is A1.7, the prose journal. Anything else is neither and is left out: A1.5
-    is the framework's own static dump and A2c is the Consultant reading it, so
+    is the framework's own static dump and A2c is the sealed Advisor reading it, so
     an A2 delta against either measures live-versus-static, not
     framework-versus-prompt. Until 2026-09-21 this read `"journal" if A1.7 else
     "rung"`, which was the docstring's "vs A0/A1" for as long as those were the

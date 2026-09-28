@@ -2,7 +2,7 @@
 The Advisor's render cache: re-read the graph only when it moved.
 
 `consultant-latency` measured `context_render_s` at 3.21s a turn on the
-Consultant over a 5-6 perspective graph, a fifth of that surface's reply path,
+Sealed Advisor over a 5-6 perspective graph, a fifth of that surface's reply path,
 for a render that came out byte-identical to the previous turn's on 12 of 16
 turns. `Advisor._refresh_context` now gates the render on
 `CaseRepository.scope_fingerprint()`, two aggregate queries over the `Node(sid)`

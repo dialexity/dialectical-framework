@@ -107,7 +107,7 @@ class TestTranslation:
         thinking key does not mean off on a Claude 5 model. Measured 2026-09-24
         (`probe_tool_path_hidden_output`): every unset call returned a
         `thinking` block, ~500 tokens on a plain reply and ~2,500 on a
-        tool-wired turn over a real graph — the Consultant's 42s against the
+        tool-wired turn over a real graph — the sealed Advisor's 42s against the
         dump's 13s. Inside a conversational round that is double work over a
         graph that already holds the reasoning, so unset is sent as disabled."""
         from dialectical_framework.utils.thinking_compat import conversational_round

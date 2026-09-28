@@ -25,7 +25,7 @@ Three things in here are worth knowing before editing them.
 name sets) and the toolset factories are lists that must agree, and nothing but
 `TestTheListsAreOne` holds them together: a tool added to one and not the other
 gives a head that holds a build tool while being told it has none, or a full
-Advisor whose own prompt renders as a consultant's.
+Advisor whose own prompt renders as a sealed head's.
 
 The seam tests assert what was CONCLUDED, not merely what was written — a repair
 that ran and then failed to write looks identical from the outside, and it is not
@@ -51,7 +51,7 @@ from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.system_prompts import (
     DEFAULT_TOOL_NAMES, _BUILD_TOOL_NAMES, _CONSENT_TOOL_NAMES,
     _REJECTION_HANDLING_CONSENT, _REJECTION_HANDLING_CONSENT_SCOPED,
-    _REJECTION_HANDLING_CONSULTANT, _REJECTION_HANDLING_CONSULTANT_SCOPED,
+    _REJECTION_HANDLING_SEALED, _REJECTION_HANDLING_SEALED_SCOPED,
     _WRITE_TOOL_NAMES, system_prompt)
 from dialectical_framework.agents.advisor.tools.scoped import \
     build_scoped_tools
@@ -76,7 +76,7 @@ NOTING = {"note"}
 
 MANDATE = "## What Is Not Available Here"
 CONSENT_MANDATE = "builds only on the person's word"
-CONSULTANT_MANDATE = "This surface consults; it does not build."
+SEALED_MANDATE = "This surface consults; it does not build."
 VIEW_MANDATE = "This surface reads."
 
 
@@ -290,13 +290,13 @@ class TestThePromptFollowsTheToolset:
         )
 
     def test_each_narrow_surface_renders_its_own_mandate(self):
-        view, consultant, consent = self._view(), self._consultant(), self._consent()
+        view, sealed, consent = self._view(), self._consultant(), self._consent()
         assert MANDATE in view and VIEW_MANDATE in view
-        assert MANDATE in consultant and CONSULTANT_MANDATE in consultant
+        assert MANDATE in sealed and SEALED_MANDATE in sealed
         assert MANDATE in consent and CONSENT_MANDATE in consent
-        assert CONSULTANT_MANDATE not in view and CONSENT_MANDATE not in view
-        assert VIEW_MANDATE not in consultant and CONSENT_MANDATE not in consultant
-        assert VIEW_MANDATE not in consent and CONSULTANT_MANDATE not in consent
+        assert SEALED_MANDATE not in view and CONSENT_MANDATE not in view
+        assert VIEW_MANDATE not in sealed and CONSENT_MANDATE not in sealed
+        assert VIEW_MANDATE not in consent and SEALED_MANDATE not in consent
 
     def test_the_full_render_has_no_mandate(self):
         assert MANDATE not in system_prompt()
@@ -311,13 +311,13 @@ class TestThePromptFollowsTheToolset:
 
     def test_one_write_name_turns_the_view_render_into_the_consultant_one(self):
         render = system_prompt(tool_names=sorted(READING | {"discard"}))
-        assert CONSULTANT_MANDATE in render
+        assert SEALED_MANDATE in render
         assert VIEW_MANDATE not in render
 
     def test_the_note_name_turns_the_consultant_render_into_the_consent_one(self):
         render = system_prompt(tool_names=sorted(READING | {"note"}))
         assert CONSENT_MANDATE in render
-        assert CONSULTANT_MANDATE not in render and VIEW_MANDATE not in render
+        assert SEALED_MANDATE not in render and VIEW_MANDATE not in render
 
     def test_the_consent_render_documents_the_note_and_the_others_do_not(self):
         assert "- `note`" in self._consent()
@@ -340,10 +340,10 @@ class TestThePromptFollowsTheToolset:
         assert "built after the conversation either" not in self._consent()
 
     def test_the_consent_rejection_sections_are_derived_and_the_replacement_took(self):
-        assert _REJECTION_HANDLING_CONSENT != _REJECTION_HANDLING_CONSULTANT
+        assert _REJECTION_HANDLING_CONSENT != _REJECTION_HANDLING_SEALED
         assert "`note` it" in _REJECTION_HANDLING_CONSENT
         assert "you cannot add it to the understanding" not in _REJECTION_HANDLING_CONSENT
-        assert _REJECTION_HANDLING_CONSENT_SCOPED != _REJECTION_HANDLING_CONSULTANT_SCOPED
+        assert _REJECTION_HANDLING_CONSENT_SCOPED != _REJECTION_HANDLING_SEALED_SCOPED
         assert "`note` it" in _REJECTION_HANDLING_CONSENT_SCOPED
         assert "`note` it" in self._consent()
         assert "`note` it" in self._consent(scoped=True)
@@ -363,7 +363,7 @@ class TestThePromptFollowsTheToolset:
         """App tools are never in any set — a host's own lookup must not
         turn the framework's narrow render off."""
         assert VIEW_MANDATE in system_prompt(tool_names=sorted(READING | {"lookup_natal_chart"}))
-        assert CONSULTANT_MANDATE in system_prompt(
+        assert SEALED_MANDATE in system_prompt(
             tool_names=sorted(READING | DECIDING | {"lookup_natal_chart"})
         )
         assert CONSENT_MANDATE in system_prompt(

@@ -108,18 +108,18 @@ DEFAULT_ARMS: tuple[Arm, ...] = (Arm.A0, Arm.A1, Arm.A1_7, Arm.A2)
 #: THE THREE A2N PAIRS MEASURE THE ADVISOR ON A NEXUS (2026-09-21)
 #: ==============================================================
 #: `(A2N, A2C)` — the SAME pre-built graph, the head pinned to its exploration
-#: with every tool against the Consultant reading it: what enrichment inside the
+#: with every tool against the sealed Advisor reading it: what enrichment inside the
 #: pin buys over consulting. `(A2N, A1_5)` — pinned live against the static dump,
 #: the question `(A2, A1_5)` resolved against the UNSCOPED builder (-1.47 on
 #: `reasoning-sonnet`). `(A2, A2N)` — unscoped building from nothing against
 #: pinned building on a graph: the two Advisor categories side by side. Opt-in
 #: for the same reason as A2c, same filters.
 #:
-#: THE TWO CONSULTANT-VS-PROMPT PAIRS (2026-09-24, critics' review)
+#: THE TWO SEALED-ADVISOR-VS-PROMPT PAIRS (2026-09-24, critics' review)
 #: ================================================================
-#: `(A2C, A1)` and `(A2C, A1_7)` — the Consultant against the same method as a
+#: `(A2C, A1)` and `(A2C, A1_7)` — the sealed Advisor against the same method as a
 #: tool-less prompt, with and without the model's own journal. Never run before:
-#: the archive priced the Consultant only against the static dump of its own
+#: the archive priced the sealed Advisor only against the static dump of its own
 #: graph and against the builder, and the product decision that named it THE
 #: person-facing surface rested on those two rows. Chaining the archive's own
 #: numbers (`A2 ≈ A1` in-session, `A2 ≈ A2c`) leaves `A2c ≈ A1` the likeliest
@@ -332,7 +332,7 @@ class E2ERun:
                             if record.consultant_without_structure:
                                 # The build ran the full Advisor and it anchored
                                 # nothing, so this cell consulted an empty graph:
-                                # a Consultant with nothing to consult is a
+                                # a sealed Advisor with nothing to consult is a
                                 # tool-less prompt arm wearing the label.
                                 note += (
                                     f" !! NO STRUCTURE ({record.arm.value} was handed an empty graph)"

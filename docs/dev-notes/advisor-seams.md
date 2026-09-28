@@ -6,7 +6,8 @@
 `Advisor(mode=AdvisorMode.VIEW)`, with a new `AdvisorMode.CONSULTANT` between it and FULL
 (`agents/advisor/mode.py`). On 2026-09-26 that one axis became two parameters,
 `Advisor(build=BuildPolicy.ON_ELECTION|ON_CONSENT|NEVER, records=True|False)`
-(`agents/advisor/build_policy.py`, no alias): FULL = `ON_ELECTION`, CONSULTANT = `NEVER`,
+(`agents/advisor/build_policy.py`, no alias): FULL = `ON_ELECTION`, CONSULTANT = `NEVER` ("the sealed Advisor" since 2026-09-28,
+when `Consultant` became the name of the tool-less one-off agent, `agents/consultant/`),
 VIEW = `NEVER, records=False`; see "The build policy" at the end of this note. The reasoning
 below is unchanged; read the old names as the new. -->
 
@@ -98,7 +99,7 @@ mediator and their client. Unmeasured — no bench cell pins an Advisor with a p
 the finding nobody pre-registered: 11 of 16 tool calls failed, all `record_decision`, all the
 Rule B refusal ("that same wording is a price in 2 tensions and no other ground says which one
 was decided"), and the weak-tier model answered every refusal by re-sending the identical
-call — three to five times per closing, on the Consultant as much as the pinned head — until
+call — three to five times per closing, on the sealed Advisor as much as the pinned head — until
 an `inspect_node` happened to make it cite a tension. Reading the archived dumps: every
 instance was `ExpandPolarity`'s sibling readings on one T/A pair (`Reading along: recognition
 of contribution / basis for sole ownership` beside another reading of "Buy out cofounder, run
@@ -160,7 +161,7 @@ with a hole, and rewriting it is the model's job.
 ## The build policy and the `note` tool (2026-09-26)
 
 **What was wrong with three modes.** The owner's question that ended the surface review: "the
-consultant is useless, it should be some sort of a flag on Advisor to not build anything, just
+sealed is useless, it should be some sort of a flag on Advisor to not build anything, just
 discuss/decide". Two defects behind it. (1) CONSULTANT on an empty case recorded a decision that
 rested on nothing — the model called `record_decision` with no grounds, and `_anchor_when_empty`
 only ran where the off-turn task existed, i.e. FULL — so the surface that measured best as
@@ -198,14 +199,14 @@ round. The trade-off, stated: between the first note and a decision, counsel rea
 tensions without pathways.
 
 **The prompt got a fifth shape, derived like the others.** `note` is in `_WRITE_TOOL_NAMES`
-via `_CONSENT_TOOL_NAMES` and not in `_BUILD_TOOL_NAMES`, so `consent = consultant and "note"
+via `_CONSENT_TOOL_NAMES` and not in `_BUILD_TOOL_NAMES`, so `consent = sealed and "note"
 in names`. Forked: `_EAGER_CONSENT`, `_TOOLS_INTRO_CONSENT`, `_CONSENT_MANDATE` (last, as the
 others), a `noting=` branch of `_scope_section`, and two rejection sections DERIVED from the
-consultant's by replacing the one sentence that said a revealed tension cannot be added (a test
+sealed head's by replacing the one sentence that said a revealed tension cannot be added (a test
 pins that both replacements took). Decision Readiness' record-on-what-exists note becomes
 `_RECORD_THEN_BUILT` under consent — under NEVER the pathway never comes, under consent it comes
 after the reply, and the section the model reads at the closing must not say otherwise. The
-consultant mandate's "nothing is built after the conversation either" stays exactly where it
+sealed mandate's "nothing is built after the conversation either" stays exactly where it
 still holds (`NEVER`) and is the sentence the consent mandate exists to replace.
 
 **Two refusals, stated.** `ON_CONSENT` with `records=False` raises: both triggers are writes,
@@ -215,7 +216,7 @@ either, unlike the unscoped factory — pinned, `anchor`/`explore` are writes in
 deliverable.
 
 **Unmeasured.** No bench cell runs `ON_CONSENT`; `A2c` stays `NEVER`, which is what every
-Consultant figure in `rounds.md` was measured on. The claims that need a round before anyone
+Sealed Advisor figure in `rounds.md` was measured on. The claims that need a round before anyone
 quotes them: that a noted tension is planted with the person's particulars intact (the
 `context` path is `anchor`'s, so `TestAnchorContext`'s guarantees carry, but nobody has read a
 consent session's dump), and that expanding the one exploration beats forking (`ExpandNexus`

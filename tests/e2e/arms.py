@@ -13,11 +13,11 @@ Fairness rules this module exists to enforce
    having a different decode path or a better persona.
 
 2. **The baseline gets the real method, not a strawman.** A1's prompt is
-   `method_prompt()` from `agents/advisor/method.py` — the engine's OWN method
+   `method_prompt()` from `agents/consultant/consultant.py` — the engine's OWN method
    sections (`_INTERNAL_MODEL`, `_CONVERSATION_USE`, ...) derived live from
    `system_prompts.py`, tool verbs rewritten into mental acts — not a
    paraphrase that could quietly under-sell the opponent. Since 2026-09-26 that
-   prompt is also a SHIPPED head (`MethodAdvisor`, advise-and-forget), so A1
+   prompt is also a SHIPPED head (`Consultant`, advise-and-forget), so A1
    measures a product surface and every edit to it moves the baseline.
    `system_prompt(tool_names=[])` is NOT usable for this: it still refers to
    `anchor`/`ingest`/`inspect_node` in its prose sections, so an arm with no
@@ -44,7 +44,7 @@ from typing import Optional, Protocol
 
 from dialectical_framework.agents.advisor.advisor import Advisor, ChatResponse
 from dialectical_framework.agents.advisor.build_policy import BuildPolicy
-from dialectical_framework.agents.advisor.method import method_prompt
+from dialectical_framework.agents.consultant.consultant import method_prompt
 from dialectical_framework.agents.conversation_facilitator import (
     ConversationFacilitator,
 )
@@ -83,7 +83,7 @@ class ArmSession(Protocol):
 
 # ---------------------------------------------------------------------------
 # Prompt construction for the non-framework arms (the method itself lives in
-# `agents/advisor/method.py`; only the static-context and journal pieces are
+# `agents/consultant/consultant.py`; only the static-context and journal pieces are
 # the bench's own)
 # ---------------------------------------------------------------------------
 

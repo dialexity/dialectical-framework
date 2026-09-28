@@ -41,7 +41,7 @@ Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 6
 
 ## "Unset" was not "off": Bedrock's default thinking on Claude 5 (2026-09-24)
 
-The Consultant's no-tool turn measured 38.5s median against the static dump's 9.8s on the
+The sealed Advisor's no-tool turn measured 38.5s median against the static dump's 9.8s on the
 same graph and model (`ladder-sonnet`), and three rounds had ruled out the render, the
 prompt text and the tools without finding it. `probe_consultant_42s.py` held everything
 fixed on a real 5-perspective graph and the census showed the shape: one call, no

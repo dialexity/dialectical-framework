@@ -870,7 +870,7 @@ def render_report(
         a2 = [r for r in runs if r.arm is Arm.A2]
         if a2:
             add(f"ok  all {len(a2)} A2 run(s) built a graph (A2 != A1 holds).")
-    # The Consultant's version of the same collapse: its BUILD anchored nothing,
+    # The sealed Advisor's version of the same collapse: its BUILD anchored nothing,
     # so the cell consulted an empty graph. `seam-fixes` archived one such cell
     # correctly invalid and silently — the archive knew, the report did not.
     empty_consults = [r for r in runs if r.consultant_without_structure]
@@ -878,7 +878,7 @@ def render_report(
         add(f"!! {len(empty_consults)} A2c/A2n run(s) were handed an EMPTY graph (the build anchored nothing).")
         for r in empty_consults:
             add(f"   - {r.arm.value} {r.scenario_key} tier={r.tier} rep={r.replicate} branch={r.branch}")
-        add("   These runs are INVALID as evidence for their arm: a Consultant with nothing to")
+        add("   These runs are INVALID as evidence for their arm: a sealed Advisor with nothing to")
         add("   consult is a tool-less prompt arm wearing the label, and a pinned Advisor with")
         add("   nothing under the pin is a seeded A2 wearing one.")
     no_pin = [r for r in runs if r.pinned_without_nexus]

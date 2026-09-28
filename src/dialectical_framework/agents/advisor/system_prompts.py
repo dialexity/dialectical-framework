@@ -154,7 +154,7 @@ call would, and an offer you cannot keep costs more than a plain answer.
 Your response to the person never waits on the machinery — speak from what
 you have."""
 
-_EAGER_CONSULTANT = """## Thinking Eagerly, Speaking Freely
+_EAGER_SEALED = """## Thinking Eagerly, Speaking Freely
 
 Whatever structural understanding exists for this person was built before this
 conversation, and it appears below — it may be rich, thin, or not there yet, and
@@ -661,7 +661,7 @@ Your internal tools READ the understanding that already exists; not one of them
 changes it. Use them eagerly and silently; never mention them. Nothing is added
 or removed while you are here, so there is nothing to announce either."""
 
-_TOOLS_INTRO_CONSULTANT = """## Internal Tools
+_TOOLS_INTRO_SEALED = """## Internal Tools
 
 Your internal tools READ the understanding that already exists, record what the
 person decides, and — on request — retract a framing they reject or score whether
@@ -957,7 +957,7 @@ If their correction reveals a genuinely different tension, offer to `anchor`
 the new framing. The exploration should reflect what they stand behind —
 nothing appears or disappears from it without them knowing."""
 
-_REJECTION_HANDLING_CONSULTANT = """**When the person rejects a framing:** If they say "that's not what I mean"
+_REJECTION_HANDLING_SEALED = """**When the person rejects a framing:** If they say "that's not what I mean"
 or "that doesn't apply" — silently `discard` it so it stops shaping the picture.
 Discard the whole perspective if they reject the tension; discard a single
 statement if they reject just one claim. Don't announce it. If their correction
@@ -972,7 +972,7 @@ it's that you'd be the only one who can catch the mistake." Naming what
 changed, in their terms, is what makes the next framing land instead of
 reading as a fresh start."""
 
-_REJECTION_HANDLING_CONSULTANT_SCOPED = """**When the person rejects a framing:** The exploration is THEIR deliverable —
+_REJECTION_HANDLING_SEALED_SCOPED = """**When the person rejects a framing:** The exploration is THEIR deliverable —
 retractions are consented, not silent. What you can offer depends on how
 woven-in the framing is:
 
@@ -987,12 +987,12 @@ If their correction reveals a genuinely different tension, say what you now see
 and consult from that. You cannot add it to the exploration from here, so do
 not offer to — nothing appears or disappears from it without them knowing."""
 
-#: The consent surface's two rejection sections: the consultant's, with the one
+#: The consent surface's two rejection sections: the sealed head's, with the one
 #: sentence that says a revealed tension cannot be added replaced by the one
 #: thing this surface can do with it — keep it, on their word. Derived rather
 #: than copied so the rest of the section cannot drift from its source;
 #: `tests/test_advisor_build_policy.py` pins that both replacements took.
-_REJECTION_HANDLING_CONSENT = _REJECTION_HANDLING_CONSULTANT.replace(
+_REJECTION_HANDLING_CONSENT = _REJECTION_HANDLING_SEALED.replace(
     """If their correction
 reveals a genuinely different tension, say what you now see and consult from
 that — you cannot add it to the understanding, so do not offer to.""",
@@ -1001,7 +1001,7 @@ reveals a genuinely different tension, say what you now see and consult from
 that — and if they want it kept, `note` it: it joins the understanding between
 turns, never during this one.""",
 )
-_REJECTION_HANDLING_CONSENT_SCOPED = _REJECTION_HANDLING_CONSULTANT_SCOPED.replace(
+_REJECTION_HANDLING_CONSENT_SCOPED = _REJECTION_HANDLING_SEALED_SCOPED.replace(
     """If their correction reveals a genuinely different tension, say what you now see
 and consult from that. You cannot add it to the exploration from here, so do
 not offer to — nothing appears or disappears from it without them knowing.""",
@@ -1453,7 +1453,7 @@ _REVISIT_WITHOUT_DEEPEN = (
     "holds one"
 )
 
-_CONSULTANT_MANDATE = """## What Is Not Available Here
+_SEALED_MANDATE = """## What Is Not Available Here
 
 This surface consults; it does not build. Every tool you have reads the
 understanding, records what the person decides, retracts a framing they reject,
@@ -1648,9 +1648,9 @@ def system_prompt(
     names = tool_names if tool_names is not None else DEFAULT_TOOL_NAMES
     scoped = scoped_nexus_hash is not None
     view = not (set(names) & _WRITE_TOOL_NAMES)
-    consultant = not view and not (set(names) & _BUILD_TOOL_NAMES)
-    consent = consultant and bool(set(names) & _CONSENT_TOOL_NAMES)
-    no_building = view or consultant
+    sealed = not view and not (set(names) & _BUILD_TOOL_NAMES)
+    consent = sealed and bool(set(names) & _CONSENT_TOOL_NAMES)
+    no_building = view or sealed
 
     tool_docs = []
     for name in names:
@@ -1709,8 +1709,8 @@ def system_prompt(
         eager_template = _EAGER_VIEW
     elif consent:
         eager_template = _EAGER_CONSENT
-    elif consultant:
-        eager_template = _EAGER_CONSULTANT
+    elif sealed:
+        eager_template = _EAGER_SEALED
     else:
         eager_template = _EAGER_SCOPED if scoped else _EAGER
     eager = _decision_note(
@@ -1758,11 +1758,11 @@ def system_prompt(
     decision_readiness = _DECISION_READINESS
     # The same rule one level down: Decision Readiness is gated on
     # `record_decision`, and two of its sentences named `explore` and `deepen` —
-    # tools the Consultant does not hold. A section gated on one tool that names
+    # tools the sealed Advisor does not hold. A section gated on one tool that names
     # another holds that passage out behind a placeholder gated on the second
     # name (the feasibility notes below are the precedent), or a no-build head
     # is told, in the section it reads at the closing, to run a tool it lacks.
-    # Found by the critics' review, 2026-09-24, on the rendered consultant shape.
+    # Found by the critics' review, 2026-09-24, on the rendered sealed shape.
     if "explore" in names:
         decision_readiness = decision_readiness.replace(
             "{explore_before_ceremony_note}", _EXPLORE_BEFORE_CEREMONY
@@ -1833,14 +1833,14 @@ def system_prompt(
             else _REJECTION_HANDLING_CONSENT
         )
         mandate = _CONSENT_MANDATE
-    elif consultant:
-        tools_intro = _TOOLS_INTRO_CONSULTANT
+    elif sealed:
+        tools_intro = _TOOLS_INTRO_SEALED
         rejection = (
-            _REJECTION_HANDLING_CONSULTANT_SCOPED
+            _REJECTION_HANDLING_SEALED_SCOPED
             if scoped
-            else _REJECTION_HANDLING_CONSULTANT
+            else _REJECTION_HANDLING_SEALED
         )
-        mandate = _CONSULTANT_MANDATE
+        mandate = _SEALED_MANDATE
     else:
         tools_intro = _TOOLS_INTRO_SCOPED if scoped else _TOOLS_INTRO
         rejection = _REJECTION_HANDLING_SCOPED if scoped else _REJECTION_HANDLING

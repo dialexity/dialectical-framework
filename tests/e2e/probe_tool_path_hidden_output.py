@@ -2,7 +2,7 @@
 
 `probe_consultant_42s` (2026-09-24, Sonnet 5, 5-perspective graph, 11.8k-char dump):
 the same prompt answered in 13s / ~700 output tokens with no tools wired and in
-42-46s / 3,200-3,500 output tokens with the Consultant's six tools wired — for a
+42-46s / 3,200-3,500 output tokens with the sealed Advisor's six tools wired — for a
 reply of the same ~400 words, with no tool called, no second call, thinking unset.
 So a tool-wired turn generates ~2,500 tokens the person never sees. This probe
 makes ONE such call through a bare facilitator and prints the response's parts:
@@ -108,7 +108,7 @@ async def test_probe_tool_path_hidden_output(di_container):
         engine_prompt = _prompt_text(advisor)
         print(f"engine prompt {len(engine_prompt)}c")
         for label, tools in (
-            ("engine + consultant tools", _build_tools("agent:probe", build=BuildPolicy.NEVER)),
+            ("engine + sealed tools", _build_tools("agent:probe", build=BuildPolicy.NEVER)),
             ("engine, no tools", None),
         ):
             conversation = ConversationFacilitator(tools=tools)

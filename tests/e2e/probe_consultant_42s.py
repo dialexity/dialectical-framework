@@ -1,10 +1,10 @@
-"""probe_consultant_42s — where do the Consultant's 38 seconds go on a REAL-sized graph?
+"""probe_consultant_42s — where do the sealed Advisor's 38 seconds go on a REAL-sized graph?
 
 `ladder-sonnet` (Sonnet 5, 4 perspectives / 42 transformations, ~26k-char dump):
-the Consultant's turns that elected NO tool took a median 38.5s of reply path
+the sealed Advisor's turns that elected NO tool took a median 38.5s of reply path
 against 9.8s for the static dump of the same graph, same model, same persona
 (recomputed 2026-09-24 from `ladder-sonnet-judged.json`: 16 no-tool A2c turns,
-reply 20% longer). `probe_consultant_prompt_cost.py` attributed the Consultant's
+reply 20% longer). `probe_consultant_prompt_cost.py` attributed the sealed Advisor's
 turn on Sonnet to tool round trips at ~5s each — but it measured on a 3-perspective
 seed with a 2.4k dump, where the main call was 5-6s. Nothing has measured the
 no-tool call on a graph the size the bench actually consults.
@@ -13,7 +13,7 @@ So: build a real graph with the headless pipeline (the documented recipe), then
 the same 2x2 the earlier probe used, plus the census columns that tell a double
 call from a slow call:
 
-    A  Consultant as shipped         engine + tools, `Advisor.chat`
+    A  sealed Advisor as shipped         engine + tools, `Advisor.chat`
     B  A1.5 as the bench runs it     method text + dump, no tools
     C  engine text, no tools         is it the TEXT at this size?
     E  engine + tools, bare          A without the Advisor's plumbing
@@ -31,7 +31,7 @@ NOT free: `--real-llm`; one headless build (~5-8 min on Sonnet) + REPS x 4 turns
 RESULT (2026-09-24, Sonnet 5, 5 perspectives / 36 transformations, medians of 3):
 
     condition                        BEFORE turn  call  out tok     AFTER turn  call  out tok
-    A Consultant (engine+tools)         45.9s  42.4s   3192          24.4s  15.7s   778
+    A sealed Advisor (engine+tools)         45.9s  42.4s   3192          24.4s  15.7s   778
     B A1.5 (method+dump, no tools)      13.1s  13.1s    733          13.3s  13.3s   740
     C engine, no tools                  13.0s  13.0s    668          13.1s  13.1s   673
     E engine+tools, bare                46.3s  46.3s   3544          14.1s  14.1s   762
@@ -40,7 +40,7 @@ One call, no fallback, no tool elected, prefill within 10%: the tool-wired call 
 ~2,500 output tokens the reply did not contain. `probe_tool_path_hidden_output.py` showed
 them to be a `thinking` block — Bedrock's DEFAULT for Claude 5 is adaptive thinking on,
 and the framework sent no `thinking` key when no level was set. `with_thinking_compat`
-now sends "disabled" where unset would think (AFTER column). The Consultant's remaining
+now sends "disabled" where unset would think (AFTER column). The sealed Advisor's remaining
 gap over the dump is ~2s on the call; A's `turn` also carries a fresh Advisor's first
 render and the off-path closing check.
 """
@@ -53,7 +53,7 @@ import time
 
 import pytest
 
-from dialectical_framework.agents.advisor.method import method_prompt
+from dialectical_framework.agents.consultant.consultant import method_prompt
 from e2e.arms import _STATIC_CONTEXT_INTRO
 from e2e.config import DEFAULT_TIER_STRONG
 from e2e.driver import E2E_PERSONA
@@ -164,7 +164,7 @@ async def test_probe_consultant_42s(di_container):
         print(f"dump {len(dump)}c | engine prompt {len(engine_prompt)}c | method prompt {len(method)}c")
 
         conditions = {
-            "A Consultant (engine+tools)": _run_advisor,
+            "A sealed Advisor (engine+tools)": _run_advisor,
             "B A1.5 (method+dump, no tools)": lambda: _run_facilitator(method, None),
             "C engine, no tools": lambda: _run_facilitator(engine_prompt, None),
             "E engine+tools, bare": lambda: _run_facilitator(engine_prompt, _build_tools("agent:probe", build=BuildPolicy.NEVER)),

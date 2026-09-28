@@ -59,7 +59,7 @@ class Arm(str, Enum):
     A1_5 = "A1.5"  # + pre-built graph dumped as static text
     A1_7 = "A1.7"  # + self-maintained prose decision journal
     A2 = "A2"  # full Advisor: live tools, graph, ceremony
-    #: The Consultant (`Advisor(build=NEVER)`): a graph built beforehand by
+    #: The sealed Advisor (`Advisor(build=NEVER)`): a graph built beforehand by
     #: the full Advisor — the same build A1.5 dumps — then consulted LIVE with
     #: the reading tools plus `record_decision`/`discard`/`audit_feasibility`,
     #: and never built on. Sits between A1.5 (same graph, no tools, static text)
@@ -734,7 +734,7 @@ class RunRecord(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _read_the_field_under_its_first_name(cls, data):
-        """Three stems (`thinking-off`, `seam-fixes`, and the Consultant runs
+        """Three stems (`thinking-off`, `seam-fixes`, and the sealed Advisor runs
         of 2026-09-18) archived this field as `thinking_level`, its name for
         one day before `DIALEXITY_THINKING_LEVEL` became
         `DIALEXITY_CONVERSATION_THINKING_LEVEL`. Archived data is not code, so
@@ -789,7 +789,7 @@ class RunRecord(BaseModel):
     #: arm's per-turn cost.
     static_context_chars: Optional[int] = None
     #: A2c only: the graph this cell consulted, built by the full Advisor just
-    #: before it. PER CELL, unlike the A1.5 trio above — the Consultant writes
+    #: before it. PER CELL, unlike the A1.5 trio above — the sealed Advisor writes
     #: decisions into what it consults, so cells cannot share a build — and the
     #: seconds are INSIDE this cell's `duration_s` for the same reason, so
     #: summing them across cells is correct here and wrong for A1.5.
@@ -1238,7 +1238,7 @@ class RunRecord(BaseModel):
         Advisor over the pre-built graph, which is a different arm (A2 seeded)
         wearing the A2n label. The driver refuses to run the sessions and
         records the error; this reads it back so the pooled cuts drop the cell
-        the way they drop an empty Consultant.
+        the way they drop an empty sealed Advisor.
         """
         return self.arm is Arm.A2N and not self.pinned_nexus_hash
 

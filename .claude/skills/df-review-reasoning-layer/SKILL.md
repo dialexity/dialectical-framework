@@ -577,9 +577,9 @@ anchors.
       `_BUILD_TOOL_NAMES`, `_CONSENT_TOOL_NAMES` are disjoint strict subsets of `_WRITE_TOOL_NAMES`, so a new
       tool cannot be added without being classified on every axis. **A shape that changes WHEN a thing happens
       has to re-gate every sentence that said it never would**: the consent shape's closing still records on
-      what exists, but the pathway now arrives after the reply, so the Decision Readiness note the consultant
+      what exists, but the pathway now arrives after the reply, so the Decision Readiness note the sealed
       shape renders (`_RECORD_ON_WHAT_EXISTS`) became `_RECORD_THEN_BUILT` there, and the two rejection sections
-      are DERIVED from the consultant's by replacing exactly the sentence that said a revealed tension cannot be
+      are DERIVED from the sealed head's by replacing exactly the sentence that said a revealed tension cannot be
       added — with a test that the replacement took, because a `.replace` on a sentence that has since been
       edited is a silent no-op.
 - [ ] **Ceremonies must have a satisfied-by clause.** An explicit request IS the consent ("write this down" =

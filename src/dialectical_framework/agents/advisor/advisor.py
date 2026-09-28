@@ -308,7 +308,7 @@ class Advisor(SettingsAware):
         # it on the pathways already there, may retract a framing they reject
         # and may score a named pathway's feasibility on request — and never
         # builds, on the turn or off it: the closing seam records without
-        # starting the weave. The Consultant of the bench's `A2c` arm.
+        # starting the weave. The sealed Advisor of the bench's `A2c` arm.
         with scope(case.sid):
             advisor = Advisor(
                 app_preamble=COUNSELOR_PERSONA,
@@ -2521,7 +2521,7 @@ class Advisor(SettingsAware):
         and recorded as `TurnTiming.context_render_s` rather than assumed small.
 
         AND SKIPPED WHEN NOTHING MOVED (2026-09-18). "Not free" was measured:
-        3.21s a turn on the Consultant over a 5-6 perspective graph
+        3.21s a turn on the sealed Advisor over a 5-6 perspective graph
         (`consultant-latency`), a fifth of that surface's whole reply path, for a
         render that produced the same text as the turn before on 12 of 16 turns.
         So the read is now gated on `CaseRepository.scope_fingerprint()` — two

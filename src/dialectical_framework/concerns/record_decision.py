@@ -491,7 +491,7 @@ class RecordDecision(ReasonableConcern[str | None]):
         because the ledger reads the price's condition off one tetrad. Measured
         on `nexus-pinned` (2026-09-21), that refusal fired 11 times across 16
         tool calls, three to five identical retries per closing on both the
-        Consultant and the pinned Advisor — and every one of them was the SAME
+        Sealed Advisor and the pinned Advisor — and every one of them was the SAME
         SHAPE: sibling readings of one polarity. `ExpandPolarity` grows several
         tetrads on one T/A pair (distinct `intent`), `commit()` dedup makes
         their identical minus wording one Statement, and the person's price is

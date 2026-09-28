@@ -665,9 +665,9 @@ class E2EDriver:
     async def build_consultant_case(
         self, scenario: Scenario, *, tier_model: str
     ) -> tuple[Case, str, float]:
-        """Build the graph the Consultant arm will consult, one per CELL.
+        """Build the graph the sealed Advisor arm will consult, one per CELL.
 
-        Not once per (scenario, tier) the way A1.5's dump is: the Consultant
+        Not once per (scenario, tier) the way A1.5's dump is: the sealed Advisor
         WRITES decisions into the graph it consults, so a graph shared across
         replicates or branches would hand cell 2 cell 1's ledger — a carryover
         the arm was never supposed to have. The price is a full Advisor run per
@@ -859,7 +859,7 @@ class E2EDriver:
                 # can still read `had_dump` as "context-free session" for them and
                 # must NOT be pointed at new rounds without re-reading this.
                 #
-                # The Consultant is seeded on EVERY session, the first included:
+                # The sealed Advisor is seeded on EVERY session, the first included:
                 # its graph was built before the conversation, and arriving with
                 # it unread would be the arm not being what it claims to be.
                 # The pinned Advisor likewise, and with the SCOPED render — the

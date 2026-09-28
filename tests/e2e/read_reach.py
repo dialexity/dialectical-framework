@@ -7,7 +7,7 @@ Free. `probe_readside_reach.py` asked this over the pre-refresh archive and foun
 the differentiator (pathways, synthesis) barely reaching the reply while the
 decision ledger did. That probe reads only A2 and only its fixed rounds; this
 reads any stem, and every arm whose sessions carry a dump — A2 (live, seeded on
-returning sessions), A2c (the Consultant, seeded every session) and A1.5 (the
+returning sessions), A2c (the sealed Advisor, seeded every session) and A1.5 (the
 static dump) — with the same overlap measure, so the three can be read side by
 side: does the SAME structure reach the reply more when it is static?
 

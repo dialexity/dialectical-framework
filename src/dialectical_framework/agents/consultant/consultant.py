@@ -11,7 +11,7 @@ in its own reasoning ("take the pair as it comes", "work out their pathways"),
 and what has no prompt-only counterpart at all (reading a graph dump, calling
 `inspect_node`) is dropped paragraph by paragraph.
 
-`MethodAdvisor` is the head for it: a conversation with a dialectically
+`Consultant` is the head for it: a conversation with a dialectically
 thinking model and nothing else — no Case, no scope, no graph, no tools, no
 memory beyond the messages of this one conversation. Advise and forget. It is
 the surface for the shallow application: a person describes a situation, gets
@@ -261,20 +261,20 @@ def method_prompt(include_decision: bool = True) -> str:
 
 
 _TOOLS_ON_A_TOOLLESS_HEAD = (
-    "MethodAdvisor holds no tools by construction — its prompt tells the model "
+    "Consultant holds no tools by construction — its prompt tells the model "
     "so, and a tool it could call would make that a lie. Pass an AppSpec "
     "without `tools`, or use Advisor(...) for a head that wires them."
 )
 
 
-class MethodAdvisor:
+class Consultant:
     """The method as a prompt, and nothing behind it. Advise and forget.
 
     Usage:
-        advisor = MethodAdvisor(app_preamble=COUNSELOR_PERSONA)
+        advisor = Consultant(app_preamble=COUNSELOR_PERSONA)
         reply = await advisor.chat("I have a problem with my wife...")
         # ...later turns on the same instance, or resume elsewhere:
-        again = MethodAdvisor(app_preamble=COUNSELOR_PERSONA, messages=advisor.messages)
+        again = Consultant(app_preamble=COUNSELOR_PERSONA, messages=advisor.messages)
 
     No scope is needed and none is read: nothing here touches a Case or the
     graph, so a host may run it with no database at all. What the person says
@@ -299,7 +299,7 @@ class MethodAdvisor:
     (`thinking-check`, rounds.md).
     """
 
-    AGENT_NAME = "advisor.method"
+    AGENT_NAME = "consultant"
 
     def __init__(
         self,

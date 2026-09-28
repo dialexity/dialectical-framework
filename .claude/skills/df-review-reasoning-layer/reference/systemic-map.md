@@ -35,7 +35,7 @@ The model sees **one fused system block** — it cannot tell where the preamble 
 - Explorer: `explorer/explorer.py` — system prompt is a **function** `system_prompt(nexus_hash, nexus_intent)`
   (`explorer/system_prompts.py`) that f-string-injects the live nexus hash/intent (DB read at construction)
   **and** renders `INSIGHT_SCALE`/`PROACTIVENESS_SCALE` via `_ladder()`.
-- MethodAdvisor: `advisor/method.py` — preamble + `method_prompt()`, which is NOT a prompt of its own but the
+- Consultant (`agents/consultant/consultant.py`, the tool-less one-off agent): preamble + `method_prompt()`, which is NOT a prompt of its own but the
   engine's `_ROLE`/`_EAGER`/`_INTERNAL_MODEL`/`_CONVERSATION_USE`/`_DECISION_READINESS`/`_HOW_YOU_SPEAK`
   passed through `_TOOL_REWRITES` (tool verb → mental act, whitespace-insensitive) and `_TOOL_TOKENS`
   (paragraphs still about machinery are dropped). So an edit to any of those engine sections lands in this
@@ -54,12 +54,12 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   **There are FOUR render shapes, and the two narrow ones are DERIVED from the names, not passed:**
   `view = not (names & _WRITE_TOOL_NAMES)` and `consultant = not view and not (names & _BUILD_TOOL_NAMES)`,
   because the toolset is already this function's single source of truth and a second parameter could
-  disagree with the tools the head actually holds. Both compose with the scoped shape (a pinned consultant
+  disagree with the tools the head actually holds. Both compose with the scoped shape (a pinned sealed
   or a pinned view is legal). See the modes subsection under the authority matrix in §5.
   The dump is **re-read on every turn where the graph MOVED** by `Advisor._refresh_context` — gated since
   2026-09-18 on `CaseRepository.scope_fingerprint()`, two aggregate queries (node count, latest commit and
   save, edge count, and the total length of every hash-excluded mutable field) that cost milliseconds
-  where the render cost 3.21s a turn on the Consultant (`consultant-latency`) — and the system prompt is
+  where the render cost 3.21s a turn on the sealed Advisor (`consultant-latency`) — and the system prompt is
   **rewritten only when the rendered dump changed**. The fingerprint says when to LOOK, the text says
   whether to REWRITE; cannot-tell (no scope, a failing query, a seeded context) falls through to the
   render. A mutable field missing from the fingerprint is a stale prompt on exactly the turns that change
@@ -3652,7 +3652,7 @@ Independently-authored prompts that share a concept which MUST stay identical or
 one-axis `mode=` of 2026-09-18, itself replacing `read_only=`): `build=` is WHEN structure is built —
 `ON_ELECTION`, `ON_CONSENT`, `NEVER` — and `records=` is WHETHER the seat may write at all.** What costs a
 person minutes on a turn is the four build tools (`_BUILD_TOOL_NAMES`: `ingest`, `anchor`, `explore`,
-`deepen`); recording a decision is one call of seconds and discarding is free. So `NEVER` — the Consultant,
+`deepen`); recording a decision is one call of seconds and discarding is free. So `NEVER` — the sealed Advisor,
 a conversation over a graph that already exists — keeps `record_decision`, `discard` and
 `audit_feasibility` and is handed no build tool; `ON_CONSENT` keeps the same and adds the one CONSENT tool
 `note` (`_CONSENT_TOOL_NAMES`), which builds AFTER the turn on the person's word; `records=False` keeps only
@@ -3685,14 +3685,14 @@ apps onto `app_preamble=` — the trap `advanced` fell into. `principal` is acce
 and two name-gated sections (`_DECISION_READINESS` on `record_decision`, the two feasibility passages on
 `audit_feasibility`) follow the names; `_EAGER`, `_CONVERSATION_USE`, `_REJECTION_HANDLING*`, `_DEFAULT_ARC`,
 `_TOOLS_INTRO_SCOPED`, `_scope_section` and `_SCORE_READING` all still instruct absent tools. Closed with
-forks mirroring the existing `*_SCOPED` ones (`_EAGER_VIEW`/`_EAGER_CONSULTANT`, `_TOOLS_INTRO_VIEW`/
-`_TOOLS_INTRO_CONSULTANT`, `_REJECTION_HANDLING_VIEW`/`_REJECTION_HANDLING_CONSULTANT`/
-`_REJECTION_HANDLING_CONSULTANT_SCOPED`, a `building=` flag on `_scope_section`), two literal heading swaps
+forks mirroring the existing `*_SCOPED` ones (`_EAGER_VIEW`/`_EAGER_SEALED`, `_TOOLS_INTRO_VIEW`/
+`_TOOLS_INTRO_SEALED`, `_REJECTION_HANDLING_VIEW`/`_REJECTION_HANDLING_SEALED`/
+`_REJECTION_HANDLING_SEALED_SCOPED`, a `building=` flag on `_scope_section`), two literal heading swaps
 in `_CONVERSATION_USE` (phase labels named after the tool that produces the phase), `_DEFAULT_ARC` dropped
 for the reason it is dropped when scoped (the arc IS the building sequence), and ONE mandate per surface
-(`_VIEW_MANDATE`, `_CONSULTANT_MANDATE`, and since 2026-09-26 `_CONSENT_MANDATE` for the shape keyed on
+(`_VIEW_MANDATE`, `_SEALED_MANDATE`, and since 2026-09-26 `_CONSENT_MANDATE` for the shape keyed on
 `note` — with `_EAGER_CONSENT`, `_TOOLS_INTRO_CONSENT`, a `noting=` branch of `_scope_section`,
-`_RECORD_THEN_BUILT` in Decision Readiness, and two rejection sections DERIVED from the consultant's by one
+`_RECORD_THEN_BUILT` in Decision Readiness, and two rejection sections DERIVED from the sealed head's by one
 sentence) placed LAST among the instruction sections so **later sections win**
 over what `_SCORE_READING` and `_CONVERSATION_USE` still say — those two deliberately NOT forked, because
 their tool references sit mid-paragraph inside reasoning about what the scores MEAN, which is where prompt
