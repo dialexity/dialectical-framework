@@ -568,6 +568,13 @@ edit to this prompt moves the baseline every `A2−A1` figure was read against;
 tools"). `chat()` / `chat_stream()` / `messages` / `last_turn_timing` as on every head, with
 `closing` and `deferral` `None` because there is no seam to conclude anything.
 
+**The picture.** `await consultant.sketch()` is the one read this head can draw: the
+tensions the person is holding, as a `TensionMapView` (`graph/views.py`, the same shape the
+graph-backed heads render from), made by one structured call over the person's turns only
+(`concerns/consultation_sketch.py`). No hash, alias or score exists to strip, nothing is
+checked (no HS gate, no validation, no dedup) and nothing is kept — it is a read over
+`messages`, not a turn in them, and the model cannot call it. The host owns the trigger.
+
 **The upgrade.** A Consultant session becomes a Case in two steps, both the host's: create
 the Case, then inside its scope `await migrate_consultation(consultant.messages,
 principal="human")` (`agents/advisor/migration.py`) — a utility that fills the GRAPH and

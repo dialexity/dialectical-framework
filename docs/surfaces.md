@@ -179,9 +179,19 @@ Three things to know:
 - **It is priced for a user-triggered widget, not a per-turn dump.** A tetrad is ~20
   relationship reads; `RelationshipManager.prefetch` first when drawing many.
 
-Not built: a graphless filler (a `Consultant` has no graph to read, so it cannot reach
-these functions yet) and any tool that lets the model open a picture itself. Both are open
-decisions, not omissions — and an LLM-elected `show` tool would be unreliable anyway
+**The graphless head draws the same picture.** A `Consultant` has no graph to read, so
+`await consultant.sketch()` makes one structured call over the PERSON's turns
+(`concerns/consultation_sketch.py`) and returns the same `TensionMapView` — texts, axes and
+geometry only. Terminology-free by construction (there is no hash, alias or score to strip;
+`without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
+validation, no dedup, nothing kept): it is the picture BEFORE the upgrade, not a lighter
+version of the checked one. Only the person's turns are material — the replies are counsel,
+the migration's rule. It raises on a provider failure rather than returning an empty map, so
+"nothing to draw yet" and "the drawing failed" stay distinguishable to the button that asked.
+
+Not built: any tool that lets the model open a picture itself. The trigger is the host's
+(a button calling `tension_map_view()` inside the scope, or `consultant.sketch()`), and that
+is a decision, not an omission — an LLM-elected `show` tool would be unreliable anyway
 (measured election rates: `anchor` 6/6, `explore` 2/6, `deepen` 0/6).
 
 ## What the host owns, on every surface with memory

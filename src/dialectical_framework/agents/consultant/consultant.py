@@ -41,6 +41,7 @@ from contextlib import aclosing
 from typing import Any, AsyncGenerator, Optional
 
 from dialectical_framework.agents.advisor.advisor import ChatResponse
+from dialectical_framework.agents.advisor.migration import person_turns
 from dialectical_framework.agents.advisor.system_prompts import (
     _CONVERSATION_USE, _DECISION_READINESS, _EAGER, _EXPLORE_BEFORE_CEREMONY,
     _HOW_YOU_SPEAK, _INTERNAL_MODEL, _ONE_TENSION_IS_ENOUGH, _ROLE)
@@ -49,6 +50,7 @@ from dialectical_framework.agents.conversation_facilitator import (
     FROM_SETTINGS, ConversationFacilitator)
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.turn_timing import TurnTiming
+from dialectical_framework.graph.views import TensionMapView
 
 #: Tool verbs → mental acts. These are REWRITES, not drops: dropping every
 #: paragraph that mentions a tool name would also delete the discrimination test
@@ -281,7 +283,9 @@ class Consultant:
     survives only as `messages` — carry them for the length of the session and
     drop them after; there is no other memory, and the prompt tells the model
     as much (a confirmed decision is restated in the reply, and that is the
-    only record).
+    only record). `sketch()` is the one picture this head can draw: the
+    tensions in the person's own words, from one call over `messages`, in the
+    view shape the graph-backed heads share (`graph/views.py`).
 
     Takes the persona the same way the Advisor does: `app_preamble=` (manual) or
     `app=` (an AppSpec's `advisor_persona`, the same preamble the unscoped
@@ -342,6 +346,31 @@ class Consultant:
     def messages(self) -> list:
         """The conversation so far — the only state this head has."""
         return self._conversation._messages
+
+    async def sketch(self) -> TensionMapView:
+        """The tensions the person is holding, as a picture — from their words alone.
+
+        The host's picture button on this head. There is no graph to read, so
+        this is one structured call over the PERSON's turns
+        (`concerns/consultation_sketch.py`), shaped into the same
+        `TensionMapView` the graph reader gives the Advisor — one visualiser
+        for both heads. Terminology-free by construction (no hash, alias or
+        score exists to strip), unchecked by construction (no HS gate, no
+        validation, nothing persisted), and forgotten with the conversation
+        like everything else here. Only the person's turns are material; the
+        replies are counsel, not statements of the situation — the migration's
+        rule, applied here for the same reason.
+
+        Not a tool: the model cannot call this, and the prompt's "You have no
+        tools" stays true. Nothing is written to `messages` either — a sketch
+        is a read over the conversation, not a turn in it. Raises on a
+        provider failure rather than returning an empty map, so the host can
+        tell "nothing to draw yet" from "the drawing failed".
+        """
+        from dialectical_framework.concerns.consultation_sketch import \
+            ConsultationSketch
+
+        return await ConsultationSketch().resolve(turns=person_turns(self.messages))
 
     @property
     def last_turn_timing(self) -> TurnTiming:

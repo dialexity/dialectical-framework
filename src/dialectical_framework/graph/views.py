@@ -40,8 +40,10 @@ the host reads `Advisor.hides_terminology` — the same flag the text filter rea
 — and calls `without_terminology()` when it is true. What the projection drops:
 positions, aliases, hashes and every number. What survives: the texts, the axis
 names the tension is read along, and the full structure. The result is also the
-shape a graphless surface can reach on its own (the `Consultant` has no scores
-and no hashes to give), so one visualiser serves both.
+shape a graphless surface reaches on its own — `Consultant.sketch()` builds the
+same `TensionMapView` from one structured call over the person's turns, with no
+scores and no hashes to give (`concerns/consultation_sketch.py`) — so one
+visualiser serves both.
 
 COST
 ====
@@ -469,6 +471,24 @@ def parse_reading(reading: Optional[str]) -> list[str]:
     return [part.strip() for part in body.split(READING_SEPARATOR) if part.strip()]
 
 
+def diagonals_for(axes: list[str]) -> list[DiagonalView]:
+    """The two contradiction pairs of any tetrad, labelled with their axes.
+
+    The geometry is the theory's and does not depend on where the tetrad came
+    from, so every builder of a `TetradView` — the graph reader below, the
+    graphless sketch (`concerns/consultation_sketch.py`) — takes it from here
+    rather than restating which field faces which. The axes are ordered as
+    `expand_polarities._compose_reading` writes them: the T+/A- pair first, then
+    A+/T-. One axis means a single dimension was named for both diagonals.
+    """
+    constructive = axes[0] if axes else None
+    reflective = axes[1] if len(axes) > 1 else constructive
+    return [
+        DiagonalView(positive="t_plus", negative="a_minus", axis=constructive),
+        DiagonalView(positive="a_plus", negative="t_minus", axis=reflective),
+    ]
+
+
 def tetrad_view(
     perspective: Perspective, pp_index: Optional[dict[int, int]] = None
 ) -> TetradView:
@@ -481,17 +501,9 @@ def tetrad_view(
     poles = {name: _pole(perspective, position) for name, position in _TETRAD_POSITIONS}
     reading = getattr(perspective, "intent", None)
     axes = parse_reading(reading)
-    # The axes are ordered as `_compose_reading` wrote them: the T+/A- pair
-    # first, then A+/T-. One axis means the generation named a single dimension
-    # for both diagonals.
-    constructive = axes[0] if axes else None
-    reflective = axes[1] if len(axes) > 1 else constructive
     return TetradView(
         **poles,
-        diagonals=[
-            DiagonalView(positive="t_plus", negative="a_minus", axis=constructive),
-            DiagonalView(positive="a_plus", negative="t_minus", axis=reflective),
-        ],
+        diagonals=diagonals_for(axes),
         reading=reading,
         axes=axes,
         hash=perspective.hash,

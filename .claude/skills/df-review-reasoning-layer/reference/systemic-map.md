@@ -42,6 +42,12 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
   `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
   guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
+  Its one structured call is `Consultant.sketch()` → `concerns/consultation_sketch.py` (`SYSTEM_PROMPT`
+  interpolates `ASPECT_DEFINITIONS`; the user prompt repeats `aspect_generation._tetrad_prompt`'s
+  three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, over the PERSON's turns only): a texts-only
+  `ConsultationSketchDto` (flat, no numeric field by design) shaped into `graph/views.py::TensionMapView`.
+  Parity to watch: an edit to the tetrad procedure in `_tetrad_prompt` must land here too, or the
+  graphless picture and the graph's tetrads are built to different rules. Host-triggered, never a tool.
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
   The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash)`
