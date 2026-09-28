@@ -187,6 +187,7 @@ class TestTheFingerprintKnowsEveryMutableField:
         "instruction",
         "summary",
         "haiku",
+        "planted",
     }
 
     def _query_source(self) -> str:
@@ -205,11 +206,12 @@ class TestTheFingerprintKnowsEveryMutableField:
 
     def test_every_field_in_the_query_exists_on_a_node(self):
         from dialectical_framework.graph.nodes.decision import Decision
+        from dialectical_framework.graph.nodes.note import Note
         from dialectical_framework.graph.nodes.perspective import Perspective
         from dialectical_framework.graph.nodes.transition import Transition
 
         declared: set[str] = set()
-        for cls in (Statement, Perspective, Decision, Input, Transition):
+        for cls in (Statement, Perspective, Decision, Input, Transition, Note):
             declared |= set(_annotations(cls))
         unknown = self.KNOWN_MUTABLE - declared
         assert not unknown, f"query folds in fields no node declares: {unknown}"

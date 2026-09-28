@@ -149,14 +149,31 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    Enforced: an unscoped `chat()`/`chat_stream()` raises `MissingScopeError` immediately —
    running unscoped would otherwise fail silently (nodes save with `sid=None`, invisible to
    every listing, and commit dedup can alias onto another Case's nodes).
-   **One writer per sid** — a hard contract, not enforced in code: never run two
-   agent conversations that write the same `sid` concurrently (headless drivers
-   fanning out included). The graph client is a singleton with one cached
-   connection, `commit()` dedup is check-then-act across autocommitted
-   statements, and directed `connect()` duplicates edges on repeated calls —
-   concurrent same-sid writers produce duplicate nodes/edges and half-built
-   containers. Different sids are fine. Parallelism *inside* one turn is
-   already handled (LLM work gathers, graph writes stay sequential).
+   **One writer per sid** — a hard contract: never run two agent conversations
+   that write the same `sid` concurrently (headless drivers fanning out
+   included). The graph client is a singleton with one cached connection,
+   `commit()` dedup is check-then-act across autocommitted statements, and
+   directed `connect()` duplicates edges on repeated calls — concurrent
+   same-sid writers produce duplicate nodes/edges and half-built containers.
+   Different sids are fine. Parallelism *inside* one turn is already handled
+   (LLM work gathers, graph writes stay sequential).
+
+   The framework enforces its OWN half of this — the Advisor's off-turn weave —
+   in two layers: single flight per sid inside a process (a registry keyed by
+   `sid`), and a **DB-held weave lease per sid across processes**
+   (`CaseRepository.acquire_weave_lease`: compare-and-set in one statement, a
+   `WeaveLease` row per sid, renewed per round, released when done, expiring
+   600s after the last renewal if the holder dies). A turn opening on ANY
+   process waits out a lease another process holds before it reads or writes.
+   What it does not enforce is the host's half: two of YOUR turns on one `sid`
+   at the same time. **Multi-tenant servers** (several uvicorn workers,
+   replicas behind a load balancer): the lease makes cross-process weaves
+   safe; routing every turn of a `sid` to one process (sticky by `sid`) is
+   still recommended, because a turn behind another process's weave cannot
+   ask it to yield and waits up to a full round. One DI container per process,
+   one `Settings` for all tenants — the container, the event buses and the
+   wiring are process singletons, and a second `setup()` silently re-points
+   every tenant.
 3. **Message persistence** — save/load `agent.messages` per conversation thread. Carrying
    the list forward inside one process needs nothing: hand it to the next
    `Advisor(messages=saved)` and you are done.
@@ -204,9 +221,27 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
 
    Only the host knows when there is no next turn, which is what makes this the
    host's call and not the framework's — the same shape as the `aclosing` obligation
-   above. **Skipping it loses nothing but the pathway**: every deferred write is
-   fail-soft and idempotent, and the decision keeps the grounds it was recorded with.
-   Safe to call any number of times, including when nothing was deferred.
+   above. **Skipping it loses nothing durable**: every deferred write is fail-soft
+   and idempotent, the decision keeps the grounds it was recorded with, and a
+   `note` the person asked to keep is a committed `Note` node from the moment
+   the tool answered — the next turn on any process plants it (the in-memory
+   queue is only the trigger; the graph is the queue of record). What a skipped
+   drain does cost is the pathway of a decision closed on that last turn, and a
+   container caught mid-commit (`saved_at` set, no hash — invisible to every
+   listing, reaped by `scripts/cleanup_stale_nodes.py`). Safe to call any
+   number of times, including when nothing was deferred.
+
+   **A shared server drains the PROCESS, not a conversation:**
+   `await drain_deferred_work(timeout=...)` (module-level in
+   `agents/advisor/advisor.py`) awaits every sid's off-turn work on this loop —
+   the call for an ASGI lifespan shutdown hook, which has no scope and no
+   instance. Same contract: bounded by `timeout`, never cancels. For a
+   request-scoped worker (one process per request, killed after the response),
+   stream the reply and then `await advisor.wait_for_deferred_work()` before the
+   handler returns — the person already has the reply on screen.
+   `deferred_work_in_flight(sid)` tells a handler whether this process is
+   weaving a sid right now, so it can answer with a heartbeat or a 202 instead
+   of blocking a request behind `chat()`'s settle wait.
 
    **It waits for the conversation, not for the object.** Deferred work is tracked
    per `sid`, so `wait_for_deferred_work()` drains a weave started by an *earlier*

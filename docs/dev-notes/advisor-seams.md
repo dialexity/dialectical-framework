@@ -223,3 +223,67 @@ consent session's dump), and that expanding the one exploration beats forking (`
 re-weaves the whole nexus, so a note on a 4-tension case is a k=5 build off the turn — the
 `_MAX_WEAVE_ROUNDS` and yield-to-a-waiting-turn bounds apply, and the next turn's
 `deferred_wait_s` is where the cost would show).
+
+## The off-turn seam on a shared server (2026-09-28)
+
+**The question that opened it.** The owner, designing chat widgets: "apps using the framework will
+definitely be multi-tenant applications, a shared server running the framework, every request scoped
+by sid". Two read-only reviews were run against that deployment — one on the deferred-work queue,
+one on the substrate it runs on (scope, DI, the graph client, process-global state). The substrate
+held: `sid` is a ContextVar with token reset, every one of the 50 injection sites reads it per call
+through `providers.Callable`, a task created inside the request inherits a copy, the registry holds
+a strong reference, the idle sweep cannot drop another sid's live entry, and the accounting
+ContextVars are empty when the task is created. Two defects were confirmed, both only visible with
+more than one process.
+
+**Defect 1: one writer per sid was enforced by an in-process dict.** Turn N on worker A starts a
+weave; turn N+1 lands on worker B, finds no task, waits 0.0s, and its closing starts a second
+`run_exploration_detailed` on the same sid. The `(hash, sid)` constraint covers committed atomic
+nodes only — containers skip dedup, directed edges duplicate — and the weave swallows the resulting
+exception fail-soft. No document mentioned sticky routing. **Fix:** a `WeaveLease` row per sid
+(`CaseRepository.acquire_weave_lease`, MERGE + WHERE + SET in ONE statement, so the read and the
+write cannot interleave under autocommit; held unique by a `WeaveLease(sid)` constraint
+`_ensure_schema` creates), taken at the top of `_run_deferred_pathway_construction`, renewed at
+the top of every round, released in the `finally`; TTL 600s after the last renewal so a dead holder
+frees the sid. A task that cannot take it stands down with its queues intact.
+`_settle_deferred_work` now also waits out a lease another process holds (`_wait_for_foreign_weave`,
+1s poll) — that wait cannot ask the other process to yield, which is why sticky-by-sid routing stays
+a latency recommendation. Not a `:Node`: no listing sees it, `scope_fingerprint` does not move when
+it changes hands, the stale-node reaper cannot reap it. **Fail-OPEN on faults:** a broken lease
+query degrades to the pre-lease behaviour with an exception in the log, never to a surface that
+silently stops building. The owner string is per PROCESS (`_WEAVE_OWNER`), because a fresh Advisor
+resuming a sid on the same worker must read its own process's lease as its own.
+
+**Defect 2: notes lived in RAM and the model said "written down".** `_queue_note` appended a triple
+and returned "tell the person it is written down"; a deploy between the reply and the plant lost
+exactly what the consent surface exists to keep, and `agents.md`'s "skipping the drain loses
+nothing but the pathway" was true for decisions and false for notes. **Fix:** `Note`
+(`graph/nodes/note.py`; `thesis`/`antithesis`/`context`, mutable `planted`, a NONCE in the hash)
+committed in `_queue_note`; the drain reads `NoteRepository.find_unplanted()` every round and
+stamps each planted note. A note lives in exactly one place: the in-memory list holds it only when
+the commit could not happen (no scope, or a failed write), so nothing can anchor a note twice and a
+note another process already planted is simply no longer pending. The nonce was a correction made
+the same day: the first cut dedup'd on the words ("the same words kept twice are one note"), and
+the owner's question about multiple readings exposed that this silently swallowed the one route
+to an alternative tetrad — `anchor` on IDENTICAL wording, which the engine prompt asks for by
+name. Each keep is a speech act, as each record is. `_schedule_noted_tensions` re-offers whatever
+is still queued on every turn
+(RAM notes, unplanted Notes from the graph, AND decisions a stood-down task left waiting — before,
+a decision whose task stood down waited for the next closing to be grounded). The context dump
+counts pending notes under `# Unfinished`, including on an otherwise empty case, and `planted` is a
+term of `scope_fingerprint`.
+
+**The drain a server can call.** `wait_for_deferred_work` resolves the sid in scope plus one
+instance's keys — the right shape for a console chat, unreachable from an ASGI lifespan hook.
+`drain_deferred_work(timeout)` (module-level) awaits every sid's task on this loop, same
+never-cancels contract; `deferred_work_in_flight(sid)` is the in-process probe for a handler that
+wants to answer with a heartbeat instead of blocking behind the settle wait.
+
+**Left as capacity work, deliberately.** Every graph write is synchronous over one cached mgclient
+socket (110.9s of a 163.2s k=4 wall with no suspension before the yields were added), so concurrent
+weaves serialise the loop and jitter other tenants' streams; moving writes to a thread needs a
+connection per worker first (the client is not thread-safe). Settings, event buses and DI wiring are
+process singletons (a second `setup()` re-points every tenant — now a documented contract, not a
+guard). No priority between off-turn weaves and on-turn replies. Event-bus subscriber queues are
+unbounded. None of these corrupts a graph; all wait for a load test. Tests:
+`tests/test_multi_tenant_deferred_work.py`.

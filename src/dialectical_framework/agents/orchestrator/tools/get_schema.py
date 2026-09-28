@@ -32,6 +32,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Transition | Movement between two Statements (source → target) | `statement`, `headline`, `haiku` |
 | Synthesis | Emergent S+/S- pair from a Wheel's circular causality | `completeness` ("done/expected" Transformations the S+/S- was derived from, e.g. "4/6"; equal halves = whole wheel; null = not recorded) |
 | Decision | Confirmed decision: question + stance (Case-level, immutable; timestamp = `committed_at`; the why = attached Rationale whose `agent` names the confirming principal — "human" for a person, "agent:<name>" for a delegated driver, "agent:unattested" when the host attested nobody) | `intent` (the question), `stance`, `discarded`, `validation` ("passed" / "failed: ..." / null=unchecked) |
+| Note | What the person asked to have written down on a consent surface (`note` tool); planted as a tension between turns by whichever process serves the conversation | `thesis`, `antithesis`, `context`, `planted` (perspective hashes once planted / null = pending) |
 | Rationale | Explanation attached to any node | `text` |
 | Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
 

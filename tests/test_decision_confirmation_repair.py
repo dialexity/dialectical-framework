@@ -170,6 +170,19 @@ class _StubAdvisor:
     _weave_target_nexus = Advisor._weave_target_nexus
     _queue_note = Advisor._queue_note
     _schedule_noted_tensions = Advisor._schedule_noted_tensions
+    # The multi-tenant seams (2026-09-28): the durable note queue and the
+    # cross-process weave lease. Every one of them is a no-op without a scope
+    # and fail-soft with one, so binding the real methods keeps these tests
+    # DB-free in effect while exercising the real drain shape.
+    _plant_note = Advisor._plant_note
+    _plant_noted_tensions = Advisor._plant_noted_tensions
+    _persist_note = Advisor._persist_note
+    _unplanted_notes = Advisor._unplanted_notes
+    _mark_note_planted = Advisor._mark_note_planted
+    _hold_weave_lease = Advisor._hold_weave_lease
+    _release_weave_lease = Advisor._release_weave_lease
+    _foreign_lease_remaining = Advisor._foreign_lease_remaining
+    _wait_for_foreign_weave = Advisor._wait_for_foreign_weave
 
 
 def _ok_report() -> ExecutionReport:

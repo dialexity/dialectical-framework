@@ -6,6 +6,7 @@ All queries are scoped by sid (injected from DI context) to prevent cross-user d
 
 from __future__ import annotations
 
+import time
 from typing import Optional, Union, TYPE_CHECKING
 
 from dependency_injector.wiring import inject, Provide
@@ -15,6 +16,13 @@ from dialectical_framework.enums.di import DI
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.case import Case
+
+#: The lease row's label. NOT a `:Node` on purpose: it carries no hash, no
+#: `sid`-scoped listing should ever see it, `scope_fingerprint` must not move
+#: when it changes hands, and the stale-node reaper (`hash IS NULL AND saved_at`)
+#: must never reap a live lease. One row per sid, held unique by the
+#: `WeaveLease(sid)` constraint `DialecticalReasoning._ensure_schema` creates.
+WEAVE_LEASE_LABEL = "WeaveLease"
 
 
 class CaseRepository:
@@ -128,10 +136,11 @@ class CaseRepository:
         the scope, not as a count, so a value changing from one string to another
         (a validation verdict, a re-digested Input) still moves the fingerprint:
         `discarded`, `validation`, `digest`, the Statement's cosmetic
-        `display_text` override (`concerns/display_text_edit.py`), and the
-        Transition trio `instruction`/`summary`/`haiku`. `saved_at` is included
-        because a save of a committed node is what every one of those mutations
-        does.
+        `display_text` override (`concerns/display_text_edit.py`), the
+        Transition trio `instruction`/`summary`/`haiku`, and the Note's
+        `planted` stamp (the "Unfinished" section counts pending notes, so a
+        note becoming planted must re-render). `saved_at` is included because
+        a save of a committed node is what every one of those mutations does.
 
         Adding a mutable field to a node without adding it here makes the
         Advisor's render cache serve a stale prompt for exactly the turns that
@@ -155,7 +164,8 @@ class CaseRepository:
                sum(size(coalesce(n.display_text, ''))) AS display_text_chars,
                sum(size(coalesce(n.instruction, ''))) AS instruction_chars,
                sum(size(coalesce(n.summary, ''))) AS summary_chars,
-               sum(size(coalesce(n.haiku, ''))) AS haiku_chars
+               sum(size(coalesce(n.haiku, ''))) AS haiku_chars,
+               sum(size(coalesce(n.planted, ''))) AS planted_chars
         """
         edges_query = """
         MATCH (n:Node {sid: $sid})-[r]->()
@@ -174,6 +184,103 @@ class CaseRepository:
             nodes["instruction_chars"],
             nodes["summary_chars"],
             nodes["haiku_chars"],
+            nodes["planted_chars"],
             edges["edges"],
         )
+
+    # ------------------------------------------------------------------
+    # The weave lease: one off-turn writer per sid ACROSS processes
+    # ------------------------------------------------------------------
+    #
+    # The Advisor's off-turn weave is single-flight per sid inside one process
+    # (`agents/advisor/advisor.py::_DEFERRED_WORK`). A shared multi-tenant
+    # server runs several worker processes or replicas, and two turns of one
+    # conversation routinely land on different ones — so without a guard that
+    # lives in the database, worker B starts a second weave on the sid worker A
+    # is still weaving, and the graph gets duplicate wheels, duplicated
+    # directed edges and half-built containers. This is that guard: a row per
+    # sid, taken and renewed by compare-and-set in ONE statement (each
+    # statement is its own transaction under autocommit, so the read and the
+    # write cannot interleave with another process's), with an expiry so a
+    # process that dies mid-weave frees the sid after `ttl_s` at most.
+    #
+    # It is a lease, not a lock: a holder that stops renewing loses it. The
+    # Advisor renews between rounds and releases in its `finally`.
+
+    @inject
+    def acquire_weave_lease(
+        self,
+        owner: str,
+        ttl_s: float,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> bool:
+        """Take, or renew, this sid's weave lease for `owner`.
+
+        Succeeds when the row is free, expired, or already held by `owner`
+        (renewal is the same statement). Returns False when another owner holds
+        an unexpired lease — and also when the MERGE loses a creation race to
+        the uniqueness constraint, which reads the same way to the caller: not
+        this attempt. Raises on anything else (a broken query must not be
+        mistaken for a held lease; the caller decides how to degrade).
+        """
+        if not sid:
+            raise ValueError("acquire_weave_lease needs a scope (sid)")
+        now = time.time()
+        query = f"""
+        MERGE (l:{WEAVE_LEASE_LABEL} {{sid: $sid}})
+        WITH l
+        WHERE l.owner IS NULL OR l.owner = $owner
+              OR l.until IS NULL OR l.until < $now
+        SET l.owner = $owner, l.until = $until
+        RETURN l.owner AS owner
+        """
+        params = {"sid": sid, "owner": owner, "now": now, "until": now + ttl_s}
+        try:
+            rows = list(graph_db.execute_and_fetch(query, params))
+        except Exception as e:  # noqa: BLE001 — classified below
+            if "unique" in str(e).lower() or "constraint" in str(e).lower():
+                return False
+            raise
+        return bool(rows) and rows[0]["owner"] == owner
+
+    @inject
+    def release_weave_lease(
+        self,
+        owner: str,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> None:
+        """Free the lease if `owner` holds it. A no-op for anyone else — a
+        holder that already lost its lease to expiry must not free the next
+        holder's."""
+        if not sid:
+            return
+        query = f"""
+        MATCH (l:{WEAVE_LEASE_LABEL} {{sid: $sid}})
+        WHERE l.owner = $owner
+        SET l.owner = NULL, l.until = NULL
+        """
+        graph_db.execute(query, {"sid": sid, "owner": owner})
+
+    @inject
+    def weave_lease_holder(
+        self,
+        sid: Optional[str] = Provide[DI.sid],
+        graph_db: Union[Memgraph, Neo4j] = Provide[DI.graph_db],
+    ) -> Optional[tuple[str, float]]:
+        """`(owner, until)` of the current UNEXPIRED lease, or None."""
+        if not sid:
+            return None
+        query = f"""
+        MATCH (l:{WEAVE_LEASE_LABEL} {{sid: $sid}})
+        RETURN l.owner AS owner, l.until AS until
+        """
+        rows = list(graph_db.execute_and_fetch(query, {"sid": sid}))
+        if not rows:
+            return None
+        owner, until = rows[0]["owner"], rows[0]["until"]
+        if owner is None or until is None or until < time.time():
+            return None
+        return owner, float(until)
 

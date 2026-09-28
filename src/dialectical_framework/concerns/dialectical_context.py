@@ -100,15 +100,20 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         perspectives = pp_repo.find_all_active()
         inputs_dump = self._dump_inputs()
         decisions_dump = self._dump_decisions()
+        # Computed before the empty-graph exit below, because a note the
+        # person asked to keep that no process has planted yet is the one
+        # thing an otherwise blank case may hold — and "fresh conversation"
+        # would be the wrong thing to tell the model about it.
+        pending_dump = self._dump_pending_analysis()
 
         if not perspectives:
-            if inputs_dump or decisions_dump:
+            if inputs_dump or decisions_dump or pending_dump:
                 # No structure yet, but captured material and/or recorded
                 # decisions exist — surface them so the model can pick them
                 # up instead of assuming a blank slate.
                 self._report.ok = True
                 self._report.summary = "No perspectives yet, inputs/decisions pending"
-                parts = [p for p in (inputs_dump, decisions_dump) if p]
+                parts = [p for p in (inputs_dump, decisions_dump, pending_dump) if p]
                 parts.append(
                     "No tensions identified yet — sources above (if any) are "
                     "captured but not yet analyzed; standing decisions (if "
@@ -167,7 +172,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 f"inspect_node if needed."
             )
 
-        pending_dump = self._dump_pending_analysis()
         if pending_dump:
             sections.append(pending_dump)
 
@@ -508,11 +512,20 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         from dialectical_framework.agents.analyst.analyst import HS_THRESHOLD
         from dialectical_framework.graph.rendering import (
             POLARITY_NOT_DEVELOPED, POLARITY_PARTIAL, polarity_completeness)
+        from dialectical_framework.graph.repositories.note_repository import \
+            NoteRepository
         from dialectical_framework.graph.repositories.polarity_repository import \
             PolarityRepository
 
+        # Notes the person asked to keep that no process has planted yet
+        # (`graph/nodes/note.py`). Normally zero by the next turn — the plant
+        # runs off the turn and the turn waits for it — so a non-zero here means
+        # the turn is being served by a process that did not run the plant, or
+        # the plant is still in flight elsewhere. Honest status, as above.
+        pending_notes = NoteRepository().count_unplanted()
+
         pending = PolarityRepository().find_unconnected()
-        if not pending:
+        if not pending and not pending_notes:
             return None
 
         partial = 0
@@ -526,6 +539,11 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
 
         lines: list[str] = []
         if self._numeric_status:
+            if pending_notes:
+                lines.append(
+                    f"{pending_notes} kept note(s) not yet worked into the "
+                    f"understanding — planted between turns."
+                )
             if partial:
                 lines.append(
                     f"{partial} tension(s) partially developed — an expansion "
@@ -538,6 +556,10 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
                 )
         else:
             # Plain words, no counts, no framework nouns — the unscoped register.
+            if pending_notes:
+                lines.append(
+                    "Something they asked to keep is still being worked in."
+                )
             if partial:
                 lines.append(
                     "Some threads here were started and not finished."

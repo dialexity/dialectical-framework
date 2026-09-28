@@ -185,6 +185,48 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                     e,
                 )
 
+        # One weave-lease row per sid (`CaseRepository.acquire_weave_lease`).
+        # The lease is taken by MERGE; two processes merging the same sid at
+        # once would otherwise both create a row and both believe they hold
+        # it, which is the double writer the lease exists to prevent.
+        from dialectical_framework.graph.repositories.case_repository import \
+            WEAVE_LEASE_LABEL
+
+        has_lease_constraint = False
+        try:
+            if is_neo4j:
+                for row in graph_db.execute_and_fetch("SHOW CONSTRAINTS"):
+                    if WEAVE_LEASE_LABEL in row.get("labelsOrTypes", []) and "sid" in row.get("properties", []):
+                        has_lease_constraint = True
+                        break
+            else:
+                for row in graph_db.execute_and_fetch("SHOW CONSTRAINT INFO"):
+                    if row.get("label") == WEAVE_LEASE_LABEL and "sid" in row.get("properties", []):
+                        has_lease_constraint = True
+                        break
+        except Exception:
+            pass
+        if not has_lease_constraint:
+            try:
+                if is_neo4j:
+                    graph_db.execute(
+                        f"CREATE CONSTRAINT IF NOT EXISTS FOR (l:{WEAVE_LEASE_LABEL}) REQUIRE l.sid IS UNIQUE"
+                    )
+                else:
+                    graph_db.execute(
+                        f"CREATE CONSTRAINT ON (l:{WEAVE_LEASE_LABEL}) ASSERT l.sid IS UNIQUE"
+                    )
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    "Could not create the %s(sid) uniqueness constraint: %s — "
+                    "the off-turn weave lease is only as safe as a single "
+                    "process per sid.",
+                    WEAVE_LEASE_LABEL,
+                    e,
+                )
+
     # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
         _create_graph_db,

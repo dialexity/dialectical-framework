@@ -191,6 +191,20 @@ def cleanup_test_data(db):
     DETACH DELETE n
     """
     db.execute(query)
+    # The off-turn weave lease is one row per sid written by raw MERGE
+    # (`CaseRepository.acquire_weave_lease`), so the labelling `save_node`
+    # wrapper never sees it. A lease left by a killed run would block the next
+    # run's weave tests for its TTL. Delete every lease whose sid has no
+    # production Case behind it — a test sid, or garbage — and nothing else.
+    db.execute(
+        f"""
+        MATCH (l:WeaveLease)
+        OPTIONAL MATCH (c:Case {{sid: l.sid}})
+        WITH l, c
+        WHERE c IS NULL OR c:{TEST_LABEL}
+        DETACH DELETE l
+        """
+    )
 
 
 def _create_test_graph_db(settings: Settings):

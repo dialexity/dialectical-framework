@@ -438,6 +438,23 @@ decision is a speech act, never extracted from conversation).
 - Rendered as the `# Decisions` ledger in `dialectical_context` (both unscoped
   and nexus-scoped dumps — decisions are Case-level facts).
 
+### Note (Case-Level, the consent surface's durable queue)
+
+A **Note** is what the person asked to have written down on an
+`Advisor(build=ON_CONSENT)` surface (`note` tool): `thesis`, optional
+`antithesis`, `context` — `anchor`'s parameters, kept until the off-turn task
+plants them as a tension. Committed on the turn, before the tool answers
+"Kept.", so the promise holds across a deploy or a crash; read back by
+`NoteRepository.find_unplanted()` in whichever process serves the conversation
+next, and stamped `planted` (mutable metadata, the perspective hashes it
+produced) once `anchor`'s body has run. A nonce in the hash, as on Decision:
+each keep is its own speech act, and the same words kept twice reach `anchor`
+twice on purpose — identical wording on a mapped pair is how an alternative
+tetrad (another reading) is generated, while `anchor`'s statement dedup keeps
+the tension itself single. A note lives in exactly one place: committed, or
+(no scope / failed write) in the process's memory. Rendered as a count under
+`# Unfinished` while pending. Case-level via `sid`, never in a parent hash.
+
 ### Why This Separation?
 
 ```

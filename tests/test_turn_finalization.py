@@ -522,6 +522,10 @@ class _StubAdvisor:
     chat_stream = Advisor.chat_stream
     _record_turn_timing = Advisor._record_turn_timing
     _settle_deferred_work = Advisor._settle_deferred_work
+    # The cross-process half of the settle step (2026-09-28): a lease read,
+    # a no-op without a scope and fail-open with one.
+    _wait_for_foreign_weave = Advisor._wait_for_foreign_weave
+    _foreign_lease_remaining = Advisor._foreign_lease_remaining
     wait_for_deferred_work = Advisor.wait_for_deferred_work
     # Deferred work is sid-keyed (`Advisor._DEFERRED_WORK`), so the task the
     # tests below assign has to go through the real property or the settle at the

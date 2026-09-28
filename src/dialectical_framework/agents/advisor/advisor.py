@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import socket
 import time
+import uuid
 from contextlib import aclosing
 from typing import AsyncGenerator, Optional
 
@@ -126,6 +129,26 @@ class _DeferredWork:
 #: sid's turn, which the one-writer-per-sid contract already makes singular.
 _DEFERRED_WORK: dict[str, _DeferredWork] = {}
 
+#: ACROSS processes the registry above sees nothing, and a shared multi-tenant
+#: server has several: workers under one ASGI server, replicas behind a load
+#: balancer. Two turns of one conversation routinely land on different ones. So
+#: the off-turn task also takes a DB-held lease per sid
+#: (`CaseRepository.acquire_weave_lease`, compare-and-set in one statement),
+#: renews it between rounds and releases it when done; a turn opening on any
+#: process waits out a lease another process holds before it reads or writes.
+#: This is the owner string the lease is held under — one per PROCESS, not per
+#: Advisor: the in-process single flight already makes one task per sid here,
+#: and a fresh Advisor resuming the sid on the same worker must read its own
+#: process's lease as its own.
+_WEAVE_OWNER = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+#: How long a lease outlives its last renewal. A round of the weave is one
+#: `run_exploration_detailed` (minutes; more under throttling), and the holder
+#: renews at the top of every round, so this is the worst case a sid stays
+#: blocked after a process DIES mid-weave — not how long a live weave may run.
+_WEAVE_LEASE_TTL_S = 600.0
+#: How often a turn blocked behind another process's weave looks again.
+_WEAVE_LEASE_POLL_S = 1.0
+
 
 def _deferred_work(key: str) -> _DeferredWork:
     """The deferred-work entry for `key`, created if there is none.
@@ -219,6 +242,56 @@ async def _await_deferred_task(
         # from surfacing at an unrelated shutdown seam.
         logger.error("Deferred Advisor work ended in an error", exc_info=error)
     return True
+
+
+async def drain_deferred_work(timeout: float | None = None) -> bool:
+    """Await EVERY sid's off-turn work in this process. A server's shutdown hook.
+
+    `Advisor.wait_for_deferred_work` drains one conversation — the sid in scope
+    and the keys that instance scheduled under — which is the right shape for a
+    console chat and the wrong one for a shared server: a FastAPI lifespan
+    shutdown has no scope and no instance, and before this the only way to
+    drain a multi-tenant process was to reach into the private registry. Call
+    this once, after the server stops accepting requests and before the event
+    loop goes away.
+
+    Same contract as the per-conversation form: `timeout` bounds the wait and
+    never cancels the work (a timed-out weave keeps running until the loop
+    drops it); True means nothing is left in flight, False that the deadline
+    passed first. Tasks belonging to a dead loop are skipped, not awaited — the
+    same rule `_drop_task_from_a_dead_loop` applies on the turn.
+    """
+    deadline = None if timeout is None else time.monotonic() + timeout
+    while True:
+        live = [
+            entry.task
+            for entry in list(_DEFERRED_WORK.values())
+            if entry.task is not None
+            and not entry.task.done()
+            and _on_this_loop(entry.task)
+        ]
+        if not live:
+            return True
+        for task in live:
+            if not await _await_deferred_task(task, deadline):
+                return False
+
+
+def deferred_work_in_flight(sid: str) -> bool:
+    """Whether THIS process is weaving `sid` off the turn right now.
+
+    For a host deciding how to answer a request that would otherwise block
+    behind `_settle_deferred_work` (a heartbeat, a 202, a "still working"
+    line). In-process only: a lease held by another process is not visible
+    here, and a host that needs that answer routes a sid to one process.
+    """
+    entry = _DEFERRED_WORK.get(sid)
+    return bool(
+        entry is not None
+        and entry.task is not None
+        and not entry.task.done()
+        and _on_this_loop(entry.task)
+    )
 
 
 class Advisor(SettingsAware):
@@ -659,9 +732,19 @@ class Advisor(SettingsAware):
         thesis = (thesis or "").strip()
         if not thesis:
             return "Nothing kept: the position to keep was empty."
-        self._notes_awaiting_anchor.append(
-            (thesis, (antithesis or "").strip() or None, (context or "").strip())
-        )
+        antithesis = (antithesis or "").strip() or None
+        context = (context or "").strip()
+        # Durable, or in memory — never both. "Written down" is what the model
+        # tells the person on the strength of this return value, and on a
+        # shared server the process that queued a note is not reliably the one
+        # that gets to plant it (a deploy, a crash, the next request routed
+        # elsewhere). So the Note node is the queue of record, read back by
+        # whichever process drains next (`_unplanted_notes`), and the
+        # in-memory list holds a note ONLY when it could not be committed —
+        # no scope, or a failed write — which is the pre-durability path kept
+        # as the fallback.
+        if self._persist_note(thesis, antithesis, context) is None:
+            self._notes_awaiting_anchor.append((thesis, antithesis, context))
         return (
             "Kept. It is worked into the understanding after this reply and "
             "appears on the next turn — tell the person it is written down; do "
@@ -669,7 +752,7 @@ class Advisor(SettingsAware):
         )
 
     def _schedule_noted_tensions(self) -> None:
-        """Start the off-turn task for the notes this turn queued, if nothing else did.
+        """Start the off-turn task for whatever is still queued, if nothing else did.
 
         Called after the closing seam on both turn loops. A closing that was
         recorded has already started (or joined) the task, and the task drains
@@ -677,8 +760,21 @@ class Advisor(SettingsAware):
         the seam's `NO_CLOSING` exit never schedules. The outcome field is left
         alone where the seam already concluded something about deferral —
         `_last_deferral` is a claim about the closing, and a note is not one.
+
+        Three things count as "still queued", and the last two are what a
+        shared server adds: notes this turn kept; notes some OTHER process kept
+        and never got to plant (committed `Note` nodes with no `planted` stamp
+        — the queue of record, read back from the graph); and decisions a
+        previous task left waiting because another process held the sid's
+        weave lease when it ran. Without the third a decision could wait for
+        the next closing to be grounded; without the second a note would wait
+        for the process that died.
         """
-        if not self._notes_awaiting_anchor:
+        if not (
+            self._notes_awaiting_anchor
+            or self._decisions_awaiting_pathway
+            or self._unplanted_notes()
+        ):
             return
         if self._last_deferral in (
             DeferralOutcome.STARTED,
@@ -1330,23 +1426,39 @@ class Advisor(SettingsAware):
         Finds work started by a DIFFERENT Advisor on the same sid, which is the
         whole point: the documented resume pattern (`Advisor(messages=saved)`)
         hands the conversation to a new instance every turn.
+
+        And work started by a different PROCESS: after this process's own task
+        is settled, a lease another worker holds on the sid is waited out too
+        (`_wait_for_foreign_weave`). That wait cannot ask the other process to
+        yield — the `waiting` flag is in-process — so it is bounded by the
+        other weave's rounds and, if that process died, by the lease TTL.
+        Routing every turn of a sid to one process (sticky by sid) makes this
+        branch idle; it is a latency recommendation for hosts, not a
+        correctness requirement any more.
         """
-        if self._deferred_pathway_task is None:
-            return 0.0
-        started = time.monotonic()
-        # Say so, so the weave yields between rounds instead of draining every
-        # unwoven perspective while the person sits behind it. The wait stays
-        # unbounded — the round in flight finishes, because half a wheel is the
-        # thing the invariant exists to prevent — but it is now ONE round long.
-        entry = _deferred_work_if_any(self._deferred_work_key())
-        if entry is not None:
-            entry.waiting = True
-        try:
-            await self.wait_for_deferred_work()
-        finally:
+        # Exactly 0.0 when nothing was waited for: a deferral whose wait shows
+        # up on every turn is not a deferral (`tests/test_turn_timing.py`), so
+        # only time spent blocked is charged — never the lease probe's own
+        # round trip.
+        waited = 0.0
+        if self._deferred_pathway_task is not None:
+            started = time.monotonic()
+            # Say so, so the weave yields between rounds instead of draining
+            # every unwoven perspective while the person sits behind it. The
+            # wait stays unbounded — the round in flight finishes, because half
+            # a wheel is the thing the invariant exists to prevent — but it is
+            # now ONE round long.
+            entry = _deferred_work_if_any(self._deferred_work_key())
             if entry is not None:
-                entry.waiting = False
-        return time.monotonic() - started
+                entry.waiting = True
+            try:
+                await self.wait_for_deferred_work()
+            finally:
+                if entry is not None:
+                    entry.waiting = False
+            waited += time.monotonic() - started
+        waited += await self._wait_for_foreign_weave()
+        return waited
 
     def _turn_is_waiting(self) -> bool:
         """Is a turn blocked behind this sid's weave right now?"""
@@ -1459,11 +1571,17 @@ class Advisor(SettingsAware):
             return
         if decision_hash and decision_hash not in self._decisions_awaiting_pathway:
             self._decisions_awaiting_pathway.append(decision_hash)
-        if not self._decisions_awaiting_pathway and not self._notes_awaiting_anchor:
+        if (
+            not self._decisions_awaiting_pathway
+            and not self._notes_awaiting_anchor
+            and not self._unplanted_notes()
+        ):
             # Nothing to ground. The graph may still be unwoven, and weaving it
             # would leave a better graph behind — but no record would point at
             # the result, and an exploration run on no one's behalf is the kind
-            # of unattributed cost this seam was moved to stop paying.
+            # of unattributed cost this seam was moved to stop paying. (Notes
+            # kept by another process and not yet planted DO count: they are
+            # the person's word, waiting.)
             self._last_deferral = DeferralOutcome.NOTHING_TO_DEFER
             return
 
@@ -1523,20 +1641,56 @@ class Advisor(SettingsAware):
         """
         rounds = 0
         grounded: list[str] = []
+        # The cross-process half of single flight. Not acquired: another
+        # process is weaving this sid right now. Stand down with the queues
+        # intact — `_schedule_noted_tensions` re-offers them at the end of
+        # the next turn on this process, after `_settle_deferred_work` has
+        # waited that weave out; the notes are also in the graph, so the
+        # process holding the lease plants them itself if it gets there first.
+        if not self._hold_weave_lease():
+            logger.info(
+                "Off-turn work for scope %s stands down: another process holds "
+                "the weave lease; the queue waits for the next turn here",
+                self._deferred_work_key(),
+            )
+            return
+        # Durable notes this drain already tried. A plant that RAISES leaves
+        # its note unstamped on purpose (a transient fault should not lose the
+        # person's word), but re-reading it every round would spend the round
+        # cap on one poison note; one attempt per drain, and the next turn's
+        # drain tries again.
+        attempted: set[str] = set()
         try:
-            while (
-                self._decisions_awaiting_pathway or self._notes_awaiting_anchor
-            ) and rounds < self._MAX_WEAVE_ROUNDS:
-                rounds += 1
+            while rounds < self._MAX_WEAVE_ROUNDS:
                 pending = list(self._decisions_awaiting_pathway)
-                self._decisions_awaiting_pathway.clear()
                 noted = list(self._notes_awaiting_anchor)
+                # The queue of record for notes is the graph, not this process:
+                # a Note committed by a worker that died, or by a turn served
+                # elsewhere, is drained here like one of our own.
+                durable = [
+                    n for n in self._unplanted_notes() if n.hash not in attempted
+                ]
+                attempted.update(n.hash for n in durable)
+                if not pending and not noted and not durable:
+                    break
+                rounds += 1
+                if rounds > 1 and not self._hold_weave_lease():
+                    # Renewal failed: the lease expired under a long round and
+                    # another process took it. It is the writer now; stopping
+                    # here is what keeps that true.
+                    logger.warning(
+                        "Off-turn weave for scope %s lost its lease between "
+                        "rounds; leaving the rest to the process that holds it",
+                        self._deferred_work_key(),
+                    )
+                    break
+                self._decisions_awaiting_pathway.clear()
                 self._notes_awaiting_anchor.clear()
                 try:
                     # What the person asked to keep is planted FIRST, so the
                     # weave below picks it up in the same round and a decision
                     # closed on the noted tension can ground on its pathway.
-                    await self._anchor_noted_tensions(noted)
+                    await self._plant_noted_tensions(noted, durable)
                     # A closing on an EMPTY graph has nothing to weave: plant
                     # the decided stance as a tension first, so the weave and
                     # the grounds below have something to work on.
@@ -1579,6 +1733,7 @@ class Advisor(SettingsAware):
             else:
                 await self._audit_adopted_pathways(grounded)
         finally:
+            self._release_weave_lease()
             # Retire this sid's registry entry as the task ends, so keys do not
             # accumulate for the life of the process. In a `finally` because a
             # cancelled drain must clean up too, and guarded on being OUR task
@@ -1873,31 +2028,201 @@ class Advisor(SettingsAware):
         """
         if not noted:
             return 0
+        planted = 0
+        for thesis, antithesis, context in noted:
+            hashes = await self._plant_note(thesis, antithesis, context)
+            if hashes:
+                planted += 1
+        return planted
+
+    async def _plant_note(
+        self, thesis: str, antithesis: Optional[str], context: str
+    ) -> Optional[list[str]]:
+        """One note through `anchor`'s body. The perspective hashes it
+        produced (possibly empty), or None when the plant RAISED — the
+        difference the durable queue needs: a raised plant stays pending, an
+        empty one is done."""
         import json
 
         from dialectical_framework.agents.advisor.tools.anchor import _anchor
 
-        planted = 0
-        for thesis, antithesis, context in noted:
-            try:
-                report_json = await _anchor(
-                    thesis=thesis, antithesis=antithesis, context=context
-                )
-                hashes = (json.loads(report_json).get("artifacts") or {}).get(
-                    "perspective_hashes"
-                ) or []
-                if hashes:
-                    planted += 1
+        try:
+            report_json = await _anchor(
+                thesis=thesis, antithesis=antithesis, context=context
+            )
+            hashes = (json.loads(report_json).get("artifacts") or {}).get(
+                "perspective_hashes"
+            ) or []
+            logger.info(
+                "Noted tension planted off the turn (%d perspective(s))",
+                len(hashes),
+            )
+            return list(hashes)
+        except Exception:
+            logger.exception(
+                "Planting a noted tension failed (fail-soft); the other "
+                "notes of this round are still planted"
+            )
+            return None
+
+    async def _plant_noted_tensions(
+        self, noted: list[tuple[str, Optional[str], str]], durable: list
+    ) -> None:
+        """Plant this round's notes: the in-memory triples (the ones that could
+        not be committed — `_queue_note` keeps a note in exactly one place),
+        then the durable ones from the graph, stamping each as it lands.
+
+        A durable note another process planted meanwhile is simply no longer
+        unplanted, so nothing here can anchor a note twice; a repeat the
+        PERSON asked for is two Notes (nonce), planted twice on purpose —
+        `anchor` on identical wording is how an alternative tetrad is made.
+        """
+        await self._anchor_noted_tensions(noted)
+        for note in durable:
+            hashes = await self._plant_note(
+                note.thesis, note.antithesis, note.context or ""
+            )
+            if hashes is not None:
+                self._mark_note_planted(note, hashes)
+
+    # ------------------------------------------------------------------
+    # The durable note queue (graph-backed; every read and write fail-soft)
+    # ------------------------------------------------------------------
+
+    def _persist_note(
+        self, thesis: str, antithesis: Optional[str], context: str
+    ) -> Optional[str]:
+        """Commit the Note the person asked to keep; its hash, or None.
+
+        No scope, no node: an unscoped call is a programmatic caller or a unit
+        test driving the seam directly (`_deferred_work_key`), and a Note with
+        no sid would be invisible to every listing and to the drain. Fail-soft
+        because the tool's reply is already owed to the person: a failed
+        commit keeps the note in memory, which is what it always was.
+        """
+        if not get_current_sid():
+            return None
+        try:
+            from dialectical_framework.graph.nodes.note import Note
+
+            note = Note(thesis=thesis, antithesis=antithesis, context=context or None)
+            note.commit()
+            return note.hash
+        except Exception:
+            logger.exception(
+                "Could not commit the note durably (fail-soft); it is kept in "
+                "memory for this process's off-turn task"
+            )
+            return None
+
+    def _unplanted_notes(self) -> list:
+        """Committed notes nobody has planted yet, in this scope. `[]` unscoped
+        or on a read fault (the repository logs it)."""
+        if not get_current_sid():
+            return []
+        try:
+            from dialectical_framework.graph.repositories.note_repository import \
+                NoteRepository
+
+            return NoteRepository().find_unplanted()
+        except Exception:
+            logger.exception("Could not read pending notes (fail-soft)")
+            return []
+
+    def _mark_note_planted(self, note, hashes: list[str]) -> None:
+        """Stamp a durable note as done. Fail-soft: an unstamped note is
+        re-planted next drain and dedups at the statement."""
+        try:
+            note.planted = ",".join(hashes) if hashes else "planted"
+            note.save()
+        except Exception:
+            logger.exception(
+                "Could not stamp note [[%s]] as planted (fail-soft)",
+                getattr(note, "short_hash", None),
+            )
+
+    # ------------------------------------------------------------------
+    # The weave lease (cross-process single flight; fail-OPEN on faults)
+    # ------------------------------------------------------------------
+    #
+    # Fail-open, not fail-closed, and the choice is deliberate: a broken lease
+    # query (a vendor without the syntax, a DB that lost the row) degrades to
+    # the behaviour every measured round ran under — single flight per process,
+    # no cross-process guard — with an exception in the log. Failing closed
+    # would turn that fault into a surface that silently never builds, which
+    # `BuildPolicy.NEVER` already is by design and this must not become by
+    # accident.
+
+    def _hold_weave_lease(self) -> bool:
+        """Take or renew this process's lease on the sid's weave."""
+        if not get_current_sid():
+            return True  # nothing to lease against, and nothing to protect
+        try:
+            from dialectical_framework.graph.repositories.case_repository import \
+                CaseRepository
+
+            return CaseRepository().acquire_weave_lease(
+                owner=_WEAVE_OWNER, ttl_s=_WEAVE_LEASE_TTL_S
+            )
+        except Exception:
+            logger.exception(
+                "Weave lease unavailable (fail-open): proceeding with "
+                "in-process single flight only"
+            )
+            return True
+
+    def _release_weave_lease(self) -> None:
+        if not get_current_sid():
+            return
+        try:
+            from dialectical_framework.graph.repositories.case_repository import \
+                CaseRepository
+
+            CaseRepository().release_weave_lease(owner=_WEAVE_OWNER)
+        except Exception:
+            logger.exception("Could not release the weave lease (fail-soft; it expires)")
+
+    def _foreign_lease_remaining(self) -> float:
+        """Seconds another process's unexpired lease on this sid still has;
+        0.0 when there is none, when it is ours, or when it cannot be read."""
+        if not get_current_sid():
+            return 0.0
+        try:
+            from dialectical_framework.graph.repositories.case_repository import \
+                CaseRepository
+
+            holder = CaseRepository().weave_lease_holder()
+        except Exception:
+            logger.exception("Could not read the weave lease (fail-open)")
+            return 0.0
+        if holder is None or holder[0] == _WEAVE_OWNER:
+            return 0.0
+        return max(0.0, holder[1] - time.time())
+
+    async def _wait_for_foreign_weave(self) -> float:
+        """Block until no other process holds this sid's weave lease.
+
+        Polls, because the other process cannot signal this one. Bounded by
+        the holder's own rounds or, if it died, by `_WEAVE_LEASE_TTL_S`. The
+        seconds go into `TurnTiming.deferred_wait_s` with the in-process wait
+        — and are exactly 0.0 when the first probe finds nobody: the probe's
+        own round trip is not a wait.
+        """
+        started: Optional[float] = None
+        while True:
+            remaining = self._foreign_lease_remaining()
+            if remaining <= 0.0:
+                break
+            if started is None:
+                started = time.monotonic()
                 logger.info(
-                    "Noted tension planted off the turn (%d perspective(s))",
-                    len(hashes),
+                    "Turn on scope %s waits for another process's off-turn "
+                    "weave (lease has %.0fs left at most)",
+                    self._deferred_work_key(),
+                    remaining,
                 )
-            except Exception:
-                logger.exception(
-                    "Planting a noted tension failed (fail-soft); the other "
-                    "notes of this round are still planted"
-                )
-        return planted
+            await asyncio.sleep(min(_WEAVE_LEASE_POLL_S, remaining))
+        return 0.0 if started is None else time.monotonic() - started
 
     def _weave_target_nexus(self) -> Optional[str]:
         """Which exploration the off-turn weave joins.
