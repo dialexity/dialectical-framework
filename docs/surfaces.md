@@ -83,6 +83,70 @@ All six compose with `nexus_hash=` (pinned: the build tools are also withheld wi
 
 Numbers behind the last column come from `tests/e2e/status.py`, never from this page.
 
+### The upgrade, step by step
+
+The funnel: a person talks to the `Consultant` once, likes it, and upgrades. Their
+conversation becomes a Case, and a new conversation with an Advisor reads as picking up
+where they left off, because the memory is already in the graph. Three steps, two of them
+the host's own.
+
+```python
+from dialectical_framework.agents.consultant.consultant import Consultant
+from dialectical_framework.agents.advisor.advisor import Advisor
+from dialectical_framework.agents.advisor.migration import migrate_consultation
+from dialectical_framework.graph.nodes.case import Case
+from dialectical_framework.graph.scope_context import scope
+
+# 1. The one-off session: no Case, no database, nothing kept but `messages`.
+consultant = Consultant(app=spec)
+reply = await consultant.chat("I have a problem with my wife...")
+...                                              # the session runs its course
+saved = consultant.messages                      # what the person brings to the upgrade
+
+# 2. The upgrade: the host creates the Case (the framework never does), then fills its graph.
+case = Case()
+case.commit()
+with scope(case.sid):
+    report = await migrate_consultation(saved, principal="human")
+    # report.turns / .perspectives / .pathways / .decisions_recorded / .decisions_failed
+
+# 3. A NEW conversation on the Case, constructed as always. Nothing is resumed;
+#    the graph is the memory.
+with scope(case.sid):
+    advisor = Advisor(app=spec, principal="human")
+    reply = await advisor.chat("So, where were we?")
+    ...
+    await advisor.wait_for_deferred_work()       # the host obligation, as on every turn-based head
+```
+
+What `migrate_consultation` does with the saved messages, in order:
+
+1. **Plants tensions from the person's turns only.** The model's replies are counsel, not
+   statements of the situation, so they are never material; mining them would plant the
+   counselor's framings as the person's positions. The joined turns are also kept as an
+   Input, so the Advisor can read the person's own words back in full.
+2. **Weaves what it planted**, synchronously and within the usual bounds.
+3. **Replays every exchange through the closing seam**, in order. A decision the person
+   confirmed in the Consultant session is recorded under `principal` with the grounds a live
+   closing gets; a later "yes, that" is filed as a re-affirmation, not a second record.
+4. **Drains** the off-turn work those closings started, and returns the report.
+
+What to know before shipping it:
+
+- **Cost.** One ingest plus one classifier call per exchange. A twenty-turn session is a
+  noticeable wait, so run it behind an "upgrading…" screen, not on the first reply.
+- **Nothing is written into any conversation.** The Consultant's history stays the
+  person's; the Advisor's starts empty. If the product wants the new conversation to open
+  with "here is what I kept", the host asks that as the first turn, and the Advisor answers
+  from its graph.
+- **Unbenched.** The seam and the weave it composes are the measured pieces; the
+  composition is not. Read the first migrated graphs by hand, especially whether the
+  recorded decisions are the ones the person meant.
+- **The old sealed Advisor is not this.** `Advisor(build=NEVER)` over a migrated Case is a
+  fine consulting room, but the graph will not grow from the new conversation; use
+  `ON_ELECTION` (grows on the model's election) or `ON_CONSENT` (grows on "write that
+  down") for a case that is meant to keep growing.
+
 ## What the host owns, on every surface with memory
 
 - **The Case.** Nothing in `src/` creates one. Open `scope(sid)` around every turn.
