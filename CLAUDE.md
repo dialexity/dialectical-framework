@@ -6,6 +6,10 @@ Give honest opinions with clear tradeoffs — not agreement for the sake of agre
 
 **This file carries rules and the shape of the system. It does not carry measurements.** The reasoning behind a change, the numbers that justified it and the traps hit on the way go to `docs/dev-notes/<topic>.md` (index at the end of this file); bench figures come from `tests/e2e/status.py`, never from prose. When a session learns something, add the RULE here in one or two sentences and the STORY to the dev note.
 
+## Source of Truth
+
+**The code is the truth; the `.md` files are a lagging description of it.** Order of authority when two sources disagree: a passing test, then the code, then the comments and docstrings sitting on that code, then this file (rules, not behaviour), then every other `.md` under `docs/`, `tests/e2e/` and the dev notes. Prose drifts while code evolves, so read any `.md` claim as "true when written" and verify it against the code before acting on it; a contradiction is a doc to fix, never a reason to "correct" the code back to the prose. Comments are part of the code and get the same care: when you change behaviour, update the comment on it in the same edit, and a comment that contradicts the line it sits on is a bug to fix on the spot. The exceptions are the doc claims a test pins (`tests/test_documented_host_seams.py`, `TestTheSeamLaneRosterIsReal`, `TestMethodPrompt`) — those cannot drift silently, which is the standard to hold a new host-facing claim to.
+
 ## What is the Dialectical Framework?
 
 A semantic graph system for dialectical reasoning — thesis-antithesis-synthesis dynamics as graph structures. Used for systems analysis, wisdom mining, ethical modeling, and decision-making apps.
