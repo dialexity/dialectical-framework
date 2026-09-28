@@ -1,11 +1,11 @@
 """
-`advisor_from_consultation` — the Consultant → Advisor upgrade, as a factory.
+`migrate_consultation` — the Consultant → Advisor upgrade, graph side only.
 
 DB-free: the ingest body, the weave and the seam are patched on the Advisor
-class, so what is pinned is WHAT is mined (the person's turns, never the
-replies), the ORDER (construct, plant, weave, then the seam per exchange, then
-the drain, then ONE turn on the request), the refusal, and that the person's
-account of it is the Advisor's own reply. The seam's own behaviour is
+class (the utility runs them on a throwaway head), so what is pinned is WHAT is
+mined (the person's turns, never the replies), the ORDER (plant, weave, then
+the seam per exchange, then the drain), that no head or turn reaches the host,
+and what the report says. The seam's own behaviour is
 pinned in `tests/test_decision_confirmation_repair.py`.
 """
 
@@ -15,10 +15,9 @@ import pytest
 from mirascope import llm
 
 from dialectical_framework.agents.advisor.advisor import Advisor
-from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.migration import (
-    MIGRATION_INTENT, MIGRATION_REQUEST, advisor_from_consultation, exchanges,
-    message_text, person_turns)
+    MIGRATION_INTENT, MigrationReport, exchanges, message_text,
+    migrate_consultation, person_turns)
 from dialectical_framework.agents.turn_timing import ClosingOutcome
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.scope_context import scope
@@ -112,15 +111,10 @@ class TestTheMigration:
 
         monkeypatch.setattr(Advisor, "wait_for_deferred_work", fake_drain)
 
-        async def fake_chat(self, user_message):
-            log.append(("chat", user_message))
-            self._conversation._messages.append(llm.messages.user(user_message))
-            self._conversation._messages.append(
-                llm.messages.assistant("Here is what I kept.", model_id=None, provider_id=None)
-            )
-            return "Here is what I kept."
+        async def no_turn(self, user_message):
+            raise AssertionError("the migration must never run a turn")
 
-        monkeypatch.setattr(Advisor, "chat", fake_chat)
+        monkeypatch.setattr(Advisor, "chat", no_turn)
         return log
 
     async def test_plants_from_the_persons_words_then_weaves_then_runs_the_seam(self, monkeypatch):
@@ -136,88 +130,60 @@ class TestTheMigration:
         )
         case = Case()
         case.commit()
-        with scope(case.sid):
-            advisor = await advisor_from_consultation(
-                history, app_preamble="persona", principal="human"
-            )
+        seen_principals: list = []
+        real_init = Advisor.__init__
 
-        assert isinstance(advisor, Advisor)
-        assert advisor._principal == "human" and advisor._records
-        assert advisor.messages[1:-2] == history[1:], "resumed with the conversation"
-        assert [entry[0] for entry in log] == ["ingest", "weave", "seam", "seam", "drain", "chat"]
-        # The migration ends as one exchange: the person's request, the
-        # Advisor's account — the report the person reads.
-        assert log[-1] == ("chat", MIGRATION_REQUEST)
-        assert message_text(advisor.messages[-2]) == MIGRATION_REQUEST
-        assert message_text(advisor.messages[-1]) == "Here is what I kept."
+        def spy_init(self, *args, **kwargs):
+            seen_principals.append(kwargs.get("principal"))
+            real_init(self, *args, **kwargs)
+
+        monkeypatch.setattr(Advisor, "__init__", spy_init)
+        with scope(case.sid):
+            report = await migrate_consultation(history, principal="human")
+
+        assert seen_principals == ["human"], "the throwaway head records under the host's principal"
+        assert [entry[0] for entry in log] == ["ingest", "weave", "seam", "seam", "drain"]
         ingest = log[0]
         assert ingest[1] == "My cofounder checked out.\n\nWrite that down: I buy him out."
         assert "momentum" not in ingest[1], "the model's reply is never material"
         assert ingest[2] == MIGRATION_INTENT and ingest[3] is None
         assert log[2] == ("seam", "My cofounder checked out.", "A tension between loyalty and momentum.")
         assert log[3] == ("seam", "Write that down: I buy him out.", "Recorded: you buy him out.")
+        assert report == MigrationReport(
+            turns=2,
+            perspectives=["pp0001", "pp0002"],
+            pathways=["tr0001"],
+            decisions_recorded=1,
+            decisions_failed=0,
+        )
 
-    async def test_the_turn_fields_are_cleared_afterwards(self, monkeypatch):
-        self._patch(monkeypatch, closings={"one": ClosingOutcome.REPAIRED})
-        case = Case()
-        case.commit()
-        with scope(case.sid):
-            advisor = await advisor_from_consultation(_history(("user", "one"), ("assistant", "r")))
-        assert advisor._last_closing is None and advisor._last_deferral is None
-
-    async def test_a_seam_failure_is_logged_not_raised(self, monkeypatch, caplog):
+    async def test_a_seam_failure_is_counted_not_raised(self, monkeypatch):
         self._patch(monkeypatch, closings={"one": ClosingOutcome.FAILED})
         case = Case()
         case.commit()
-        with scope(case.sid), caplog.at_level("INFO", logger="dialectical_framework.agents.advisor.migration"):
-            await advisor_from_consultation(_history(("user", "one"), ("assistant", "r")))
-        assert "0 decision(s) recorded, 1 failed" in caplog.text
+        with scope(case.sid):
+            report = await migrate_consultation(_history(("user", "one"), ("assistant", "r")))
+        assert report.decisions_failed == 1 and report.decisions_recorded == 0
 
-    async def test_nothing_said_still_makes_the_advisor_and_asks(self, monkeypatch):
-        """No person's turn: nothing to plant, but the head is made and the
-        exchange still happens, so the person is told rather than left with a
-        silent empty case."""
+    async def test_nothing_said_means_nothing_done(self, monkeypatch):
+        """An empty Case is a valid place to start; no error, no head made."""
         log = self._patch(monkeypatch)
+        made: list = []
+        real_init = Advisor.__init__
+        monkeypatch.setattr(Advisor, "__init__", lambda self, *a, **k: (made.append(1), real_init(self, *a, **k))[1])
         case = Case()
         case.commit()
         with scope(case.sid):
-            advisor = await advisor_from_consultation(_history(("assistant", "Hello?")))
-        assert [entry[0] for entry in log] == ["chat"]
-        assert message_text(advisor.messages[-2]) == MIGRATION_REQUEST
-
-    async def test_the_host_may_word_the_request(self, monkeypatch):
-        log = self._patch(monkeypatch)
-        case = Case()
-        case.commit()
-        with scope(case.sid):
-            await advisor_from_consultation(_history(("user", "one")), request="Save this.")
-        assert log[-1] == ("chat", "Save this.")
+            report = await migrate_consultation(_history(("assistant", "Hello?")))
+        assert log == [] and made == [] and report == MigrationReport()
 
     async def test_needs_a_scope(self, monkeypatch):
         self._patch(monkeypatch)
         with pytest.raises(Exception):
-            await advisor_from_consultation(_history(("user", "one")))
+            await migrate_consultation(_history(("user", "one")))
 
-    async def test_refused_on_a_head_that_never_builds(self, monkeypatch):
-        self._patch(monkeypatch)
-        case = Case()
-        case.commit()
-        with scope(case.sid), pytest.raises(ValueError, match="build=NEVER"):
-            await advisor_from_consultation(_history(("user", "one")), build=BuildPolicy.NEVER)
-
-    async def test_consent_is_allowed(self, monkeypatch):
-        log = self._patch(monkeypatch)
-        case = Case()
-        case.commit()
-        with scope(case.sid):
-            advisor = await advisor_from_consultation(
-                _history(("user", "one")), build=BuildPolicy.ON_CONSENT
-            )
-        assert log[0][0] == "ingest"
-        assert advisor._build is BuildPolicy.ON_CONSENT
-
-    def test_the_advisor_has_no_migration_method(self):
-        """A migration is a way of MAKING an Advisor, not something it does to
-        itself — the factory lives in `migration.py`, and the Advisor's gate
-        sites stay the three the policy test pins."""
+    def test_nothing_on_the_advisor(self):
+        """The utility fills the graph; the Advisor neither knows migrations
+        exist nor gains a gate site for them."""
         assert not hasattr(Advisor, "migrate_conversation")
+        assert not hasattr(Advisor, "migrate_consultation")

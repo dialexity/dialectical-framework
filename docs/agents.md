@@ -533,24 +533,22 @@ edit to this prompt moves the baseline every `A2−A1` figure was read against;
 tools"). `chat()` / `chat_stream()` / `messages` / `last_turn_timing` as on every head, with
 `closing` and `deferral` `None` because there is no seam to conclude anything.
 
-**The upgrade.** A Consultant session becomes a Case with an Advisor over it in two steps,
-both the host's: create the Case, then inside its scope
-`advisor = await advisor_from_consultation(consultant.messages, app=, principal="human")`
-(`agents/advisor/migration.py`). A factory, not a method on the Advisor: a migration is a way
-of making one. Resumption alone would leave the Case empty and lose any decision the person
-settled in prose (the seam runs only on new turns), so the factory constructs the Advisor
-resumed with the conversation, plants structure from the PERSON's turns only (the replies are
-counsel, not statements of the situation — the reason a transcript-ingesting design was
-rejected in review), weaves it synchronously, runs the closing seam over every (person, reply)
-exchange in order so a confirmed decision is recorded with the grounds a live closing gets and
-a re-affirmation is not a second record, drains — and then runs ONE ordinary turn on
-`MIGRATION_REQUEST` (the person's ask to keep the conversation; `request=` to word it), so
-the Advisor's first reply, over the graph it now holds, is its own account of what was kept.
-That exchange is the last two messages in `advisor.messages` and is the only report the
-person gets; the seeding's counts go to the log. Costs one ingest, one classifier call per
-exchange, and one turn. Refuses `build=NEVER` (tensions it may never
-weave); `records` is always on. Unbenched; `tests/test_migration.py` pins what is mined and
-the order.
+**The upgrade.** A Consultant session becomes a Case in two steps, both the host's: create
+the Case, then inside its scope `await migrate_consultation(consultant.messages,
+principal="human")` (`agents/advisor/migration.py`) — a utility that fills the GRAPH and
+nothing else. The host then opens `Advisor(app=, principal=)` on the Case as it always does: a
+NEW conversation, which reads as picking up where the old one left off because the memory is
+already there (the tensions in the dump, the decisions in the ledger, the person's own words
+readable back from the Input). The utility plants structure from the PERSON's turns only (the
+replies are counsel, not statements of the situation — the reason a transcript-ingesting
+design was rejected in review), weaves it synchronously, runs the closing seam over every
+(person, reply) exchange in order so a confirmed decision is recorded under `principal` with
+the grounds a live closing gets and a re-affirmation is not a second record, drains, and
+returns a `MigrationReport` (turns, perspectives, pathways, decisions recorded / failed) the
+host may show or log. It composes the Advisor's own seam and weave on a throwaway head the
+host never sees. Costs one ingest plus one classifier call per exchange; a history with no
+person's turn returns an empty report. Unbenched; `tests/test_migration.py` pins what is mined
+and the order.
 
 ---
 
