@@ -14,9 +14,9 @@ What these tests hold, and why each one is worth a test rather than a reading:
    serialized projection and fails on any position, alias, hash or number left
    in it — so a field added to a view without a line in `without_terminology`
    fails here rather than in a screenshot.
-3. **The reading is parsed back the way it was composed.** Two constants in
-   `views.py` mirror one f-string in `expand_polarities._compose_reading`;
-   `TestTheReadingIsParsedBack` is the only thing making that pair one fact.
+3. **The graph's fields, as they are.** `intent` is carried verbatim — the
+   reading on a generated tetrad, free text where a person set it — and nothing
+   is derived from it: the view invents no field the node does not have.
 4. **Numbers are never re-derived.** The metrics view is asserted against the
    `Perspective` properties themselves, so the "do not fix this formula" notes
    on `area` / `rectangularity` keep exactly one owner. The one arithmetic
@@ -37,8 +37,6 @@ from typing import Any, Iterator, Optional
 import pytest
 
 from dialectical_framework.agents.advisor.advisor import Advisor
-from dialectical_framework.agents.analyst.skills.expand_polarities import \
-    ExpandPolarity
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.estimation import \
@@ -57,10 +55,8 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
-from dialectical_framework.graph.views import (READING_PREFIX,
-                                               READING_SEPARATOR, PoleView,
-                                               parse_reading, tension_map_view,
-                                               tetrad_view, wheel_view)
+from dialectical_framework.graph.views import (PoleView, exploration_view,
+                                               perspective_view, wheel_view)
 
 from test_graph import create_cycle_wheel_setup
 
@@ -185,7 +181,7 @@ class TestATetradIsDrawable:
     def test_every_position_is_read_with_its_text_label_and_hash(self):
         with scope(_new_sid()):
             pp, statements = _tetrad()
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
 
             assert view.complete is True
             assert set(view.poles) == {"t", "a", "t_plus", "t_minus", "a_plus", "a_minus"}
@@ -202,7 +198,7 @@ class TestATetradIsDrawable:
     def test_the_scores_are_read_off_the_edges(self):
         with scope(_new_sid()):
             pp, _ = _tetrad()
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
 
             assert view.t_plus.hs == 0.9
             assert (view.t_plus.k_t, view.t_plus.k_a) == (0.8, 0.6)
@@ -216,7 +212,7 @@ class TestATetradIsDrawable:
             statements["t_plus"].display_text = "Steadiness people can lean on"
             statements["t_plus"].save()
 
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
             assert view.t_plus.text == "Steadiness people can lean on"
             assert view.t_plus.canonical_text == statements["t_plus"].text
             assert view.t.canonical_text is None, "filled only when the two differ"
@@ -227,7 +223,7 @@ class TestATetradIsDrawable:
         exactly one owner."""
         with scope(_new_sid()):
             pp, _ = _tetrad()
-            metrics = tetrad_view(pp).metrics
+            metrics = perspective_view(pp).metrics
 
             assert metrics is not None
             assert metrics.sp == pp.area
@@ -239,47 +235,33 @@ class TestATetradIsDrawable:
             assert metrics.sp == pytest.approx(1.0)
             assert metrics.sp_normalized == pytest.approx(0.5)
 
-    def test_the_diagonals_are_the_theory_pairs(self):
+    def test_the_intent_is_the_nodes_own_verbatim(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(intent="Reading along: growth / security")
-            view = tetrad_view(pp)
-
-            assert [(d.positive, d.negative) for d in view.diagonals] == [
-                ("t_plus", "a_minus"),
-                ("a_plus", "t_minus"),
-            ]
-            assert [d.axis for d in view.diagonals] == ["growth", "security"]
-
-    def test_one_axis_names_both_diagonals(self):
-        with scope(_new_sid()):
-            pp, _ = _tetrad(intent="Reading along: how much slack the team has")
-            axes = [d.axis for d in tetrad_view(pp).diagonals]
-            assert axes == ["how much slack the team has"] * 2
-
-    def test_the_geometry_is_stated_even_on_an_unfinished_tetrad(self):
-        with scope(_new_sid()):
-            pp, _ = _tetrad(omit=("a_minus", "t_minus"))
-            view = tetrad_view(pp)
-
-            assert len(view.diagonals) == 2, "structural, not a function of what got built"
-            assert [d.axis for d in view.diagonals] == [None, None]
+            assert perspective_view(pp).intent == "Reading along: growth / security"
+            free, _ = _tetrad(prefix="f ", intent="the founders' own framing")
+            assert perspective_view(free).intent == "the founders' own framing", (
+                "free text is carried as free text, never parsed or dropped"
+            )
+            none, _ = _tetrad(prefix="n ")
+            assert perspective_view(none).intent is None
 
     def test_to_dict_is_json_ready(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(intent="Reading along: growth / security")
-            payload = tetrad_view(pp).to_dict()
+            payload = perspective_view(pp).to_dict()
 
             reloaded = json.loads(json.dumps(payload))
             assert reloaded["t_plus"]["ks"] == pytest.approx(0.7)
             assert reloaded["metrics"]["sp"] == pytest.approx(1.0)
-            assert reloaded["axes"] == ["growth", "security"]
+            assert reloaded["intent"] == "Reading along: growth / security"
 
 
 class TestAbsenceIsNoneNotZero:
     def test_an_unscored_tetrad_has_no_metrics(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(scored=False)
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
 
             assert view.metrics is None, "no metrics at all, not five zeros"
             assert view.t_plus.ks is None
@@ -289,7 +271,7 @@ class TestAbsenceIsNoneNotZero:
     def test_a_missing_position_is_none_and_the_tetrad_is_not_complete(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(omit=("a_minus",))
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
 
             assert view.a_minus is None, "an empty-string pole would draw a blank corner"
             assert "a_minus" not in view.poles
@@ -312,65 +294,35 @@ class TestAbsenceIsNoneNotZero:
                 _stmt("Safety through structure"),
                 relationship=TPlusRelationship(alias="T1+"),
             )
-            view = tetrad_view(pp)
+            view = perspective_view(pp)
 
             assert view.poles == {}
             assert view.complete is False
-            assert len(view.diagonals) == 2, "the geometry is stated regardless"
 
     def test_an_unvalidated_tetrad_says_none_rather_than_passed(self):
         with scope(_new_sid()):
             pp, _ = _tetrad()
-            assert tetrad_view(pp).validation is None
+            assert perspective_view(pp).validation is None
 
             pp.validation = "failed: T+ does not balance A-"
             pp.save()
-            assert tetrad_view(pp).validation == "failed: T+ does not balance A-"
-            assert tetrad_view(pp).complete is True, "validation is never a gate"
-
-
-class TestTheReadingIsParsedBack:
-    """The two constants in `views.py` against the one f-string in
-    `expand_polarities._compose_reading`. Nothing else makes them one fact."""
-
-    def test_a_composed_reading_round_trips(self):
-        reading = ExpandPolarity._compose_reading(
-            {"t_plus_vs_a_minus": "growth", "a_plus_vs_t_minus": "security"}
-        )
-        assert reading is not None
-        assert reading.startswith(READING_PREFIX)
-        assert READING_SEPARATOR in reading
-        assert parse_reading(reading) == ["growth", "security"]
-
-    def test_a_single_axis_reading_round_trips(self):
-        reading = ExpandPolarity._compose_reading(
-            {"t_plus_vs_a_minus": "growth", "a_plus_vs_t_minus": "Growth"}
-        )
-        assert parse_reading(reading) == ["growth"]
-
-    def test_free_text_yields_no_axes_rather_than_a_guess(self):
-        assert parse_reading("the founders' own framing") == []
-        assert parse_reading(None) == []
-        assert parse_reading(READING_PREFIX) == []
-        assert parse_reading("test") == [], "older perspectives carry any intent"
+            assert perspective_view(pp).validation == "failed: T+ does not balance A-"
+            assert perspective_view(pp).complete is True, "validation is never a gate"
 
 
 class TestWithoutTerminology:
     """The picture's half of the disclosure policy (`reply_hygiene` is the text's)."""
 
-    def test_the_texts_and_the_geometry_survive(self):
+    def test_the_texts_and_the_reading_survive(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(intent="Reading along: growth / security")
-            hidden = tetrad_view(pp).without_terminology()
+            hidden = perspective_view(pp).without_terminology()
 
             assert hidden.t.text == "Control"
             assert len(hidden.poles) == 6, "a full tetrad is still a full tetrad"
-            assert [(d.positive, d.negative, d.axis) for d in hidden.diagonals] == [
-                ("t_plus", "a_minus", "growth"),
-                ("a_plus", "t_minus", "security"),
-            ], "the pairs are field references plus the person's own axis words"
-            assert hidden.axes == ["growth", "security"]
-            assert hidden.reading == "Reading along: growth / security"
+            assert hidden.intent == "Reading along: growth / security", (
+                "the reading names the axes in the person's terms; nothing to hide"
+            )
             assert hidden.complete is True
 
     def test_nothing_the_text_filter_removes_is_left_in_the_picture(self):
@@ -378,7 +330,7 @@ class TestWithoutTerminology:
             pp, statements = _tetrad(intent="Reading along: growth / security")
             pp.validation = "passed"
             pp.save()
-            hidden = tetrad_view(pp).without_terminology()
+            hidden = perspective_view(pp).without_terminology()
             leaves = list(_values(hidden.to_dict()))
 
             for position in _ALL_POSITIONS:
@@ -412,7 +364,7 @@ class TestWithoutTerminology:
     def test_an_unfinished_tetrad_projects_without_inventing_poles(self):
         with scope(_new_sid()):
             pp, _ = _tetrad(omit=("a_minus",))
-            hidden = tetrad_view(pp).without_terminology()
+            hidden = perspective_view(pp).without_terminology()
             assert hidden.a_minus is None
             assert len(hidden.poles) == 5
 
@@ -534,7 +486,7 @@ class TestAWheelIsDrawable:
             assert reloaded["segments"][0]["tetrad"]["t"]["text"]
 
 
-class TestTheTensionMap:
+class TestTheExplorationView:
     def test_a_nexus_map_numbers_its_members_as_the_prompts_do(self):
         from dialectical_framework.graph.rendering import build_pp_index
 
@@ -547,19 +499,19 @@ class TestTheTensionMap:
             pp1.nexus.connect(nexus)
             pp2.nexus.connect(nexus)
 
-            view = tension_map_view(nexus)
+            view = exploration_view(nexus)
 
             assert view.nexus_hash == nexus.hash
-            assert {t.hash for t in view.tetrads} == {pp1.hash, pp2.hash}
+            assert {t.hash for t in view.perspectives} == {pp1.hash, pp2.hash}
             index = build_pp_index(nexus)
-            assert [t.index for t in view.tetrads] == [
+            assert [t.index for t in view.perspectives] == [
                 index[pp._id] for pp in (pp1, pp2)
             ], "T1 must mean the same perspective in the picture and in the prompt"
 
     def test_a_standalone_tetrad_has_no_index(self):
         with scope(_new_sid()):
             pp, _ = _tetrad()
-            assert tetrad_view(pp).index is None, (
+            assert perspective_view(pp).index is None, (
                 "no exploration here — not an unknown index"
             )
 
@@ -570,10 +522,10 @@ class TestTheTensionMap:
             dropped.discarded = "superseded by the reframing"
             dropped.save()
 
-            view = tension_map_view()
+            view = exploration_view()
 
             assert view.nexus_hash is None
-            assert [t.hash for t in view.tetrads] == [kept.hash]
+            assert [t.hash for t in view.perspectives] == [kept.hash]
 
     def test_a_discarded_member_is_not_drawn(self):
         with scope(_new_sid()):
@@ -587,12 +539,76 @@ class TestTheTensionMap:
             dropped.discarded = "the person withdrew it"
             dropped.save()
 
-            view = tension_map_view(nexus)
-            assert [t.hash for t in view.tetrads] == [kept.hash]
+            view = exploration_view(nexus)
+            assert [t.hash for t in view.perspectives] == [kept.hash]
 
     def test_an_empty_scope_maps_to_an_empty_list(self):
         with scope(_new_sid()):
-            assert tension_map_view().tetrads == []
+            assert exploration_view().perspectives == []
+
+
+@pytest.mark.llm
+class TestTheAdvisorDrawsWhatItSees:
+    """`Advisor.exploration_view()` = the module function resolved through the
+    seat: the pin picks the exploration, `hides_terminology` picks the
+    projection. The host holds neither."""
+
+    @pytest.mark.asyncio
+    async def test_unpinned_and_hidden_is_the_whole_case_without_machinery(self):
+        with scope(_new_sid()):
+            pp, _ = _tetrad(intent="Reading along: growth / security")
+            advisor = Advisor(app_preamble="You are a thinking partner.")
+
+            view = await advisor.exploration_view()
+
+            assert view.nexus_hash is None
+            assert [p.t.text for p in view.perspectives] == ["Control"]
+            assert view.perspectives[0].hash is None, "hidden: no hash on the picture"
+            assert view.perspectives[0].t_plus.position is None
+            assert view.perspectives[0].intent == "Reading along: growth / security"
+
+    @pytest.mark.asyncio
+    async def test_pinned_and_disclosed_is_that_exploration_with_everything(self):
+        with scope(_new_sid()):
+            member, _ = _tetrad(thesis="Control", antithesis="Freedom", prefix="m ")
+            _tetrad(thesis="Speed", antithesis="Care", prefix="o ")  # outside the pin
+            nexus = Nexus(intent="the pin")
+            nexus.save()
+            nexus.commit()
+            member.nexus.connect(nexus)
+            advisor = Advisor(
+                nexus_hash=nexus.hash,
+                app_preamble="## Terminology Disclosure\nHashes are the person's own.",
+            )
+
+            view = await advisor.exploration_view()
+
+            assert view.nexus_hash == nexus.hash
+            assert [p.hash for p in view.perspectives] == [member.hash], (
+                "the pin protects other structure: only members are drawn"
+            )
+            assert view.perspectives[0].index == 1
+            assert view.perspectives[0].t_plus.position == POSITION_T_PLUS
+
+    @pytest.mark.asyncio
+    async def test_a_pin_whose_nexus_is_gone_draws_nothing(self, monkeypatch):
+        """The constructor validates the pin, so this is a nexus deleted AFTER
+        construction (a stateless host resuming a stale pin). The guard must
+        draw nothing rather than fall through to the whole case."""
+        from dialectical_framework.graph.repositories.nexus_repository import \
+            NexusRepository
+
+        with scope(_new_sid()):
+            _tetrad()
+            nexus = Nexus(intent="soon gone")
+            nexus.save()
+            nexus.commit()
+            advisor = Advisor(nexus_hash=nexus.hash, app_preamble="x")
+            monkeypatch.setattr(NexusRepository, "find_by_hash_prefix", lambda self, h: None)
+
+            view = await advisor.exploration_view()
+
+            assert view.perspectives == [], "never the whole case past a pin"
 
 
 @pytest.mark.llm

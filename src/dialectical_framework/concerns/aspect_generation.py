@@ -155,6 +155,35 @@ PLUS_RESTATEMENT_CHECK = (
 )
 
 
+def is_axis_name(axis: Optional[str]) -> bool:
+    """Whether a model-named axis is a dimension name rather than a disclaimer.
+
+    Heuristic: a real axis is a short dimension name ("closeness",
+    "self-directed growth vs institutional security"); a disclaimer is a
+    sentence about the absence of one ("no such shared dimension exists").
+    Shared by `_capture_axis` and the graphless sketch
+    (`concerns/consultation_sketch.py`), so both readings pass one filter.
+    """
+    axis = (axis or "").strip()
+    if not axis:
+        return False
+    lowered = axis.lower()
+    disclaimer_markers = (
+        "no ",  # "no such dimension", "no shared axis"
+        "not a genuine",
+        "do not share",
+        "does not",
+        "doesn't",
+        "cannot",
+        "lack",
+    )
+    if any(marker in lowered for marker in disclaimer_markers):
+        return False
+    if len(axis.split()) > 12:  # sentence-length = explanation, not a name
+        return False
+    return True
+
+
 # --- DTOs ---
 
 
@@ -437,28 +466,10 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
 
         The DTO instructs the model to SAY when no genuine shared dimension
         exists rather than invent one — such disclaimers must not become a
-        perspective's reading. Heuristic: a real axis is a short dimension
-        name ("closeness", "self-directed growth vs institutional security");
-        a disclaimer is a sentence about the absence of one.
+        perspective's reading (`is_axis_name`).
         """
-        axis = (axis or "").strip()
-        if not axis:
-            return
-        lowered = axis.lower()
-        disclaimer_markers = (
-            "no ",  # "no such dimension", "no shared axis"
-            "not a genuine",
-            "do not share",
-            "does not",
-            "doesn't",
-            "cannot",
-            "lack",
-        )
-        if any(marker in lowered for marker in disclaimer_markers):
-            return
-        if len(axis.split()) > 12:  # sentence-length = explanation, not a name
-            return
-        self.axes[key] = axis
+        if is_axis_name(axis):
+            self.axes[key] = (axis or "").strip()
 
     def _is_contradiction_pair(self, positions: list[str]) -> bool:
         """Check if positions form a contradiction pair."""

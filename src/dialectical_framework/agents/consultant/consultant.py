@@ -50,7 +50,7 @@ from dialectical_framework.agents.conversation_facilitator import (
     FROM_SETTINGS, ConversationFacilitator)
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.turn_timing import TurnTiming
-from dialectical_framework.graph.views import TensionMapView
+from dialectical_framework.graph.views import ExplorationView
 
 #: Tool verbs → mental acts. These are REWRITES, not drops: dropping every
 #: paragraph that mentions a tool name would also delete the discrimination test
@@ -283,7 +283,7 @@ class Consultant:
     survives only as `messages` — carry them for the length of the session and
     drop them after; there is no other memory, and the prompt tells the model
     as much (a confirmed decision is restated in the reply, and that is the
-    only record). `sketch()` is the one picture this head can draw: the
+    only record). `exploration_view()` is the one picture this head can draw: the
     tensions in the person's own words, from one call over `messages`, in the
     view shape the graph-backed heads share (`graph/views.py`).
 
@@ -347,14 +347,16 @@ class Consultant:
         """The conversation so far — the only state this head has."""
         return self._conversation._messages
 
-    async def sketch(self) -> TensionMapView:
+    async def exploration_view(self) -> ExplorationView:
         """The tensions the person is holding, as a picture — from their words alone.
 
-        The host's picture button on this head. There is no graph to read, so
-        this is one structured call over the PERSON's turns
-        (`concerns/consultation_sketch.py`), shaped into the same
-        `TensionMapView` the graph reader gives the Advisor — one visualiser
-        for both heads. Terminology-free by construction (no hash, alias or
+        The same name as `graph/views.py::exploration_view` because it is the
+        same picture; a METHOD here because this head has no scope and no graph
+        for a module function to read — only `messages`. One structured call
+        over the PERSON's turns (`concerns/consultation_sketch.py`), shaped into
+        the `ExplorationView` the graph reader gives the Advisor (`nexus_hash`
+        None, as for a case with no exploration) — one visualiser for both
+        heads. Terminology-free by construction (no hash, alias or
         score exists to strip), unchecked by construction (no HS gate, no
         validation, nothing persisted), and forgotten with the conversation
         like everything else here. Only the person's turns are material; the

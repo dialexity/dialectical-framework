@@ -154,14 +154,19 @@ What to know before shipping it:
 for a prompt; these two have different rules and are deliberately separate modules.
 
 ```python
+# The head does it: pin → that exploration, else the whole Case; hides_terminology applied.
+picture = await advisor.exploration_view()
+picture = await consultant.exploration_view()     # no graph: one call over the person's turns
+
+# Or the module functions, inside the scope, for a host composing its own page:
 with scope(case.sid):
-    picture = tension_map_view()              # every active tetrad in the Case
-    picture = tension_map_view(nexus)         # one exploration's, numbered as the prompts number it
-    picture = tetrad_view(perspective)        # one tension
+    picture = exploration_view()              # every active perspective in the Case, nexus_hash None
+    picture = exploration_view(nexus)         # one exploration's, numbered as the prompts number it
+    picture = perspective_view(perspective)   # one perspective
     picture = wheel_view(wheel)               # segments + spiral + synthesis
     if advisor.hides_terminology:             # the SAME flag reply_hygiene reads
         picture = picture.without_terminology()
-    return picture.to_dict()                  # str / float / bool / None / list / dict
+return picture.to_dict()                      # str / float / bool / None / list / dict
 ```
 
 Three things to know:
@@ -170,7 +175,7 @@ Three things to know:
   unvalidated tetrad: `None`, never `0.0`. In particular a wheel's `causality` is `None`
   when nobody estimated it — the `-1.0` in `explorer._causality_probability` is a ranking
   sentinel and never reaches a view.
-- **Terminology is the optional half.** Structure (the six poles, the two diagonals, the
+- **Terminology is the optional half.** Structure (the six poles, the `intent`, the
   segments, the spiral) is always there; positions (`T+`), stored aliases (`T1+`), hashes
   and every number come off with `without_terminology()`. The host does not decide this:
   `Advisor.hides_terminology` is the flag, and it is the same one that strips `[[hash]]`
@@ -180,9 +185,9 @@ Three things to know:
   relationship reads; `RelationshipManager.prefetch` first when drawing many.
 
 **The graphless head draws the same picture.** A `Consultant` has no graph to read, so
-`await consultant.sketch()` makes one structured call over the PERSON's turns
-(`concerns/consultation_sketch.py`) and returns the same `TensionMapView` — texts, axes and
-geometry only. Terminology-free by construction (there is no hash, alias or score to strip;
+`await consultant.exploration_view()` makes one structured call over the PERSON's turns
+(`concerns/consultation_sketch.py`) and returns the same `ExplorationView` — texts and the
+reading (`intent`, composed as the graph composes it) only. Terminology-free by construction (there is no hash, alias or score to strip;
 `without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
 validation, no dedup, nothing kept): it is the picture BEFORE the upgrade, not a lighter
 version of the checked one. Only the person's turns are material — the replies are counsel,
@@ -190,7 +195,7 @@ the migration's rule. It raises on a provider failure rather than returning an e
 "nothing to draw yet" and "the drawing failed" stay distinguishable to the button that asked.
 
 Not built: any tool that lets the model open a picture itself. The trigger is the host's
-(a button calling `tension_map_view()` inside the scope, or `consultant.sketch()`), and that
+(a button calling `exploration_view()` inside the scope, or `consultant.exploration_view()`), and that
 is a decision, not an omission — an LLM-elected `show` tool would be unreliable anyway
 (measured election rates: `anchor` 6/6, `explore` 2/6, `deepen` 0/6).
 

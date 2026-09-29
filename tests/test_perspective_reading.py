@@ -9,8 +9,10 @@ ExpandPolarity composes them into Perspective.intent before commit — the
 human-readable name of THIS reading of the tension, which is what
 distinguishes sibling tetrads on one Polarity.
 
-intent participates in the perspective hash (BaseNode.compute_hash), so
-distinct readings are structurally distinct nodes — deliberate.
+The reading is a LABEL, not a key: intent is in the perspective hash, but
+`committed_at` already makes every commit's hash unique, and dedup
+(`ExpandPolarity._find_duplicate` → `Perspective.is_same`) compares the six
+components and ignores intent. `Perspective.compose_reading` owns the form.
 """
 
 from __future__ import annotations
@@ -25,7 +27,8 @@ from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
-                                                           POSITION_T_PLUS)
+                                                           POSITION_T_PLUS,
+                                                           Perspective)
 from dialectical_framework.graph.nodes.polarity import Polarity
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.scope_context import scope
@@ -104,23 +107,23 @@ class TestComposeReading:
         yield
 
     def test_two_distinct_axes(self):
-        reading = ExpandPolarity._compose_reading(
+        reading = Perspective.compose_reading(
             {"t_plus_vs_a_minus": "closeness", "a_plus_vs_t_minus": "autonomy"}
         )
         assert reading == "Reading along: closeness / autonomy"
 
     def test_identical_axes_collapse(self):
-        reading = ExpandPolarity._compose_reading(
+        reading = Perspective.compose_reading(
             {"t_plus_vs_a_minus": "Closeness", "a_plus_vs_t_minus": "closeness"}
         )
         assert reading == "Reading along: Closeness"
 
     def test_single_axis(self):
-        reading = ExpandPolarity._compose_reading({"t_plus_vs_a_minus": "risk"})
+        reading = Perspective.compose_reading({"t_plus_vs_a_minus": "risk"})
         assert reading == "Reading along: risk"
 
     def test_no_axes(self):
-        assert ExpandPolarity._compose_reading({}) is None
+        assert Perspective.compose_reading({}) is None
 
 
 # --- Orchestration: intent lands on the committed perspective ----------------

@@ -28,10 +28,11 @@ from dialectical_framework.graph.relationships.immutable_structure import Analyt
 #: Why a role on the edge rather than a field on Perspective: grounding
 #: ACCRETES (the person reveals more three turns later). A Perspective field
 #: would have to be mutated, and `Perspective.intent` — the only existing
-#: free-text slot — is hash-participating (`base_node.compute_hash`) AND the
-#: discriminator between sibling tetrads on one Polarity, so writing case facts
-#: there both raises `ImmutableNodeError` at `save()` and corrupts tetrad
-#: identity. Appending a Rationale per turn sidesteps mutation entirely and
+#: free-text slot — is hash-participating (`base_node.compute_hash`), so it is
+#: frozen at commit, and it already holds the tetrad's reading (the label that
+#: tells sibling tetrads on one Polarity apart in a prompt), so writing case
+#: facts there both raises `ImmutableNodeError` at `save()` and overwrites the
+#: reading. Appending a Rationale per turn sidesteps mutation entirely and
 #: yields a chronology of what was revealed when, which one flat field cannot.
 #:
 #: Why not `Rationale.agent`: that field is provenance — `<provider>/<model>`,

@@ -1,6 +1,6 @@
 """
 ConsultationSketch: the tensions a person is holding, drawn from their own
-words alone — the graphless filler for the `TensionMapView`.
+words alone — the graphless filler for the `ExplorationView`.
 
 WHY THIS EXISTS
 ===============
@@ -10,7 +10,7 @@ to show the person a picture of their situation had no way to get one. This
 concern is that way. One structured call over the PERSON's turns emits the
 tensions as tetrads — thesis, antithesis, the four aspects, the axis each
 diagonal opposes along — and `sketch_view` shapes them into the very same
-`TensionMapView` the graph reader produces, so one visualiser serves both
+`ExplorationView` the graph reader produces, so one visualiser serves both
 heads. The picture is terminology-free BY CONSTRUCTION rather than by
 projection: there is no hash to carry, no alias, no score, and none is asked
 for. `without_terminology()` on the result is a no-op.
@@ -22,7 +22,7 @@ no complementarity, no SP/DV, no `PerspectiveValidation`, no dedup against what
 was said before, no persistence — a sketch is drawn from the conversation as it
 stands and forgotten with it, like every other output of the head it serves. A
 host that wants the checked version has the upgrade (`migrate_consultation`,
-then `tension_map_view()` inside the Case's scope); this is the picture BEFORE
+then `exploration_view()` inside the Case's scope); this is the picture BEFORE
 that decision, and it should not be dressed as more.
 
 SPEAKER-AWARE, BY THE SAME RULE AS THE MIGRATION
@@ -31,7 +31,7 @@ Only the person's turns are material (`migration.person_turns`). The replies
 are counsel about the situation, not statements of it, and a sketch drawn
 speaker-blind would put the counselor's framings on the person's map — the
 same reason the transcript-ingesting design was rejected in review
-(`rounds.md`, 2026-09-24). `Consultant.sketch()` applies that rule before
+(`rounds.md`, 2026-09-24). `Consultant.exploration_view()` applies that rule before
 calling here; a caller passing `turns` directly is trusted to have done the
 same, and the parameter is named for it.
 """
@@ -46,11 +46,12 @@ from pydantic import BaseModel, Field
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
-from dialectical_framework.concerns.aspect_generation import \
-    PLUS_RESTATEMENT_CHECK
+from dialectical_framework.concerns.aspect_generation import (
+    PLUS_RESTATEMENT_CHECK, is_axis_name)
 from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
-from dialectical_framework.graph.views import (PoleView, TensionMapView,
-                                               TetradView, diagonals_for)
+from dialectical_framework.graph.nodes.perspective import Perspective
+from dialectical_framework.graph.views import (PoleView, ExplorationView,
+                                               PerspectiveView)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 logger = logging.getLogger(__name__)
@@ -149,22 +150,23 @@ def _pole(text: Optional[str]) -> Optional[PoleView]:
     return PoleView(text=text) if text else None
 
 
-def tetrad_from_sketch(tension: SketchedTensionDto) -> TetradView:
-    """One sketched tension as a `TetradView`.
+def perspective_from_sketch(tension: SketchedTensionDto) -> PerspectiveView:
+    """One sketched tension as a `PerspectiveView`.
 
-    `reading` stays `None`: it is documented as `Perspective.intent` verbatim,
-    and there is no Perspective here. The axes go straight into `axes` and the
-    diagonals, which is what a widget draws from.
+    Its `intent` is the reading a generated tetrad would carry, composed the
+    way `ExpandPolarity` composes it (`Perspective.compose_reading`) from the
+    two axes the model named, after the same disclaimer filter
+    (`is_axis_name`) — so the graphless picture labels a tension exactly as
+    the graph does.
     """
-    axes = [
-        axis.strip()
-        for axis in (tension.t_plus_vs_a_minus_axis, tension.a_plus_vs_t_minus_axis)
-        if axis and axis.strip()
-    ]
-    # One dimension named twice is one axis — the same collapse
-    # `expand_polarities._compose_reading` applies to a reading.
-    if len(axes) == 2 and axes[0].lower() == axes[1].lower():
-        axes = axes[:1]
+    axes = {
+        key: axis.strip()
+        for key, axis in (
+            ("t_plus_vs_a_minus", tension.t_plus_vs_a_minus_axis),
+            ("a_plus_vs_t_minus", tension.a_plus_vs_t_minus_axis),
+        )
+        if is_axis_name(axis)
+    }
     poles = {
         "t": _pole(tension.thesis),
         "a": _pole(tension.antithesis),
@@ -173,33 +175,32 @@ def tetrad_from_sketch(tension: SketchedTensionDto) -> TetradView:
         "a_plus": _pole(tension.a_plus),
         "a_minus": _pole(tension.a_minus),
     }
-    return TetradView(
+    return PerspectiveView(
         **poles,
-        diagonals=diagonals_for(axes),
-        axes=axes,
+        intent=Perspective.compose_reading(axes),
         complete=all(pole is not None for pole in poles.values()),
     )
 
 
-def sketch_view(sketch: ConsultationSketchDto) -> TensionMapView:
-    """The whole sketch as a `TensionMapView` — no nexus, so no `nexus_hash`.
+def sketch_view(sketch: ConsultationSketchDto) -> ExplorationView:
+    """The whole sketch as a `ExplorationView` — no nexus, so no `nexus_hash`.
 
     A tension with no thesis or no antithesis is dropped: it is not a tension,
     and a tetrad with no poles at either end would draw as an empty frame.
     """
-    tetrads = [tetrad_from_sketch(t) for t in sketch.tensions[:SKETCH_MAX_TENSIONS]]
-    return TensionMapView(
-        tetrads=[t for t in tetrads if t.t is not None and t.a is not None]
+    tetrads = [perspective_from_sketch(t) for t in sketch.tensions[:SKETCH_MAX_TENSIONS]]
+    return ExplorationView(
+        perspectives=[t for t in tetrads if t.t is not None and t.a is not None]
     )
 
 
 # --- The concern ----------------------------------------------------------
 
 
-class ConsultationSketch(ReasonableConcern[TensionMapView], SettingsAware):
-    """One structured call over the person's turns → a `TensionMapView`.
+class ConsultationSketch(ReasonableConcern[ExplorationView], SettingsAware):
+    """One structured call over the person's turns → a `ExplorationView`.
 
-    Usage (what `Consultant.sketch()` does):
+    Usage (what `Consultant.exploration_view()` does):
         view = await ConsultationSketch().resolve(turns=person_turns(messages))
         widget.draw(view.to_dict())
 
@@ -213,7 +214,7 @@ class ConsultationSketch(ReasonableConcern[TensionMapView], SettingsAware):
     def __init__(self) -> None:
         self._conversation = ConversationFacilitator()
 
-    async def resolve(self, turns: list[str]) -> TensionMapView:
+    async def resolve(self, turns: list[str]) -> ExplorationView:
         """
         Args:
             turns: What the PERSON said, in order — `migration.person_turns`.
@@ -223,13 +224,13 @@ class ConsultationSketch(ReasonableConcern[TensionMapView], SettingsAware):
         if not material:
             self._report.ok = True
             self._report.summary = "Nothing said yet; nothing to sketch"
-            return TensionMapView()
+            return ExplorationView()
 
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
         sketch = await self._ask(self._prompt(material))
         view = sketch_view(sketch)
         self._report.ok = True
-        self._report.summary = f"Sketched {len(view.tetrads)} tension(s)"
+        self._report.summary = f"Sketched {len(view.perspectives)} tension(s)"
         return view
 
     async def _ask(self, prompt: str) -> ConsultationSketchDto:

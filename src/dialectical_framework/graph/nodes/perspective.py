@@ -636,6 +636,31 @@ class Perspective(IncrementalBuildMixin, IntentMixin, AssessableEntity, label="P
             )
         return rel_class
 
+    @staticmethod
+    def compose_reading(axes: dict[str, str]) -> Optional[str]:
+        """The reading a generated tetrad carries as its `intent`.
+
+        Composed from the axes `AspectGeneration` captured
+        (`t_plus_vs_a_minus`, `a_plus_vs_t_minus`): both when they name
+        different dimensions, one when they agree or only one survived the
+        disclaimer filter, None when none did — "Reading along: X / Y".
+
+        `intent` is a free-text slot (`IntentMixin`); the reading is the
+        framework's own use of it on a Perspective: a LABEL that tells sibling
+        tetrads on one Polarity apart in a prompt or on a screen. It is not a
+        key. `intent` is in the hash, but `committed_at` already makes every
+        commit's hash unique, and dedup (`ExpandPolarity._find_duplicate` →
+        `is_same`) compares the six components and ignores `intent`.
+        """
+        constructive = axes.get("t_plus_vs_a_minus")
+        reflective = axes.get("a_plus_vs_t_minus")
+        named = [a for a in (constructive, reflective) if a]
+        if not named:
+            return None
+        if len(named) == 2 and named[0].lower() != named[1].lower():
+            return f"Reading along: {named[0]} / {named[1]}"
+        return f"Reading along: {named[0]}"
+
     def get_relationship_manager_by_position(self, position: str) -> BoundRelationshipManager[Statement]:
         """
         Get the bound relationship manager for a given position name.

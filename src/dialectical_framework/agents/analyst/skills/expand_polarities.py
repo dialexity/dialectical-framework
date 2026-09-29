@@ -190,12 +190,13 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
 
             # Name this reading of the tension: the generation already made
             # the LLM name the axis of each diagonal pair (TetradDto) —
-            # persist it as the perspective's intent (the guiding question
-            # of THIS tetrad). Sibling tetrads on one polarity differ by
-            # exactly this. Set BEFORE commit: intent participates in the
-            # hash, so distinct readings are structurally distinct nodes.
+            # persist it as the perspective's intent, the label that tells
+            # sibling tetrads on one polarity apart in a prompt. A label, not
+            # a key: dedup (`_find_duplicate` → `is_same`) compares the six
+            # components and never reads intent. Set BEFORE commit because
+            # intent is hashed and the node is immutable after.
             if pp.intent is None:
-                reading = self._compose_reading(generator.axes)
+                reading = Perspective.compose_reading(generator.axes)
                 if reading:
                     pp.intent = reading
 
@@ -536,20 +537,6 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             if existing.is_committed and pp.is_same(existing):
                 return existing
         return None
-
-    @staticmethod
-    def _compose_reading(axes: dict[str, str]) -> Optional[str]:
-        """Compose AspectGeneration's captured axes into the perspective's
-        reading (intent). Both axes when they name different dimensions,
-        one when they agree or only one survived the disclaimer filter."""
-        constructive = axes.get("t_plus_vs_a_minus")
-        reflective = axes.get("a_plus_vs_t_minus")
-        named = [a for a in (constructive, reflective) if a]
-        if not named:
-            return None
-        if len(named) == 2 and named[0].lower() != named[1].lower():
-            return f"Reading along: {named[0]} / {named[1]}"
-        return f"Reading along: {named[0]}"
 
     @inject
     async def _get_input_text(

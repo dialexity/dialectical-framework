@@ -1,11 +1,11 @@
 """
-`concerns/consultation_sketch.py` and `Consultant.sketch()` — the picture a
+`concerns/consultation_sketch.py` and `Consultant.exploration_view()` — the picture a
 graphless head can draw.
 
 What is pinned, and why each is worth a test:
 
 1. **Same shape as the graph reader, by construction terminology-free.** The
-   sketch must land in `TensionMapView` with the texts where the widget expects
+   sketch must land in `ExplorationView` with the texts where the widget expects
    them, the two diagonals labelled with the person's own axis words — and
    NOTHING else: no position, alias, hash or number anywhere in the serialized
    result, because there is none to give and a future "improvement" that adds
@@ -15,12 +15,13 @@ What is pinned, and why each is worth a test:
    antithesis is not drawn at all.
 3. **No material, no call.** An empty conversation is an empty map and the
    provider is never asked.
-4. **The speaker rule holds at the head.** `Consultant.sketch()` passes the
+4. **The speaker rule holds at the head.** `Consultant.exploration_view()` passes the
    person's turns only; the replies are counsel, never material — the same
    rule the migration runs on, for the same reason.
-5. **The geometry has one owner.** The sketch's diagonals are
-   `views.diagonals_for`'s, so the graph reader and the sketch cannot disagree
-   about which field faces which.
+5. **The reading has one owner.** The sketch's `intent` is
+   `Perspective.compose_reading` over the model's axes, after the same
+   disclaimer filter the graph path applies — so a sketched tension is labelled
+   exactly as a generated one.
 
 DB-free: nothing here touches the graph, and that is itself the guarantee —
 the sketch runs with no scope installed.
@@ -37,9 +38,10 @@ from dialectical_framework.agents.consultant.consultant import Consultant
 from dialectical_framework.concerns import consultation_sketch as sketch_mod
 from dialectical_framework.concerns.consultation_sketch import (
     SKETCH_MAX_TENSIONS, ConsultationSketch, ConsultationSketchDto,
-    SketchedTensionDto, sketch_view, tetrad_from_sketch)
+    SketchedTensionDto, sketch_view, perspective_from_sketch)
 from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
-from dialectical_framework.graph.views import TensionMapView, diagonals_for
+from dialectical_framework.graph.nodes.perspective import Perspective
+from dialectical_framework.graph.views import ExplorationView
 
 
 # DB-free: override the autouse graph fixtures (per CLAUDE.md DB-free convention).
@@ -93,7 +95,7 @@ def _fake_ask(monkeypatch, dto: ConsultationSketchDto) -> list[str]:
 
 class TestTheSketchIsTheSamePicture:
     def test_a_tension_lands_in_the_view_shape(self):
-        view = tetrad_from_sketch(_tension())
+        view = perspective_from_sketch(_tension())
 
         assert view.complete is True
         assert view.t.text == "Keep the Berlin office"
@@ -102,23 +104,27 @@ class TestTheSketchIsTheSamePicture:
         assert view.a_minus.text == "Zurich alone loses the German market"
         assert view.a_plus.text == "One team, one roadmap"
         assert view.t_minus.text == "Two half-teams that never align"
-        assert view.axes == ["local presence", "focus"]
-        assert [(d.positive, d.negative, d.axis) for d in view.diagonals] == [
-            ("t_plus", "a_minus", "local presence"),
-            ("a_plus", "t_minus", "focus"),
-        ]
-        assert view.reading is None, "there is no Perspective.intent to quote"
+        assert view.intent == "Reading along: local presence / focus"
 
-    def test_the_geometry_is_the_readers_own(self):
-        view = tetrad_from_sketch(_tension())
-        assert view.diagonals == diagonals_for(view.axes)
+    def test_the_reading_is_composed_the_graphs_way(self):
+        view = perspective_from_sketch(_tension())
+        assert view.intent == Perspective.compose_reading(
+            {"t_plus_vs_a_minus": "local presence", "a_plus_vs_t_minus": "focus"}
+        )
 
     def test_one_dimension_named_twice_is_one_axis(self):
-        view = tetrad_from_sketch(
+        view = perspective_from_sketch(
             _tension(t_plus_vs_a_minus_axis="Focus", a_plus_vs_t_minus_axis="focus")
         )
-        assert view.axes == ["Focus"]
-        assert [d.axis for d in view.diagonals] == ["Focus", "Focus"]
+        assert view.intent == "Reading along: Focus"
+
+    def test_a_disclaimer_is_not_an_axis(self):
+        """The DTO lets the model SAY there is no shared dimension; the graph
+        path filters that out of the reading (`is_axis_name`) and so does this."""
+        view = perspective_from_sketch(
+            _tension(t_plus_vs_a_minus_axis="no genuine shared dimension exists")
+        )
+        assert view.intent == "Reading along: focus"
 
     def test_nothing_but_texts_and_geometry_is_in_it(self):
         """Terminology-free by construction: `without_terminology()` must be a
@@ -146,7 +152,7 @@ class TestTheSketchIsTheSamePicture:
 
 class TestAbsenceIsNoneHereToo:
     def test_a_blank_position_is_a_none_pole(self):
-        view = tetrad_from_sketch(_tension(a_minus="   "))
+        view = perspective_from_sketch(_tension(a_minus="   "))
         assert view.a_minus is None
         assert view.complete is False
         assert "a_minus" not in view.poles
@@ -155,18 +161,21 @@ class TestAbsenceIsNoneHereToo:
         view = sketch_view(
             ConsultationSketchDto(tensions=[_tension(), _tension(antithesis="")])
         )
-        assert len(view.tetrads) == 1
+        assert len(view.perspectives) == 1
 
-    def test_a_blank_axis_leaves_the_diagonal_unlabelled(self):
-        view = tetrad_from_sketch(_tension(a_plus_vs_t_minus_axis=""))
-        assert view.axes == ["local presence"]
-        # One named axis is read as the dimension of both diagonals — the same
-        # convention the reading parser applies.
-        assert [d.axis for d in view.diagonals] == ["local presence"] * 2
+    def test_a_blank_axis_leaves_a_one_axis_reading(self):
+        view = perspective_from_sketch(_tension(a_plus_vs_t_minus_axis=""))
+        assert view.intent == "Reading along: local presence"
+
+    def test_no_axis_at_all_leaves_no_intent(self):
+        view = perspective_from_sketch(
+            _tension(t_plus_vs_a_minus_axis="", a_plus_vs_t_minus_axis="")
+        )
+        assert view.intent is None
 
     def test_the_map_is_capped(self):
         many = ConsultationSketchDto(tensions=[_tension()] * (SKETCH_MAX_TENSIONS + 3))
-        assert len(sketch_view(many).tetrads) == SKETCH_MAX_TENSIONS
+        assert len(sketch_view(many).perspectives) == SKETCH_MAX_TENSIONS
 
 
 @pytest.mark.llm
@@ -178,7 +187,7 @@ class TestTheConcern:
 
         view = await concern.resolve(turns=["", "   "])
 
-        assert view == TensionMapView()
+        assert view == ExplorationView()
         assert prompts == [], "the provider must not be asked about nothing"
         assert concern.report.ok is True
 
@@ -191,7 +200,7 @@ class TestTheConcern:
             turns=["I can't decide about the Berlin office.", "Twelve people work there."]
         )
 
-        assert len(view.tetrads) == 1
+        assert len(view.perspectives) == 1
         assert len(prompts) == 1
         assert "I can't decide about the Berlin office." in prompts[0]
         assert "Twelve people work there." in prompts[0]
@@ -204,8 +213,8 @@ class TestTheConcern:
         mocked DTO carries no tensions, so the map is empty — what is pinned is
         that nothing on the path needs a Case or the graph."""
         view = await ConsultationSketch().resolve(turns=["I have a problem with my wife."])
-        assert isinstance(view, TensionMapView)
-        assert view.tetrads == []
+        assert isinstance(view, ExplorationView)
+        assert view.perspectives == []
 
     def test_the_prompt_reads_the_shared_aspect_definitions(self):
         """Never re-typed inline: the definitions drift otherwise (CLAUDE.md)."""
@@ -220,7 +229,7 @@ class TestTheHeadAppliesTheSpeakerRule:
 
         async def fake_resolve(self, turns):
             seen.append(list(turns))
-            return TensionMapView()
+            return ExplorationView()
 
         monkeypatch.setattr(ConsultationSketch, "resolve", fake_resolve)
         head = Consultant(
@@ -232,9 +241,9 @@ class TestTheHeadAppliesTheSpeakerRule:
             ],
         )
 
-        view = await head.sketch()
+        view = await head.exploration_view()
 
-        assert isinstance(view, TensionMapView)
+        assert isinstance(view, ExplorationView)
         assert seen == [
             ["I can't decide about the Berlin office.", "Twelve people, and the German clients."]
         ], "the reply is counsel, not material"
@@ -242,7 +251,7 @@ class TestTheHeadAppliesTheSpeakerRule:
     @pytest.mark.asyncio
     async def test_a_sketch_is_not_a_turn(self, monkeypatch):
         async def fake_resolve(self, turns):
-            return TensionMapView()
+            return ExplorationView()
 
         monkeypatch.setattr(ConsultationSketch, "resolve", fake_resolve)
         head = Consultant(
@@ -252,6 +261,6 @@ class TestTheHeadAppliesTheSpeakerRule:
         # move is the history AS THE HEAD HOLDS IT once constructed.
         before = list(head.messages)
 
-        await head.sketch()
+        await head.exploration_view()
 
         assert head.messages == before, "a read over the conversation writes nothing into it"

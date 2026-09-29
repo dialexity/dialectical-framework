@@ -28,6 +28,7 @@ from dialectical_framework.agents.advisor.system_prompts import \
 from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.tools.note import NoteSink
 from dialectical_framework.agents.agent_context import agent_scope
+from dialectical_framework.graph.views import ExplorationView
 from dialectical_framework.graph.scope_context import (get_current_sid,
                                                         require_current_sid)
 from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
@@ -2940,6 +2941,38 @@ class Advisor(SettingsAware):
         prose is scrubbed of it.
         """
         return self._hides_hashes
+
+    async def exploration_view(self) -> ExplorationView:
+        """The picture of this conversation's structure, ready to draw.
+
+        The same `graph/views.py::exploration_view`, resolved the way this
+        seat sees the graph: pinned to an exploration, that exploration (its
+        members, numbered as the prompts number them); unpinned, every active
+        perspective in the case. Projected through `hides_terminology`, so a
+        hidden-machinery conversation gets texts and structure only and a
+        Navigator register gets positions, hashes and scores — the host
+        never has to hold the flag itself. `async` for symmetry with
+        `Consultant.exploration_view()`; the graph read is synchronous.
+
+        Reads the graph, so it needs the scope every turn needs. A pin whose
+        nexus cannot be found (the constructor validates it, so: deleted since,
+        under a stateless host resuming a stale pin) renders as the empty
+        exploration rather than the whole case — showing everything would leak
+        past the pin.
+        """
+        from dialectical_framework.graph.views import exploration_view
+
+        require_current_sid()
+        if self._nexus_hash:
+            from dialectical_framework.graph.repositories.nexus_repository import \
+                NexusRepository
+
+            # Prefix-tolerant, like every other read of the pin.
+            pinned = NexusRepository().find_by_hash_prefix(self._nexus_hash)
+            view = exploration_view(pinned) if pinned else ExplorationView()
+        else:
+            view = exploration_view()
+        return view.without_terminology() if self._hides_hashes else view
 
 
 def _build_tools(

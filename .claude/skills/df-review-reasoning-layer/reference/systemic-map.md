@@ -42,10 +42,10 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
   `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
   guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
-  Its one structured call is `Consultant.sketch()` → `concerns/consultation_sketch.py` (`SYSTEM_PROMPT`
+  Its one structured call is `Consultant.exploration_view()` → `concerns/consultation_sketch.py` (`SYSTEM_PROMPT`
   interpolates `ASPECT_DEFINITIONS`; the user prompt repeats `aspect_generation._tetrad_prompt`'s
   three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, over the PERSON's turns only): a texts-only
-  `ConsultationSketchDto` (flat, no numeric field by design) shaped into `graph/views.py::TensionMapView`.
+  `ConsultationSketchDto` (flat, no numeric field by design) shaped into `graph/views.py::ExplorationView`.
   Parity to watch: an edit to the tetrad procedure in `_tetrad_prompt` must land here too, or the
   graphless picture and the graph's tetrads are built to different rules. Host-triggered, never a tool.
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
@@ -3024,10 +3024,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   **Perspective reading (axis → intent)** (live since 2026-08): the axis names `TetradDto` forces the model
   to produce (issue #25 fix) now PERSIST — `AspectGeneration._capture_axis` collects them on `self.axes`
   (filtering the "no genuine shared axis" disclaimers the DTO deliberately allows; heuristic filter, sentence-length
-  or negation-marker axes are dropped), `ExpandPolarity._compose_reading` writes "Reading along: X / Y" into
-  `Perspective.intent` BEFORE commit (intent participates in the hash → distinct readings are structurally
-  distinct nodes; identical readings hash-collide into dedup — intended). The reading is what distinguishes
-  sibling tetrads on one Polarity; rendered by `_dump_one_perspective` (one_line-hardened) + `inspect_node`
+  or negation-marker axes are dropped — `aspect_generation.is_axis_name`, shared with the graphless sketch),
+  `Perspective.compose_reading` writes "Reading along: X / Y" into `Perspective.intent` BEFORE commit. A LABEL,
+  not a key (corrected 2026-09-29): intent is hashed, but `committed_at` already makes every Perspective
+  commit unique and dedup (`ExpandPolarity._find_duplicate` → `is_same`) compares the six components and
+  ignores intent. The reading is what distinguishes sibling tetrads on one Polarity IN PROSE; rendered by `_dump_one_perspective` (one_line-hardened) + `inspect_node`
   (pre-existing Intent line) + `expand_polarities` final-state artifact (`reading` key); GRAPH_SCHEMA documents
   the semantics. `edit_perspective` clones DROP the inherited intent (stale axis after user edits).
   Promotion path (prompt): a resonant reading is an anchor candidate — anchor its poles as a real Polarity

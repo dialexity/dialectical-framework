@@ -22,9 +22,9 @@ tension map. Different consumer, different rules, so a separate module:
 
 WHAT THE KEYS MEAN AND WHY THEY ARE SAFE
 ========================================
-The field names (`t_plus`, `a_minus`, `diagonals`) are the RENDERER's
-vocabulary: they tell a visualiser which pole to draw where and which pairs to
-join with a contradiction line. They are never printed to a person. What IS
+The field names (`t`, `t_plus`, `a_minus`) are the graph's own position names in
+attribute spelling — the RENDERER's vocabulary, telling a visualiser which pole
+to draw where. They are never printed to a person. What IS
 printable lives in three fields per pole — `text` (the person's own words),
 `position` (`"T+"`, framework terminology) and `label` (the stored alias,
 `"T1+"` or a domain alias). So a picture can be drawn correctly without any
@@ -38,10 +38,10 @@ a hash into a standalone-Advisor conversation would reinstate, in pixels,
 exactly what that filter removes from prose. Two enforcement points, ONE policy:
 the host reads `Advisor.hides_terminology` — the same flag the text filter reads
 — and calls `without_terminology()` when it is true. What the projection drops:
-positions, aliases, hashes and every number. What survives: the texts, the axis
-names the tension is read along, and the full structure. The result is also the
-shape a graphless surface reaches on its own — `Consultant.sketch()` builds the
-same `TensionMapView` from one structured call over the person's turns, with no
+positions, aliases, hashes and every number. What survives: the texts, the
+reading (`intent`), and the full structure. The result is also the
+shape a graphless surface reaches on its own — `Consultant.exploration_view()` builds the
+same `ExplorationView` from one structured call over the person's turns, with no
 scores and no hashes to give (`concerns/consultation_sketch.py`) — so one
 visualiser serves both.
 
@@ -84,16 +84,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-#: Lead-in `expand_polarities._compose_reading` writes before the axes. Parsed
-#: back out here so a widget can show the axes as axes (two labelled ends of a
-#: line) rather than reprinting a sentence. Kept in sync by
-#: `tests/test_views.py::TestTheReadingIsParsedBack`.
-READING_PREFIX = "Reading along: "
-#: Separator between the two axes inside a reading.
-READING_SEPARATOR = " / "
-
 #: View field name → canonical position, in the order a tetrad is drawn.
-_TETRAD_POSITIONS: tuple[tuple[str, str], ...] = (
+_PERSPECTIVE_POSITIONS: tuple[tuple[str, str], ...] = (
     ("t", POSITION_T),
     ("a", POSITION_A),
     ("t_plus", POSITION_T_PLUS),
@@ -145,24 +137,7 @@ class PoleView:
 
 
 @dataclass(frozen=True)
-class DiagonalView:
-    """One of the two contradiction pairs, as field names plus its axis.
-
-    The theory's diagonal constraint (T+ contradicts A-, T- contradicts A+) is
-    what makes a tetrad a tetrad, and it is geometry a widget must draw — so it
-    is stated here rather than left for the host to hardcode. `positive` and
-    `negative` name FIELDS of `TetradView`, not text to print.
-    """
-
-    positive: str
-    negative: str
-    #: The single dimension the pair sits at opposite ends of, when the
-    #: generation captured one (it travels in `Perspective.intent`).
-    axis: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class TetradMetricsView:
+class PerspectiveMetricsView:
     """A tetrad's quality numbers, each independently None when it cannot be
     computed — an unfinished tetrad missing A- still has a real T-side gap
     (`diff_t`), and suppressing it would hide the half that IS known. The whole
@@ -183,8 +158,8 @@ class TetradMetricsView:
 
 
 @dataclass(frozen=True)
-class TetradView:
-    """One Perspective as a drawable tetrad.
+class PerspectiveView:
+    """One Perspective, drawable: its six positions and what is known of them.
 
     A pole is `None` when the position is not connected — an interrupted build
     is a real and common state (`explore` takes minutes and people close tabs),
@@ -198,19 +173,15 @@ class TetradView:
     t_minus: Optional[PoleView] = None
     a_plus: Optional[PoleView] = None
     a_minus: Optional[PoleView] = None
-    #: The two contradiction pairs. Always both, even on an unfinished tetrad:
-    #: the geometry is structural, not a function of what got built.
-    diagonals: list[DiagonalView] = field(default_factory=list)
-    #: `Perspective.intent` verbatim — "Reading along: growth / security".
-    reading: Optional[str] = None
-    #: The axes parsed out of `reading`; empty when there is no reading or it
-    #: does not use the framework's own phrasing.
-    axes: list[str] = field(default_factory=list)
+    #: `Perspective.intent` verbatim: for a generated tetrad its reading,
+    #: "Reading along: growth / security" (`Perspective.compose_reading`);
+    #: free text where a person set it. The graph's field, not parsed.
+    intent: Optional[str] = None
     #: Full Perspective hash.
     hash: Optional[str] = None
     #: The nexus-stable index — 1 where the prompts say T1. None outside a nexus.
     index: Optional[int] = None
-    metrics: Optional[TetradMetricsView] = None
+    metrics: Optional[PerspectiveMetricsView] = None
     #: "passed" / "failed: <reasons>" / None = not validated. Never a gate: a
     #: failed tetrad is still in the graph and still drawable.
     validation: Optional[str] = None
@@ -224,16 +195,16 @@ class TetradView:
         """The connected poles by field name — for a renderer that iterates."""
         return {
             name: pole
-            for name, _position in _TETRAD_POSITIONS
+            for name, _position in _PERSPECTIVE_POSITIONS
             if (pole := getattr(self, name)) is not None
         }
 
-    def without_terminology(self) -> TetradView:
+    def without_terminology(self) -> PerspectiveView:
         projected = {
             name: (pole.without_terminology() if pole is not None else None)
             for name, pole in (
                 (field_name, getattr(self, field_name))
-                for field_name, _position in _TETRAD_POSITIONS
+                for field_name, _position in _PERSPECTIVE_POSITIONS
             )
         }
         return dataclasses.replace(
@@ -262,7 +233,7 @@ class SegmentView:
     whose diagonal symmetry does not hold.
     """
 
-    tetrad: TetradView
+    tetrad: PerspectiveView
     #: 0-based place around the circle, in `Wheel.polar_segments` order — which
     #: is load-bearing, not cosmetic (see CLAUDE.md on `Wheel._perspectives`).
     place: int = 0
@@ -356,23 +327,23 @@ class WheelView:
 
 
 @dataclass(frozen=True)
-class TensionMapView:
-    """Several tetrads seen at once — an exploration's members, or everything
-    active in the case.
+class ExplorationView:
+    """The perspectives seen together — an exploration's (a Nexus's) members,
+    or, with no exploration, every active perspective in the case.
 
     This is the "where does this sit" picture: the blindspot app's A+ is one
-    pole of one tetrad in here, and what makes it legible is the others around
-    it.
+    pole of one perspective in here, and what makes it legible is the others
+    around it. `nexus_hash` is None for the no-exploration form.
     """
 
-    tetrads: list[TetradView] = field(default_factory=list)
-    #: The exploration this map is of, when it is of one.
+    perspectives: list[PerspectiveView] = field(default_factory=list)
+    #: The Nexus this is a view of; None when it is the whole case.
     nexus_hash: Optional[str] = None
 
-    def without_terminology(self) -> TensionMapView:
+    def without_terminology(self) -> ExplorationView:
         return dataclasses.replace(
             self,
-            tetrads=[t.without_terminology() for t in self.tetrads],
+            perspectives=[p.without_terminology() for p in self.perspectives],
             nexus_hash=None,
         )
 
@@ -434,14 +405,14 @@ def _pole(pp: Perspective, position: str) -> Optional[PoleView]:
     return _pole_from(stmt, rel, position)
 
 
-def _metrics(pp: Perspective) -> Optional[TetradMetricsView]:
+def _metrics(pp: Perspective) -> Optional[PerspectiveMetricsView]:
     """The tetrad's numbers, or None when nothing is scored at all.
 
     Each value comes from the Perspective property that owns its formula — `sp`
     from `area`, never re-derived here.
     """
     try:
-        metrics = TetradMetricsView(
+        metrics = PerspectiveMetricsView(
             sp=pp.area,
             sp_normalized=pp.area_normalized,
             rectangularity=pp.rectangularity,
@@ -456,56 +427,19 @@ def _metrics(pp: Perspective) -> Optional[TetradMetricsView]:
     return metrics
 
 
-def parse_reading(reading: Optional[str]) -> list[str]:
-    """The axes inside a `Perspective.intent`, or [] when it holds none.
-
-    An intent is free text — a user-set reading, or an older perspective from
-    before readings were composed — so anything that is not the framework's own
-    phrasing yields no axes rather than a guess.
-    """
-    if not reading or not reading.startswith(READING_PREFIX):
-        return []
-    body = reading[len(READING_PREFIX):].strip()
-    if not body:
-        return []
-    return [part.strip() for part in body.split(READING_SEPARATOR) if part.strip()]
-
-
-def diagonals_for(axes: list[str]) -> list[DiagonalView]:
-    """The two contradiction pairs of any tetrad, labelled with their axes.
-
-    The geometry is the theory's and does not depend on where the tetrad came
-    from, so every builder of a `TetradView` — the graph reader below, the
-    graphless sketch (`concerns/consultation_sketch.py`) — takes it from here
-    rather than restating which field faces which. The axes are ordered as
-    `expand_polarities._compose_reading` writes them: the T+/A- pair first, then
-    A+/T-. One axis means a single dimension was named for both diagonals.
-    """
-    constructive = axes[0] if axes else None
-    reflective = axes[1] if len(axes) > 1 else constructive
-    return [
-        DiagonalView(positive="t_plus", negative="a_minus", axis=constructive),
-        DiagonalView(positive="a_plus", negative="t_minus", axis=reflective),
-    ]
-
-
-def tetrad_view(
+def perspective_view(
     perspective: Perspective, pp_index: Optional[dict[int, int]] = None
-) -> TetradView:
-    """One Perspective as a `TetradView`.
+) -> PerspectiveView:
+    """One Perspective as a `PerspectiveView`.
 
     `pp_index` is `rendering.build_pp_index(nexus)` — pass it so the picture's
     numbering matches the prompts' (T1 means the same perspective in both). Its
     absence means "no exploration here", not "index unknown".
     """
-    poles = {name: _pole(perspective, position) for name, position in _TETRAD_POSITIONS}
-    reading = getattr(perspective, "intent", None)
-    axes = parse_reading(reading)
-    return TetradView(
+    poles = {name: _pole(perspective, position) for name, position in _PERSPECTIVE_POSITIONS}
+    return PerspectiveView(
         **poles,
-        diagonals=diagonals_for(axes),
-        reading=reading,
-        axes=axes,
+        intent=perspective.intent,
         hash=perspective.hash,
         index=(
             pp_index.get(perspective._id)
@@ -593,7 +527,7 @@ def wheel_view(wheel: Wheel, pp_index: Optional[dict[int, int]] = None) -> Wheel
     # segments' own poles instead of a repository lookup per edge.
     by_hash: dict[str, PoleView] = {}
     for place, pair in enumerate(wheel.polar_segments):
-        view = tetrad_view(pair.perspective, pp_index)
+        view = perspective_view(pair.perspective, pp_index)
         segments.append(
             SegmentView(tetrad=view, place=place, orientation=pair.polarity)
         )
@@ -647,26 +581,29 @@ def _endpoint(manager: Any, by_hash: dict[str, PoleView]) -> Optional[PoleView]:
     return PoleView(text=text, canonical_text=canonical, hash=stmt.hash)
 
 
-def tension_map_view(nexus: Optional[Nexus] = None) -> TensionMapView:
-    """Every active tetrad worth drawing — an exploration's, or the case's.
+def exploration_view(nexus: Optional[Nexus] = None) -> ExplorationView:
+    """An exploration's perspectives — or, with no `nexus`, the case's.
 
-    With a `nexus`: its members, numbered as the prompts number them. Without:
-    every active Perspective in the current scope, which is what a conversation
-    that has anchored tensions but explored nothing yet has to show.
+    With a `nexus`: its members, numbered as the prompts number them
+    (`nexus_hash` set). Without: every active Perspective in the current scope
+    and `nexus_hash` None — what a conversation that has anchored tensions but
+    explored nothing yet has to show.
     """
     from dialectical_framework.graph.rendering import build_pp_index
 
     if nexus is not None:
         pp_index = build_pp_index(nexus)
         members = [pp for pp, _ in nexus.perspectives.all() if not pp.discarded]
-        return TensionMapView(
-            tetrads=[tetrad_view(pp, pp_index) for pp in members],
+        return ExplorationView(
+            perspectives=[perspective_view(pp, pp_index) for pp in members],
             nexus_hash=nexus.hash,
         )
 
     from dialectical_framework.graph.repositories.perspective_repository import \
         PerspectiveRepository
 
-    return TensionMapView(
-        tetrads=[tetrad_view(pp) for pp in PerspectiveRepository().find_all_active()]
+    return ExplorationView(
+        perspectives=[
+            perspective_view(pp) for pp in PerspectiveRepository().find_all_active()
+        ]
     )
