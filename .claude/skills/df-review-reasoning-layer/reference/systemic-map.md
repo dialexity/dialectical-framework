@@ -42,12 +42,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
   `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
   guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
-  Its one structured call is `Consultant.exploration_view()` → `concerns/consultation_sketch.py` (`SYSTEM_PROMPT`
-  interpolates `ASPECT_DEFINITIONS`; the user prompt repeats `aspect_generation._tetrad_prompt`'s
-  three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, over the PERSON's turns only): a texts-only
-  `ConsultationSketchDto` (flat, no numeric field by design) shaped into `graph/views.py::ExplorationView`.
-  Parity to watch: an edit to the tetrad procedure in `_tetrad_prompt` must land here too, or the
-  graphless picture and the graph's tetrads are built to different rules. Host-triggered, never a tool.
+  Its one structured call is `Consultant.exploration_view(focus=)` → `concerns/view_sketch.py::view_sketch_prompt`:
+  a structured TURN on the consultant's own conversation (its system prompt + full history, both sides), on a
+  json-mode facilitator sharing that history so it THINKS at the session's level — the first caller of
+  `ConversationFacilitator(format_mode="json", thinking=)`. The request interpolates `ASPECT_DEFINITIONS`,
+  repeats `aspect_generation._tetrad_prompt`'s three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, and
+  asks to render what is established / build what `focus` needs / leave unasked corners EMPTY. Output: a
+  texts-only `ViewSketchDto` (flat, no numeric field by design) shaped into
+  `graph/views.py::ExplorationView`; the turn is kept in history as words (`history_text`). Parity to watch:
+  an edit to the tetrad procedure in `_tetrad_prompt` must land here too. Host-triggered, never a tool.
 - Advisor: `advisor/advisor.py` — preamble + engine prompt with `{dialectical_context}` **string-replaced**
   by a live graph dump (or a "fresh conversation" fallback), landing at the tail of the system prompt.
   The engine is now a **function** `system_prompt(tool_names, scoped_nexus_hash)`
@@ -3804,7 +3807,7 @@ plus a `--real-llm` replay-acceptance test for tool-use blocks from tools not in
   `reply_hygiene` strips `[[hash]]` from person-facing TEXT, and a host draws a widget through
   `graph/views.py::…without_terminology()` (positions, aliases, hashes, numbers off; texts, axes and
   geometry kept). Reviewing a disclosure change means reviewing both — a prompt edit that moves the
-  section heading silently moves the picture too.
+  section heading silently moves the view too.
 - **Known partial violations:** engine score-reading sections carry presentation defaults ("as meaning, not
   numbers") that *reference* the app preamble — a two-way dependency the split says should be one-way.
 - **Nexus→Exploration vocabulary contract:** "Nexus" is internal; the user-facing term is **"Exploration"**.

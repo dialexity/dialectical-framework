@@ -162,7 +162,7 @@ def is_axis_name(axis: Optional[str]) -> bool:
     "self-directed growth vs institutional security"); a disclaimer is a
     sentence about the absence of one ("no such shared dimension exists").
     Shared by `_capture_axis` and the graphless sketch
-    (`concerns/consultation_sketch.py`), so both readings pass one filter.
+    (`concerns/view_sketch.py`), so both readings pass one filter.
     """
     axis = (axis or "").strip()
     if not axis:

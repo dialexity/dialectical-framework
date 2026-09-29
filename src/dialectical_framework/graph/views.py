@@ -3,7 +3,7 @@ Typed, JSON-ready views of graph structure — for a SCREEN, not for a prompt.
 
 `rendering.py` next door renders for the LLM: prose that lands inside a prompt,
 where a truncated text or an absent score is a reasoning defect. This module
-renders for a host that draws pictures — a widget in a chat, a side pane, a
+renders for a host that draws views — a widget in a chat, a side pane, a
 tension map. Different consumer, different rules, so a separate module:
 
 - **Frozen dataclasses, JSON-ready.** `to_dict()` yields only str / float /
@@ -27,7 +27,7 @@ attribute spelling — the RENDERER's vocabulary, telling a visualiser which pol
 to draw where. They are never printed to a person. What IS
 printable lives in three fields per pole — `text` (the person's own words),
 `position` (`"T+"`, framework terminology) and `label` (the stored alias,
-`"T1+"` or a domain alias). So a picture can be drawn correctly without any
+`"T1+"` or a domain alias). So a view can be drawn correctly without any
 framework vocabulary appearing on it.
 
 `without_terminology()` is that projection, and it exists because the framework
@@ -41,8 +41,8 @@ the host reads `Advisor.hides_terminology` — the same flag the text filter rea
 positions, aliases, hashes and every number. What survives: the texts, the
 reading (`intent`), and the full structure. The result is also the
 shape a graphless surface reaches on its own — `Consultant.exploration_view()` builds the
-same `ExplorationView` from one structured call over the person's turns, with no
-scores and no hashes to give (`concerns/consultation_sketch.py`) — so one
+same `ExplorationView` as a structured turn on its own conversation, with no
+scores and no hashes to give (`concerns/view_sketch.py`) — so one
 visualiser serves both.
 
 COST
@@ -56,7 +56,7 @@ not for a per-turn dump. A caller drawing many tetrads at once should
 
 NOT IN HERE, DELIBERATELY
 =========================
-Transformations (pathways). A wheel picture is its segments, its spiral and its
+Transformations (pathways). A wheel view is its segments, its spiral and its
 synthesis; the Ac+/Re+ recipes are a different widget with a different shape
 (text and feasibility bands, no geometry), and `rendering.pathway_line` already
 serves the prompt side. Add a `PathwayView` when a host actually draws one.
@@ -331,7 +331,7 @@ class ExplorationView:
     """The perspectives seen together — an exploration's (a Nexus's) members,
     or, with no exploration, every active perspective in the case.
 
-    This is the "where does this sit" picture: the blindspot app's A+ is one
+    This is the "where does this sit" view: the blindspot app's A+ is one
     pole of one perspective in here, and what makes it legible is the others
     around it. `nexus_hash` is None for the no-exploration form.
     """
@@ -432,7 +432,7 @@ def perspective_view(
 ) -> PerspectiveView:
     """One Perspective as a `PerspectiveView`.
 
-    `pp_index` is `rendering.build_pp_index(nexus)` — pass it so the picture's
+    `pp_index` is `rendering.build_pp_index(nexus)` — pass it so the view's
     numbering matches the prompts' (T1 means the same perspective in both). Its
     absence means "no exploration here", not "index unknown".
     """

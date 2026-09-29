@@ -40,8 +40,9 @@ import re
 from contextlib import aclosing
 from typing import Any, AsyncGenerator, Optional
 
+from mirascope import llm
+
 from dialectical_framework.agents.advisor.advisor import ChatResponse
-from dialectical_framework.agents.advisor.migration import person_turns
 from dialectical_framework.agents.advisor.system_prompts import (
     _CONVERSATION_USE, _DECISION_READINESS, _EAGER, _EXPLORE_BEFORE_CEREMONY,
     _HOW_YOU_SPEAK, _INTERNAL_MODEL, _ONE_TENSION_IS_ENOUGH, _ROLE)
@@ -283,9 +284,10 @@ class Consultant:
     survives only as `messages` — carry them for the length of the session and
     drop them after; there is no other memory, and the prompt tells the model
     as much (a confirmed decision is restated in the reply, and that is the
-    only record). `exploration_view()` is the one picture this head can draw: the
-    tensions in the person's own words, from one call over `messages`, in the
-    view shape the graph-backed heads share (`graph/views.py`).
+    only record). `exploration_view(focus=)` is the one view this head can
+    draw: a structured turn on this same conversation, building what the ask
+    needs and drawing it in the view shape the graph-backed heads share
+    (`graph/views.py`).
 
     Takes the persona the same way the Advisor does: `app_preamble=` (manual) or
     `app=` (an AppSpec's `advisor_persona`, the same preamble the unscoped
@@ -347,32 +349,52 @@ class Consultant:
         """The conversation so far — the only state this head has."""
         return self._conversation._messages
 
-    async def exploration_view(self) -> ExplorationView:
-        """The tensions the person is holding, as a picture — from their words alone.
+    async def exploration_view(self, focus: Optional[str] = None) -> ExplorationView:
+        """The structure of this conversation as a view — drawn by this head.
 
         The same name as `graph/views.py::exploration_view` because it is the
-        same picture; a METHOD here because this head has no scope and no graph
-        for a module function to read — only `messages`. One structured call
-        over the PERSON's turns (`concerns/consultation_sketch.py`), shaped into
-        the `ExplorationView` the graph reader gives the Advisor (`nexus_hash`
-        None, as for a case with no exploration) — one visualiser for both
-        heads. Terminology-free by construction (no hash, alias or
-        score exists to strip), unchecked by construction (no HS gate, no
-        validation, nothing persisted), and forgotten with the conversation
-        like everything else here. Only the person's turns are material; the
-        replies are counsel, not statements of the situation — the migration's
-        rule, applied here for the same reason.
+        same view (`ExplorationView`, `nexus_hash` None as for a case with no
+        exploration); a METHOD here because this head has no graph for a module
+        function to read, only its conversation. It is a STRUCTURED TURN on that
+        conversation — same system prompt, full history, both sides — so the
+        view shows what has been ESTABLISHED, and where `focus` asks for
+        structure not yet worked out ("a perspective for the thesis you
+        named") the turn builds it by the method first
+        (`concerns/view_sketch.py::view_sketch_prompt`). What it built is
+        kept in `messages` as the consultant's own words, so the next turn can
+        be asked about a corner it just drew.
 
-        Not a tool: the model cannot call this, and the prompt's "You have no
-        tools" stays true. Nothing is written to `messages` either — a sketch
-        is a read over the conversation, not a turn in it. Raises on a
-        provider failure rather than returning an empty map, so the host can
-        tell "nothing to draw yet" from "the drawing failed".
+        Thinks at the session's level: the turn runs on a json-mode facilitator
+        over the SAME history, because forced-tool structured calls cannot
+        think and building a tetrad in one shot is the heaviest reasoning a
+        structured call is asked to do here.
+
+        Terminology-free by construction (no hash, alias or score exists),
+        unchecked by construction (no HS gate, no validation, nothing
+        persisted). Not a tool: the model cannot call this, and the prompt's
+        "You have no tools" stays true. Raises on a provider failure rather
+        than returning an empty view, so the host can tell "nothing drawn"
+        from "the drawing failed".
         """
-        from dialectical_framework.concerns.consultation_sketch import \
-            ConsultationSketch
+        from dialectical_framework.concerns.view_sketch import (
+            ViewSketchDto, history_text, view_sketch_prompt, exploration_view_from_sketch)
 
-        return await ConsultationSketch().resolve(turns=person_turns(self.messages))
+        level = self._conversation._thinking_kwargs().get("thinking")
+        sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
+        sketch_turn._messages = self._conversation._messages  # the same list: one history
+        sketch = await sketch_turn.submit(
+            ViewSketchDto,
+            view_sketch_prompt(focus, self._conversation.settings.component_length),
+        )
+        view = exploration_view_from_sketch(sketch)
+        # Leave the view in the history as words, not as a DTO repr.
+        history = self._conversation._messages
+        record = llm.messages.assistant(history_text(view), model_id=None, provider_id=None)
+        if history and getattr(history[-1], "role", None) == "assistant":
+            history[-1] = record
+        else:
+            history.append(record)
+        return view
 
     @property
     def last_turn_timing(self) -> TurnTiming:

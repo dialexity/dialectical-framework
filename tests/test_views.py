@@ -1,5 +1,5 @@
 """
-`graph/views.py` — the graph as a picture a host can draw.
+`graph/views.py` — the graph as a view a host can draw.
 
 What these tests hold, and why each one is worth a test rather than a reading:
 
@@ -10,7 +10,7 @@ What these tests hold, and why each one is worth a test rather than a reading:
    so a sentinel reaching it is a lie on screen.
 2. **`without_terminology()` really strips the machinery.** The framework
    already removes `[[hash]]` from person-facing TEXT (`reply_hygiene`); the
-   picture is the second surface of the same policy. The test walks the
+   view is the second surface of the same policy. The test walks the
    serialized projection and fails on any position, alias, hash or number left
    in it — so a field added to a view without a line in `without_terminology`
    fails here rather than in a screenshot.
@@ -311,7 +311,7 @@ class TestAbsenceIsNoneNotZero:
 
 
 class TestWithoutTerminology:
-    """The picture's half of the disclosure policy (`reply_hygiene` is the text's)."""
+    """The view's half of the disclosure policy (`reply_hygiene` is the text's)."""
 
     def test_the_texts_and_the_reading_survive(self):
         with scope(_new_sid()):
@@ -506,7 +506,7 @@ class TestTheExplorationView:
             index = build_pp_index(nexus)
             assert [t.index for t in view.perspectives] == [
                 index[pp._id] for pp in (pp1, pp2)
-            ], "T1 must mean the same perspective in the picture and in the prompt"
+            ], "T1 must mean the same perspective in the view and in the prompt"
 
     def test_a_standalone_tetrad_has_no_index(self):
         with scope(_new_sid()):
@@ -563,7 +563,7 @@ class TestTheAdvisorDrawsWhatItSees:
 
             assert view.nexus_hash is None
             assert [p.t.text for p in view.perspectives] == ["Control"]
-            assert view.perspectives[0].hash is None, "hidden: no hash on the picture"
+            assert view.perspectives[0].hash is None, "hidden: no hash on the view"
             assert view.perspectives[0].t_plus.position is None
             assert view.perspectives[0].intent == "Reading along: growth / security"
 
@@ -614,7 +614,7 @@ class TestTheAdvisorDrawsWhatItSees:
 @pytest.mark.llm
 class TestTheHostReadsOneDisclosureFlag:
     """One flag, two enforcement points: `reply_hygiene` filters the TEXT, the
-    host filters the PICTURE. A host deciding this for itself would eventually
+    host filters the VIEW. A host deciding this for itself would eventually
     disagree with the filter, and the disagreement shows as `T+` on screen in a
     conversation whose prose is scrubbed of it."""
 

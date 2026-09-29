@@ -568,16 +568,18 @@ edit to this prompt moves the baseline every `A2−A1` figure was read against;
 tools"). `chat()` / `chat_stream()` / `messages` / `last_turn_timing` as on every head, with
 `closing` and `deferral` `None` because there is no seam to conclude anything.
 
-**The picture.** `await consultant.exploration_view()` is the one read this head can draw: the
-tensions the person is holding, as a `ExplorationView` (`graph/views.py`, the same shape the
-graph-backed heads render from), made by one structured call over the person's turns only
-(`concerns/consultation_sketch.py`). No hash, alias or score exists to strip, nothing is
-checked (no HS gate, no validation, no dedup) and nothing is kept — it is a read over
-`messages`, not a turn in them, and the model cannot call it. The host owns the trigger.
+**The view.** `await consultant.exploration_view(focus=None)` is the one view this head
+can draw: an `ExplorationView` (`graph/views.py`, the same shape the graph-backed heads render
+from), made by a structured TURN on this same conversation — full history, both sides, its
+own system prompt — that renders what is established and builds what `focus` asks for that
+is not yet worked out (`concerns/view_sketch.py`). It thinks (json mode) and it is
+kept in `messages` as the consultant's own words, so the next turn knows what it drew. No
+hash, alias or score exists to strip; nothing is checked (no HS gate, no validation, no
+dedup) and nothing is persisted. The model cannot call it; the host owns the trigger.
 The Advisor has the same method over its graph: `await advisor.exploration_view()` resolves
 the pin (that exploration, numbered as the prompts number it; else every active perspective
 in the Case) and applies `hides_terminology` itself, so a persona app and a Navigator get the
-picture their prose matches without the host holding the flag.
+view their prose matches without the host holding the flag.
 
 **The upgrade.** A Consultant session becomes a Case in two steps, both the host's: create
 the Case, then inside its scope `await migrate_consultation(consultant.messages,

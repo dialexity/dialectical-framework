@@ -149,24 +149,24 @@ What to know before shipping it:
 
 ## Drawing it: the view schema
 
-`graph/views.py` is the picture side of the graph — typed frozen dataclasses with
+`graph/views.py` is the view side of the graph — typed frozen dataclasses with
 `to_dict()`, for a widget in a chat or a side pane. `rendering.py` next door renders prose
 for a prompt; these two have different rules and are deliberately separate modules.
 
 ```python
 # The head does it: pin → that exploration, else the whole Case; hides_terminology applied.
-picture = await advisor.exploration_view()
-picture = await consultant.exploration_view()     # no graph: one call over the person's turns
+view = await advisor.exploration_view()
+view = await consultant.exploration_view(focus="a perspective for the thesis you named")  # no graph: a turn on its own conversation
 
 # Or the module functions, inside the scope, for a host composing its own page:
 with scope(case.sid):
-    picture = exploration_view()              # every active perspective in the Case, nexus_hash None
-    picture = exploration_view(nexus)         # one exploration's, numbered as the prompts number it
-    picture = perspective_view(perspective)   # one perspective
-    picture = wheel_view(wheel)               # segments + spiral + synthesis
+    view = exploration_view()              # every active perspective in the Case, nexus_hash None
+    view = exploration_view(nexus)         # one exploration's, numbered as the prompts number it
+    view = perspective_view(perspective)   # one perspective
+    view = wheel_view(wheel)               # segments + spiral + synthesis
     if advisor.hides_terminology:             # the SAME flag reply_hygiene reads
-        picture = picture.without_terminology()
-return picture.to_dict()                      # str / float / bool / None / list / dict
+        view = view.without_terminology()
+return view.to_dict()                      # str / float / bool / None / list / dict
 ```
 
 Three things to know:
@@ -184,17 +184,22 @@ Three things to know:
 - **It is priced for a user-triggered widget, not a per-turn dump.** A tetrad is ~20
   relationship reads; `RelationshipManager.prefetch` first when drawing many.
 
-**The graphless head draws the same picture.** A `Consultant` has no graph to read, so
-`await consultant.exploration_view()` makes one structured call over the PERSON's turns
-(`concerns/consultation_sketch.py`) and returns the same `ExplorationView` — texts and the
-reading (`intent`, composed as the graph composes it) only. Terminology-free by construction (there is no hash, alias or score to strip;
+**The graphless head draws the same view, as a turn.** A `Consultant` has no graph to
+read, so `await consultant.exploration_view(focus=None)` is a structured turn on its OWN
+conversation — same system prompt, full history, both sides — that renders what the
+conversation has established and, where `focus` asks for structure not yet worked out ("a
+perspective for the thesis you named", "the antitheses we discussed"), builds it by the
+method first (`concerns/view_sketch.py`). It thinks at the session's level (json
+mode, the one structured shape that can), and what it drew stays in `messages` as the
+consultant's own words so the next turn can be asked about a corner. Same `ExplorationView`
+— texts and the reading (`intent`, composed as the graph composes it) only, a corner the ask
+did not reach left `null`. Terminology-free by construction (no hash, alias or score exists;
 `without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
-validation, no dedup, nothing kept): it is the picture BEFORE the upgrade, not a lighter
-version of the checked one. Only the person's turns are material — the replies are counsel,
-the migration's rule. It raises on a provider failure rather than returning an empty map, so
-"nothing to draw yet" and "the drawing failed" stay distinguishable to the button that asked.
+validation, no dedup, nothing kept): the view BEFORE the upgrade, not a lighter version
+of the checked one. It raises on a provider failure rather than returning an empty view,
+so "nothing drawn yet" and "the drawing failed" stay distinguishable to the button that asked.
 
-Not built: any tool that lets the model open a picture itself. The trigger is the host's
+Not built: any tool that lets the model open a view itself. The trigger is the host's
 (a button calling `exploration_view()` inside the scope, or `consultant.exploration_view()`), and that
 is a decision, not an omission — an LLM-elected `show` tool would be unreliable anyway
 (measured election rates: `anchor` 6/6, `explore` 2/6, `deepen` 0/6).

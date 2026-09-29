@@ -2935,7 +2935,7 @@ class Advisor(SettingsAware):
         points. `reply_hygiene` uses it to strip `[[hash]]` from the TEXT the
         person reads; a host drawing a widget uses it to pick
         `graph/views.py::…without_terminology()`, which drops positions,
-        aliases, hashes and scores from the PICTURE. A host that decided this
+        aliases, hashes and scores from the VIEW. A host that decided this
         for itself would eventually disagree with the filter, and the
         disagreement would show up as `T+` on screen inside a conversation whose
         prose is scrubbed of it.
@@ -2943,7 +2943,7 @@ class Advisor(SettingsAware):
         return self._hides_hashes
 
     async def exploration_view(self) -> ExplorationView:
-        """The picture of this conversation's structure, ready to draw.
+        """The view of this conversation's structure, ready to draw.
 
         The same `graph/views.py::exploration_view`, resolved the way this
         seat sees the graph: pinned to an exploration, that exploration (its

@@ -96,10 +96,12 @@ class TestTheShapeTravelsThroughIsolate:
 
 
 class TestNoConcernIsWiredToIt:
-    """The capability exists without a caller, by decision: thinking on the
-    extraction concern was priced on both tiers and bought nothing, and the
-    setting that wired it was removed. A concern that reaches for it again
-    needs its own A/B first."""
+    """No CONCERN is wired to it, by decision: thinking on the extraction
+    concern was priced on both tiers and bought nothing, and the setting that
+    wired it was removed. A concern that reaches for it again needs its own A/B
+    first. Its one caller is a head turn, not a concern:
+    `Consultant.exploration_view()` builds a tetrad in one shot on the
+    consultant's own history (`tests/test_view_sketch.py`)."""
 
     def test_extraction_runs_in_the_default_shape(self, di_container):
         from dialectical_framework.concerns.thesis_extraction import \
