@@ -388,6 +388,59 @@ class ConversationFacilitator(SettingsAware):
         self._messages.append(llm.messages.assistant(content, model_id=None, provider_id=None))
         return self
 
+    def load_messages(self, messages: list) -> None:
+        """Resume a conversation from a saved history, hydrating what needs it.
+
+        Hosts persist `messages` with the documented one-liner
+        (`json.dumps([dataclasses.asdict(m) for m in head.messages])`,
+        docs/agents.md) and hand the list back; what comes back is dicts. Half
+        of this class tolerated them (`_is_system_message`) and half did not —
+        `_call_with_response_model` reads `messages[-1].role` and the trace
+        logger reads `msg.role` — so a resumed text conversation failed inside
+        the first structured call with an `AttributeError` from deep in the
+        provider path (`tests/probe_blindspot_paths.py`, 2026-09-29: 20/20).
+
+        Text-only dicts (`role` in system/user/assistant, `content` a string or
+        a list of `{"type": "text", ...}` parts) are rebuilt here. Anything
+        carrying tool calls, tool outputs or media is the host's to rebuild by
+        the documented dispatch — the parts have shapes this loader must not
+        guess at — and raises at construction rather than on the next turn.
+        Mirascope objects pass through untouched. Always a COPY of the list,
+        as every head promises.
+        """
+        self._messages = [self._hydrate_message(m) for m in messages]
+
+    @staticmethod
+    def _hydrate_message(message: Any) -> Any:
+        if not isinstance(message, dict):
+            return message
+        role = message.get("role")
+        content = message.get("content")
+        if isinstance(content, list):
+            parts = content
+            if any((p.get("type") if isinstance(p, dict) else getattr(p, "type", None)) != "text" for p in parts):
+                raise TypeError(
+                    "A saved message carries non-text parts (tool_call, tool_output, "
+                    "image, ...): rebuild it as a Mirascope message by dispatching on "
+                    "role and part type (docs/agents.md, 'Message persistence') before "
+                    "passing it back."
+                )
+            text = "".join(
+                str((p.get("text") if isinstance(p, dict) else getattr(p, "text", "")) or "")
+                for p in parts
+            )
+        elif isinstance(content, str) or content is None:
+            text = content or ""
+        else:
+            raise TypeError(f"A saved message has content of type {type(content).__name__}; expected text.")
+        if role == "system":
+            return llm.messages.system(text)
+        if role == "user":
+            return llm.messages.user(text)
+        if role == "assistant":
+            return llm.messages.assistant(text, model_id=None, provider_id=None)
+        raise TypeError(f"A saved message has role {role!r}; expected system, user or assistant.")
+
     def isolate(self, *, keep_history: bool = True) -> ConversationFacilitator:
         """
         Create an isolated copy with current messages snapshot.

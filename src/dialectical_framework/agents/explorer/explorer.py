@@ -105,7 +105,7 @@ class Explorer:
         )
 
         if messages:
-            self._conversation._messages = list(messages)
+            self._conversation.load_messages(messages)
         nexus_intent = self._resolve_nexus_intent()
         self._conversation.set_system_prompt(
             self._build_system_prompt(nexus_hash, nexus_intent, app_preamble)

@@ -322,7 +322,7 @@ class Consultant:
             raise ValueError(_TOOLS_ON_A_TOOLLESS_HEAD)
         self._conversation = ConversationFacilitator(conversation_thinking=thinking)
         if messages:
-            self._conversation._messages = list(messages)
+            self._conversation.load_messages(messages)
         parts = [p for p in (preamble, method_prompt(include_decision)) if p]
         self._conversation.set_system_prompt("\n\n".join(parts))
 

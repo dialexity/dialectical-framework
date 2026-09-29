@@ -99,7 +99,7 @@ class Analyst:
             tools=self._tools, conversation_thinking=thinking
         )
         if messages:
-            self._conversation._messages = list(messages)
+            self._conversation.load_messages(messages)
         self._conversation.set_system_prompt(self._build_system_prompt(app_preamble))
 
     def _build_system_prompt(self, app_preamble: Optional[str] = None) -> str:

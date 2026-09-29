@@ -614,7 +614,7 @@ class Advisor(SettingsAware):
             tools=self._tools, conversation_thinking=thinking
         )
         if messages:
-            self._conversation._messages = list(messages)
+            self._conversation.load_messages(messages)
         self._app_preamble = app_preamble
         # Whether `[[hash]]` addresses are stripped from what the person reads.
         # A property of the composed preamble, not of the mode: the engine's

@@ -68,6 +68,33 @@ n = 1 clean after the fix. A screen, not a result: rerun before claiming the
 parse defect is closed, and count labels in reply 3 across several runs before
 claiming the leak is.
 
+## The blindspot probe (`tests/probe_blindspot_paths.py`, 2026-09-29)
+
+The first app (a blindspot app: one utterance in, a tetrad with A+ in front out)
+needs a tetrad per free utterance. Two ways exist; 20 utterances through both,
+one rater, per-item JSON kept in the scratchpad of that session.
+
+| | A: `Consultant.exploration_view(focus=…)` | B: headless `anchor` (thesis-only branch) → `perspective_view` |
+|---|---|---|
+| drawn | 20/20 | 19/20 (one `ClassificationDto` parse failure the envelope salvage did not unwrap: `{"parameter name": {...}}`) |
+| latency | median 8.0 s, max 10.4 s | median 49.2 s, max 87.3 s |
+| antithesis | a genuine opposing POSITION ("Gaming is his own space", "Focus on doing fewer things excellently") | mostly a strawman EXTREME ("Stay employed forever, never risk it", "I hate my new manager", "Strip every feature; ship nothing") |
+| A+ read by hand | usable as a blindspot in most rows | usable in most rows, but as "the moderate version of the extreme" |
+| scores / checks | none by construction | HS(A) a uniform 0.95 on every row (not discriminating); 17/19 `failed: Conceptual coherence`; 2 passed |
+| memory | none | the graph — the "recurring blindspots" map |
+
+Verdict for the pre-MVP: Path A. Two framework findings from Path B, both
+open: the thesis-only anchor path's antithesis is an exaggeration of not-T
+rather than an opposing position (which then drives the CC failures), and HS
+does not separate them. Both belong to the pipeline, not to the app, and both
+are one sample.
+
+Also found by this probe, fixed: a resumed conversation passed as dicts (the
+documented persistence recipe's own output) failed inside the first structured
+call with `AttributeError: 'dict' object has no attribute 'role'` — 20/20 on
+Path A's first run. `ConversationFacilitator.load_messages` now hydrates
+text-only dicts on every head and refuses tool parts and media at construction.
+
 Two lessons worth the rule they became: **a history record must not carry the
 labels the prose must not** (the model echoes its own memory), and **a long
 structured request left in history next to a prose answer teaches the next

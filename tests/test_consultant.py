@@ -87,10 +87,35 @@ class TestWhatTheHeadComposes:
 class TestWhatTheHeadCarries:
     def test_messages_resume_a_conversation(self):
         first = Consultant(app_preamble="p")
-        first._conversation._messages.append({"role": "user", "content": "hello"})
+        first._conversation.add_user_message("hello")
         second = Consultant(app_preamble="p", messages=first.messages)
-        assert second.messages[-1] == {"role": "user", "content": "hello"}
+        assert second.messages[-1] is first.messages[-1], "objects pass through untouched"
         assert second.messages is not first.messages, "a copy, as on every head"
+
+    def test_a_saved_text_history_is_hydrated_on_load(self):
+        """The documented persistence recipe hands back dicts; a text-only
+        history needs no rebuild by the host (docs/agents.md, 'Message
+        persistence'). Before this, a resumed dict conversation failed inside
+        the first structured call: `messages[-1].role` on a dict."""
+        saved = [
+            {"role": "system", "content": "old system prompt, replaced on load"},
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": [{"type": "text", "text": "hi "}, {"type": "text", "text": "there"}]},
+        ]
+        head = Consultant(app_preamble="p", messages=saved)
+        roles = [m.role for m in head.messages]  # every one an object with .role
+        assert roles == ["system", "user", "assistant"]
+        from dialectical_framework.agents.advisor.migration import message_text
+        assert message_text(head.messages[-1]) == "hi there"
+        assert "old system prompt" not in message_text(head.messages[0]), (
+            "the head rewrites messages[0] from its own prompt"
+        )
+
+    def test_a_saved_history_with_tool_parts_is_refused_at_construction(self):
+        import pytest
+        saved = [{"role": "assistant", "content": [{"type": "tool_call", "id": "c1", "name": "x", "args": "{}"}]}]
+        with pytest.raises(TypeError, match="rebuild it as a Mirascope message"):
+            Consultant(app_preamble="p", messages=saved)
 
     def test_thinking_is_the_per_session_toggle(self):
         assert Consultant(thinking=None)._conversation._thinking_kwargs() == {}

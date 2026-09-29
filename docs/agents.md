@@ -192,7 +192,11 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    ```
 
    Rebuild by dispatching on `role`, then on each part's `type` (`text`, `tool_call`,
-   `thought`, `tool_output`, `image`, `audio`, `document`).
+   `thought`, `tool_output`, `image`, `audio`, `document`). **A text-only history needs
+   no rebuild**: every head hydrates `role` + string (or text parts) dicts on load
+   (`ConversationFacilitator.load_messages`); a dict carrying tool calls, tool outputs
+   or media raises `TypeError` at construction — rebuild those yourself — rather than
+   failing inside the next provider call (`tests/test_consultant.py`).
 
    **Keep `raw_message`.** It looks like provenance and is not: it holds the provider's
    own payload, and Mirascope passes it back **verbatim** as input on the next call —
