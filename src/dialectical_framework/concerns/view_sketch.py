@@ -159,7 +159,7 @@ def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
         if focus and focus.strip()
         else "What to show: the tensions this conversation has worked out so far.\n\n"
     )
-    return f"""Draw the structure of this conversation as dialectical tetrads.
+    return f"""Draw the structure of this conversation as dialectical tetrads. Answer with ONE JSON object in the requested schema and nothing else — no prose. Earlier drawings in this conversation are recorded in prose; that is their record, not the format of this answer.
 
 {focus_line}{ASPECT_DEFINITIONS}
 
@@ -237,10 +237,16 @@ def exploration_view_from_sketch(sketch: ViewSketchDto) -> ExplorationView:
 
 # --- What the turn leaves in the conversation --------------------------------
 
-_HISTORY_POSITIONS = (
-    ("t", "T"), ("a", "A"), ("t_plus", "T+"), ("t_minus", "T-"),
-    ("a_plus", "A+"), ("a_minus", "A-"),
-)
+
+def history_ask(focus: Optional[str]) -> str:
+    """The user line the view turn leaves in the history in place of the
+    request. The request itself is long (definitions, procedure) and, kept
+    with a prose record after it, became a Q→A exemplar: the SECOND view turn
+    of a real run answered the JSON request in the record's prose and failed
+    to parse ten times (`tests/test_view_sketch_real_llm.py`, 2026-09-29). So
+    the history keeps what the person effectively asked, and the record."""
+    focus = (focus or "").strip()
+    return f"Show me: {focus}" if focus else "Show me the structure of what we've worked out so far."
 
 
 def history_text(view: ExplorationView) -> str:
@@ -248,22 +254,39 @@ def history_text(view: ExplorationView) -> str:
 
     The structured result would otherwise enter the history as a Pydantic repr
     (`_assistant_history_text` falls back to `str()`), which the facilitator's
-    own note warns invites imitation. This is replayed to the provider only,
-    never shown to the person, so the position labels are fine here — they are
-    how the model refers to the corners it drew when the next turn asks about
-    one.
+    own note warns invites imitation.
+
+    NO position labels here, deliberately. The first version wrote
+    "T+: …; T-: …" and the very next reply told the person "the one I'd flag is
+    T-" (`tests/test_view_sketch_real_llm.py`, 2026-09-29) — the bare-label
+    leak CLAUDE.md documents, produced by feeding the model the labels in its
+    own memory. So each corner is described in the person's terms: the pole it
+    develops and whether it develops it well or overdoes it. The model can
+    still refer to any corner by content on the next turn, which is what
+    "remembering what it drew" is for.
     """
     if not view.perspectives:
         return "I drew nothing: the conversation has not established a tension yet."
     lines = ["I drew the structure we have so far:"]
     for n, p in enumerate(view.perspectives, 1):
-        parts = [
-            f"{label}: {pole.text}"
-            for name, label in _HISTORY_POSITIONS
-            if (pole := getattr(p, name)) is not None
-        ]
-        head = f"{n}. " + "; ".join(parts)
+        t = p.t.text if p.t else None
+        a = p.a.text if p.a else None
+        if t and not a:
+            lines.append(f'{n}. Position: "{t}" — its opposition not yet found.')
+            continue
+        head = f'{n}. Tension: "{t}" against "{a}"'
         if p.intent:
             head += f" ({p.intent})"
-        lines.append(head)
+        corners = [
+            (p.t_plus, f'"{t}" developed well'),
+            (p.t_minus, f'"{t}" overdone'),
+            (p.a_plus, f'"{a}" developed well'),
+            (p.a_minus, f'"{a}" overdone'),
+        ]
+        drawn = [f"{how}: {pole.text}" for pole, how in corners if pole is not None]
+        if drawn:
+            lines.append(head + ".")
+            lines.append("   " + " ".join(f"{d}." for d in drawn))
+        else:
+            lines.append(head + " — the two sides only, not yet developed.")
     return "\n".join(lines)

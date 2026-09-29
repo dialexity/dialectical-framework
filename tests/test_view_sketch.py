@@ -213,13 +213,30 @@ class TestTheRequestAndTheRecord:
         assert "worked out so far" in view_sketch_prompt(None, 7)
         assert "worked out so far" in view_sketch_prompt("   ", 7)
 
-    def test_the_history_record_is_words_with_the_corners_named(self):
+    def test_the_history_record_is_words_in_the_persons_terms(self):
         text = history_text(exploration_view_from_sketch(ViewSketchDto(tensions=[_tension()])))
         assert text.startswith("I drew the structure we have so far:")
-        assert "T: Keep the Berlin office" in text
-        assert "A-: Zurich alone loses the German market" in text
+        assert 'Tension: "Keep the Berlin office" against "Consolidate everything in Zurich"' in text
+        assert '"Consolidate everything in Zurich" overdone: Zurich alone loses the German market' in text
         assert "(Reading along: local presence / focus)" in text
         assert "ViewSketchPerspectiveDto(" not in text, "never a repr in the history"
+
+    def test_the_history_record_carries_no_position_label(self):
+        """Measured: with "T-:" in the record, the next reply said "the one I'd
+        flag is T-" to the person (`test_view_sketch_real_llm.py`)."""
+        import re
+        text = history_text(exploration_view_from_sketch(ViewSketchDto(tensions=[_tension()])))
+        assert not re.search(r"\b[TA][+-]?:", text), text
+
+    def test_the_two_sides_alone_are_recorded_as_such(self):
+        bare = _tension(t_plus="", t_minus="", a_plus="", a_minus="",
+                        t_plus_vs_a_minus_axis="", a_plus_vs_t_minus_axis="")
+        text = history_text(exploration_view_from_sketch(ViewSketchDto(tensions=[bare])))
+        assert "the two sides only, not yet developed" in text
+        lone = _tension(antithesis="")
+        assert "its opposition not yet found" in history_text(
+            exploration_view_from_sketch(ViewSketchDto(tensions=[lone]))
+        )
 
     def test_an_empty_picture_is_recorded_as_such(self):
         assert history_text(ExplorationView()).startswith("I drew nothing")
@@ -244,6 +261,7 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         assert sketch_turn._format_mode == "json"
         assert call["model"] is ViewSketchDto
         assert "What to show: a perspective for the office question" in call["prompt"]
+        assert message_text(head.messages[-2]) == "Show me: a perspective for the office question"
         # Both sides were in front of the model, and its own system prompt led.
         texts = [message_text(m) for m in sketch_turn._messages]
         assert any("What would closing it cost you?" in t for t in texts), (
@@ -260,8 +278,14 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
 
         await head.exploration_view()
 
-        assert len(head.messages) == before + 2, "the request and the record: one turn"
+        assert len(head.messages) == before + 2, "the ask and the record: one turn"
         assert _roles(head.messages)[-2:] == ["user", "assistant"]
+        ask = message_text(head.messages[-2])
+        assert ask == "Show me the structure of what we've worked out so far."
+        assert "Aspect Definitions" not in ask, (
+            "the long request is not kept: as a Q→A exemplar it taught the next "
+            "view turn to answer in prose"
+        )
         last = message_text(head.messages[-1])
         assert last.startswith("I drew the structure we have so far:")
         assert "Keep the Berlin office" in last

@@ -377,23 +377,28 @@ class Consultant:
         from "the drawing failed".
         """
         from dialectical_framework.concerns.view_sketch import (
-            ViewSketchDto, history_text, view_sketch_prompt, exploration_view_from_sketch)
+            ViewSketchDto, exploration_view_from_sketch, history_ask,
+            history_text, view_sketch_prompt)
 
         level = self._conversation._thinking_kwargs().get("thinking")
         sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
-        sketch_turn._messages = self._conversation._messages  # the same list: one history
+        history = self._conversation._messages
+        sketch_turn._messages = history  # the same list: one history
+        before = len(history)
         sketch = await sketch_turn.submit(
             ViewSketchDto,
             view_sketch_prompt(focus, self._conversation.settings.component_length),
         )
         view = exploration_view_from_sketch(sketch)
-        # Leave the view in the history as words, not as a DTO repr.
-        history = self._conversation._messages
-        record = llm.messages.assistant(history_text(view), model_id=None, provider_id=None)
-        if history and getattr(history[-1], "role", None) == "assistant":
-            history[-1] = record
-        else:
-            history.append(record)
+        # What the turn leaves behind is NOT what it sent: the long request and
+        # the DTO come off, and the person's ask plus the drawing in words go
+        # on. Kept as a request→prose pair, the long request taught the next
+        # view turn to answer in prose (`view_sketch.history_ask`).
+        del history[before:]
+        history.append(llm.messages.user(history_ask(focus)))
+        history.append(
+            llm.messages.assistant(history_text(view), model_id=None, provider_id=None)
+        )
         return view
 
     @property
