@@ -159,8 +159,9 @@ tetrads (`edit_perspective`). Generated tetrads are never gated on it.
 **Ranking, in practice:** these tiers and an `area_normalized` ordering are guidance for
 a UI — the framework does **not** implement them. The only ranking in code is
 `AnalysisPipeline._rank_polarities`, which orders polarities by their antithesis
-`heuristic_similarity` against a soft `HS_THRESHOLD = 0.7` (if nothing clears it, the top
-few are expanded anyway). If a UI wants to order valid tetrads, `area_normalized` (0–1,
+`tetrad_potential` (the paper's Optimum A) among polarities whose antithesis
+`heuristic_similarity` clears the soft `HS_THRESHOLD = 0.7` (if nothing clears it, the top
+few are expanded anyway; a 0.3 floor was tried on 2026-09-30 and rejected — CC fell to 18%). If a UI wants to order valid tetrads, `area_normalized` (0–1,
 higher = better) gated by the validity checks is a reasonable choice, with rectangularity
 as a tiebreaker.
 

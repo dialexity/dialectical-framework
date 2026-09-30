@@ -31,7 +31,7 @@ class TestBuildPolarityQuality:
     def _data(self) -> list[dict]:
         return [
             {"polarity_hash": "aaa", "thesis_text": "T1", "antithesis_text": "A1", "heuristic_similarity": 0.9},
-            {"polarity_hash": "bbb", "thesis_text": "T2", "antithesis_text": "A2", "heuristic_similarity": 0.4},
+            {"polarity_hash": "bbb", "thesis_text": "T2", "antithesis_text": "A2", "heuristic_similarity": 0.2},
             {"polarity_hash": "ccc", "thesis_text": "T3", "antithesis_text": "A3", "heuristic_similarity": 0.75},
         ]
 
@@ -220,11 +220,13 @@ class TestRankPolaritiesGate:
         assert [p["polarity_hash"] for p in kept] == ["best", "worse"]
 
     def test_fallback_ranks_hs_descending(self):
+        """All three below the validity floor (0.3 since 2026-09-30): nothing
+        clears the gate, so the top few are expanded anyway, best HS first."""
         kept = self._pipeline()._rank_polarities(
-            [self._entry("mid", 0.3), self._entry("top", 0.5), self._entry("low", 0.1)]
+            [self._entry("mid", 0.1), self._entry("top", 0.25), self._entry("low", 0.05)]
         )
 
-        assert [p["heuristic_similarity"] for p in kept] == [0.5, 0.3, 0.1]
+        assert [p["heuristic_similarity"] for p in kept] == [0.25, 0.1, 0.05]
 
     def test_truncates_to_the_expansion_budget(self):
         """Above the threshold, the budget still bites — and it takes the best."""
@@ -277,7 +279,7 @@ class TestRankPolaritiesGate:
         all. It must not crash the run, and it must not outrank a scored one.
         """
         kept = self._pipeline()._rank_polarities(
-            [{"polarity_hash": "bare"}, self._entry("scored", 0.3)]
+            [{"polarity_hash": "bare"}, self._entry("scored", 0.2)]  # both under the floor
         )
 
         assert [p["polarity_hash"] for p in kept] == ["scored", "bare"]

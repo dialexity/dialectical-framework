@@ -21,6 +21,9 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+import random
+
 import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Awaitable, Optional, TypeVar
@@ -107,6 +110,33 @@ class ModePointBatchResultDto(BaseModel):
 
     candidates: list[ModePointResultDto] = Field(
         description="List of antithesis candidates for this branch"
+    )
+
+
+class OptimumARankingDto(BaseModel):
+    """One thesis's candidates ranked best-first — the paper's "Optimum A"
+    [P0 Table 5] chosen COMPARATIVELY.
+
+    Why a ranking and not the per-candidate `tetrad_potential` rating: rated in
+    isolation, the model gave 68 of 99 candidates the same 0.75 and the mean
+    was 0.78 on tetrads that later passed the coherence check against 0.77 on
+    those that failed (`tests/e2e/probe_tetrad_quality.py`, set A, 2026-09-30)
+    — an unpaired rating with nothing to compare against does not discriminate.
+    Seeing all of a thesis's candidates at once is what makes a choice possible.
+    """
+
+    ranking: list[int] = Field(
+        description=(
+            "EVERY candidate number, best first. Best = the antithesis most likely "
+            "to yield a coherent tetrad: a position held for its own value that "
+            "functionally opposes the role the thesis plays; it can be developed so "
+            "that it also strengthens what the thesis is for, and it has its own "
+            "one-sided failure. Worst = the thesis's absence or degradation dressed "
+            "as a stance, or a caricature nobody holds."
+        )
+    )
+    reasoning: str = Field(
+        description="Two or three sentences: what separated the top from the bottom."
     )
 
 
@@ -230,10 +260,12 @@ class AntithesisExtraction(
             report_progress("Weighing what could stand against this")
             candidates = await self._extract_candidates(thesis, taxonomy)
 
-            selected = self._truncate_candidates(candidates)
-
+            # Link 3 now begins with the comparative choice (one call), then
+            # persists — same step, announced once, as before.
             expect_progress(1)
             report_progress("Judging how strongly each opposition holds")
+            candidates = await self._rank_optimum_a(thesis, candidates)
+            selected = self._truncate_candidates(candidates)
             results = await self._persist_candidates(thesis, selected)
 
         # Build artifacts
@@ -477,6 +509,63 @@ Generate:
                     )
                 )
 
+        return candidates
+
+    async def _rank_optimum_a(
+        self, thesis: Statement, candidates: list[AntithesisCandidate]
+    ) -> list[AntithesisCandidate]:
+        """Set each candidate's `tetrad_potential` from ONE comparative ranking.
+
+        The paper's "Optimum A" is a choice among a thesis's candidate
+        antitheses, so it is asked as one: all candidates numbered (shuffled,
+        deterministically per thesis, so the ladder's rung order is not the
+        position bias), ranked best-first, and the rank becomes the potential
+        (`1.0` for the top, `0.0` for the bottom). The per-candidate self-rating
+        stays only as the fallback when this call fails — it was measured flat
+        (`OptimumARankingDto`). Fail-soft: a failed ranking degrades to the
+        rating, never to no antithesis.
+        """
+        if len(candidates) < 2:
+            return candidates
+        order = list(range(len(candidates)))
+        random.Random(thesis.hash or thesis.text).shuffle(order)
+        numbered = "\n".join(
+            f"{n + 1}. {candidates[i].statement_text}" for n, i in enumerate(order)
+        )
+        context_section = (
+            f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        )
+        prompt = f"""{context_section}Rank these candidate antitheses for the thesis, best first.
+
+Thesis: "{thesis.prompt_text}"
+
+Candidates:
+{numbered}
+
+The best antithesis is the one most likely to yield a coherent tetrad with the thesis: a POSITION someone holds for its own value that functionally opposes the role the thesis plays — it can be developed constructively so that it also strengthens what the thesis is for, and it has its own one-sided failure. Rank lower any candidate that is the thesis's absence or degradation dressed as a stance, a caricature nobody would hold, or the thesis merely hedged. Return every number exactly once."""
+        try:
+            verdict = await self._conversation.isolate().submit(
+                response_model=OptimumARankingDto, user_content=prompt
+            )
+        except Exception as exc:  # noqa: BLE001 — degrade to the self-rating
+            logging.getLogger(__name__).warning(
+                "Optimum-A ranking failed for %r; keeping the per-candidate "
+                "ratings: %s", thesis.text, exc,
+            )
+            return candidates
+        # Sanitise: model bytes, so numbers may repeat, exceed, or be missing.
+        seen: list[int] = []
+        for number in verdict.ranking:
+            index = number - 1
+            if 0 <= index < len(order) and index not in seen:
+                seen.append(index)
+        for index in range(len(order)):
+            if index not in seen:
+                seen.append(index)
+        span = max(1, len(seen) - 1)
+        for position, shuffled_index in enumerate(seen):
+            candidate = candidates[order[shuffled_index]]
+            candidate.tetrad_potential = round(1.0 - position / span, 3)
         return candidates
 
     def _candidates_per_branch(self, num_branches: int) -> int:

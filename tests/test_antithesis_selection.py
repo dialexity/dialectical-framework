@@ -111,16 +111,19 @@ class TestTheGateGatesAndTheOrderIsPotential:
         return [
             {"polarity_hash": "caricature", "heuristic_similarity": 0.95, "tetrad_potential": 0.2},
             {"polarity_hash": "position", "heuristic_similarity": 0.75, "tetrad_potential": 0.9},
-            {"polarity_hash": "weak", "heuristic_similarity": 0.4, "tetrad_potential": 0.95},
+            {"polarity_hash": "lower_rung", "heuristic_similarity": 0.4, "tetrad_potential": 0.95},
+            {"polarity_hash": "not_an_opposition", "heuristic_similarity": 0.2, "tetrad_potential": 0.99},
             {"polarity_hash": "unrated", "heuristic_similarity": 0.8},
         ]
 
     def test_hs_gates_and_potential_orders(self):
+        """HS gates at 0.7 (tried at the scale's 0.3 floor on 2026-09-30 and
+        rejected: CC fell to 18%, the admitted lower rungs passed it at 3/25 —
+        `analyst.HS_THRESHOLD`); among those that pass, potential orders, and
+        an unrated one ranks by its HS as before."""
         ranked = AnalysisPipeline()._rank_polarities(self._data())
-        assert [p["polarity_hash"] for p in ranked] == ["position", "unrated", "caricature"], (
-            "the sub-threshold one is set aside however high its potential; "
-            "the unrated one ranks by its HS, as before"
-        )
+        assert [p["polarity_hash"] for p in ranked] == ["position", "unrated", "caricature"]
+        assert all((p.get("heuristic_similarity") or 0) >= HS_THRESHOLD for p in ranked)
         assert all((p.get("heuristic_similarity") or 0) >= HS_THRESHOLD for p in ranked)
 
     def test_the_quality_report_carries_the_potential_in_expansion_order(self):
@@ -132,10 +135,11 @@ class TestTheGateGatesAndTheOrderIsPotential:
         by_hash = {q["polarity_hash"]: q for q in quality}
         assert by_hash["position"]["tetrad_potential"] == 0.9
         assert by_hash["unrated"]["tetrad_potential"] is None
-        assert [q["polarity_hash"] for q in quality][:2] == ["weak", "position"] or (
-            [q["polarity_hash"] for q in quality][0] == "weak"
-        ), "sorted by potential where rated"
-        assert by_hash["weak"]["status"] == "set_aside", "high potential does not pass the HS gate"
+        assert [q["polarity_hash"] for q in quality][0] == "not_an_opposition", (
+            "sorted by potential where rated — status says why it was still not expanded"
+        )
+        assert by_hash["not_an_opposition"]["status"] == "set_aside"
+        assert by_hash["lower_rung"]["status"] == "set_aside", "HS 0.4 does not pass the gate"
 
 
 class TestThePromptAsksForAPosition:
@@ -200,3 +204,108 @@ class TestThePotentialIsPersistedNextToModeAndArousal:
             assert service.report.artifacts.get("tetrad_potential_by_hash") is None, (
                 "the artifact is written by resolve(), not by the persist step"
             )
+
+
+class TestTheOptimumAIsChosenComparatively:
+    """Rated alone, `tetrad_potential` came back 0.75 on 68 of 99 candidates
+    (set A, 2026-09-30) — no discrimination. One ranking call over all of a
+    thesis's candidates is what makes a choice; its rank becomes the potential
+    the selector already ranks by."""
+
+    @pytest.fixture(autouse=True)
+    def cleanup_graph_db(self):
+        yield
+
+    @pytest.fixture(autouse=True)
+    def cleanup_test_graph_data(self):
+        yield
+
+    def _service_with_ranking(self, monkeypatch, ranking: list[int], capture: dict | None = None):
+        from dialectical_framework.concerns.antithesis_extraction import \
+            OptimumARankingDto
+
+        class _Isolated:
+            async def submit(self, response_model, user_content):
+                if capture is not None:
+                    capture["prompt"] = user_content
+                    capture["model"] = response_model
+                return OptimumARankingDto(ranking=ranking, reasoning="r")
+
+        class _Conversation:
+            def isolate(self):
+                return _Isolated()
+
+        service = AntithesisExtraction()
+        service._conversation = _Conversation()
+        service._text = ""
+        return service
+
+    def _thesis(self):
+        from dialectical_framework.graph.nodes.statement import Statement
+        return Statement(text="Quit my job and start my own company", meaning="test")
+
+    @pytest.mark.asyncio
+    async def test_the_rank_becomes_the_potential_top_to_bottom(self, monkeypatch):
+        capture: dict = {}
+        cands = [_cand("negation", 0.95, 0.75, "Never quit"),
+                 _cand("privation", 0.5, 0.75, "Keep the security of employed work"),
+                 _cand("skew", 0.6, 0.75, "Build a side hustle, keep the job")]
+        service = self._service_with_ranking(monkeypatch, [], capture)
+        # Read the shuffled numbering the prompt used, then answer in a chosen order.
+        await service._rank_optimum_a(self._thesis(), cands)
+        lines = [l for l in capture["prompt"].splitlines() if l[:1].isdigit()]
+        number_of = {l.split(". ", 1)[1]: int(l.split(".")[0]) for l in lines}
+        assert set(number_of) == {c.statement_text for c in cands}, "every candidate is offered"
+
+        best_first = ["Build a side hustle, keep the job", "Keep the security of employed work", "Never quit"]
+        service = self._service_with_ranking(monkeypatch, [number_of[t] for t in best_first])
+        await service._rank_optimum_a(self._thesis(), cands)
+        by_text = {c.statement_text: c.tetrad_potential for c in cands}
+        assert by_text == {"Build a side hustle, keep the job": 1.0,
+                           "Keep the security of employed work": 0.5,
+                           "Never quit": 0.0}
+        assert [c.statement_text for c in sorted(cands, key=AntithesisExtraction.selection_key, reverse=True)] == best_first
+
+    @pytest.mark.asyncio
+    async def test_model_bytes_are_sanitised(self, monkeypatch):
+        """Repeats, out-of-range numbers and omissions: the missing ones trail in
+        their offered order, nothing raises, every candidate gets a potential."""
+        cands = [_cand("a", 0.9, 0.75, "one"), _cand("b", 0.8, 0.75, "two"), _cand("c", 0.7, 0.75, "three")]
+        service = self._service_with_ranking(monkeypatch, [2, 2, 9, 0])
+        await service._rank_optimum_a(self._thesis(), cands)
+        pots = sorted(c.tetrad_potential for c in cands)
+        assert pots == [0.0, 0.5, 1.0]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_ranking_keeps_the_self_ratings(self, monkeypatch):
+        class _Isolated:
+            async def submit(self, response_model, user_content):
+                raise RuntimeError("provider down")
+
+        class _Conversation:
+            def isolate(self):
+                return _Isolated()
+
+        service = AntithesisExtraction()
+        service._conversation = _Conversation()
+        service._text = ""
+        cands = [_cand("a", 0.9, 0.6, "one"), _cand("b", 0.8, 0.8, "two")]
+        await service._rank_optimum_a(self._thesis(), cands)
+        assert [c.tetrad_potential for c in cands] == [0.6, 0.8], "degrades, never drops"
+
+    @pytest.mark.asyncio
+    async def test_one_candidate_is_not_ranked(self, monkeypatch):
+        capture: dict = {}
+        service = self._service_with_ranking(monkeypatch, [1], capture)
+        (c,) = [_cand("a", 0.9, 0.7, "only")]
+        await service._rank_optimum_a(self._thesis(), [c])
+        assert c.tetrad_potential == 0.7 and "prompt" not in capture
+
+    def test_the_ranking_prompt_states_the_criterion_and_the_failures(self, monkeypatch):
+        import asyncio
+        capture: dict = {}
+        service = self._service_with_ranking(monkeypatch, [1, 2], capture)
+        asyncio.run(service._rank_optimum_a(self._thesis(), [_cand("a", 0.9, 0.7, "x"), _cand("b", 0.8, 0.7, "y")]))
+        prompt = capture["prompt"]
+        for phrase in ("holds for its own value", "functionally opposes", "caricature", "merely hedged", "every number exactly once"):
+            assert phrase in prompt

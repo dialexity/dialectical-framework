@@ -221,6 +221,19 @@ class AnalysisResult(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
 
+# The expansion GATE on a polarity's antithesis HS. Tried at the HS scale's
+# validity floor (0.3) on 2026-09-30 and REJECTED the same day: HS on an
+# antithesis is similarity to "[T]-lessness", and the 0.7 gate set aside 59 of
+# 99 candidates including some of the most genuine-looking positions ("Build a
+# side hustle, keep the job" at 0.45) — so the floor looked like a bar on the
+# lower rungs rather than on quality. Measured, it was a bar on quality: with
+# the floor, CC pass fell from 32–45% to 18% over all expanded tetrads and
+# 15% on the first one, the newly admitted HS < 0.7 antitheses passed CC at
+# 3/25 against 6/26 for the old pool, and non-oppositions tripled
+# (`tests/e2e/probe_tetrad_quality.py`, run A4, 13 of 20 utterances before the
+# machine stopped it). ORDER of expansion is `tetrad_potential`
+# (`_selection_key`); this constant is the gate, and it stays where it was.
+# Story: docs/dev-notes/antithesis-selection.md.
 HS_THRESHOLD = 0.7
 MAX_POLARITIES_TO_EXPAND = 5
 

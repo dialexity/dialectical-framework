@@ -317,13 +317,17 @@ class TestPlusTakeUpIsChecked:
     def test_tetrad_prompt_re_read_step_covers_both_failures_distinctly(self):
         """Step 3 used to be parentage-only. Both defects are re-read failures of
         step 1, and they are NOT the same failure: one is wrong parentage, the
-        other is correct parentage with no take-up."""
+        other is correct parentage with no take-up. (A third check — the plus
+        hedged by the other pole — and the control statements as a step 4 were
+        tried and reverted on 2026-09-30: measured no effect; see the comment
+        above `PLUS_RESTATEMENT_CHECK`.)"""
         from dialectical_framework.concerns import aspect_generation
 
         src = inspect.getsource(aspect_generation.AspectGeneration._tetrad_prompt)
         assert "two distinct failures" in src
         assert "(a) Wrong parent:" in src
         assert "(b) {PLUS_RESTATEMENT_CHECK}" in src
+        assert "PLUS_HEDGE_CHECK" not in src and "CONTROL_STATEMENT_CHECK" not in src
 
     def test_system_prompt_teaches_the_plus_failure_and_its_over_correction(self):
         """The one worked "mistake to avoid" covered only the minus defect — the

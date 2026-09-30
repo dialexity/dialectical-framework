@@ -207,6 +207,35 @@ class TestTheOtherRules:
         assert salvaged.particulars == "45% equity."
 
 
+class TestASingleKeyOfTheModelsOwn:
+    """Rule 4: the object under one key the model chose — observed as a provider
+    template token leaking as the wrapper (`"parameter name"`,
+    `"$PARAMETER_NAME"`) on sonnet-5, `ClassificationDto`. Cost 1 of 20 anchors
+    ten blind re-asks each before this existed."""
+
+    @pytest.mark.parametrize("key", ["parameter name", "$PARAMETER_NAME", "anything"])
+    def test_the_inner_object_is_recovered_whatever_the_key(self, key):
+        payload = json.dumps({key: {"particulars": "Decision due before the raise."}})
+
+        salvaged = _salvage(payload, _GroundingLike)
+
+        assert salvaged is not None
+        assert salvaged.particulars == "Decision due before the raise."
+
+    def test_two_top_level_keys_are_not_guessed_between(self):
+        payload = json.dumps({
+            "a": {"particulars": "one"},
+            "b": {"particulars": "two"},
+        })
+        assert _salvage(payload, _GroundingLike) is None
+
+    def test_the_inner_object_must_still_name_a_real_field(self):
+        payload = json.dumps({"$PARAMETER_NAME": {"value": "I cannot answer"}})
+        assert _salvage(payload, _GroundingLike) is None, (
+            "a wrapper around junk is still junk: the field-name invariant holds"
+        )
+
+
 class TestTheSalvageNeverInventsAField:
     """The invariant that makes a GENERIC salvage safe.
 
@@ -509,9 +538,15 @@ class TestRetryLoopIntegration:
                     # `_GroundingLike` explicitly: `_DedupLike` defaults every
                     # field, so it would VALIDATE this payload and never reach
                     # the failure path — the same trap the salvage's
-                    # names-a-real-field gate exists for.
+                    # names-a-real-field gate exists for. TWO wrapper keys,
+                    # because one key of any name is rule 4 (salvaged since
+                    # 2026-09-30) and this test needs a payload that stays
+                    # unsalvageable: with two, which one is "the object" would
+                    # be a guess, and the salvage never guesses.
                     return _FakeResponse(
-                        '{"mystery_wrapper": {"particulars": "x"}}', _GroundingLike
+                        '{"mystery_wrapper": {"particulars": "x"}, '
+                        '"other_wrapper": {"particulars": "y"}}',
+                        _GroundingLike,
                     )
 
                 return _inner

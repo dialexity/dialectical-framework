@@ -1601,7 +1601,15 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    step 1, both sibling prompts) and ran at 13.3%; minus-parentage had a RE-READ STEP in the numbered
    procedure and ran at 3.1%. **A rule asserted more times is not a rule enforced more; the one with a
    verification step was the one that held.** So `PLUS_RESTATEMENT_CHECK` is one constant interpolated into
-   all three generation paths, plus-positions only (`TestPlusTakeUpIsChecked`). **The A/B ran and the check
+   all three generation paths, plus-positions only (`TestPlusTakeUpIsChecked`). **Tried and reverted on
+   2026-09-30, recorded so nobody re-tries it on a hunch**: a `PLUS_HEDGE_CHECK` (the plus as its parent
+   MODERATED by the other pole's concern — the over-correction direction registered below) as failure (c),
+   and the two control statements as a step 4 of construction. A hand audit of 20 tetrads had suggested it
+   (same-compromise pluses 8/20, CC 25% there vs 42%); the instrument (`tests/e2e/probe_tetrad_quality.py`,
+   same 20 utterances, 44 tetrads, three auditors) did not: CC 9/20 → 9/20 on the first tetrad,
+   same-compromise 40% → 36%, CC no different between converged and distinct plus pairs (44% vs 39%), and
+   parentage already clean (own pole 41/44, 43/44). The measured lesson stands with the one above: a check
+   holds where the rule is BROKEN and measured; added where compliance is already high it is tokens. **The A/B ran and the check
    won: 31/192 (16.1%) → 15/192 (7.8%), Fisher two-sided p = 0.0176 — a ~52% relative cut, and the
    archive's first measured win for "add a verification step" over "restate the rule again".** The
    over-correction guard did not fire (9.4% → 7.3%, p = 0.58, but with only 0.71 power for a doubling — that
@@ -1960,7 +1968,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
 
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
-  polarities with antithesis HS ≥ 0.7 and, since 2026-09-30, ORDERS them by `tetrad_potential` (HS as
+  polarities with antithesis HS ≥ 0.7 and, since 2026-09-30, ORDERS them by `tetrad_potential`. **The gate stays at 0.7 by measurement**: lowered to the HS scale's 0.3 floor for one run it admitted the lower rungs and CC fell from 32–45% to 18% (the admitted HS < 0.7 antitheses 3/25) — HS is a quality gate after all, not a rung filter (`docs/dev-notes/antithesis-selection.md`, A4). (HS as
   fallback where nothing rated it). **HS must never be the ranking key again**: HS is similarity to
   "[T]-lessness", so an HS-ranked selection expands the most total negation — measured as 19/19 caricature
   antitheses and 17/19 CC failures (`docs/dev-notes/antithesis-selection.md`). `tetrad_potential` is rated

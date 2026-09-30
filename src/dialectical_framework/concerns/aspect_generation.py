@@ -148,12 +148,20 @@ Generate aspect statements that fit the semantic structure."""
 # audit output. The difference between the two was not how forcefully each rule
 # was stated; it was that only one of them was checked. Hence a check, stated
 # once here and interpolated, rather than a fifth restatement of the rule.
+# Tried and reverted the same day (2026-09-30): a "hedged parent" check (the plus
+# as its parent moderated by the other pole's concern) and the two control
+# statements as a step 4 of construction. On the tetrad-quality instrument
+# (`tests/e2e/probe_tetrad_quality.py`, set A, 20 utterances / 44 tetrads) they
+# moved nothing a run could resolve: CC pass 9/20 → 9/20 on the first tetrad,
+# same-compromise pluses 40% → 36%, and CC did not differ between converged and
+# distinct plus pairs (44% vs 39%). A step the model already complies with adds
+# tokens and nothing else. What that run did show is where CC is NOT decided:
+# parentage was clean (own pole 41/44, 43/44). See docs/dev-notes/antithesis-selection.md.
 PLUS_RESTATEMENT_CHECK = (
     "Restated parent: if a plus only names what its own parent already "
     "delivers, rewrite it so the parent stays the generative act while its "
     "result also supplies what the other pole is for."
 )
-
 
 def is_axis_name(axis: Optional[str]) -> bool:
     """Whether a model-named axis is a dimension name rather than a disclaimer.
@@ -681,7 +689,19 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         return swap_map.get(position, position)
 
     def _tetrad_prompt(self, existing_context: str) -> str:
-        """Build prompt for full tetrad generation."""
+        """Build prompt for full tetrad generation.
+
+        The procedure below is the measured one. Two rewrites were tried on
+        2026-09-30 against `tests/e2e/probe_tetrad_quality.py` and both
+        reverted: a hedged-plus check plus the control statements as a step 4
+        (no effect: CC 9/20 → 9/20), and a derivation-ORDER change — pluses
+        first, each minus as its own plus's slide when the other plus is absent,
+        motivated by a blind read in which the failing minus was the plus's
+        opposite — which made it WORSE: CC 9/20 → 5/20 on the first tetrad,
+        14/40 → 6/38 over all, with T+/A+ converging on one compromise in 19/38.
+        Deriving the minus from the plus pulled the whole tetrad toward the
+        middle. What remains open is in docs/dev-notes/antithesis-selection.md.
+        """
         max_words = self.settings.component_length
 
         t_plus_apex = StatementClassification.lookup_aspect_apex(

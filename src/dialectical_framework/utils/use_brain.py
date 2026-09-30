@@ -520,6 +520,23 @@ def _envelope_candidates(raw: Any, format: type) -> Iterator[tuple[str, Any]]:
         if isinstance(inner, dict):
             yield f"nested under a {key!r} wrapper", inner
 
+    # 4. The object nested under ONE key of the model's own choosing. Observed:
+    #    sonnet-5 on Bedrock, `ClassificationDto` —
+    #       {"parameter name": {"is_simple": false, "reasoning": "..."}}
+    #       {"$PARAMETER_NAME": {"is_simple": false, "reasoning": "..."}}
+    #    A provider's template token leaking as the wrapper key, so the key's
+    #    wording is not a contract and rule 3's fixed list cannot name it. What
+    #    makes this safe is what makes every rule safe: the candidate is the
+    #    inner object AS THE MODEL WROTE IT, and `_salvage_envelope` still
+    #    requires it to name a real field and validate. Exactly one key, so
+    #    which value is "the object" is never a guess. Cost of not having it:
+    #    the anchor path lost 1 of 20 free utterances to ten blind re-asks of the
+    #    same envelope (`tests/probe_blindspot_paths.py`, 2026-09-29).
+    if len(raw) == 1:
+        (key, inner), = raw.items()
+        if isinstance(inner, dict) and key not in (*_CONTAINER_KEYS, format.__name__):
+            yield f"nested under a single {key!r} key of the model's own", inner
+
 
 def _salvage_envelope(response: Any, format: type, error: ParseError) -> Any:
     """Recover a structured result the model returned in the wrong envelope.
