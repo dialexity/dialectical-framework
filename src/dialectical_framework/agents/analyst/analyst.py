@@ -527,18 +527,33 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             reports=reports,
         )
 
+    @staticmethod
+    def _selection_key(p: dict) -> float:
+        """What expansion ranks by: tetrad potential, HS only where nothing rated it.
+
+        HS on an antithesis is similarity to "[T]-lessness", so ranking by it
+        expands the most total negation first — measured as strawman antitheses
+        on 19/19 free utterances and 17/19 coherence failures behind them
+        (`AntithesisExtraction.selection_key` has the account). HS keeps its
+        job as the validity gate below; the ORDER is the paper's "Optimum A".
+        Consolidated pairs and pre-existing oppositions carry no potential and
+        fall back to HS, which is what they ranked by before.
+        """
+        potential = p.get("tetrad_potential")
+        if potential is not None:
+            return potential
+        return p.get("heuristic_similarity") or 0.0
+
     def _rank_polarities(self, polarity_data: list[dict]) -> list[dict]:
         valid = [
             p
             for p in polarity_data
             if p.get("polarity_hash") and not p.get("deduped", False)
         ]
-        ranked = sorted(
-            valid, key=lambda p: p.get("heuristic_similarity", 0), reverse=True
-        )
+        ranked = sorted(valid, key=self._selection_key, reverse=True)
 
         above_threshold = [
-            p for p in ranked if p.get("heuristic_similarity", 0) >= HS_THRESHOLD
+            p for p in ranked if (p.get("heuristic_similarity") or 0) >= HS_THRESHOLD
         ]
 
         if above_threshold:
@@ -572,6 +587,7 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                     "thesis": p.get("thesis_text"),
                     "antithesis": p.get("antithesis_text"),
                     "hs": hs,
+                    "tetrad_potential": p.get("tetrad_potential"),
                     "expanded": h in expanded_set,
                     # WHY it wasn't expanded, not just that it wasn't. `expanded:
                     # False` conflated two opposite situations: a tension the HS
@@ -590,8 +606,14 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
                     ),
                 }
             )
+        # Same order the expansion used, so the first rows are the ones expanded.
         quality.sort(
-            key=lambda q: q["hs"] if q["hs"] is not None else 0.0, reverse=True
+            key=lambda q: (
+                q["tetrad_potential"]
+                if q["tetrad_potential"] is not None
+                else (q["hs"] if q["hs"] is not None else 0.0)
+            ),
+            reverse=True,
         )
         return quality
 

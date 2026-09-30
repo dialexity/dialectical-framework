@@ -39,8 +39,8 @@ from dialectical_framework.concerns.statement_classification import \
 from dialectical_framework.graph.estimation_manager import EstimationManager
 from dialectical_framework.graph.nodes.statement import \
     Statement
-from dialectical_framework.graph.nodes.estimation import (ArousalEstimation,
-                                                          ModeEstimation)
+from dialectical_framework.graph.nodes.estimation import (
+    ArousalEstimation, ModeEstimation, TetradPotentialEstimation)
 from dialectical_framework.graph.nodes.rationale import Rationale
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.progress import (expect_progress,
@@ -55,6 +55,15 @@ if TYPE_CHECKING:
 #: `zip(mode_points, batch_results)` join below depends on the wrapper being
 #: transparent to both.
 _AwaitedT = TypeVar("_AwaitedT")
+
+
+# The one instruction both mode-point prompts share. The paper's own
+# phrasing of step 2: ask what functionally OPPOSES the role T plays, not what
+# negates T [P0 p.7]. Stated as a procedure step with a concrete failure,
+# because the previous ask ("an antithesis that represents Negation of the
+# thesis") was complied with exactly — and at the high rungs exact compliance
+# is a caricature (measured 19/19, `tests/probe_blindspot_paths.py`).
+_OPPOSING_POSITION_ASK = """The antithesis is a POSITION someone holds for its own value, that functionally opposes the role the thesis plays — at this rung's mechanism, in the thesis's own terms. It is not the thesis's absence or degradation restated as a stance. Example: for "Quit my job and start my own company", Negation is "Keep the security and craft of employed work", not "Never quit, stay employed forever"; the second is a caricature nobody holds, and a caricature cannot be developed constructively — rate such a candidate's tetrad potential low rather than dressing it up."""
 
 
 # --- Extraction-specific DTOs ---
@@ -74,11 +83,22 @@ class ModePointResultDto(BaseModel):
     heuristic_similarity: float = Field(
         ge=0.0, le=1.0, description="Heuristic Similarity to apex concept (0.0-1.0)"
     )
+    tetrad_potential: float = Field(
+        ge=0.0,
+        le=1.0,
+        description=(
+            "How likely a coherent tetrad arises from this T-A pair (0.0-1.0). High: "
+            "A is a position someone holds for its own value, it can be developed so "
+            "that it also strengthens what T is for (an A+ exists), and it has its own "
+            "one-sided failure (an A-). Low: A is T's absence or degradation dressed as "
+            "a position, or a caricature nobody would hold — nothing to develop."
+        ),
+    )
     arousal_label: str = Field(
         description="Arousal level: dormant/latent/low/mild/moderate/elevated/high/intense/active"
     )
     explanation: str = Field(
-        description="Combined reasoning for statement, HS, and arousal"
+        description="Combined reasoning for statement, HS, tetrad potential, and arousal"
     )
 
 
@@ -115,6 +135,9 @@ class AntithesisCandidate:
     arousal_value: float
     heuristic_similarity: float
     explanation: str
+    #: The paper's "Optimum A" criterion; None where nothing rated it (the
+    #: SIMPLE path, older fakes). Selection ranks by it, HS only gates.
+    tetrad_potential: Optional[float] = None
 
 
 @dataclass
@@ -125,6 +148,7 @@ class AntithesisProcessed:
     mode_value: float
     arousal_value: float
     heuristic_similarity: float
+    tetrad_potential: Optional[float] = None
 
 
 # --- Service ---
@@ -219,6 +243,9 @@ class AntithesisExtraction(
         ]
         self._report.artifacts["heuristic_similarity_by_hash"] = {
             r.component.hash: r.heuristic_similarity for r in results
+        }
+        self._report.artifacts["tetrad_potential_by_hash"] = {
+            r.component.hash: r.tetrad_potential for r in results
         }
         if taxonomy:
             self._report.artifacts["apex_antithesis"] = taxonomy.apex
@@ -446,6 +473,7 @@ Generate:
                         arousal_value=arousal_label_to_value(dto.arousal_label),
                         heuristic_similarity=dto.heuristic_similarity,
                         explanation=dto.explanation,
+                        tetrad_potential=dto.tetrad_potential,
                     )
                 )
 
@@ -460,48 +488,70 @@ Generate:
         import math
         return max(1, math.ceil(self._count / num_branches))
 
+    @staticmethod
+    def selection_key(candidate: AntithesisCandidate) -> float:
+        """What antithesis selection ranks by: tetrad potential, HS as fallback.
+
+        HS on an antithesis is similarity to the apex "[T]-lessness" — complete
+        absence of T — so ranking by it selects the most total negation on the
+        ladder every time. Measured on 20 free utterances (2026-09-30,
+        `tests/probe_blindspot_paths.py`): the expanded antitheses were the
+        Negation / Inversion / Devaluation rungs at HS 0.95 / 0.85 / 0.75,
+        every one a caricature ("Never quit, stay employed forever"), and 17 of
+        19 tetrads then failed the coherence check because a caricature has no
+        A+. The paper's own selection criterion is different: "Optimum A", the
+        antithesis maximizing tetrad coherence and S+ likelihood [P0 Table 5],
+        and its own instruction is to ask what functionally OPPOSES the role T
+        plays, not what negates T. `tetrad_potential` is that criterion, rated
+        at generation; HS remains the validity gate (`_rank_polarities`).
+        """
+        if candidate.tetrad_potential is not None:
+            return candidate.tetrad_potential
+        return candidate.heuristic_similarity
+
     def _truncate_candidates(
         self, candidates: list[AntithesisCandidate]
     ) -> list[AntithesisCandidate]:
-        """Round-robin truncation: maximize branch coverage, then fill by highest HS.
+        """Round-robin truncation: maximize branch coverage, then fill by selection key.
 
         Algorithm:
-        1. Group by branch, sort each group by HS descending
+        1. Group by branch, sort each group by `selection_key` descending
         2. Round 1: take top item from each branch (breadth)
-        3. Round 2+: from remaining items across all branches, take highest HS
+        3. Round 2+: from remaining items across all branches, take highest key
         4. Stop when we have `self._count` items
         """
         if len(candidates) <= self._count:
             return candidates
 
-        # Group by branch, sort by HS descending within each group
+        key = self.selection_key
+        # Group by branch, sort by selection key descending within each group
         from collections import defaultdict
         groups: dict[str, list[AntithesisCandidate]] = defaultdict(list)
         for c in candidates:
             groups[c.branch].append(c)
         for branch in groups:
-            groups[branch].sort(key=lambda c: c.heuristic_similarity, reverse=True)
+            groups[branch].sort(key=key, reverse=True)
 
         selected: list[AntithesisCandidate] = []
 
-        # Round 1: one from each branch (highest HS), sorted by HS for deterministic ordering
+        # Round 1: one from each branch (best key), sorted by key for deterministic ordering
         first_picks = []
         for branch in groups:
             if groups[branch]:
                 first_picks.append(groups[branch].pop(0))
-        first_picks.sort(key=lambda c: c.heuristic_similarity, reverse=True)
+        first_picks.sort(key=key, reverse=True)
 
         for pick in first_picks:
             if len(selected) >= self._count:
                 break
             selected.append(pick)
 
-        # Round 2+: fill remaining slots from all leftover items by highest HS
+        # Round 2+: fill remaining slots from all leftover items by highest key
         if len(selected) < self._count:
             remaining = []
             for branch in groups:
                 remaining.extend(groups[branch])
-            remaining.sort(key=lambda c: c.heuristic_similarity, reverse=True)
+            remaining.sort(key=key, reverse=True)
 
             for item in remaining:
                 if len(selected) >= self._count:
@@ -541,10 +591,16 @@ Generate:
             )
 
             mode_name = candidate.branch.capitalize()
+            potential_note = (
+                f"Tetrad potential={candidate.tetrad_potential:.2f}. "
+                if candidate.tetrad_potential is not None
+                else ""
+            )
             rationale = Rationale(
                 text=(
                     f"Generated at {mode_name} (Mode={candidate.mode_value:.1f}) branch. "
                     f"Heuristic Similarity={candidate.heuristic_similarity:.2f}. "
+                    f"{potential_note}"
                     f"{candidate.explanation}"
                 )
             )
@@ -562,6 +618,17 @@ Generate:
                 self._report.node_updated(mode_est, patch={"value": candidate.mode_value})
             if arousal_est:
                 self._report.node_updated(arousal_est, patch={"value": candidate.arousal_value})
+            if candidate.tetrad_potential is not None:
+                potential_est = manager.upsert_estimation(
+                    antithesis,
+                    TetradPotentialEstimation,
+                    candidate.tetrad_potential,
+                    provider=rationale,
+                )
+                if potential_est:
+                    self._report.node_updated(
+                        potential_est, patch={"value": candidate.tetrad_potential}
+                    )
 
             results.append(
                 AntithesisProcessed(
@@ -569,6 +636,7 @@ Generate:
                     mode_value=candidate.mode_value,
                     arousal_value=candidate.arousal_value,
                     heuristic_similarity=candidate.heuristic_similarity,
+                    tetrad_potential=candidate.tetrad_potential,
                 )
             )
 
@@ -590,11 +658,14 @@ Thesis: "{thesis}"
 Apex ({apex}): represents complete [T]-lessness
 Target branch ({branch_name}): {branch_context}
 
+{_OPPOSING_POSITION_ASK}
+
 Generate:
-1. An antithesis that represents {branch_name} of the thesis (1-{max_words} words, no explanations in the statement)
+1. The antithesis at this rung (1-{max_words} words, no explanations in the statement)
 2. Rate its HS (Heuristic Similarity) to the apex concept using the scale from the system prompt
-3. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
-4. Provide combined reasoning for your choices"""
+3. Rate its tetrad potential (see the field description)
+4. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
+5. Provide combined reasoning for your choices"""
 
     def _mode_point_batch_prompt(
         self,
@@ -613,10 +684,13 @@ Thesis: "{thesis}"
 Apex ({apex}): represents complete [T]-lessness
 Target branch ({branch_name}): {branch_context}
 
+{_OPPOSING_POSITION_ASK}
+
 For each candidate, generate:
-1. An antithesis that represents {branch_name} of the thesis (1-{max_words} words, no explanations in the statement)
+1. The antithesis at this rung (1-{max_words} words, no explanations in the statement)
 2. Rate its HS (Heuristic Similarity) to the apex concept using the scale from the system prompt
-3. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
-4. Provide combined reasoning for your choices
+3. Rate its tetrad potential (see the field description)
+4. Assess the arousal level of this T↔A tension using the arousal scale from the system prompt
+5. Provide combined reasoning for your choices
 
 Each candidate must be meaningfully different from the others — explore different angles within this branch."""

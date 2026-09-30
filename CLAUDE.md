@@ -51,7 +51,7 @@ The framework implements **Structured Dialectics** (theory papers in `docs/r-n-d
 
 **HS (Heuristic Similarity):** T=1.0 (defines apex), A/Aspects/Ac+/Re+ = LLM-computed, Ac/Re/Ac-/Re- = None.
 
-**Validation, in practice:** Tetrads are never blocked — the generation prompt enforces structure; `AnalysisPipeline` gates only on HS (`_rank_polarities`, `HS_THRESHOLD=0.7`).
+**Validation, in practice:** Tetrads are never blocked — the generation prompt enforces structure; `AnalysisPipeline` gates only on HS (`_rank_polarities`, `HS_THRESHOLD=0.7`) and ORDERS expansion by `tetrad_potential` (see the HS chain below).
 - `PerspectiveValidation` (CC + empirical inequalities) runs post-commit in `ExpandPolarity._validate_and_flag` as a non-blocking flag → `Perspective.validation` ("passed" / "failed: reasons" / None). Rendered by `dialectical_context`, `present_analysis`, `inspect_node`; prompts deprioritize failed perspectives, the graph drops nothing. Fail-soft, sequential.
 - `edit_perspective._validate_tetrad_coherence` checks user-edited tetrads via `ControlStatementsCheck` + `DiagonalOppositionsCheck` (diagonal LLM call only needed when generation-prompt constraints are bypassed).
 - SIMPLE-path antitheses (hardcoded HS=1.0) render as "mechanical opposition — HS not evaluated", never a numeric score.
@@ -369,6 +369,8 @@ Only `Rationale.agent` tracks generating model (`<provider>/<model>`, auto-fille
 
 `StatementClassification` (SIMPLE vs COMPLEX) determines the entire antithesis path: SIMPLE → mechanical negation, HS hardcoded 1.0, no taxonomy contextualization; COMPLEX → LLM-evaluated antithesis taxonomy, LLM-scored HS (0.0–1.0). Polarity HS (UI + `_rank_polarities` gate at `HS_THRESHOLD=0.7`) comes from the A-relationship's `heuristic_similarity` — misclassifying COMPLEX as SIMPLE inflates all polarities to HS=1.0, defeating quality differentiation. The SIMPLE/COMPLEX boundary is the most leverage-dense prompt in the extraction pipeline.
 
+**HS gates; `tetrad_potential` ORDERS.** HS on an antithesis is similarity to the apex "[T]-lessness" — complete absence of T — so anything that RANKS by it picks the most total negation on the ladder: measured 2026-09-30 on 20 free utterances, every expanded antithesis was a Negation/Inversion/Devaluation caricature ("Never quit, stay employed forever") and 17/19 tetrads failed CC because a caricature has no A+. Selection now ranks by `tetrad_potential` — the paper's "Optimum A" [P0 Table 5], rated per candidate at generation, persisted as `TetradPotentialEstimation` next to Mode/Arousal — at BOTH sites (`AntithesisExtraction.selection_key`, `AnalysisPipeline._selection_key`); HS keeps only the validity gate. Anything unrated (SIMPLE path, consolidated pairs, pre-existing oppositions) falls back to HS. The mode-point prompts carry the paper's ask as a step with a concrete failure (`_OPPOSING_POSITION_ASK`). Never reintroduce HS as a ranking key. Tests: `tests/test_antithesis_selection.py`; story: `docs/dev-notes/antithesis-selection.md`.
+
 Named options / courses of action ("Take the startup offer") classify COMPLEX — SIMPLE strips taxonomy anchoring from the option tetrad. For option-pairs, Mode (in the anchor report) is the "differ rather than oppose" tell, not HS: mutually exclusive options sit in each other's negation space, so HS scores moderate; Mode ~0.0–0.1 (distancing/privation) flags a fork that isn't the tension.
 
 ### Observability (Langfuse)
@@ -556,3 +558,4 @@ Lab-notebook material moved out of this file on 2026-09-18: the reasoning behind
 | `testing-traps.md` | Suite runtime, bytecode trap, event-bus leak |
 | `host-integration.md` | `py.typed`, the pinned doc claims |
 | `views.md` | The view schema decisions, the reading-is-a-label correction, the Consultant's view turn and its three real runs (label leak, prose exemplar) |
+| `antithesis-selection.md` | HS-ranked antithesis selection picked the strawman end of the ladder; the Optimum-A fix and its before/after on 20 utterances |

@@ -83,11 +83,13 @@ one rater, per-item JSON kept in the scratchpad of that session.
 | scores / checks | none by construction | HS(A) a uniform 0.95 on every row (not discriminating); 17/19 `failed: Conceptual coherence`; 2 passed |
 | memory | none | the graph — the "recurring blindspots" map |
 
-Verdict for the pre-MVP: Path A. Two framework findings from Path B, both
-open: the thesis-only anchor path's antithesis is an exaggeration of not-T
-rather than an opposing position (which then drives the CC failures), and HS
-does not separate them. Both belong to the pipeline, not to the app, and both
-are one sample.
+Verdict for the pre-MVP: Path A. Two framework findings from Path B: the
+thesis-only anchor path's antithesis was an exaggeration of not-T rather than
+an opposing position (which then drove the CC failures), and HS did not
+separate them. Traced to HS-ranked selection and fixed the same day —
+`docs/dev-notes/antithesis-selection.md` has the mechanism and the before/after
+(caricatures 19/19 → 0/20; CC 2/19 → 7/20; a third of antitheses still
+mirror stances). Both were one sample.
 
 Also found by this probe, fixed: a resumed conversation passed as dicts (the
 documented persistence recipe's own output) failed inside the first structured

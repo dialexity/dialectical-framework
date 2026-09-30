@@ -302,6 +302,19 @@ class ArousalEstimation(Estimation, label="Arousal"):
     """
 
 
+class TetradPotentialEstimation(Estimation, label="TetradPotential"):
+    """
+    Tetrad potential of a T-A opposition — the paper's "Optimum A" criterion
+    [P0 Table 5]: how likely a coherent tetrad with S+ arises from this pair.
+
+    Stored on the antithesis Statement, next to Mode and Arousal. It is the
+    quantity antithesis SELECTION ranks by (`AntithesisExtraction`,
+    `AnalysisPipeline._rank_polarities`); HS stays the validity gate. Rated by
+    the generating call, so it is a proxy for the tetrad's later CC/DV, not a
+    measurement of them.
+    """
+
+
 
 class ConceptualCoherenceEstimation(Estimation, label="ConceptualCoherence"):
     """

@@ -20,11 +20,18 @@ bottom-left (→0,0) = passive privation, which "attracts latent pathologies (S�
 while imitating progression toward S+". Table 5 adds an "Optimum A" column — AI-selected antithesis
 maximizing tetrad coherence + S+ likelihood. [P0 pp.7-8]
 **Implementation:** `antithesis_classification.py:MODE_FIELDS`, `AROUSAL_VALUES` (both axes scored);
-`concerns/antithesis_extraction.py` generates candidates across mode branches and picks by HS.
+`concerns/antithesis_extraction.py` generates candidates across mode branches and, since 2026-09-30,
+SELECTS by `tetrad_potential` — the "Optimum A" criterion rated by the generating call (can this
+opposition be developed so it strengthens what T is for, and does it have its own failure mode) —
+persisted as `TetradPotentialEstimation` next to Mode and Arousal; `AnalysisPipeline._rank_polarities`
+orders expansion by the same value and keeps HS as the validity gate only.
 **Status:** partial
-**Notes:** Both coordinates are computed and persisted (Estimations), but the corner/void semantics
-(bottom-left = pathology attractor) and the explicit "Optimum A" selection rationale are not used —
-selection goes by HS, not by the Arousal-separates-true-from-void hypothesis.
+**Notes:** Selection by HS was measured to pick the strawman end of the ladder every time (HS is
+similarity to "[T]-lessness", so the most total negation wins): 19/19 expanded antitheses at the
+Negation/Inversion/Devaluation rungs, 17/19 tetrads then failing CC (`docs/dev-notes/antithesis-selection.md`).
+The Optimum-A selection is now a rated proxy, not the paper's coherence-measured one; the corner/void
+semantics (bottom-left = pathology attractor) and the Arousal-separates-true-from-void hypothesis are
+still unused.
 
 ### Systemic taxonomy (5 branches, apex = Viability)
 **Theory:** Apex "system viability" from 5 capacities: Integrity, Fidelity, Exchange, Flexibility,

@@ -1228,6 +1228,7 @@ class TestTheOppositionAnglesSayWhenTheyComeBack:
                 one = ModePointResultDto(
                     statement="Review before shipping",
                     heuristic_similarity=0.6,
+                    tetrad_potential=0.5,
                     arousal_label="moderate",
                     explanation="stub",
                 )

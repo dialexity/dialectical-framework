@@ -295,6 +295,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
                         "antithesis_hash": data["hash"],
                         "antithesis_text": antithesis.text if antithesis else None,
                         "heuristic_similarity": data["heuristic_similarity"],
+                        "tetrad_potential": data.get("tetrad_potential"),
                         "existing": data.get("existing", False),
                         "deduped": data.get("deduped", False),
                     }
@@ -403,7 +404,11 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
     def _build_antithesis_data(self, results: list) -> list[dict]:
         """Build antithesis data dicts from AntithesisResult objects."""
         return [
-            {"hash": r.component.hash, "heuristic_similarity": r.heuristic_similarity}
+            {
+                "hash": r.component.hash,
+                "heuristic_similarity": r.heuristic_similarity,
+                "tetrad_potential": getattr(r, "tetrad_potential", None),
+            }
             for r in results
         ]
 

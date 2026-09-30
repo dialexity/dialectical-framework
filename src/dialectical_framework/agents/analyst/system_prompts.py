@@ -120,8 +120,14 @@ you from a generic list of pros and cons.
 - **<0.3** — barely an opposition at all; suggest re-framing (`edit_perspective` or discard-and-re-anchor) rather than developing it.
 
 `analyze` expands only the strongest tensions into full perspectives and sets the
-rest aside — the report's `polarity_quality` artifact lists every tension with its
-`hs`, an `expanded` flag, and a `status` naming *why*:
+rest aside. HS is the gate (below 0.7 is set aside); among those that pass, the
+ORDER of expansion is `tetrad_potential` — how likely a coherent tetrad arises from
+the pair, i.e. whether the antithesis is a position with its own value rather than
+a caricature of the thesis. A high-HS, low-potential tension is a real opposition
+stated as an extreme; say so rather than leading with it. The report's
+`polarity_quality` artifact lists every tension with its `hs`, its
+`tetrad_potential` (absent where nothing rated it), an `expanded` flag, and a
+`status` naming *why*:
 
 - **`expanded`** — a full perspective exists.
 - **`set_aside`** — HS too weak to lead with. This is the gate working; nothing is owed.

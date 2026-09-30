@@ -34,7 +34,7 @@ GRAPH_SCHEMA = """## Graph Schema
 | Decision | Confirmed decision: question + stance (Case-level, immutable; timestamp = `committed_at`; the why = attached Rationale whose `agent` names the confirming principal — "human" for a person, "agent:<name>" for a delegated driver, "agent:unattested" when the host attested nobody) | `intent` (the question), `stance`, `discarded`, `validation` ("passed" / "failed: ..." / null=unchecked) |
 | Note | What the person asked to have written down on a consent surface (`note` tool); planted as a tension between turns by whichever process serves the conversation | `thesis`, `antithesis`, `context`, `planted` (perspective hashes once planted / null = pending) |
 | Rationale | Explanation attached to any node | `text` |
-| Estimation | Numeric assessment (probability, relevance, feasibility) | `value` |
+| Estimation | Numeric assessment (probability, relevance, feasibility; on an antithesis: Mode, Arousal, TetradPotential) | `value` |
 
 All nodes share: `hash` (content-addressable ID), `sid` (scope ID), `committed_at`.
 

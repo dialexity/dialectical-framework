@@ -1960,7 +1960,16 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
 
 ### Gates (score-based filters — the prompt that feeds each *is* a gate input)
 - **`_rank_polarities`** (`analyst/analyst.py`, `HS_THRESHOLD=0.7`, `MAX_POLARITIES_TO_EXPAND=5`): keeps
-  polarities with antithesis HS ≥ 0.7. Fed by `AntithesisExtraction` / `AntithesisClassification` HS. The
+  polarities with antithesis HS ≥ 0.7 and, since 2026-09-30, ORDERS them by `tetrad_potential` (HS as
+  fallback where nothing rated it). **HS must never be the ranking key again**: HS is similarity to
+  "[T]-lessness", so an HS-ranked selection expands the most total negation — measured as 19/19 caricature
+  antitheses and 17/19 CC failures (`docs/dev-notes/antithesis-selection.md`). `tetrad_potential` is rated
+  per candidate by `AntithesisExtraction`'s mode-point call (DTO field + `_OPPOSING_POSITION_ASK`, the paper's
+  "ask what functionally opposes the role T plays, not what negates T", stated as a procedure step with the
+  measured caricature as the example), selected on by `AntithesisExtraction.selection_key`, persisted as
+  `TetradPotentialEstimation`. The Analyst's "Reading Polarity Quality" section names both: HS gates, potential
+  orders, a high-HS/low-potential tension is "a real opposition stated as an extreme". Fed by
+  `AntithesisExtraction` / `AntithesisClassification` HS. The
   SIMPLE=1.0 shortcut can inflate everything past it → gate stops differentiating. **Passing the gate and
   being developed are different states, and a bare `expanded: False` conflated them.** `polarity_quality`
   carries a `status` naming WHY: `expanded` / `deferred` (HS ≥ threshold, dropped for
