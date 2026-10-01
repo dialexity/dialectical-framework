@@ -63,7 +63,7 @@ def _fake_anchor(monkeypatch, *, block: asyncio.Event | None = None) -> list[dic
     report naming one perspective."""
     calls: list[dict] = []
 
-    async def fake(*, thesis, antithesis, context):
+    async def fake(*, thesis, antithesis, context, utterance=None):
         if block is not None:
             await block.wait()
         calls.append({"thesis": thesis, "antithesis": antithesis, "context": context})
@@ -239,7 +239,7 @@ class TestNotesAreDurableOnTheTurn:
         case = _case()
         with scope(case.sid):
             advisor = Advisor(build=BuildPolicy.ON_CONSENT)
-            monkeypatch.setattr(Advisor, "_persist_note", lambda self, t, a, c: None)
+            monkeypatch.setattr(Advisor, "_persist_note", lambda self, t, a, c, u=None: None)
             await advisor._queue_note("Keep the Berlin office", None, "")
             assert NoteRepository().find_unplanted() == []
             advisor._schedule_noted_tensions()
@@ -254,7 +254,7 @@ class TestNotesAreDurableOnTheTurn:
         lose the person's word) but must not spend the round cap on it."""
         attempts: list[str] = []
 
-        async def failing(*, thesis, antithesis, context):
+        async def failing(*, thesis, antithesis, context, utterance=None):
             attempts.append(thesis)
             raise RuntimeError("provider down")
 

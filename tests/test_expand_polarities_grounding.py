@@ -563,7 +563,7 @@ class TestAnchorBranchesGroundAlike:
                 return type("Res", (), {"perspective_hashes": []})()
 
         class _FakeAnchorTheses:
-            def __init__(self, statements, text: str = "") -> None:
+            def __init__(self, statements, text: str = "", input_hashes=None) -> None:
                 captured["anchor_theses_text"] = text
                 self.report = type(
                     "R",

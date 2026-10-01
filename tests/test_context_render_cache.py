@@ -231,7 +231,11 @@ class TestTheFingerprintKnowsEveryMutableField:
         # lifecycle stamps the fingerprint already reads directly.
         HASHED = {"text", "intent", "meaning", "content", "hash", "sid", "rationale",
                   "stance", "nonce", "saved_at", "committed_at", "resolution",
-                  "source", "type", "agent"}
+                  "source", "type", "agent",
+                  # Note.utterance: the turn a note was kept on. Set at creation,
+                  # never changed, never rendered — creation-time provenance like
+                  # `source`/`agent`, so not a fingerprint term.
+                  "utterance"}
 
         optional_str: set[str] = set()
         for cls in (Statement, Perspective, Decision, Input, Transition):

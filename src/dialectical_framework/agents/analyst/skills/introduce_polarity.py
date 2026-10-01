@@ -88,10 +88,24 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
     #: Pinned against the actual `report_progress` calls by `tests/test_progress.py`.
     PROGRESS_STEPS = 2
 
-    def __init__(self, thesis: str, antithesis: str, text: str = "") -> None:
+    def __init__(
+        self,
+        thesis: str,
+        antithesis: str,
+        text: str = "",
+        input_hashes: list[str] | None = None,
+    ) -> None:
         self.thesis_text = thesis.strip()
         self.antithesis_text = antithesis.strip()
         self.text = text
+        #: The material these two poles come from — `anchor` passes the Input
+        #: that keeps the person's turn verbatim. Read as the context both
+        #: poles are classified against (instead of every Input in the case),
+        #: and linked to both Statements as their source (`HAS_STATEMENT`), so
+        #: everything downstream can find the tension's own words
+        #: (`inputs_for_statements`). Same contract as `AnchorTheses`.
+        self.input_hashes = input_hashes
+        self._source_inputs_cache: list | None = None
 
     async def resolve(self) -> IntroducePolarityResult:
         """Introduce a single T-A tension with HS score."""
@@ -307,6 +321,14 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         stmt = Statement(text=headline, meaning=result.meaning)
         stmt.commit()
         self._report.node_created(stmt)
+        for input_node in self._source_inputs():
+            # Idempotent: `HAS_STATEMENT` is directed, so a repeat connect would
+            # duplicate the edge — a pole shared with an earlier anchor on the
+            # same turn, or the dedup upsert above returning an existing node.
+            if any(n._id == stmt._id for n, _rel in input_node.statements.all()):
+                continue
+            input_node.statements.connect(stmt)
+            self._report.relationship_created(input_node.statements, input_node, stmt)
 
         classification_label = "SIMPLE" if result.is_simple else "COMPLEX"
         rationale_text = (
@@ -322,17 +344,35 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
 
         return stmt
 
+    def _source_inputs(self) -> list:
+        """The Inputs named by `input_hashes`, resolved once per call. Unresolved
+        hashes are recorded, not raised — the tension does not depend on its
+        provenance edges (same stance as `AnchorTheses._get_inputs`)."""
+        if not self.input_hashes:
+            return []
+        cached = self._source_inputs_cache
+        if cached is None:
+            from dialectical_framework.graph.nodes.input import Input
+            from dialectical_framework.graph.repositories.node_repository import \
+                NodeRepository
+
+            cached = NodeRepository().find_by_hashes(self.input_hashes, node_type=Input)
+            unresolved = len(self.input_hashes) - len(cached)
+            if unresolved > 0:
+                self._report.artifacts["unresolved_input_hashes"] = unresolved
+            self._source_inputs_cache = cached
+        return cached
+
     @inject
     async def _get_input_text(
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get input context from digests (falls back to full content if no digest)."""
+        """The material the poles are classified against: the named source
+        Inputs when there are any, every Input in the case otherwise."""
         from dialectical_framework.utils.input_context import input_context
 
-        repo = InputRepository()
-        inputs = repo.get_all()
-
+        inputs = self._source_inputs() or InputRepository().get_all()
         return await input_context(inputs, input_resolver)
 
 

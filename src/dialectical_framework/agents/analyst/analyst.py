@@ -544,7 +544,7 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         )
 
     @staticmethod
-    def _selection_key(p: dict) -> float:
+    def _selection_key(p: dict) -> tuple[int, float]:
         """What expansion ranks by: tetrad potential, HS only where nothing rated it.
 
         HS on an antithesis is similarity to "[T]-lessness", so ranking by it
@@ -554,11 +554,20 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         job as the validity gate below; the ORDER is the paper's "Optimum A".
         Consolidated pairs and pre-existing oppositions carry no potential and
         fall back to HS, which is what they ranked by before.
+
+        Rated sorts BEFORE unrated. The two keys are not on one scale: a
+        SIMPLE-path polarity carries HS 1.0 by construction ("mechanical
+        opposition — HS not evaluated") and no potential, so as a plain float
+        it outranked every rated candidate (≤ 1.0) and the mechanical negations
+        expanded FIRST whenever theses mixed — the strawman defect this key
+        exists to prevent, back in through the fallback (found 2026-10-01 in a
+        static trace of `ingest` on one sentence). Within each group the order
+        is unchanged.
         """
         potential = p.get("tetrad_potential")
         if potential is not None:
-            return potential
-        return p.get("heuristic_similarity") or 0.0
+            return (1, potential)
+        return (0, p.get("heuristic_similarity") or 0.0)
 
     def _rank_polarities(self, polarity_data: list[dict]) -> list[dict]:
         valid = [

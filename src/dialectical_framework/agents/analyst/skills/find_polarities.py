@@ -165,9 +165,17 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
 
             result = ThesisResult(thesis=thesis)
 
+            # THIS thesis's material: its own source Inputs when it has any
+            # (the person's turn, or the one document it was extracted from),
+            # the case-wide text otherwise. `input_text` above stays case-wide
+            # because consolidation compares theses ACROSS sources.
+            thesis_text = compose_context(
+                self.grounding_context, await self._input_text_for([thesis.hash])
+            )
+
             # Collect existing oppositions from database
             existing_antitheses, existing_data = await self._get_existing_oppositions(
-                thesis, input_text
+                thesis, thesis_text
             )
             result.antithesis_data.extend(existing_data)
 
@@ -175,7 +183,7 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             antitheses, antithesis_data, extraction_reports = (
                 await self._extract_with_retry(
                     thesis=thesis,
-                    text=input_text,
+                    text=thesis_text,
                     not_like_these=not_like_these + [c.prompt_text for c in existing_antitheses],
                 )
             )
@@ -491,13 +499,30 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         self,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get input context from digests (falls back to full content if no digest)."""
+        """Every Input in the case, as digests (full content as the fallback).
+        Used for the cross-thesis consolidation step only; each thesis is then
+        developed against its own sources (`_input_text_for`)."""
         from dialectical_framework.utils.input_context import input_context
 
         repo = InputRepository()
         inputs = repo.get_all()
 
         return await input_context(inputs, input_resolver)
+
+    @inject
+    async def _input_text_for(
+        self,
+        statement_hashes: list[str],
+        input_resolver: InputResolver = Provide[DI.input_resolver],
+    ) -> str:
+        """The material these statements came from, else every Input
+        (`inputs_for_statements`)."""
+        from dialectical_framework.utils.input_context import (
+            input_context, inputs_for_statements)
+
+        return await input_context(
+            inputs_for_statements(statement_hashes), input_resolver
+        )
 
     def _reconnect_oppositions(
         self,
@@ -766,9 +791,20 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
         ideas.save()
         self._report.node_created(ideas)
 
-        # Connect to inputs
-        input_repo = InputRepository()
-        for inp in input_repo.get_all():
+        # Provenance: the theses' OWN source Inputs (the turn an `anchor` fired
+        # on, the document `ingest` extracted them from). It used to connect
+        # EVERY Input in the case, and since `find_by_statement_hashes` follows
+        # `Input-[:DISTILLED_TO]->Ideas-[:HAS_STATEMENT]->`, every pole of every
+        # tension then traced to every document — which made
+        # `inputs_for_statements` return everything and defeated "a tension
+        # reads its own sources" on exactly the path the Advisor uses most
+        # (found in review, 2026-10-01). Theses with no source connect nothing:
+        # a container with no provenance is honest, one with all of it is not.
+        from dialectical_framework.utils.input_context import inputs_for_statements
+
+        thesis_hashes = [r.thesis.hash for r in valid_results if r.thesis.hash]
+        own_sources = inputs_for_statements(thesis_hashes, fallback_all=False)
+        for inp in own_sources:
             ideas.inputs.connect(inp)
             self._report.relationship_created(ideas.inputs, ideas, inp)
 

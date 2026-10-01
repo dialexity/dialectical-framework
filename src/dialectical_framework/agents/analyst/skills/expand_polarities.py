@@ -120,7 +120,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         # Input — the ordinary Advisor `anchor` — the tetrad was generated and
         # judged from two ≤7-word headlines and nothing else.
         input_text = compose_context(
-            self.grounding_context, await self._get_input_text()
+            self.grounding_context, await self._get_input_text(polarity)
         )
 
         # Look up existing Perspectives for this Polarity
@@ -548,15 +548,22 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
     @inject
     async def _get_input_text(
         self,
+        polarity: Polarity,
         input_resolver: InputResolver = Provide[DI.input_resolver],
     ) -> str:
-        """Get input context from digests (falls back to full content if no digest)."""
-        from dialectical_framework.utils.input_context import input_context
+        """The material THIS tension came from (`inputs_for_statements`: the
+        poles' own source Inputs, every Input only when they have none),
+        rendered as digests with full content as the fallback."""
+        from dialectical_framework.utils.input_context import (
+            input_context, inputs_for_statements)
 
-        repo = InputRepository()
-        inputs = repo.get_all()
-
-        return await input_context(inputs, input_resolver)
+        pole_hashes = [
+            node.hash
+            for manager in (polarity.t, polarity.a)
+            for node, _rel in manager.all()
+            if node.hash
+        ]
+        return await input_context(inputs_for_statements(pole_hashes), input_resolver)
 
 
 @llm.tool

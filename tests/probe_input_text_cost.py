@@ -86,13 +86,13 @@ async def test_measure(n_inputs, digested, body_reps, reps=9):
         singles = []
         for _ in range(reps):
             t = time.perf_counter()
-            text = await concern._get_input_text()
+            text = await concern._get_input_text(polarity)
             singles.append(time.perf_counter() - t)
 
         gathered = []
         for _ in range(reps):
             t = time.perf_counter()
-            await asyncio.gather(*[concern._get_input_text() for _ in range(3)])
+            await asyncio.gather(*[concern._get_input_text(polarity) for _ in range(3)])
             gathered.append(time.perf_counter() - t)
 
     print(

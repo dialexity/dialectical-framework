@@ -193,3 +193,43 @@ def compose_context(particulars: Optional[str], input_text: Optional[str]) -> st
     if not input_text:
         return particulars
     return f"{particulars}\n\n{input_text}"
+
+
+def inputs_for_statements(
+    statement_hashes: list[str], *, fallback_all: bool = True
+) -> list[Input]:
+    """The Inputs a tension should be read against: its OWN sources, else all.
+
+    `fallback_all=False` returns nothing for statements with no provenance —
+    for a caller recording provenance rather than reading context, where
+    "all" would be a false claim (`FindPolarities._create_ideas`).
+
+    A Statement traces to the material it came from — the document `ingest`
+    extracted it from, or (since 2026-10-01) the person's turn `anchor` was
+    elected on, kept verbatim as an Input. When any of the given statements has
+    such a source, the prompt that develops the tension reads THOSE Inputs and
+    no others; only a statement with no provenance falls back to every Input in
+    the case. Before this, every skill rendered every Input: an `anchor` after
+    an `ingest` developed the person's tension against unrelated documents, and
+    one of several ingested documents was developed against all of them.
+
+    Order is the committed order, deduplicated by hash — the same stable order
+    `InputRepository.get_all` gives, for the same prompt-cache reason.
+    """
+    from dialectical_framework.graph.repositories.input_repository import \
+        InputRepository
+
+    repo = InputRepository()
+    hashes = [h for h in statement_hashes if h]
+    own: dict[str, Input] = {}
+    if hashes:
+        for found in repo.find_by_statement_hashes(hashes).values():
+            for node in found:
+                if node.hash and node.hash not in own:
+                    own[node.hash] = node
+    if not own:
+        return repo.get_all() if fallback_all else []
+    return sorted(
+        own.values(),
+        key=lambda node: ((node.committed_at or 0.0), node.hash or ""),
+    )

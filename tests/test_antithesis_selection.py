@@ -120,9 +120,11 @@ class TestTheGateGatesAndTheOrderIsPotential:
         """HS gates at 0.7 (tried at the scale's 0.3 floor on 2026-09-30 and
         rejected: CC fell to 18%, the admitted lower rungs passed it at 3/25 —
         `analyst.HS_THRESHOLD`); among those that pass, potential orders, and
-        an unrated one ranks by its HS as before."""
+        an unrated one sorts AFTER every rated one (`TestRatedOutranksUnrated`:
+        it used to slot in by its HS as if that were a potential, which put the
+        SIMPLE path's hardcoded 1.0 first)."""
         ranked = AnalysisPipeline()._rank_polarities(self._data())
-        assert [p["polarity_hash"] for p in ranked] == ["position", "unrated", "caricature"]
+        assert [p["polarity_hash"] for p in ranked] == ["position", "caricature", "unrated"]
         assert all((p.get("heuristic_similarity") or 0) >= HS_THRESHOLD for p in ranked)
         assert all((p.get("heuristic_similarity") or 0) >= HS_THRESHOLD for p in ranked)
 
@@ -140,6 +142,39 @@ class TestTheGateGatesAndTheOrderIsPotential:
         )
         assert by_hash["not_an_opposition"]["status"] == "set_aside"
         assert by_hash["lower_rung"]["status"] == "set_aside", "HS 0.4 does not pass the gate"
+
+
+class TestRatedOutranksUnrated:
+    """A SIMPLE polarity's hardcoded HS 1.0 must not beat a rated candidate.
+
+    `_selection_key` fell back to HS where nothing rated the candidate, and the
+    SIMPLE path hardcodes HS 1.0 — so with theses of both kinds in one pipeline
+    (every `ingest`, any multi-thesis `anchor_theses`) the mechanical negations
+    took the expansion slots first, ahead of every antithesis the Optimum-A
+    ranking had rated. Found in a static trace of `ingest` on one sentence
+    (2026-10-01); the key now sorts rated before unrated, same order within.
+    """
+
+    def test_a_rated_candidate_beats_an_unrated_simple_one(self):
+        from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+
+        data = [
+            {"polarity_hash": "simple", "heuristic_similarity": 1.0, "tetrad_potential": None},
+            {"polarity_hash": "rated-low", "heuristic_similarity": 0.75, "tetrad_potential": 0.4},
+            {"polarity_hash": "rated-high", "heuristic_similarity": 0.8, "tetrad_potential": 0.9},
+        ]
+        ranked = AnalysisPipeline()._rank_polarities(data)
+        assert [p["polarity_hash"] for p in ranked] == ["rated-high", "rated-low", "simple"]
+
+    def test_unrated_still_order_by_hs_among_themselves(self):
+        from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+
+        data = [
+            {"polarity_hash": "a", "heuristic_similarity": 0.75, "tetrad_potential": None},
+            {"polarity_hash": "b", "heuristic_similarity": 0.95, "tetrad_potential": None},
+        ]
+        ranked = AnalysisPipeline()._rank_polarities(data)
+        assert [p["polarity_hash"] for p in ranked] == ["b", "a"]
 
 
 class TestThePromptAsksForAPosition:

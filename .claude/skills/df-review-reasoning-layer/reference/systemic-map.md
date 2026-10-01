@@ -1909,6 +1909,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `AspectGeneration` and the CC/DV judge (through `ExpandPolarity`), and `TetradGrounding`. Before that date it
    stopped at classification and grounding — review any new prompt on this path by asking which of
    utterance / headline / context / Input digest it actually interpolates, not which arguments exist upstream.
+   Since the same day the person's TURN is an Input (`utils/utterance.py` → `_keep_utterance`, linked to
+   both poles as source), and every skill reads a tension's OWN sources (`inputs_for_statements`) rather
+   than every Input in the case — so "Input digest" on this path means the turn the tool fired on (plus the
+   document, for an ingested thesis), never an unrelated document. The `context` paraphrase still comes
+   first in `compose_context`; it is the model's selection across turns.
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are

@@ -665,7 +665,7 @@ class TestTheNoteQueuesAndTheTaskPlantsIt:
 
         calls: list[dict] = []
 
-        async def fake_anchor(*, thesis, antithesis, context):
+        async def fake_anchor(*, thesis, antithesis, context, utterance=None):
             if thesis == fail_on:
                 raise RuntimeError("provider down")
             calls.append({"thesis": thesis, "antithesis": antithesis, "context": context})
@@ -710,7 +710,7 @@ class TestTheNoteQueuesAndTheTaskPlantsIt:
 
         assert reply.startswith("Kept.")
         assert "written down" in reply
-        assert advisor._notes_awaiting_anchor == [("Keep the Berlin office", None, "12 people there")]
+        assert advisor._notes_awaiting_anchor == [("Keep the Berlin office", None, "12 people there", None)]
         assert anchors == [], "nothing is planted while the person waits"
         assert advisor._deferred_pathway_task is None, "the tool starts no task"
         advisor._notes_awaiting_anchor.clear()
@@ -728,7 +728,7 @@ class TestTheNoteQueuesAndTheTaskPlantsIt:
         note = _tool_by_name(advisor._tools, "note")
         reply = await note(thesis="Keep the Berlin office", context="12 people there")
         assert reply.startswith("Kept.")
-        assert advisor._notes_awaiting_anchor == [("Keep the Berlin office", None, "12 people there")]
+        assert advisor._notes_awaiting_anchor == [("Keep the Berlin office", None, "12 people there", None)]
         advisor._notes_awaiting_anchor.clear()
 
     async def test_a_noted_turn_without_a_closing_starts_the_task_that_plants_it(

@@ -3339,7 +3339,7 @@ class TestAClosingOnAnEmptyGraphIsAnchoredFirst:
 
         calls: list[dict] = []
 
-        async def fake_anchor(*, thesis, antithesis, context):
+        async def fake_anchor(*, thesis, antithesis, context, utterance=None):
             calls.append({"thesis": thesis, "antithesis": antithesis, "context": context})
             perspectives.append(self._pp("pp0001"))
             return '{"artifacts": {"perspective_hashes": ["pp0001"]}}'

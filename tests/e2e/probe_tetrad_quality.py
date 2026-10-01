@@ -69,6 +69,11 @@ MODES (`TETRAD_PROBE_MODE`, default `default` = behaviour unchanged)
             person's own dilemma; then `_anchor(thesis=text, antithesis=<that>,
             context=text)` — the EXISTING thesis-plus-antithesis path
             (`IntroducePolarity` → `ExpandPolarity`), no ladder, no selector.
+  ingest    `AnalysisPipeline(text=text)` — the headless path the Advisor's
+            `ingest` tool runs: the utterance is an Input, theses are EXTRACTED
+            from it (`SurfaceTheses`), every expanded perspective is recorded
+            with the same fields, and `extracted_theses` keeps what extraction
+            made of the sentence (text + SIMPLE flag per thesis).
 """
 
 from __future__ import annotations
@@ -93,6 +98,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from dialectical_framework.agents.advisor.tools.anchor import _anchor
+from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
 from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.graph.nodes.case import Case
@@ -100,6 +106,7 @@ from dialectical_framework.graph.nodes.estimation import (
     ArousalEstimation, ConceptualCoherenceEstimation,
     DialecticalValidityEstimation, ModeEstimation, TetradPotentialEstimation)
 from dialectical_framework.graph.nodes.perspective import Perspective
+from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.scope_context import scope
@@ -339,7 +346,7 @@ def _pct(k: int, n: int) -> str:
     return f"{k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)"
 
 
-_MODES = ("default", "context", "given_a")
+_MODES = ("default", "context", "given_a", "ingest")
 
 
 class _NamedAntithesis(BaseModel):
@@ -473,6 +480,13 @@ async def test_probe_tetrad_quality(di_container) -> None:
                     raw = await _anchor(
                         thesis=text, antithesis=item["named_antithesis"], context=text
                     )
+                elif mode == "ingest":
+                    # The pipeline's own capture adds the Input and digests it
+                    # (a one-sentence Input is under the digest threshold, so
+                    # the digest IS the sentence); `intent` left to its default.
+                    pipeline = AnalysisPipeline(text=text)
+                    await pipeline.resolve()
+                    raw = str(pipeline.report)
                 elif mode == "context":
                     raw = await _anchor(thesis=text, antithesis=None, context=text)
                 else:
@@ -483,6 +497,13 @@ async def test_probe_tetrad_quality(di_container) -> None:
                 hashes = (report.get("artifacts") or {}).get("perspective_hashes") or []
                 item["polarity_quality"] = (report.get("artifacts") or {}).get("polarity_quality")
                 repo = NodeRepository()
+                if mode == "ingest":
+                    thesis_hashes = (report.get("artifacts") or {}).get("thesis_hashes") or []
+                    item["extracted_theses"] = [
+                        {"hash": h, "text": s.text, "simple": bool(getattr(s, "is_simple", False))}
+                        for h in thesis_hashes
+                        if (s := repo.find_by_hash(h, node_type=Statement)) is not None
+                    ]
                 for rank, h in enumerate(hashes, 1):
                     pp = repo.find_by_hash(h, node_type=Perspective)
                     if pp is not None:

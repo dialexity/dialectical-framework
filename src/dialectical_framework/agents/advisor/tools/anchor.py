@@ -78,15 +78,73 @@ async def anchor(
     # sid and publish two interleaved streams with two `final` events. Without a
     # key a host cannot tell them apart and clears its indicator on the first one
     # while the second is still working.
+    from dialectical_framework.utils.utterance import current_utterance
+
     with progress_scope("anchor", key=_progress_key(thesis, antithesis)):
-        return await _anchor(thesis=thesis, antithesis=antithesis, context=context)
+        # The ONE reader of the turn's utterance: the tool, which hands it on
+        # explicitly. `_anchor` never reads the ContextVar itself, because the
+        # off-turn task inherits the scheduling turn's context and would
+        # attribute a note or a closing's anchor to whatever was said last.
+        return await _anchor(
+            thesis=thesis,
+            antithesis=antithesis,
+            context=context,
+            utterance=current_utterance(),
+        )
 
 
-async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
+async def _keep_utterance(utterance: str | None, report_artifacts: dict) -> list[str]:
+    """The person's words, verbatim, as an Input — or nothing.
+
+    Why an Input and not a field: it is the framework's node for material, it
+    dedups on content (the same turn anchoring twice, or the same words said
+    again, is ONE Input), `ensure_digest` skips the model for anything short,
+    `read_input`/`read_digest` already read it back, and `inputs_for_statements`
+    makes it the context the tension is developed against instead of every
+    digest in the case. Before 2026-10-01 the original wording was stored
+    nowhere: the Statement keeps a ≤7-word headline and `context` is the
+    model's paraphrase.
+
+    Fail-soft: a failed capture costs provenance, never the anchor.
+    """
+    text = (utterance or "").strip()
+    if not text:
+        return []
+    try:
+        from dialectical_framework.concerns.add_input import AddInput
+        from dialectical_framework.concerns.source_digest import ensure_digest
+
+        input_node = await AddInput().resolve(content=text)
+        if not input_node.hash:
+            return []
+        await ensure_digest(input_node.hash)
+        report_artifacts["input_hash"] = input_node.hash
+        return [input_node.hash]
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception(
+            "Could not keep the person's words as an Input (fail-soft)"
+        )
+        return []
+
+
+async def _anchor(
+    *,
+    thesis: str,
+    antithesis: str | None,
+    context: str,
+    utterance: str | None = None,
+) -> str:
     """The tool's body, so the progress scope wraps it without re-indenting it.
 
     Split out rather than nested purely to keep the diff on the reasoning path
     empty: every line below is unchanged from when it was inline.
+
+    `utterance` is the person's turn, verbatim, when a turn is what this is
+    running on: kept as an Input and linked to the poles as their source. None
+    where there is no such turn — a closing's own anchor on an empty graph — and
+    the note's own turn for a note planted later.
     """
     from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
     from dialectical_framework.agents.analyst.skills.anchor_theses import \
@@ -96,9 +154,15 @@ async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
     from dialectical_framework.agents.analyst.skills.introduce_polarity import \
         IntroducePolarity
 
+    source_artifacts: dict = {}
+    input_hashes = await _keep_utterance(utterance, source_artifacts)
+
     if antithesis:
         introduce = IntroducePolarity(
-            thesis=thesis, antithesis=antithesis, text=context
+            thesis=thesis,
+            antithesis=antithesis,
+            text=context,
+            input_hashes=input_hashes,
         )
         result = await introduce.resolve()
 
@@ -118,10 +182,16 @@ async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
         combined_report.artifacts["perspective_hashes"] = [
             pp.hash for pp in perspectives if pp.hash
         ]
+        combined_report.artifacts.update(source_artifacts)
         return str(combined_report)
 
     # Thesis only: anchor then discover antithesis via pipeline
-    anchor_skill = AnchorTheses(statements=[thesis], text=context)
+    # `[]`, not None, when there is no turn: None would link the thesis to
+    # every Input in the case (`AnchorTheses._get_inputs`), and a tension
+    # anchored off the turn has no source — its context is `context` alone.
+    anchor_skill = AnchorTheses(
+        statements=[thesis], text=context, input_hashes=input_hashes
+    )
     ideas = await anchor_skill.resolve()
 
     thesis_hashes = anchor_skill.report.artifacts.get("thesis_hashes", [])
@@ -151,4 +221,5 @@ async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
 
     combined_report = anchor_skill.report.merge(pipeline.report)
     combined_report.artifacts["perspective_hashes"] = result.perspective_hashes
+    combined_report.artifacts.update(source_artifacts)
     return str(combined_report)

@@ -42,6 +42,13 @@ class Note(BaseNode, label="Note"):
         thesis: the position, in their terms (REQUIRED — `anchor`'s `thesis`).
         antithesis: the opposing force if they named one; None = discover it.
         context: their own specifics behind it (`anchor`'s `context`).
+        utterance: the person's turn the note was kept on, verbatim — what
+            `anchor` keeps as an Input when it fires ON a turn. Set at creation
+            and never changed; NOT in the hash (the nonce already makes every
+            keep unique, and the hash recipe is left alone on purpose —
+            CLAUDE.md, the version-stamp gap). Handed to `_anchor(utterance=)`
+            when the note is planted, so a note planted by another process on
+            a later turn still traces to the words it was kept on.
         planted: metadata, mutable, NOT in the hash. None = pending; otherwise
             the comma-joined perspective hashes the plant produced (or a short
             marker when the report carried none). Read by
@@ -53,6 +60,7 @@ class Note(BaseNode, label="Note"):
     thesis: str
     antithesis: Optional[str] = None
     context: Optional[str] = None
+    utterance: Optional[str] = None
     # One keep, one node — see the module docstring. Fresh per instance, as on
     # Decision; `clone()` gets a new one for the same reason Decision's does.
     nonce: str

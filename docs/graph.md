@@ -55,7 +55,7 @@ Perspective → Cycle → Wheel (edges) → Transformation
 | **Synthesis** | Emergent S+/S- pair from Wheel's circular causality | `s_plus`, `s_minus`, `target` (→Wheel) |
 | **Rationale** | Evidence/explanation | `explains`, `critiques`, `provided_estimations` |
 | **Estimation** | P/R values | `target` (→AssessableEntity via ESTIMATES), `provider` (←Rationale via PROVIDES) |
-| **Input** | Content source | `statements`, `ideas` |
+| **Input** | Content source: a document or URL, or a person's own turn kept verbatim when a tension was anchored on it (content-addressed: one text, one Input) | `statements`, `ideas` |
 | **Ideas** | Distilled concepts from Input | `inputs` (→Input), `statements` |
 | **Case** | Multi-input exploration | `inputs` (→Input) |
 | **Decision** | User-confirmed decision (question + stance) | `grounds` (→AssessableEntity via GROUNDED_IN, `role` property) |

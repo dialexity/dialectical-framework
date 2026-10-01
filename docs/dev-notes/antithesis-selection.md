@@ -579,3 +579,92 @@ free utterance improves — the one run that measured it end to end did not move
 beside kept; so the burden it carries is small, and the open question stays
 where the end-to-end run put it: what else, between a fixed T/A pair and a free
 utterance, costs the tetrad its coherence.
+
+**The two remaining context items, closed (2026-10-01).** (1) The person's
+original wording is now kept: the Advisor wraps its provider round in
+`speaking(user_message)` (`utils/utterance.py`), the `anchor` tool reads it and
+`_keep_utterance` commits the turn as an `Input` through `AddInput` —
+content-addressed, so the same turn anchoring twice is one Input, and
+`ensure_digest` skips the model for anything short — then hands its hash to
+`AnchorTheses` / `IntroducePolarity`, which link it to the poles as their source
+(`HAS_STATEMENT`). A `note` stores the turn on the `Note` node (`utterance`, not
+in the hash) so the plant that runs later, possibly in another process, still
+traces to it; a closing's own anchor on an empty graph passes `utterance=None`,
+since those words belong to the Decision's record. The off-turn task inherits
+the scheduling turn's ContextVar, which is why `_anchor` never reads it itself
+— only the two tools do, on the turn. (2) `inputs_for_statements`: a tension
+reads its own sources, every Input only when it has none. This also changes
+`ingest`: a tension extracted from document A is now developed against A alone,
+not A+B+C. Caveat recorded, not measured: the Input is the turn the tool FIRED
+on, and the material is sometimes an earlier turn — the model's `context`
+paraphrase is what selects across turns, so it stays first in
+`compose_context`. Tests: `tests/test_utterance_input.py`.
+
+**Review of the Input change (fresh reviewer, 2026-10-01) — one defect, fixed.**
+`FindPolarities._create_ideas` connected EVERY Input in the case to the Ideas
+container it writes for a thesis-only anchor (and for every `ingest`), and
+`find_by_statement_hashes` follows `Input → Ideas → Statement`, so both poles of
+every tension traced to every document and `inputs_for_statements` returned the
+union — "a tension reads its own sources" held on the two-pole branch only,
+and the unit test built its polarity directly so it could not see it. The
+container now links the theses' OWN sources (`inputs_for_statements(…,
+fallback_all=False)`), and `AnchorTheses.input_hashes` is three-state: `None` =
+every Input (the Analyst tool's documented contract), `[]` = no provenance (an
+anchor off the turn), a list = those. Pinned end to end through `anchor.fn`
+with a second Input seeded in the case. Smaller findings fixed in the same
+pass: `committed_at` is a float (sort key), the ContextVar reset when a host
+closes the stream from another task, the cache declared in `__init__`. Checked
+clean: two `anchor`s in one gathered tool round cannot interleave inside
+`AddInput` (no suspension point — safe by the absence of awaits, now said in a
+comment); the context dump renders Input HASHES only, so turns do not appear in
+the prompt; Note fields are never rendered. Open and recorded: wheel-level
+prompts (`explore_transformations`, `generate_synthesis`, `audit_feasibility`,
+`present_analysis`) still read every Input, so after many anchoring turns the
+24k source budget fills with chat (40 turns × 300 chars ≈ 12k) — they should
+read `inputs_for_statements` over the wheel's poles; a person's turns are now
+readable through `read_digest` and `query_graph` on a shared Case.
+
+**What `ingest` does to ONE sentence (static trace, 2026-10-01).** The
+document path, applied to ten words: `_parse_intent` (1 call) → step 1 "extract
+up to 5 content items" → step 2 one atomic thesis per item, 1–7 words, up to
+FOUR attempts demanding novelty until `count=3` theses exist → classification
+per candidate → antithetical-pair detection → per thesis ≤ 11 mode-point calls
++ ranking → up to 5 polarities per thesis, `_rank_polarities` keeps 5 → 4
+calls per expansion. About 75–80 provider calls for one sentence, and the
+theses are never the person's sentence: fragments and generalisations
+("Father is eighty-four"), with `SITUATION_REPORT_RULE` applied to the fragment,
+not the utterance. Defects found on the way: (a) `_rank_polarities` mixed its
+keys — a SIMPLE polarity's hardcoded HS 1.0 served as its fallback potential and
+outranked every rated candidate (≤ 1.0), so mechanical negations expanded FIRST
+whenever theses mixed; fixed, unrated now sorts after rated. (b) Re-`ingest` of
+a short Input runs `ensure_digest(refresh=True)` and replaces the verbatim
+digest with a paraphrase. (c) `_deduplicate_aspects`' vocabulary includes
+sibling tensions' antitheses from the same sentence. The conclusion for the
+blindspot app: the INPUT half of "the utterance is ingested" is right and now
+holds on both doors; the EXTRACTION half is a document procedure that
+over-extracts from one sentence by contract. Measured next with
+`TETRAD_PROBE_MODE=ingest`.
+
+**The third door measured: `ingest` on one utterance (2026-10-01, sets A+B,
+`TETRAD_PROBE_MODE=ingest`, 40/40, 0 errors).** The three doors on the same 40
+free utterances, first tetrad per utterance:
+
+| door | CC pass, first tetrad | any tetrad passes | tetrads / utterance | median latency | antithesis a position (first) |
+|---|---|---|---|---|---|
+| Consultant view turn | 24/40 (60%) | — (one drawn) | 1 | ~6–8 s | 20/20 rated genuine (one rater) |
+| `anchor` thesis-only (staged) | 14/40 (35%) | 18/40 | 2.4 | ~55 s | 27/40 |
+| `ingest` (extract, then staged) | 18/40 (45%) | 31/40 | 4.3 | ~75 s | 27/40; mirror 10/40 |
+
+Paired first tetrad, ingest vs anchor: both 5, only ingest 13, only anchor 9,
+neither 13 — a lean, not a result. What extraction made of a sentence: exactly
+3 theses every time (the `count=3` ask, filled by retry), the first a ≤7-word
+restatement of the utterance ("Author should quit job", "Marketing budget cut
+in half"), the second and third generalisations the person did not say
+("Leaving stable employment enables entrepreneurial pursuit", "New managers
+often lack employee trust"); 0/120 SIMPLE. So 172 tetrads for 40 sentences,
+most of them on invented theses — the 31/40 "any tetrad passes" is bought by
+volume. The Advisor's floor would keep ≥ 1 tetrad for 29/40 utterances (anchor:
+17/40). Reading: for a one-utterance app the Input half of "ingest it" is right
+and the extraction half is a document procedure; its first tetrad is no better
+than the view turn's and takes ten times as long. The one-shot path (item 3)
+is the design that keeps the Input and drops the extraction.

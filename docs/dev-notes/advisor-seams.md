@@ -176,6 +176,8 @@ policy).
 new surface: no build tool on the turn, so a reply stays one graph read plus the model, and two
 triggers start the same off-turn task a closing's weave runs on — the `note` tool and a confirmed
 decision. `note(thesis, antithesis=None, context="")` is `anchor`'s signature with its moment
+(since 2026-10-01 the Note also carries `utterance`, the person's turn it was kept on, which the
+plant hands to `_anchor(utterance=)` so the tension traces to the words — `antithesis-selection.md`)
 moved: on the turn it queues into the sid-keyed `_DeferredWork.notes` and returns "Kept."; after
 the reply `_schedule_noted_tensions` (both turn loops, right after the seam, because the seam's
 `NO_CLOSING` exit schedules nothing) starts the task; the drain plants each note with `_anchor`

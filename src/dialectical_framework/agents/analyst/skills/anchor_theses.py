@@ -212,16 +212,22 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
         carried the same `find_by_hashes` prefix bug as `ingest` without anyone
         noticing — `ingest` at least reported a (misleading) summary.
         """
-        if self.input_hashes:
-            from dialectical_framework.graph.nodes.input import Input
+        # Three-state on purpose: None = every Input in scope (the Analyst's
+        # `anchor_theses` tool documents this), [] = NO provenance (the
+        # Advisor's `anchor` off the turn, where linking a stance to every
+        # document would be a false claim), a list = exactly those.
+        if self.input_hashes is None:
+            return InputRepository().get_all()
+        if not self.input_hashes:
+            return []
+        from dialectical_framework.graph.nodes.input import Input
 
-            repo = NodeRepository()
-            inputs = repo.find_by_hashes(self.input_hashes, node_type=Input)
-            unresolved = len(self.input_hashes) - len(inputs)
-            if unresolved > 0:
-                self._report.artifacts["unresolved_input_hashes"] = unresolved
-            return inputs
-        return InputRepository().get_all()
+        repo = NodeRepository()
+        inputs = repo.find_by_hashes(self.input_hashes, node_type=Input)
+        unresolved = len(self.input_hashes) - len(inputs)
+        if unresolved > 0:
+            self._report.artifacts["unresolved_input_hashes"] = unresolved
+        return inputs
 
     @inject
     async def _get_input_text(

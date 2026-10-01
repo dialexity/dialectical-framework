@@ -29,6 +29,7 @@ from dialectical_framework.agents.advisor.build_policy import BuildPolicy
 from dialectical_framework.agents.advisor.tools.note import NoteSink
 from dialectical_framework.agents.agent_context import agent_scope
 from dialectical_framework.graph.views import ExplorationView
+from dialectical_framework.utils.utterance import current_utterance, speaking
 from dialectical_framework.graph.scope_context import (get_current_sid,
                                                         require_current_sid)
 from dialectical_framework.agents.conversation_facilitator import FROM_SETTINGS
@@ -715,9 +716,12 @@ class Advisor(SettingsAware):
         return _deferred_work(self._deferred_work_key()).decisions
 
     @property
-    def _notes_awaiting_anchor(self) -> list[tuple[str, Optional[str], str]]:
+    def _notes_awaiting_anchor(
+        self,
+    ) -> list[tuple[str, Optional[str], str, Optional[str]]]:
         """What the person asked to keep, queued for the next off-turn task on
-        this sid. Same in-place contract as the decisions above."""
+        this sid: (thesis, antithesis, context, the turn it was kept on). Same
+        in-place contract as the decisions above."""
         return _deferred_work(self._deferred_work_key()).notes
 
     async def _queue_note(
@@ -735,6 +739,11 @@ class Advisor(SettingsAware):
             return "Nothing kept: the position to keep was empty."
         antithesis = (antithesis or "").strip() or None
         context = (context or "").strip()
+        # The turn this was kept on, verbatim — read HERE, on the turn, because
+        # the plant runs later, possibly in another process, where there is no
+        # turn to read. The second and last reader of the ContextVar beside
+        # `anchor` (`utils/utterance.py`).
+        utterance = current_utterance()
         # Durable, or in memory — never both. "Written down" is what the model
         # tells the person on the strength of this return value, and on a
         # shared server the process that queued a note is not reliably the one
@@ -744,8 +753,8 @@ class Advisor(SettingsAware):
         # in-memory list holds a note ONLY when it could not be committed —
         # no scope, or a failed write — which is the pre-durability path kept
         # as the fallback.
-        if self._persist_note(thesis, antithesis, context) is None:
-            self._notes_awaiting_anchor.append((thesis, antithesis, context))
+        if self._persist_note(thesis, antithesis, context, utterance) is None:
+            self._notes_awaiting_anchor.append((thesis, antithesis, context, utterance))
         return (
             "Kept. It is worked into the understanding after this reply and "
             "appears on the next turn — tell the person it is written down; do "
@@ -836,7 +845,12 @@ class Advisor(SettingsAware):
             # Before submit, so this turn's prompt reflects what the LAST turn
             # wrote. The person waits for it, so it counts against the reply path.
             context_render_s = await self._refresh_context()
-            result = await self._conversation.submit(ChatResponse, user_message)
+            # The person's words, for any tool the model elects on this turn
+            # (`anchor` keeps them as an Input; `note` keeps them on the Note).
+            # Around the provider round ONLY — the closing seam and the
+            # off-turn scheduling below run outside it on purpose.
+            with speaking(user_message):
+                result = await self._conversation.submit(ChatResponse, user_message)
             reply_path_s = (
                 deferred_wait_s
                 + context_render_s
@@ -948,33 +962,37 @@ class Advisor(SettingsAware):
             # caller's job — see the docstring. It is still worth writing: it makes
             # the chain complete from the host's close downward, and it is the half
             # that is ours to get right.
-            async with aclosing(
-                self._conversation.submit_stream(ChatResponse, user_message)
-            ) as rounds:
-                async for event in rounds:
-                    if isinstance(event, ResponseComplete):
-                        final_event = event
-                        reply = event.message
-                        # `continue`, so `submit_stream` is asked for one more
-                        # event and runs to its own end instead of being closed
-                        # while suspended at its yield. The seconds read below are
-                        # safe either way — it stamps them as this event passes
-                        # through it, not on exit — but running out is still the
-                        # cleaner exit: the provider's connection is let go of by
-                        # exhaustion rather than by a close unwinding a live frame.
-                        continue
-                    if hygiene is not None:
-                        if isinstance(event, TextDelta):
-                            clean = hygiene.feed(event.text)
-                            if clean:
-                                yield TextDelta(text=clean)
+            # See `chat`: the person's words for the tools of this round only.
+            # Entered here, before the stream is opened, because the tool runs
+            # inside the generator while it is being iterated.
+            with speaking(user_message):
+                async with aclosing(
+                    self._conversation.submit_stream(ChatResponse, user_message)
+                ) as rounds:
+                    async for event in rounds:
+                        if isinstance(event, ResponseComplete):
+                            final_event = event
+                            reply = event.message
+                            # `continue`, so `submit_stream` is asked for one more
+                            # event and runs to its own end instead of being closed
+                            # while suspended at its yield. The seconds read below are
+                            # safe either way — it stamps them as this event passes
+                            # through it, not on exit — but running out is still the
+                            # cleaner exit: the provider's connection is let go of by
+                            # exhaustion rather than by a close unwinding a live frame.
                             continue
-                        if isinstance(event, (ToolStart, ToolResult)):
-                            tail = hygiene.flush()
-                            if tail:
-                                yield TextDelta(text=tail)
-                            hygiene = HashCitationFilter()
-                    yield event
+                        if hygiene is not None:
+                            if isinstance(event, TextDelta):
+                                clean = hygiene.feed(event.text)
+                                if clean:
+                                    yield TextDelta(text=clean)
+                                continue
+                            if isinstance(event, (ToolStart, ToolResult)):
+                                tail = hygiene.flush()
+                                if tail:
+                                    yield TextDelta(text=tail)
+                                hygiene = HashCitationFilter()
+                        yield event
             if hygiene is not None:
                 tail = hygiene.flush()
                 if tail:
@@ -2000,14 +2018,19 @@ class Advisor(SettingsAware):
             "tension off the turn so the record has something to rest on",
             decision.short_hash,
         )
+        # `utterance=None`: this runs off the turn, and the person's closing
+        # words belong to the Decision's own record, not to a tension's source.
         report_json = await _anchor(
-            thesis=decision.stance, antithesis=None, context="\n".join(p for p in context_parts if p)
+            thesis=decision.stance,
+            antithesis=None,
+            context="\n".join(p for p in context_parts if p),
+            utterance=None,
         )
         self._ground_accepted_cost_on_stance(decision, report_json)
         return True
 
     async def _anchor_noted_tensions(
-        self, noted: list[tuple[str, Optional[str], str]]
+        self, noted: list[tuple[str, Optional[str], str, Optional[str]]]
     ) -> int:
         """Plant what the person asked to have written down, off the turn.
 
@@ -2030,14 +2053,18 @@ class Advisor(SettingsAware):
         if not noted:
             return 0
         planted = 0
-        for thesis, antithesis, context in noted:
-            hashes = await self._plant_note(thesis, antithesis, context)
+        for thesis, antithesis, context, utterance in noted:
+            hashes = await self._plant_note(thesis, antithesis, context, utterance)
             if hashes:
                 planted += 1
         return planted
 
     async def _plant_note(
-        self, thesis: str, antithesis: Optional[str], context: str
+        self,
+        thesis: str,
+        antithesis: Optional[str],
+        context: str,
+        utterance: Optional[str] = None,
     ) -> Optional[list[str]]:
         """One note through `anchor`'s body. The perspective hashes it
         produced (possibly empty), or None when the plant RAISED — the
@@ -2049,7 +2076,10 @@ class Advisor(SettingsAware):
 
         try:
             report_json = await _anchor(
-                thesis=thesis, antithesis=antithesis, context=context
+                thesis=thesis,
+                antithesis=antithesis,
+                context=context,
+                utterance=utterance,
             )
             hashes = (json.loads(report_json).get("artifacts") or {}).get(
                 "perspective_hashes"
@@ -2067,7 +2097,9 @@ class Advisor(SettingsAware):
             return None
 
     async def _plant_noted_tensions(
-        self, noted: list[tuple[str, Optional[str], str]], durable: list
+        self,
+        noted: list[tuple[str, Optional[str], str, Optional[str]]],
+        durable: list,
     ) -> None:
         """Plant this round's notes: the in-memory triples (the ones that could
         not be committed — `_queue_note` keeps a note in exactly one place),
@@ -2081,7 +2113,10 @@ class Advisor(SettingsAware):
         await self._anchor_noted_tensions(noted)
         for note in durable:
             hashes = await self._plant_note(
-                note.thesis, note.antithesis, note.context or ""
+                note.thesis,
+                note.antithesis,
+                note.context or "",
+                getattr(note, "utterance", None),
             )
             if hashes is not None:
                 self._mark_note_planted(note, hashes)
@@ -2091,7 +2126,11 @@ class Advisor(SettingsAware):
     # ------------------------------------------------------------------
 
     def _persist_note(
-        self, thesis: str, antithesis: Optional[str], context: str
+        self,
+        thesis: str,
+        antithesis: Optional[str],
+        context: str,
+        utterance: Optional[str] = None,
     ) -> Optional[str]:
         """Commit the Note the person asked to keep; its hash, or None.
 
@@ -2106,7 +2145,12 @@ class Advisor(SettingsAware):
         try:
             from dialectical_framework.graph.nodes.note import Note
 
-            note = Note(thesis=thesis, antithesis=antithesis, context=context or None)
+            note = Note(
+                thesis=thesis,
+                antithesis=antithesis,
+                context=context or None,
+                utterance=utterance or None,
+            )
             note.commit()
             return note.hash
         except Exception:
