@@ -1888,9 +1888,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
 `shallow_wheel_hashes` are ranked-but-undeveloped — not presentable as insight).
 
 ### Critical output→input seams (upstream wording ripples downstream)
+0. **What each prompt on the `anchor` / `note` path SEES (traced 2026-10-01).** The utterance reaches
+   `StatementClassification` and `StatementHeadline`; everything after reads the ≤7-word headline
+   (`Statement.text`). The tool's `context` is composed particulars-first (`compose_context`) into the context
+   of classification, taxonomy contextualization and the mode-point candidates (through `FindPolarities`),
+   `AspectGeneration` and the CC/DV judge (through `ExpandPolarity`), and `TetradGrounding`. Before that date it
+   stopped at classification and grounding — review any new prompt on this path by asking which of
+   utterance / headline / context / Input digest it actually interpolates, not which arguments exist upstream.
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
-   COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**.
+   COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are
+   named COMPLEX in the prompt, each at BOTH sites (system COMPLEX list + the user prompt's clarifying
+   paragraph): named options / courses of action, and — `SITUATION_REPORT_RULE`, 2026-10-01 — a person's
+   report of their own situation (52/60 SIMPLE → 6/60; plain facts 60/60 and first-person document facts 57/60
+   unmoved; `tests/e2e/probe_simple_reports.py`, `TestASituationReportIsComplex`). Stability holding (0 flips
+   in 47) says nothing about whether the boundary is in the right PLACE: that defect was stable.
 2. **Thesis `meaning` URI → all taxonomy lookups.** `StatementClassification` writes the taxonomy branch into
    `meaning`; `lookup_aspect_apex` etc. derive the apex names that AspectGeneration/AntithesisExtraction score
    HS *against*. Wrong branch → HS scored against the wrong reference. Guarded: `TaxonomyLocationDto` fields are

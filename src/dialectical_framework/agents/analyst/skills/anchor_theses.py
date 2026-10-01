@@ -30,6 +30,7 @@ from dialectical_framework.graph.repositories.input_repository import \
     InputRepository
 from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
+from dialectical_framework.utils.input_context import compose_context
 from dialectical_framework.utils.progress import (expect_progress,
                                                  progress_key,
                                                  progress_scope,
@@ -55,10 +56,18 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
     PROGRESS_STEPS = 1
 
     def __init__(
-        self, statements: list[str], input_hashes: list[str] | None = None
+        self,
+        statements: list[str],
+        input_hashes: list[str] | None = None,
+        text: str = "",
     ) -> None:
         self.statements = statements
         self.input_hashes = input_hashes
+        #: The caller's particulars about these statements (`anchor`'s
+        #: `context`), composed ahead of the case-wide input text so the
+        #: thesis-only branch classifies and headlines with what the two-pole
+        #: branch (`IntroducePolarity`) already sees.
+        self.text = text
 
     async def resolve(self) -> Optional[Ideas]:
         if not self.statements:
@@ -67,7 +76,7 @@ class AnchorTheses(ReasonableConcern[Optional[Ideas]]):
             self._report.artifacts["thesis_hashes"] = []
             return None
 
-        text = await self._get_input_text()
+        text = compose_context(self.text, await self._get_input_text())
 
         expect_progress(self.PROGRESS_STEPS)
         report_progress("Taking in the position you named")

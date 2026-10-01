@@ -454,7 +454,10 @@ anchors.
       the BRANCH under it does not, and only 38% of texts return the same (family, domain, branch) six
       times. So this checklist item is about the boundary; the branch is a separate hazard (reference §3.1a)
       and it is already unstable before your edit. Any before/after you run downstream of the classifier
-      must pin or record the classification, or the two arms are not the same prompt.
+      must pin or record the classification, or the two arms are not the same prompt. **Stable is not
+      correct:** the boundary sat in the wrong place for a person's report of their own situation (SIMPLE
+      52/60, every reading agreeing) until `SITUATION_REPORT_RULE` — test a boundary edit on strata that
+      should move AND strata that must not (`tests/e2e/probe_simple_reports.py` is the template).
 - [ ] **A prompt that sets a score is a gate input.** `AntithesisExtraction` / `AntithesisClassification` /
       `TransformationGeneration._score_hs` feed `_rank_polarities` (0.7) and consolidation bands (0.7/0.1). A
       wording change that shifts the distribution changes what passes — review the gate, not just the call.

@@ -384,7 +384,10 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             # and drops every pair it merges, so a step declared for extraction that
             # consolidation then empties is a phantom — declared, never reported, and
             # indistinguishable to a host from one that failed.
-            find = FindPolarities(thesis_hashes=thesis_hashes)
+            find = FindPolarities(
+                thesis_hashes=thesis_hashes,
+                grounding_context=self.grounding_context,
+            )
             await find.resolve()
             reports.append(find.report)
 

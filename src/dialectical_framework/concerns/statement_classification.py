@@ -260,6 +260,26 @@ def parse_meaning_uri(
     return domain, category, branch, leaf
 
 
+# A person's REPORT of their own situation is COMPLEX. One sentence, measured
+# (`tests/e2e/probe_simple_reports.py`, 2026-10-01, Sonnet 5, 3 readings each):
+# without it the classifier read 20 situation reports ("My father refuses to
+# stop driving and he's eighty-four") SIMPLE in 52 of 60 readings — an
+# observable fact by the rule below — and on the `anchor` path SIMPLE means a
+# mechanical negation, HS hardcoded 1.0 and no ladder, so the person's stance
+# became "Father agrees to stop driving" and its tetrad failed the coherence
+# check every time. With it: 6 of 60, while 20 plain facts stayed SIMPLE 60/60,
+# 20 first-person document facts ("Our server refuses connections on port 443")
+# stayed 57/60 exactly as without it, and 20 courses of action stayed COMPLEX
+# 60/60. Passing "this is the person's position" as context instead did
+# nothing (53/60). Stated at BOTH sites where the sibling named-options rule
+# sits, from this one constant.
+SITUATION_REPORT_RULE = (
+    "A person's account of a situation they are in — someone's behaviour toward "
+    "them, a relationship pattern, a standing conflict — is likewise COMPLEX: it "
+    "is a stance held inside a system of people and stakes, not a fact to verify "
+    '("My landlord ignores every repair request I send").'
+)
+
 # --- System Prompt ---
 
 SYSTEM_PROMPT = """You are a dialectical statement classifier.
@@ -280,7 +300,7 @@ Your task is to classify statements and anchor them in taxonomy.
 - Named options and courses of action: a proposed choice, plan, or move
   embeds trade-offs and systemic consequences even when phrased as a bare
   imperative or noun phrase
-- Examples: "Trust", "Data consistency", "Open markets promote innovation", "Centralization enables coordination", "Distributed systems trade consistency for availability", "Take the startup offer", "Migrate to microservices"
+""" + f"- {SITUATION_REPORT_RULE}\n" + """- Examples: "Trust", "Data consistency", "Open markets promote innovation", "Centralization enables coordination", "Distributed systems trade consistency for availability", "Take the startup offer", "Migrate to microservices"
 
 Heuristic: If the statement describes a causal relationship (X causes/enables/prevents Y), a trade-off, a systemic dynamic, or a course of action someone could choose → Complex. If it is a bare fact verifiable by inspection → Simple.
 
@@ -735,7 +755,7 @@ Using the classification criteria from the system prompt, classify as:
 - SIMPLE/BINARY (is_simple = true): verifiable by direct observation, no causal dynamics
 - COMPLEX (is_simple = false): describes causal relationships, trade-offs, or systemic dynamics
 
-A statement like "X prevents/enables/eliminates Y" describes a causal dynamic and is COMPLEX, even if one could argue the causal claim is "either true or false." The test is whether the statement embeds a systemic relationship, not whether one can assign it a truth value. A named option or course of action ("Take the startup offer") is likewise COMPLEX: choosing it embeds trade-offs and systemic consequences, even when phrased as a bare imperative.
+A statement like "X prevents/enables/eliminates Y" describes a causal dynamic and is COMPLEX, even if one could argue the causal claim is "either true or false." The test is whether the statement embeds a systemic relationship, not whether one can assign it a truth value. A named option or course of action ("Take the startup offer") is likewise COMPLEX: choosing it embeds trade-offs and systemic consequences, even when phrased as a bare imperative. {SITUATION_REPORT_RULE}
 
 Provide your reasoning."""
 

@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import pytest
 
+from dialectical_framework.utils.input_context import compose_context
+
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
     ExpandPolarity
 from dialectical_framework.concerns.aspect_generation import (AspectGeneration,
@@ -561,7 +563,8 @@ class TestAnchorBranchesGroundAlike:
                 return type("Res", (), {"perspective_hashes": []})()
 
         class _FakeAnchorTheses:
-            def __init__(self, statements) -> None:
+            def __init__(self, statements, text: str = "") -> None:
+                captured["anchor_theses_text"] = text
                 self.report = type(
                     "R",
                     (),
@@ -589,6 +592,142 @@ class TestAnchorBranchesGroundAlike:
         await anchor_mod.anchor.fn(thesis="Keep him as cofounder", context=CONTEXT)
 
         assert captured.get("grounding_context") == CONTEXT
+        assert captured.get("anchor_theses_text") == CONTEXT, (
+            "the thesis-only branch must classify and headline WITH the "
+            "particulars, as the two-pole branch does"
+        )
+
+
+@pytest.mark.llm
+class TestContextReachesGeneration:
+    """`context` grounds the TETRAD, not only its grounding note.
+
+    A static trace on 2026-10-01 (docs/dev-notes/antithesis-selection.md) found
+    that on every `anchor` / `note` path the antithesis candidates, the aspect
+    call and the coherence judge saw the ≤7-word headlines and nothing else:
+    `grounding_context` reached `_ground_tetrads` only, and
+    `_get_input_text()` is "" on a Case with no Input — the ordinary Advisor
+    case. The tool's contract says otherwise, and the two-pole branch's
+    classifiers already composed it in. These pin the argument at each seam.
+    """
+
+    @pytest.mark.asyncio
+    async def test_the_aspect_call_and_the_judge_receive_the_particulars(self, monkeypatch):
+        case_node = Case()
+        case_node.commit()
+        seen: dict = {}
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            stub, _ = _distinct_aspect_stub(case_node.sid)
+
+            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
+                seen["aspect_text"] = text
+                return await stub(self, perspective, positions, text, not_like_these)
+
+            async def _validate(self, perspectives, input_text):
+                seen["judge_text"] = input_text
+
+            monkeypatch.setattr(AspectGeneration, "resolve", _recording)
+            monkeypatch.setattr(ExpandPolarity, "_validate_and_flag", _validate)
+            _fixed_extraction(monkeypatch)
+
+            await ExpandPolarity(
+                polarity_hash=polarity.hash, grounding_context=CONTEXT
+            ).resolve()
+
+        assert seen["aspect_text"] == CONTEXT, "no Input in the Case: the particulars ARE the context"
+        assert seen["judge_text"] == CONTEXT
+
+    @pytest.mark.asyncio
+    async def test_without_particulars_the_context_is_the_input_text_as_before(self, monkeypatch):
+        case_node = Case()
+        case_node.commit()
+        seen: dict = {}
+
+        with scope(case_node.sid):
+            polarity = _make_polarity(case_node.sid)
+            stub, _ = _distinct_aspect_stub(case_node.sid)
+
+            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
+                seen["aspect_text"] = text
+                return await stub(self, perspective, positions, text, not_like_these)
+
+            monkeypatch.setattr(AspectGeneration, "resolve", _recording)
+            await ExpandPolarity(polarity_hash=polarity.hash).resolve()
+
+        assert seen["aspect_text"] == "", "`ingest` and bare expansions are unchanged"
+
+    @pytest.mark.asyncio
+    async def test_the_pipeline_hands_the_particulars_to_antithesis_generation(self, monkeypatch):
+        from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+
+        seen: dict = {}
+
+        class _Recorder:
+            def __init__(self, thesis_hashes, **kwargs) -> None:
+                seen.update(kwargs)
+                self.report = type(
+                    "R", (), {"ok": True, "summary": "", "artifacts": {"polarity_data": []}}
+                )()
+
+            async def resolve(self):
+                return None
+
+        monkeypatch.setattr(
+            "dialectical_framework.agents.analyst.skills.find_polarities.FindPolarities",
+            _Recorder,
+        )
+        case_node = Case()
+        case_node.commit()
+        with scope(case_node.sid):
+            await AnalysisPipeline(thesis_hashes=["h1"], grounding_context=CONTEXT).resolve()
+
+        assert seen.get("grounding_context") == CONTEXT
+
+    @pytest.mark.asyncio
+    async def test_find_polarities_composes_them_into_the_extraction_context(self, monkeypatch):
+        from dialectical_framework.agents.analyst.skills.find_polarities import \
+            FindPolarities
+        from dialectical_framework.concerns.antithesis_extraction import \
+            AntithesisExtraction
+
+        seen: list[str] = []
+
+        async def _resolve(self, thesis, text="", not_like_these=None, count=5):
+            seen.append(text)
+            return []
+
+        monkeypatch.setattr(AntithesisExtraction, "resolve", _resolve)
+        case_node = Case()
+        case_node.commit()
+        with scope(case_node.sid):
+            thesis = Statement(text="Buy him out", meaning=_T_MEANING)
+            thesis.commit()
+            await FindPolarities(
+                thesis_hashes=[thesis.hash], grounding_context=CONTEXT
+            ).resolve()
+
+        assert seen and all(text == CONTEXT for text in seen), seen
+
+    @pytest.mark.asyncio
+    async def test_anchor_theses_classifies_with_the_particulars(self, monkeypatch):
+        from dialectical_framework.agents.analyst.skills.anchor_theses import \
+            AnchorTheses
+
+        seen: dict = {}
+
+        async def _classify(self, statements, text=""):
+            seen["text"] = text
+            return []
+
+        monkeypatch.setattr(AnchorTheses, "_classify_and_create", _classify)
+        case_node = Case()
+        case_node.commit()
+        with scope(case_node.sid):
+            await AnchorTheses(statements=["Keep him as cofounder"], text=CONTEXT).resolve()
+
+        assert seen["text"] == CONTEXT
 
 
 @pytest.mark.llm
@@ -617,7 +756,7 @@ class TestIntroducePolarityContextOrder:
         from dialectical_framework.agents.analyst.skills.introduce_polarity import \
             IntroducePolarity
 
-        composed = IntroducePolarity._compose_context(
+        composed = compose_context(
             self.PARTICULARS, '<Input id="abc">a document</Input>'
         )
 
@@ -629,7 +768,7 @@ class TestIntroducePolarityContextOrder:
             IntroducePolarity
 
         huge = '<Input id="abc">\n' + ("x" * 50_000) + "\n</Input>"
-        composed = IntroducePolarity._compose_context(self.PARTICULARS, huge)
+        composed = compose_context(self.PARTICULARS, huge)
 
         assert self.PARTICULARS in composed[:1500], "cut by StatementHeadline"
         assert self.PARTICULARS in composed[:2000], "cut by StatementClassification"
@@ -638,15 +777,15 @@ class TestIntroducePolarityContextOrder:
         from dialectical_framework.agents.analyst.skills.introduce_polarity import \
             IntroducePolarity
 
-        assert IntroducePolarity._compose_context("", "material") == "material"
-        assert IntroducePolarity._compose_context("   ", "material") == "material"
+        assert compose_context("", "material") == "material"
+        assert compose_context("   ", "material") == "material"
 
     def test_no_input_is_just_the_particulars(self):
         from dialectical_framework.agents.analyst.skills.introduce_polarity import \
             IntroducePolarity
 
         assert (
-            IntroducePolarity._compose_context(self.PARTICULARS, "")
+            compose_context(self.PARTICULARS, "")
             == self.PARTICULARS
         )
 
@@ -654,4 +793,4 @@ class TestIntroducePolarityContextOrder:
         from dialectical_framework.agents.analyst.skills.introduce_polarity import \
             IntroducePolarity
 
-        assert IntroducePolarity._compose_context("", "") == ""
+        assert compose_context("", "") == ""

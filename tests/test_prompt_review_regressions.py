@@ -4400,3 +4400,46 @@ class TestTheSynthesisWhyReachesThePrompt:
         assert 'set_explanation_target(synthesis, role=role)' in src
         assert '("s_plus", result.s_plus_explanation)' in src
         assert '("s_minus", result.s_minus_explanation)' in src
+
+
+class TestASituationReportIsComplex:
+    """A person's report of their own situation is a stance, not a fact.
+
+    `tests/e2e/probe_simple_reports.py` (2026-10-01): the classifier read 20
+    situation reports ("My father refuses to stop driving and he's eighty-four")
+    SIMPLE in 52/60 readings; on the `anchor` path that is a mechanical
+    negation with HS hardcoded 1.0. One sentence moved it to 6/60 with plain
+    facts at 60/60 SIMPLE, first-person document facts unchanged (57/60 both
+    arms) and courses of action at 60/60 COMPLEX. Context framing did nothing.
+    Pinned at BOTH sites, from one constant, because the sibling named-options
+    rule lives at both and the user prompt is the one closest to the output.
+    """
+
+    def test_the_rule_is_one_constant_at_both_sites(self):
+        from dialectical_framework.concerns import statement_classification as sc
+
+        rule = sc.SITUATION_REPORT_RULE
+        assert sc.SYSTEM_PROMPT.count(rule) == 1
+        assert (
+            sc.SYSTEM_PROMPT.index("- Named options and courses of action")
+            < sc.SYSTEM_PROMPT.index(rule)
+            < sc.SYSTEM_PROMPT.index('- Examples: "Trust"')
+        ), "inside the COMPLEX list, before its examples"
+
+        classifier = sc.StatementClassification()
+        classifier._statement = "My father refuses to stop driving."
+        classifier._text = ""
+        classifier._domain_hint = ""
+        prompt = classifier._classification_prompt()
+        assert prompt.count(rule) == 1
+        assert prompt.index("even when phrased as a bare imperative.") < prompt.index(rule)
+
+    def test_the_rule_is_a_positive_specification_with_one_example(self):
+        from dialectical_framework.concerns.statement_classification import \
+            SITUATION_REPORT_RULE
+
+        assert "is likewise COMPLEX" in SITUATION_REPORT_RULE
+        assert "a stance held inside a system of people and stakes" in SITUATION_REPORT_RULE
+        assert SITUATION_REPORT_RULE.count('("') == 1, "one example, not a list"
+        # The example must not be a member of the probe's population.
+        assert "landlord" in SITUATION_REPORT_RULE

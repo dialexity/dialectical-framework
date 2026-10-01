@@ -42,7 +42,7 @@ write "use read_input to see the rest" here — that is the dead off-ramp
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.input import Input
@@ -166,3 +166,30 @@ async def input_context(
             )
 
     return "\n\n".join(parts)
+
+
+def compose_context(particulars: Optional[str], input_text: Optional[str]) -> str:
+    """The person's particulars about ONE tension FIRST, case-wide material after.
+
+    Every prompt on an `anchor` / `note` path that reasons about a tension takes
+    its context from here: classification, antithesis generation, aspect
+    generation and the coherence judge. Until 2026-10-01 only the two-pole
+    branch's classifiers did; the antithesis candidates, the aspects and the
+    judge saw the ≤7-word headlines and nothing else, although the tool's
+    contract is that `context` grounds the tetrad
+    (docs/dev-notes/antithesis-selection.md, the static trace).
+
+    Particulars first because consumers truncate from the front —
+    `StatementHeadline` at 1500 chars, both `StatementClassification` prompts
+    at 2000 — while `input_text` is case-wide and unbounded (`input_context`
+    falls back to full content for any Input whose digest has not been written
+    yet). Document-first pushed the caller's particulars about THIS tension
+    clean out of both prompts as soon as one pasted file exceeded the cap.
+    """
+    particulars = (particulars or "").strip()
+    input_text = (input_text or "").strip()
+    if not particulars:
+        return input_text
+    if not input_text:
+        return particulars
+    return f"{particulars}\n\n{input_text}"

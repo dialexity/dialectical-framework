@@ -44,17 +44,50 @@ Tuning on SET_A and confirming on SET_B is the honest order.
     poetry run pytest tests/e2e/probe_tetrad_quality.py --real-llm -q -s
     TETRAD_PROBE_SET=b ...     # the fresh set; ab for both
     TETRAD_PROBE_LIMIT=5 ...   # a partial run, announced as such
+    TETRAD_PROBE_OFFSET=5 TETRAD_PROBE_LIMIT=5 ...   # a SLICE: utterances 5..9
+    TETRAD_PROBE_MODE=context|given_a ...            # see MODES below
+
+SLICES. A 20-utterance run is ~20–40 min and has been killed twice (the
+background time limit, the machine's memory reaper). `TETRAD_PROBE_OFFSET` +
+`TETRAD_PROBE_LIMIT` run a slice; the file name carries mode and offset so
+slices never overwrite each other, and
+
+    python tests/e2e/probe_tetrad_quality.py --summarise 'tests/e2e/results/tetrad_quality/set_a-context-off*.json'
+
+prints the same summary over every file the glob matches (an utterance seen
+twice keeps its LAST reading).
+
+MODES (`TETRAD_PROBE_MODE`, default `default` = behaviour unchanged)
+====================================================================
+  default   `_anchor(thesis=text, antithesis=None, context="")` — the bare
+            thesis-only path every earlier run measured.
+  context   `_anchor(thesis=text, antithesis=None, context=text)` — the same
+            path with the person's whole utterance passed as context: does the
+            utterance reaching the pipeline change anything end to end?
+  given_a   ONE cheap structured call first reads the whole utterance and names
+            what the position stands against, as the other side of the
+            person's own dilemma; then `_anchor(thesis=text, antithesis=<that>,
+            context=text)` — the EXISTING thesis-plus-antithesis path
+            (`IntroducePolarity` → `ExpandPolarity`), no ladder, no selector.
 """
 
 from __future__ import annotations
 
 import asyncio
 import collections
+import glob as glob_module
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Literal, Optional
+
+# `python tests/e2e/probe_tetrad_quality.py --summarise …` puts tests/e2e on the
+# path, not tests/; under pytest tests/ is already there and this is a no-op.
+_TESTS_DIR = str(Path(__file__).resolve().parent.parent)
+if _TESTS_DIR not in sys.path:
+    sys.path.insert(0, _TESTS_DIR)
 
 import pytest
 from pydantic import BaseModel, Field
@@ -306,60 +339,44 @@ def _pct(k: int, n: int) -> str:
     return f"{k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)"
 
 
-@pytest.mark.real_llm
-@pytest.mark.asyncio
-async def test_probe_tetrad_quality(di_container) -> None:
-    which = os.environ.get("TETRAD_PROBE_SET", "a").lower()
-    utterances = list(_SETS[which])
-    limit = int(os.environ.get("TETRAD_PROBE_LIMIT", "0") or 0)
-    if limit:
-        print(f"\n!! TETRAD_PROBE_LIMIT={limit}: PARTIAL RUN of set {which}", flush=True)
-        utterances = utterances[:limit]
-    config = E2EConfig.from_env()
-    judge_model = config.judge_model
-    out_dir = Path(os.environ.get("TETRAD_PROBE_OUT", str(_DEFAULT_OUT)))
-    out_dir.mkdir(parents=True, exist_ok=True)
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    out = out_dir / f"set_{which}-{stamp}.json"
-    gen_model = di_container.settings().ai_model
-    print(f"\n=== tetrad quality: set {which}, {len(utterances)} utterances, "
-          f"generator {gen_model}, auditor {judge_model} ===\n→ {out}", flush=True)
+_MODES = ("default", "context", "given_a")
 
-    items: list[dict] = []
-    for index, text in enumerate(utterances, 1):
-        case = Case()
-        case.commit()
-        started = time.monotonic()
-        item: dict = {"utterance": text, "sid": case.sid, "perspectives": []}
-        with scope(case.sid):
-            try:
-                report = json.loads(await _anchor(thesis=text, antithesis=None, context=""))
-                hashes = (report.get("artifacts") or {}).get("perspective_hashes") or []
-                item["polarity_quality"] = (report.get("artifacts") or {}).get("polarity_quality")
-                repo = NodeRepository()
-                for rank, h in enumerate(hashes, 1):
-                    pp = repo.find_by_hash(h, node_type=Perspective)
-                    if pp is not None:
-                        item["perspectives"].append(_row(pp, rank))
-            except Exception as exc:  # noqa: BLE001
-                item["error"] = repr(exc)
-        item["seconds"] = round(time.monotonic() - started, 1)
-        # the auditor, outside the scope: it reads text, writes nothing
-        for row in item["perspectives"]:
-            if row.get("thesis") and row.get("antithesis"):
-                row.update(await _audit_kind(di_container, judge_model, row["thesis"], row["antithesis"]))
-                row.update(await _audit_pluses(di_container, judge_model, row))
-                row.update(await _audit_parentage(di_container, judge_model, row))
-        items.append(item)
-        out.write_text(json.dumps(items, indent=1, ensure_ascii=False))  # incremental
-        first = item["perspectives"][0] if item["perspectives"] else None
-        line = (f"  [{index}/{len(utterances)}] {item['seconds']}s  {len(item['perspectives'])} pp  "
-                + (f"A[{first.get('a_kind')}/{first.get('a_rung')}/pot {first.get('a_tetrad_potential')}] "
-                   f"CC {first.get('cc_t')}/{first.get('cc_a')} {'PASS' if first.get('cc_pass') else 'fail'}  "
-                   f"«{first.get('antithesis')}»" if first else item.get("error", "nothing drawn")))
-        print(line, flush=True)
 
-    # --- summary over ALL expanded perspectives, and over the FIRST per utterance ---
+class _NamedAntithesis(BaseModel):
+    antithesis: str = Field(
+        description=(
+            "What this position stands against — the OTHER side of the person's own "
+            "dilemma, as a position someone holds for its own value, in the person's "
+            "terms. 7 words or fewer, no explanation."
+        )
+    )
+
+
+async def _name_antithesis(text: str) -> str:
+    """`given_a` mode's one cheap call: the other side of the person's dilemma.
+
+    Forced-tool structured call on the generator model, no thinking — the same
+    shape every concern uses. Deliberately NOT the ladder: the question is what
+    the existing thesis-plus-antithesis path builds when it is handed the kind
+    of antithesis the Consultant's view turn names.
+    """
+    conversation = ConversationFacilitator()
+    conversation.set_system_prompt(
+        "You read one thing a person said and name what their position stands against."
+    )
+    verdict = await conversation.submit(
+        _NamedAntithesis,
+        f'The person said: "{text}"\n\n'
+        "Name what this position stands against: the other side of the person's own "
+        "dilemma, as a position someone holds for its own value — not the position's "
+        "absence, not a caricature. In the person's terms, 7 words or fewer.",
+    )
+    return verdict.antithesis.strip()
+
+
+def _print_summary(items: list[dict], out: Optional[Path] = None) -> None:
+    """The run's summary, over ALL expanded perspectives and over the FIRST per
+    utterance. Module-level so `--summarise` prints the same thing over slices."""
     rows = [r for it in items for r in it["perspectives"]]
     firsts = [it["perspectives"][0] for it in items if it["perspectives"]]
 
@@ -396,6 +413,126 @@ async def test_probe_tetrad_quality(di_container) -> None:
 
     summarise("ALL expanded", rows)
     summarise("FIRST per utterance (what a blindspot screen shows)", firsts)
-    secs = sorted(it["seconds"] for it in items)
-    print(f"\n  latency median {secs[len(secs)//2]}s  max {secs[-1]}s;  errors "
-          f"{sum('error' in it for it in items)}/{len(items)}\n  written: {out}", flush=True)
+    secs = sorted(it["seconds"] for it in items if it.get("seconds") is not None)
+    if secs:
+        print(f"\n  latency median {secs[len(secs)//2]}s  max {secs[-1]}s;  errors "
+              f"{sum('error' in it for it in items)}/{len(items)}"
+              + (f"\n  written: {out}" if out else ""), flush=True)
+
+
+def _load_slices(pattern: str) -> list[dict]:
+    """Every item of every file the glob matches, in file-name order; an
+    utterance read twice keeps its LAST reading, in its first position."""
+    by_utterance: dict[str, dict] = {}
+    for path in sorted(glob_module.glob(pattern)):
+        for item in json.loads(Path(path).read_text()):
+            by_utterance[item["utterance"]] = item
+    return list(by_utterance.values())
+
+
+@pytest.mark.real_llm
+@pytest.mark.asyncio
+async def test_probe_tetrad_quality(di_container) -> None:
+    which = os.environ.get("TETRAD_PROBE_SET", "a").lower()
+    mode = os.environ.get("TETRAD_PROBE_MODE", "default").lower()
+    if mode not in _MODES:
+        raise ValueError(f"TETRAD_PROBE_MODE={mode!r}; expected one of {_MODES}")
+    utterances = list(_SETS[which])
+    offset = int(os.environ.get("TETRAD_PROBE_OFFSET", "0") or 0)
+    limit = int(os.environ.get("TETRAD_PROBE_LIMIT", "0") or 0)
+    if offset or limit:
+        end = offset + limit if limit else len(utterances)
+        print(f"\n!! SLICE of set {which}: utterances [{offset}:{end}) — PARTIAL RUN",
+              flush=True)
+        utterances = utterances[offset:end]
+    config = E2EConfig.from_env()
+    judge_model = config.judge_model
+    out_dir = Path(os.environ.get("TETRAD_PROBE_OUT", str(_DEFAULT_OUT)))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    # The historical name is kept for the unsliced default run, so the archive's
+    # globs still mean what they meant; anything else names its mode and offset.
+    if mode == "default" and not offset:
+        out = out_dir / f"set_{which}-{stamp}.json"
+    else:
+        out = out_dir / f"set_{which}-{mode}-off{offset:02d}-{stamp}.json"
+    gen_model = di_container.settings().ai_model
+    print(f"\n=== tetrad quality: set {which}, mode {mode}, {len(utterances)} utterances, "
+          f"generator {gen_model}, auditor {judge_model} ===\n→ {out}", flush=True)
+
+    items: list[dict] = []
+    for index, text in enumerate(utterances, 1):
+        case = Case()
+        case.commit()
+        started = time.monotonic()
+        item: dict = {"utterance": text, "sid": case.sid, "mode": mode, "perspectives": []}
+        with scope(case.sid):
+            try:
+                if mode == "given_a":
+                    item["named_antithesis"] = await _name_antithesis(text)
+                    raw = await _anchor(
+                        thesis=text, antithesis=item["named_antithesis"], context=text
+                    )
+                elif mode == "context":
+                    raw = await _anchor(thesis=text, antithesis=None, context=text)
+                else:
+                    raw = await _anchor(thesis=text, antithesis=None, context="")
+                report = json.loads(raw)
+                item["report_ok"] = report.get("ok")
+                item["report_summary"] = report.get("summary")
+                hashes = (report.get("artifacts") or {}).get("perspective_hashes") or []
+                item["polarity_quality"] = (report.get("artifacts") or {}).get("polarity_quality")
+                repo = NodeRepository()
+                for rank, h in enumerate(hashes, 1):
+                    pp = repo.find_by_hash(h, node_type=Perspective)
+                    if pp is not None:
+                        item["perspectives"].append(_row(pp, rank))
+            except Exception as exc:  # noqa: BLE001
+                item["error"] = repr(exc)
+        item["seconds"] = round(time.monotonic() - started, 1)
+        # the auditor, outside the scope: it reads text, writes nothing
+        # Gathered: the three auditors read text and write nothing, and run
+        # sequentially they were most of a slice's wall time (~1 min/utterance).
+        async def _audit(row: dict) -> None:
+            verdicts = await asyncio.gather(
+                _audit_kind(di_container, judge_model, row["thesis"], row["antithesis"]),
+                _audit_pluses(di_container, judge_model, row),
+                _audit_parentage(di_container, judge_model, row),
+            )
+            for verdict in verdicts:
+                row.update(verdict)
+
+        # ONE outer `using_model` around the gather: each auditor enters its own,
+        # and interleaved exits would otherwise restore another auditor's
+        # override — leaving the NEXT utterance generating on the judge model.
+        # The outer exit is the one that restores the generator's settings.
+        with using_model(di_container, judge_model):
+            await asyncio.gather(*(
+                _audit(row) for row in item["perspectives"]
+                if row.get("thesis") and row.get("antithesis")
+            ))
+        assert di_container.settings().ai_model == gen_model, (
+            "the auditors left the judge model installed"
+        )
+        items.append(item)
+        out.write_text(json.dumps(items, indent=1, ensure_ascii=False))  # incremental
+        first = item["perspectives"][0] if item["perspectives"] else None
+        line = (f"  [{index}/{len(utterances)}] {item['seconds']}s  {len(item['perspectives'])} pp  "
+                + (f"A[{first.get('a_kind')}/{first.get('a_rung')}/pot {first.get('a_tetrad_potential')}] "
+                   f"CC {first.get('cc_t')}/{first.get('cc_a')} {'PASS' if first.get('cc_pass') else 'fail'}  "
+                   f"«{first.get('antithesis')}»" if first else item.get("error", "nothing drawn")))
+        print(line, flush=True)
+
+    _print_summary(items, out)
+
+
+if __name__ == "__main__":
+    # Summarise one or more saved slice files. No provider, no graph.
+    if len(sys.argv) == 3 and sys.argv[1] == "--summarise":
+        loaded = _load_slices(sys.argv[2])
+        print(f"{len(loaded)} utterances from {len(glob_module.glob(sys.argv[2]))} "
+              f"file(s) matching {sys.argv[2]}")
+        _print_summary(loaded)
+    else:
+        print("usage: python tests/e2e/probe_tetrad_quality.py --summarise '<glob>'")
+        sys.exit(2)

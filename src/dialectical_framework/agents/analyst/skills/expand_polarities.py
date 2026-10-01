@@ -48,6 +48,7 @@ from dialectical_framework.graph.repositories.statement_repository import (
     StatementRepository,
 )
 from dialectical_framework.graph.repositories.input_repository import InputRepository
+from dialectical_framework.utils.input_context import compose_context
 from dialectical_framework.utils.progress import (expect_progress,
                                                  progress_hash_key,
                                                  progress_key,
@@ -113,8 +114,14 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         if polarity is None:
             return []
 
-        # Get input text for context
-        input_text = await self._get_input_text()
+        # Context for the aspect call, the aspect dedup and the coherence judge:
+        # this tension's own particulars first, case-wide material after. The
+        # particulars used to reach `_ground_tetrads` only, so on a Case with no
+        # Input — the ordinary Advisor `anchor` — the tetrad was generated and
+        # judged from two ≤7-word headlines and nothing else.
+        input_text = compose_context(
+            self.grounding_context, await self._get_input_text()
+        )
 
         # Look up existing Perspectives for this Polarity
         pp_repo = PerspectiveRepository()

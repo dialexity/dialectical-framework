@@ -121,7 +121,7 @@ async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
         return str(combined_report)
 
     # Thesis only: anchor then discover antithesis via pipeline
-    anchor_skill = AnchorTheses(statements=[thesis])
+    anchor_skill = AnchorTheses(statements=[thesis], text=context)
     ideas = await anchor_skill.resolve()
 
     thesis_hashes = anchor_skill.report.artifacts.get("thesis_hashes", [])
@@ -135,6 +135,13 @@ async def _anchor(*, thesis: str, antithesis: str | None, context: str) -> str:
     # thesis-only branch discarded the person's particulars outright while the
     # both-poles branch above preserved them — the same tool, silently two
     # different memories depending on whether the model named the opposition.
+    #
+    # That fix (2026-09) reached GROUNDING only. A static trace on 2026-10-01
+    # found the antithesis candidates, the aspect call and the coherence judge
+    # still saw nothing but the headline, on both branches. `grounding_context`
+    # is now composed into the context of every one of them
+    # (`utils/input_context.compose_context`), and `AnchorTheses` classifies
+    # with it as `IntroducePolarity` already did.
     pipeline = AnalysisPipeline(
         thesis_hashes=thesis_hashes,
         intent=context or None,

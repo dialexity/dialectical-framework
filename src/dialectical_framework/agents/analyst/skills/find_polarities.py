@@ -61,6 +61,7 @@ from dialectical_framework.graph.repositories.node_repository import \
     NodeRepository
 from dialectical_framework.graph.repositories.polarity_repository import \
     PolarityRepository
+from dialectical_framework.utils.input_context import compose_context
 from dialectical_framework.utils.progress import (expect_progress,
                                                   progress_hash_key,
                                                   progress_key,
@@ -102,9 +103,19 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
     - Polarity nodes: ARelationship.heuristic_similarity
     """
 
-    def __init__(self, thesis_hashes: list[str], count: int = 5) -> None:
+    def __init__(
+        self,
+        thesis_hashes: list[str],
+        count: int = 5,
+        grounding_context: Optional[str] = None,
+    ) -> None:
         self.thesis_hashes = thesis_hashes
         self.count = count
+        #: Conversational material about the ONE tension these theses belong
+        #: to (`anchor`'s thesis-only branch). Composed ahead of the case-wide
+        #: input text for every antithesis prompt; `ingest` leaves it unset for
+        #: the reason `AnalysisPipeline.grounding_context` gives.
+        self.grounding_context = (grounding_context or "").strip() or None
 
     async def resolve(self) -> Optional[Ideas]:
         """
@@ -120,8 +131,10 @@ class FindPolarities(ReasonableConcern[Optional[Ideas]]):
             self._report.artifacts["antithesis_data"] = []
             return None
 
-        # Get input text for context
-        input_text = await self._get_input_text()
+        # Get input text for context — this tension's particulars first
+        input_text = compose_context(
+            self.grounding_context, await self._get_input_text()
+        )
 
         # Get existing vocabulary to avoid and for dedup comparison
         comp_repo = StatementRepository()

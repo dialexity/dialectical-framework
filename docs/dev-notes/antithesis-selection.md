@@ -321,3 +321,172 @@ number. Of the three differences listed above, that leaves WHOLENESS and the
 TAXONOMY APEX, and the next run is the holistic one: one call that builds
 thesis reading, antithesis and all four aspects together, with the ladder and
 the scales classifying and scoring afterwards.
+
+## Working the non-refactoring suspects (2026-10-01)
+
+**Suspect 9 — judge noise: ruled out.** The same 80 saved first tetrads
+re-scored three times each by `ControlStatementsCheck` (40 pipeline, final
+stack; 40 view turn). Pipeline: 13/40 on every one of the three readings; view
+turn: 24, 24, 25. The verdict was unanimous across the three readings for 36/40
+and 34/40 tetrads, and agreed with the original single scoring on 107/120 and
+105/120 readings; mean per-statement score sd 0.015 and 0.011. The gap is not
+the judge.
+
+**Suspects 1–2 — context: a confirmed defect, by static trace.** On every
+`anchor` / `note` path the tetrad is generated context-free. Thesis-only: the
+utterance reaches `StatementClassification` and `StatementHeadline`, then the
+≤7-word headline is all that taxonomy contextualization, the mode-point
+candidates, the Optimum-A ranking, `AspectGeneration` and the CC/DV judge ever
+see; the tool's `context` goes only to `TetradGrounding`
+(`expand_polarities.py`, `_ground_tetrads`). Thesis-plus-antithesis: `context`
+reaches the two classifications and `AntithesisClassification`, and again not
+the aspect call or the judge. `ExpandPolarity._get_input_text()` returns ""
+on a Case with no Input, which is the ordinary Advisor case. The tool's own
+comment says "`context` grounds the tetrad, not just its classification"; the
+2026-09 fix it describes covered grounding only. Also found: the thesis-only
+branch classifies without `context` while the two-pole branch composes it in;
+the person's original wording is stored nowhere after headlining; and an
+`anchor` after an `ingest` receives every Input's digest as its context
+(unrelated documents) but still not its own. `ingest` itself is fine — its
+prompts receive the Input digests.
+
+**Suspect 8 — situation reports classified SIMPLE: bigger than set B showed,
+and one sentence moves it** (`tests/e2e/probe_simple_reports.py`, 20 REPORT /
+20 FACT / 20 COURSE statements × 3 readings × 3 arms, 540 readings):
+
+| arm | REPORT read SIMPLE | FACT read SIMPLE | COURSE read SIMPLE |
+|---|---|---|---|
+| production | 52/60 (87%) | 60/60 | 0/60 |
+| one added sentence | 6/60 (10%) | 60/60 | 0/60 |
+| context framing from the anchor path | 53/60 (88%) | 60/60 | 0/60 |
+
+The sentence, at both sites where the sibling named-options rule already sits:
+"A person's account of a situation they are in — someone's behaviour toward
+them, a relationship pattern, a standing conflict — is likewise COMPLEX: it is
+a stance held inside a system of people and stakes, not a fact to verify ("My
+landlord ignores every repair request I send")." Framing does nothing; the two
+holdouts are standing states with no behaviour toward the speaker. Unmeasured
+before shipping: first-person DOCUMENT facts ("Our server refuses connections")
+— the stratum is being added.
+
+The added stratum: 20 first-person document facts ("Our server refuses
+connections on port 443", "My laptop refuses to wake from sleep") read SIMPLE
+57/60 under production AND 57/60 with the sentence — no statement moved, no
+flips; the one COMPLEX statement ("My car stalls when the engine is cold")
+states a cause and is COMPLEX in production too. The sentence does not
+over-correct on this evidence (one model, 3 readings, 20 statements).
+
+**Suspect 3 — which half carries the gap: the ASPECT call, not the choice of
+antithesis** (`tests/e2e/probe_aspect_variants.py`, DB-free replay of
+`AspectGeneration`'s full-tetrad call on fixed T/A pairs, the pipeline's own
+judge, 40 pairs per arm, one variable per arm):
+
+| arm | T/A from | CC pass |
+|---|---|---|
+| production prompt (harness check: pipeline measured 14/40) | pipeline | 14/40 |
+| + utterance as context (suspect 1, aspect side) | pipeline | 13/40 |
+| − taxonomy apex hints (suspect 5) | pipeline | 11/40 |
+| + "in the person's own terms" (suspect 6) | pipeline | 13/40 |
+| texts only, no scores or scales (suspect 4) | pipeline | 18/40 |
+| view-style aspect call (Consultant system prompt, utterance as the conversation, thinking, texts only) | pipeline | **26/40** |
+| production prompt | view turn | 16/40 |
+
+The pipeline's own T/A with view-style aspects reaches the view turn's level
+(24/40); the view turn's T/A through the production aspect prompt does not
+(16/40). Paired, view-style against production on the same pairs: 13 gained, 1
+lost (exact McNemar p ≈ 0.002) — the first resolved effect of the whole
+investigation. So the antithesis the pipeline now picks is good enough, and
+the three reverted generation fixes plus A6 were all aimed at the right call
+with the wrong changes. Context, apex hints and wording are null alone;
+texts-only is the one production-prompt variant that moved up (unresolved,
+paired 9/5). Which ingredient of the view-style call does the work — system
+prompt, texts-only shape, thinking, or the combination — is the isolation run
+in flight. Per-pair verdicts agree with the pipeline's own only 26/40 on
+regeneration: read totals, never single pairs.
+
+**Isolation of the winning aspect call** (same 40 pipeline pairs):
+
+| arm | what differs from production | CC pass |
+|---|---|---|
+| production | — | 14/40 |
+| texts only (+ context) | no scores in the call | 18/40 (18/40) |
+| Consultant system prompt, production user prompt and `TetradDto` | system prompt only (+ utterance as the conversation) | 19/40 |
+| view-style without thinking | system prompt, texts only | 20/40 |
+| view-style | the whole bundle, thinking on | 26/40 |
+| view-style under `AspectGeneration.SYSTEM_PROMPT` | the winning call with the production system prompt put back | **3/40** |
+
+The one resolved ingredient is the production SYSTEM PROMPT: swapped under
+the otherwise identical winning call it loses 24 and gains 1, and the pluses
+return as hedges ("Double budget only where returns are proven"). Thinking
+inside the bundle (20 → 26) and texts-only on the production prompt (+4) are
+unresolved. A drift audit of the view-style arm: 18/40 tetrads were built on a
+reworded tension rather than the given T/A (CC 16/22 on the given pair, 10/18
+drifted) — the gain is not bought by drift, but 45% drift is disqualifying for
+a graph path as it stands. The smallest positive-signal change keeps the
+production user prompt and DTO and changes only the system prompt (19/40, one
+call, scores intact). The section-by-section ablation of
+`AspectGeneration.SYSTEM_PROMPT` — which part carries the damage, and what
+removing it does to the restatement rate its examples were added to cut — is
+in flight.
+
+**The context defect, fixed (2026-10-01).** `compose_context(particulars,
+input_text)` moved from `IntroducePolarity` to `utils/input_context.py` and is
+now applied in `ExpandPolarity` (aspect call, aspect dedup, coherence judge),
+`FindPolarities` (every antithesis prompt; `AnalysisPipeline` forwards its
+`grounding_context`) and `AnchorTheses` (classification and headline, from
+`anchor`'s `context`). `ingest` is unchanged — it sets no grounding context.
+Pinned at each seam by `TestContextReachesGeneration`; removing the
+composition fails two of its tests. This is a contract fix, not a coherence
+lever: on the aspect side the utterance as context measured 13/40 against
+14/40.
+
+**Suspect 7 — the antithesis, on the real pipeline: rejected as the coherence
+lever, and a second defect found.** One cheap call naming "the other side of
+the person's dilemma", fed to the existing thesis-plus-antithesis path (set A,
+20/20): antithesis a position 18/20 (A3: 11), rungs spread over the whole
+ladder, CC pass 7/20 — identical to A3's 7/20 (paired: both 4, only new 3, only
+baseline 3). Better antitheses, same coherence: the aspect half again. The
+defect: on that path HS scores genuine dilemma antitheses LOW — 0.02 to 0.85,
+mean 0.45, 11/20 under 0.5 ("Caring for my parents at home myself" 0.08) — and
+HS does not track coherence there (CC passed 6/16 under 0.7, 1/4 at or above).
+Fed to the Advisor's own context floor (`_apply_quality_floor`: failed
+validation, or antithesis HS < `advisor_polarity_quality_min_hs` = 0.5) those
+20 freshly anchored standalone perspectives would be shown as: hidden for
+failed validation 13, hidden for HS alone 5, kept 2. The floor exempts
+exploration members, so this lands on the first turns of a from-scratch
+conversation. Open; it depends on what the aspect prompt fix does to the
+validation rate, and on a decision about HS on a NAMED antithesis.
+
+**Suspect 8, shipped (2026-10-01).** `SITUATION_REPORT_RULE` in
+`concerns/statement_classification.py`, the measured sentence verbatim,
+interpolated into the system prompt's COMPLEX list and after the user prompt's
+named-options clarification; `TestASituationReportIsComplex` pins both sites.
+Not measured: whether the reclassified reports then build coherent tetrads —
+they now go down the ladder path, whose first-tetrad coherence is the 35%
+this note is about.
+
+**The classifier rule on the real pipeline (set B's three SIMPLE reports,
+re-run 2026-10-01 with the rule and the context fix in).** All three now
+classify COMPLEX and take the ladder: "Daughter wants to stay in university
+and not travel" → "Finish school first, travel later"; "father agrees to stop
+driving" → "Safety demands he surrender the keys"; "Sister has no expectation
+that I host" → "Hosting should rotate, not fall on me" (antithesis kind:
+mirror 3/3 → position 3/3 on the first tetrad). First-tetrad coherence is
+still 0/3 (0/8 over all expanded): the pluses are conditional compromises
+("Scheduled driving evaluations, keys retained conditionally") — the aspect
+prompt's signature, not the classifier's. And the daughter's four antitheses
+carry HS 0.25–0.5: genuine positions scored low, the floor defect above, now
+visible on the default path too.
+
+**Suspect ruled out on the archive: aspect dedup across sibling tetrads.**
+`ExpandPolarity._deduplicate_aspects` replaces a generated aspect with any
+equivalent Statement in the case vocabulary, so tetrads on DIFFERENT
+antitheses of one thesis end up sharing aspect nodes: across every default-mode
+run in `results/tetrad_quality/` an A+ is shared with a sibling on a different
+antithesis in 209 of 278 tetrads that have such a sibling. It does not cost
+coherence — CC passes 58/209 (28%) shared against 20/69 (29%) not, mean
+`cc_a` 0.68 against 0.67, and the parentage auditor reads `own_pole` 89%
+against 90% — and single-tetrad utterances, which have nothing to merge with,
+pass at the same 28% (13/46). What it does mean is that sibling tetrads are
+mostly the same tetrad under different antitheses: a diversity observation
+for whoever renders several of them, not a defect on this ledger.
