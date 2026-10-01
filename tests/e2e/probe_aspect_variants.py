@@ -112,6 +112,64 @@ ARMS: tuple[tuple[str, str], ...] = (
 
 WEAK_ARMS = ("base#weak", "sys_no_plus_mistake#weak")
 
+# Round 5 (2026-10-01): the cut shipped to the working tree and did NOT show
+# end to end (pipeline first-tetrad CC 14/40 before, 14/40 after). P2 = the 40
+# first-tetrad (thesis, antithesis) pairs of THAT pipeline run — pairs the cut
+# was never selected on — through the production shape with the paragraph
+# (`old`, rebuilt from commit b96483b) and without it (`new`, the live prompt),
+# two generations each. Separates winner's curse from a harness/pipeline gap.
+P2_FILES = (
+    "set_a-20261001-070130.json",
+    "set_a-default-off05-20261001-070823.json",
+    "set_a-default-off10-20261001-071404.json",
+    "set_a-default-off15-20261001-071955.json",
+    "set_b-20261001-072536.json",
+    "set_b-default-off05-20261001-073124.json",
+    "set_b-default-off10-20261001-074013.json",
+    "set_b-default-off15-20261001-075035.json",
+)
+P2_ARMS: tuple[tuple[str, str], ...] = (
+    ("old#p2r1", "P2"),
+    ("new#p2r1", "P2"),
+    ("old#p2r2", "P2"),
+    ("new#p2r2", "P2"),
+)
+ARMS = ARMS + P2_ARMS
+OLD_PROMPT_COMMIT = "b96483b"
+
+
+def _old_system_prompt() -> str:
+    """`AspectGeneration.SYSTEM_PROMPT` as of `OLD_PROMPT_COMMIT`, evaluated
+    from that commit's source, and asserted to differ from the live prompt by
+    exactly the one "mistake to avoid on a plus" paragraph."""
+    import ast
+    import subprocess
+
+    from dialectical_framework.concerns import aspect_generation
+    from dialectical_framework.concerns.scoring_scales import \
+        ASPECT_DEFINITIONS
+
+    source = subprocess.run(
+        ["git", "show", f"{OLD_PROMPT_COMMIT}:src/dialectical_framework/concerns/aspect_generation.py"],
+        capture_output=True, text=True, check=True,
+        cwd=Path(__file__).resolve().parent.parent.parent,
+    ).stdout
+    node = next(
+        n for n in ast.parse(source).body
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "SYSTEM_PROMPT" for t in n.targets)
+    )
+    old = eval(  # noqa: S307 — our own source at a pinned commit
+        compile(ast.Expression(node.value), "<old SYSTEM_PROMPT>", "eval"),
+        {"ASPECT_DEFINITIONS": ASPECT_DEFINITIONS},
+    )
+    old_paras = old.split("\n\n")
+    new_paras = aspect_generation.SYSTEM_PROMPT.split("\n\n")
+    extra = [x for x in old_paras if x not in new_paras]
+    assert len(extra) == 1 and extra[0].startswith("The mistake to avoid on a plus."), extra
+    assert [x for x in old_paras if x is not extra[0]] == new_paras, "prompts differ by more than the one paragraph"
+    return old
+
 #: Arms whose two pluses get the archive's parentage/valence audit — the plus
 #: examples were added to cut restatement, so removing them must be read in
 #: BOTH directions (`own_pole`+valence false = restatement; `other_pole` /
@@ -137,6 +195,10 @@ def _system_variant(arm: str) -> str:
         assert len(kept) == len(paras) - len(prefixes), (arm, prefixes)
         return "\n\n".join(kept)
 
+    # HISTORICAL since 2026-10-01: the plus-mistake paragraph was removed from
+    # the production prompt on this probe's evidence, so `sys_no_plus_mistake`
+    # IS `base` now and the two arms that drop it fail their match assertion
+    # by design. Re-running them needs the paragraph from commit b96483b.
     minus_mistake = "The mistake to avoid, on that same Courage/Fear pair."
     plus_mistake = "The mistake to avoid on a plus."
     closing = "Generate aspect statements that fit the semantic structure."
@@ -239,7 +301,24 @@ def _load_pairs() -> dict[str, list[dict[str, str]]]:
                     "ref_pass": bool(row.get("pass")),
                 }
             )
-    return {"P": p, "V": v}
+    p2: list[dict[str, str]] = []
+    for name in P2_FILES:
+        path = RESULTS / name
+        if not path.exists():
+            continue
+        for item in json.loads(path.read_text()):
+            if not item.get("perspectives"):
+                continue
+            first = item["perspectives"][0]
+            p2.append(
+                {
+                    "utterance": item["utterance"],
+                    "thesis": first["thesis"],
+                    "antithesis": first["antithesis"],
+                    "ref_pass": bool(first.get("cc_pass")),
+                }
+            )
+    return {"P": p, "V": v, "P2": p2}
 
 
 def _load_state() -> dict[str, Any]:
@@ -281,13 +360,13 @@ async def _classify(
     cached = state["classifications"].get(ckey)
     if cached is not None:
         return cached["meaning"]
-    if FROZEN_CLASSIFICATIONS:
+    if FROZEN_CLASSIFICATIONS and source in ("P", "V"):
         # Rounds after the first reuse the cached apex: the classifier prompt
         # may be mid-edit in src, and a re-read would move the condition.
         raise RuntimeError(f"no cached classification for {ckey}")
     # Production classifies the FULL text and stores the headline; V's thesis
     # is already the head's own wording, so it is classified as it stands.
-    text = pair["utterance"] if source == "P" else pair["thesis"]
+    text = pair["utterance"] if source in ("P", "P2") else pair["thesis"]
     result = await StatementClassification().resolve(statement=text)
     state["classifications"][ckey] = {
         "meaning": result.meaning,
@@ -422,6 +501,10 @@ async def _generate(arm: str, pair: dict[str, str], meaning: str) -> dict[str, s
     from dialectical_framework.concerns.aspect_generation import TetradDto
 
     arm = arm.split("#", 1)[0]  # `#r1` / `#weak` reuse the named arm's prompt
+    if arm in ("old", "new"):
+        prompt = _service(pair, meaning, "")._tetrad_prompt("")
+        system = _old_system_prompt() if arm == "old" else None  # None = live prompt
+        return _texts(await _production_call(prompt, TetradDto, system))
 
     if arm == "viewstyle":
         return _texts(await _viewstyle_call(pair))
@@ -703,7 +786,7 @@ async def _run(budget_s: float, retry_errors: bool) -> None:
     await asyncio.gather(
         *(
             classify(source, pair)
-            for source in ("P", "V")
+            for source in ("P", "V", "P2")
             for pair in pairs[source]
             if f"{source}|{pair['utterance']}" not in state["classifications"]
         )
@@ -818,6 +901,10 @@ def _report() -> None:
     )
     scored = sum(1 for x in harness.values() if x is not None)
     print(f"harness base|P vs the pipeline's own verdict on the same pair: agree {agree}/{scored}")
+    def count2(v: dict[str, Optional[bool]]) -> tuple[int, int]:
+        xs = [x for x in v.values() if x is not None]
+        return sum(xs), len(xs)
+
     # --- round 4: replication and weak tier ---
     def count(arm: str) -> tuple[int, int]:
         v = [x for x in verdicts(arm, "P").values() if x is not None]
@@ -848,6 +935,20 @@ def _report() -> None:
             k, n = count(arm); lo, hi = _wilson(k, n)
             print(f"  {arm:26s} CC {k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)")
         print(f"  paired cut vs base (both/only cut/only base/neither) {paired(verdicts(WEAK_ARMS[1], 'P'), verdicts(WEAK_ARMS[0], 'P'))}")
+
+    if any(k.startswith("old#p2") for k in rows):
+        ref = sum(1 for pair in pairs["P2"] if pair["ref_pass"])
+        print(f"\nP2 — the cut pipeline run's own first-tetrad pairs (pipeline's own verdict: {ref}/{len(pairs['P2'])}):")
+        tot = {"old": [0, 0], "new": [0, 0]}
+        for g in ("p2r1", "p2r2"):
+            o, n_ = verdicts(f"old#{g}", "P2"), verdicts(f"new#{g}", "P2")
+            ko, no = count2(o); kn, nn = count2(n_)
+            tot["old"][0] += ko; tot["old"][1] += no; tot["new"][0] += kn; tot["new"][1] += nn
+            agree = sum(1 for pair in pairs["P2"] if n_.get(pair["utterance"]) is not None and n_[pair["utterance"]] == pair["ref_pass"])
+            print(f"  generation {g}: old {ko}/{no}  new {kn}/{nn}  paired new vs old (both/only new/only old/neither) {paired(n_, o)}  | new agrees with pipeline verdict {agree}/{nn}")
+        for name, (k, n) in tot.items():
+            lo, hi = _wilson(k, n)
+            print(f"  {name}: {k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)")
 
     parentage = state.get("parentage", {})
     if parentage:

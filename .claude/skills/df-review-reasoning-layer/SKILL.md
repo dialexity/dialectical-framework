@@ -295,7 +295,11 @@ anchors.
       transferable part:** the take-up clause was already asserted four times (`ASPECT_DEFINITIONS`, the
       `TetradDto` plus fields, `_tetrad_prompt` step 1, both sibling prompts) and ran at 13.3%, while
       minus-parentage — the one rule with a re-read step in the numbered procedure — ran at 3.1%. Forcefulness of
-      statement was not the difference; being verified was. So `PLUS_RESTATEMENT_CHECK` is stated ONCE and
+      statement was not the difference; being verified was. (The worked plus EXAMPLE that shipped beside the
+      check was removed on 2026-10-01: ablated section by section it was the one part of the system prompt
+      whose removal RAISED coherence, 35% → 48% on Sonnet 5 and 35% → 63% on Haiku — it taught the hedge it
+      warned against. Measure an example on the downstream judge, not only on the defect it targets;
+      reference §"The worked plus EXAMPLE".) So `PLUS_RESTATEMENT_CHECK` is stated ONCE and
       interpolated into all three generation paths (`test_prompt_review_regressions.py::TestPlusTakeUpIsChecked`
       pins that, including that it is absent for minus positions — asking a minus not to develop its parent
       one-sidedly would invert R1). **Measured: 16.1% → 7.8%, Fisher p=0.0176 on 192 plus slots per arm

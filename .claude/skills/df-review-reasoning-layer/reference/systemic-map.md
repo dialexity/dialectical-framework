@@ -1596,6 +1596,20 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    aligned standards") hands the generative act to the other parent, so a fix for restatement can
    manufacture drift. Any future edit here must measure BOTH directions.
 
+   **The worked plus EXAMPLE that shipped with the check was removed on 2026-10-01 — a worked example can
+   teach the defect it warns against.** `AspectGeneration.SYSTEM_PROMPT` carried a "mistake to avoid on a
+   plus" paragraph (restatement, the bolted-on constraint, and a repair, on one toolchain pair). A
+   section-by-section ablation on 40 pipeline T/A pairs (`tests/e2e/probe_aspect_variants.py`) found it the
+   ONLY part of that prompt whose removal raised coherence (CC pass 42/120 → 57/120 on Sonnet 5 over three
+   generations; 14/40 → 25/40 on Haiku 4.5, 17 gained / 6 lost), and the whole production system prompt put
+   under an otherwise winning call took it from 26/40 to 3/40: the pluses came back as the parent under a
+   condition ("Expand budget tied to proven growth milestones"), which cannot pass "T+ without A+ yields T-".
+   Cutting more measured nothing; dropping the truth criterion looked worse. Restatement with the CHECK alone:
+   0 → 3 of 80 plus slots on Haiku — small, not re-measured at the archive's n. Two rules for the next edit:
+   (1) an example's effect is measured on the DOWNSTREAM judge (CC), not only on the defect it targets — the
+   restatement A/B below could not see this cost; (2) ablate by section before adding a section.
+   `test_system_prompt_carries_no_worked_plus_example` pins the removal.
+
    **Why the fix is a check and not a fifth restatement** — the generalisable finding, now measured. The
    take-up clause was already asserted 4× (`ASPECT_DEFINITIONS`, `TetradDto` plus fields, `_tetrad_prompt`
    step 1, both sibling prompts) and ran at 13.3%; minus-parentage had a RE-READ STEP in the numbered

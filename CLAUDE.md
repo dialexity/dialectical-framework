@@ -483,6 +483,8 @@ Default to `@pytest.mark.llm` for anything touching `use_brain` or `Conversation
 
 **The two event buses are CLASS/MODULE globals wired once by a SESSION-scoped fixture, so `set_event_bus(None)` in a `finally` is a leak, not a teardown.** Save and restore the PREVIOUS value (`previous = ExecutionReport._event_bus` / `progress_module.set_event_bus(previous)`), and a test that subscribes should assert its own wiring first — "nothing arrived" is indistinguishable from the defect such a test exists to catch.
 
+**A monkeypatch goes INSIDE the `try` whose `finally` restores it** — setup that can raise (an assertion about a production prompt, a lookup) belongs after the install, or a failed setup leaks the patch into every later test in the process: one probe's arm reconstruction failed 23 tests in four unrelated files, each passing in isolation (`docs/dev-notes/testing-traps.md`). Guard a raise in the SETUP as well as in the body.
+
 **Mutation-test anything that pins behaviour**, and `touch` a source file after restoring it from a backup copy — a same-size restore with an older mtime leaves Python running the mutant's stale `.pyc`. More traps: `docs/dev-notes/testing-traps.md`.
 
 **Ad-hoc verification scripts must live under `tests/`.** DI wiring and mock-brain fixtures come from `tests/conftest.py`; a pytest file run from `/tmp` fails with unresolved `Provide` sentinels (`'Provide' object has no attribute 'save_node'`).
@@ -523,6 +525,8 @@ The project is infused with LLM prompts at multiple layers. Use `/df-review-reas
 | `agents/orchestrator/tools/get_schema.py` | `GRAPH_SCHEMA` — Cypher generation guidance for `query_graph` |
 
 When fixing prompt output bugs: follow the revision methodology in `/df-review-reasoning-layer` (diagnose root cause → apply fix → verify with regression test).
+
+**A worked example is measured on the downstream judge, and prompts are ablated by section before they grow.** The aspect generator's worked "mistake to avoid on a plus" cut the defect it targeted and cost coherence: removing that one paragraph raised CC pass from 35% to 48% on Sonnet 5 and 35% to 63% on Haiku 4.5, while cutting anything else in that system prompt measured nothing (`tests/e2e/probe_aspect_variants.py`; `docs/dev-notes/antithesis-selection.md`). The verification step (`PLUS_RESTATEMENT_CHECK`) stays; do not re-add a worked plus example without measuring both coherence and restatement.
 
 **Prompt constant conventions:**
 - Aspect definitions and HS/complementarity scales are imported from `concerns/scoring_scales.py` — never re-type them inline (they drift).

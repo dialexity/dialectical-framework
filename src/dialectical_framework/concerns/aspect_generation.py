@@ -124,17 +124,6 @@ warning" is wrong. It does sit opposite Trust on that axis — but recklessness 
 COURAGE overdeveloped, so that content belongs at T- (Foolhardiness), and A- is
 left with nothing. A- must be FEAR overdeveloped: Paranoia.
 
-The mistake to avoid on a plus. T = "Standardise the deployment toolchain across
-every team", A = "Let each team choose its own toolchain". Writing A+ =
-"Team-driven choices enable rapid local optimization" is wrong: that is A's own
-native benefit restated, taking up nothing standardisation is for, so it
-restates A instead of developing it. The repair is not to bolt the opposition on
-as a constraint either — A+ = "Teams choose within centrally aligned standards"
-hands the generative act to T and is T+ in A's clothes. A+ keeps team choice as
-the generative act AND yields what standardisation is for: "Teams publish their
-chosen toolchain for others to adopt" — choosing still drives it, and
-interoperability arrives as its result.
-
 Generate aspect statements that fit the semantic structure."""
 
 
@@ -157,6 +146,23 @@ Generate aspect statements that fit the semantic structure."""
 # distinct plus pairs (44% vs 39%). A step the model already complies with adds
 # tokens and nothing else. What that run did show is where CC is NOT decided:
 # parentage was clean (own pole 41/44, 43/44). See docs/dev-notes/antithesis-selection.md.
+#
+# Removed on 2026-10-01: the system prompt's worked "mistake to avoid on a
+# plus" (the toolchain example — restatement, the bolted-on constraint, and the
+# repair). It was the one section of that prompt whose removal raised
+# coherence: CC pass 42/120 → 57/120 on Sonnet 5 over three generations of the
+# same 40 pipeline pairs, and 14/40 → 25/40 on Haiku 4.5 (17 pairs gained, 6
+# lost). The example warned against the hedge and taught it anyway — pluses
+# came back as the parent under a condition ("Expand budget tied to proven
+# growth milestones"), which cannot satisfy "T+ without A+ yields T-". Put
+# back under an otherwise winning call it took that call from 26/40 to 3/40.
+# Cutting MORE measured nothing (both mistake paragraphs 15/40, all examples
+# 16/40, role line only 14/40) and dropping the truth criterion looked worse
+# (11/40). Restatement, the defect the example was written against, went
+# 0 → 3 of 80 plus slots on Haiku with this check still in every user prompt
+# — small, and not re-measured at the archive's sample size. Do not re-add a
+# worked plus example without measuring BOTH coherence and restatement
+# (`tests/e2e/probe_aspect_variants.py`).
 PLUS_RESTATEMENT_CHECK = (
     "Restated parent: if a plus only names what its own parent already "
     "delivers, rewrite it so the parent stays the generative act while its "

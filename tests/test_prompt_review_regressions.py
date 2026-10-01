@@ -329,26 +329,29 @@ class TestPlusTakeUpIsChecked:
         assert "(b) {PLUS_RESTATEMENT_CHECK}" in src
         assert "PLUS_HEDGE_CHECK" not in src and "CONTROL_STATEMENT_CHECK" not in src
 
-    def test_system_prompt_teaches_the_plus_failure_and_its_over_correction(self):
-        """The one worked "mistake to avoid" covered only the minus defect — the
-        rarer one. The plus example must show BOTH ways to get it wrong, because
-        the obvious repair produces the other defect: bolting the opposition on as
-        a constraint hands the generative act to the other parent, and the
-        probe's auditor scored a real instance of that as `other_pole`."""
+    def test_system_prompt_carries_no_worked_plus_example(self):
+        """The worked "mistake to avoid on a plus" was REMOVED on 2026-10-01.
+
+        It showed restatement, the bolted-on constraint and a repair on one
+        toolchain pair. Measured section by section on 40 pipeline T/A pairs
+        (`tests/e2e/probe_aspect_variants.py`), it was the only part of the
+        system prompt whose removal raised coherence: 42/120 → 57/120 on
+        Sonnet 5 over three generations, 14/40 → 25/40 on Haiku 4.5. The pluses
+        it produced were the parent under a condition — the very hedge it
+        warned against. The CHECK stays in every user prompt (tests above);
+        what must not come back unmeasured is the example.
+        """
         from dialectical_framework.concerns.aspect_generation import SYSTEM_PROMPT
 
-        assert "The mistake to avoid on a plus." in SYSTEM_PROMPT
-        # failure 1: own-pole benefit restated, nothing taken up
-        assert "taking up nothing standardisation is for" in SYSTEM_PROMPT
-        # failure 2: the over-correction — T+ wearing A's clothes
-        assert "hands the generative act to T and is T+ in A's clothes" in SYSTEM_PROMPT
-        # and the repair, stated positively: parent still generative, result takes
-        # up (substrings kept within one source line — the prompt is hard-wrapped)
-        assert "A+ keeps team choice as" in SYSTEM_PROMPT
-        assert "the generative act AND yields what standardisation is for" in SYSTEM_PROMPT
-        assert "interoperability arrives as its result" in SYSTEM_PROMPT
-        # drawn from outside the measured population, same rule as the minus
-        # counter-example above: a post-fix win must stay attributable
+        assert "The mistake to avoid on a plus." not in SYSTEM_PROMPT
+        assert "toolchain" not in SYSTEM_PROMPT
+        # the minus counter-example, whose removal measured nothing, stays
+        assert "The mistake to avoid, on that same Courage/Fear pair." in SYSTEM_PROMPT
+        assert SYSTEM_PROMPT.rstrip().endswith(
+            "Generate aspect statements that fit the semantic structure."
+        )
+        # drawn from outside the measured population: a post-fix win must stay
+        # attributable
         for probed in ("hiring", "cofounder", "Freedom"):
             assert probed not in SYSTEM_PROMPT
 

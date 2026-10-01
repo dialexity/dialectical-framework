@@ -260,23 +260,37 @@ _PLUS_EXAMPLE_MARKER = "The mistake to avoid on a plus."
 
 
 # --- baseline reconstruction ---------------------------------------------------
+#
+# The fix under test landed in TWO places: the check in `_tetrad_prompt` step 3,
+# and a worked plus example in `SYSTEM_PROMPT`. The example was REMOVED from
+# production on 2026-10-01 — ablated section by section it was the one part of
+# that prompt whose removal raised tetrad coherence (CC pass 35% → 48% on Sonnet
+# 5, 35% → 63% on Haiku 4.5; `probe_aspect_variants.py`,
+# `docs/dev-notes/antithesis-selection.md`) — which makes the live prompt
+# byte-identical to the pre-fix commit again. So the baseline arm now subtracts
+# NOTHING from the system prompt, and the arms differ in step 3 alone.
+#
+# Consequence for the recorded primary (16.1% → 7.8%): it was measured with the
+# example in the fixed arm, so it priced check + example against neither. A
+# re-run today prices the check alone. That is a cleaner A/B and a DIFFERENT
+# one — hence the tripwire below rather than a silent re-strip.
 
 
-def _strip_plus_example(prompt: str) -> str:
-    """Remove the plus worked example paragraph, restoring the pre-fix prompt."""
-    start = prompt.find(_PLUS_EXAMPLE_MARKER)
-    if start < 0:
+def _assert_no_plus_example(prompt: str) -> None:
+    """Fail loudly if a worked plus example is back in `SYSTEM_PROMPT`.
+
+    Not symmetry for its own sake: with an example present, this probe's two arms
+    are no longer the arms its archived rates were measured with, and the run
+    would report a number that looks comparable and is not.
+    """
+    if _PLUS_EXAMPLE_MARKER in prompt:
         raise AssertionError(
-            f"{_PLUS_EXAMPLE_MARKER!r} not in SYSTEM_PROMPT — the baseline arm "
-            f"would silently run the same prompt as the fixed arm"
+            f"{_PLUS_EXAMPLE_MARKER!r} is back in SYSTEM_PROMPT. It was removed "
+            f"on 2026-10-01 because it cost coherence; its measured effect is in "
+            f"docs/dev-notes/antithesis-selection.md. Re-measure both coherence "
+            f"and restatement before re-adding it, and re-state what these two "
+            f"arms are before re-running this probe."
         )
-    end = prompt.find("\n\n", start)
-    if end < 0:
-        raise AssertionError("plus example is not paragraph-terminated")
-    stripped = prompt[:start] + prompt[end + 2 :]
-    if _PLUS_EXAMPLE_MARKER in stripped or len(stripped) >= len(prompt):
-        raise AssertionError("plus example removal was a no-op")
-    return stripped
 
 
 def _downgrade_step3(rendered: str) -> str:
@@ -334,10 +348,16 @@ def _arm(arm: str, counts: collections.Counter) -> Iterator[None]:
         counts["baseline_downgraded"] += 1
         return out
 
-    aspect_generation.AspectGeneration._tetrad_prompt = wrapper  # type: ignore[method-assign]
-    if arm == BASELINE:
-        aspect_generation.SYSTEM_PROMPT = _strip_plus_example(original_prompt)
+    # Everything that can raise goes INSIDE the try, patch installation included.
+    # It used to sit above it, so when the system-prompt step raised — which is
+    # exactly what the 2026-10-01 removal made it do — the wrapper stayed
+    # installed and every later render in the PROCESS went through a baseline
+    # patch. In the default suite that leaked out of this file and failed 23
+    # tests in four others; `test_the_patch_restores_state_even_when_setup_raises`
+    # is the guard, and `docs/dev-notes/testing-traps.md` carries the shape.
     try:
+        aspect_generation.AspectGeneration._tetrad_prompt = wrapper  # type: ignore[method-assign]
+        _assert_no_plus_example(original_prompt)
         yield
     finally:
         aspect_generation.AspectGeneration._tetrad_prompt = original_tetrad  # type: ignore[method-assign]
@@ -445,9 +465,11 @@ class TestThePreRegistrationIsAuditable:
         assert aspect_generation.PLUS_RESTATEMENT_CHECK not in baseline
         assert _PREFIX_STEP3 in baseline
         assert "two distinct failures" not in baseline
-        # the worked example goes too, and only in the baseline arm
-        assert _PLUS_EXAMPLE_MARKER not in baseline_system
-        assert _PLUS_EXAMPLE_MARKER in aspect_generation.SYSTEM_PROMPT
+        # The system prompt is NOT part of the subtraction any more: production
+        # carries no worked plus example (removed 2026-10-01, measured), so both
+        # arms send the same system block and the difference is step 3 alone.
+        assert _PLUS_EXAMPLE_MARKER not in aspect_generation.SYSTEM_PROMPT
+        assert baseline_system == aspect_generation.SYSTEM_PROMPT
         # and EXACTLY ONE line differs: the arms must not diverge on anything
         # except step 3, or the primary is comparing two unrelated prompts
         differing = [
@@ -463,12 +485,44 @@ class TestThePreRegistrationIsAuditable:
         """A leaked patch would contaminate every later cell in the run, and the
         contamination would be invisible in the output."""
         original = aspect_generation.SYSTEM_PROMPT
+        original_tetrad = aspect_generation.AspectGeneration._tetrad_prompt
         counts: collections.Counter = collections.Counter()
         with pytest.raises(RuntimeError):
             with _arm(BASELINE, counts):
-                assert aspect_generation.SYSTEM_PROMPT != original
+                assert (
+                    aspect_generation.AspectGeneration._tetrad_prompt
+                    is not original_tetrad
+                ), "the arm installed nothing — a no-op patch is a silent null"
                 raise RuntimeError("boom")
         assert aspect_generation.SYSTEM_PROMPT == original
+        assert aspect_generation.AspectGeneration._tetrad_prompt is original_tetrad
+
+    def test_the_patch_restores_state_even_when_setup_raises(self):
+        """The leak this probe actually sprang, and the reason the guard above was
+        not enough: the raise came from the arm's own SETUP, not from the body.
+
+        Installing the wrapper above the `try` meant a failing setup step left it
+        installed for the rest of the PROCESS. In the default suite (where this
+        file's guards are re-collected) that failed 23 tests in four other files,
+        none of which touch this probe — the kind of pollution that reads as a
+        broken fix. Simulated by making the setup assertion fire.
+        """
+        original = aspect_generation.SYSTEM_PROMPT
+        original_tetrad = aspect_generation.AspectGeneration._tetrad_prompt
+        counts: collections.Counter = collections.Counter()
+        try:
+            aspect_generation.SYSTEM_PROMPT = original + (
+                f"\n\n{_PLUS_EXAMPLE_MARKER} a worked example is back.\n\n"
+            )
+            with pytest.raises(AssertionError, match="is back in SYSTEM_PROMPT"):
+                with _arm(BASELINE, counts):
+                    raise AssertionError("body must never run")
+        finally:
+            aspect_generation.SYSTEM_PROMPT = original
+        assert aspect_generation.AspectGeneration._tetrad_prompt is original_tetrad, (
+            "setup raised and left the tetrad prompt patched — every later render "
+            "in this process goes through a baseline arm"
+        )
 
     def test_the_registered_power_table_is_the_real_number(self):
         """What licenses calling a null a BOUND rather than a refutation."""
@@ -537,9 +591,14 @@ class TestThePreRegistrationIsAuditable:
             start = source.index(opener)
             return source[start : source.index('"""', start + len(opener))]
 
-        assert _strip_plus_example(literal(inspect.getsource(aspect_generation))) == (
-            literal(old_source)
-        ), "the baseline arm is NOT the pre-fix prompt"
+        # Since the worked plus example was removed (2026-10-01) the LIVE prompt
+        # is the pre-fix one, with nothing to subtract — a stronger claim than
+        # the reconstruction this used to assert, and the same guarantee: the
+        # archive's rates and a re-run's send the same system block.
+        assert literal(inspect.getsource(aspect_generation)) == literal(old_source), (
+            "the system prompt is no longer the pre-fix prompt — state what the "
+            "two arms now are before trusting a re-run against the archive"
+        )
 
     def test_the_recorded_primary_is_the_number_the_docstring_states(self):
         """The RESULT's arithmetic. Its whole value is that "significant" and

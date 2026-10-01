@@ -490,3 +490,92 @@ against 90% — and single-tetrad utterances, which have nothing to merge with,
 pass at the same 28% (13/46). What it does mean is that sibling tetrads are
 mostly the same tetrad under different antitheses: a diversity observation
 for whoever renders several of them, not a defect on this ledger.
+
+**The aspect system prompt, ablated by section and fixed (2026-10-01).**
+Production shape throughout (production user prompt, `TetradDto` with scores,
+forced tool, no thinking), same 40 pipeline pairs, only the system prompt
+varied:
+
+| system prompt | CC pass | paired vs production (gained / lost) | plus parentage own/other/neither of 80 | restated |
+|---|---|---|---|---|
+| production | 14/40 | — | 70 / 5 / 5 | 1 |
+| − the worked plus mistake (toolchain) | 20/40 | 7 / 1 | 77 / 2 / 1 | 3 |
+| − all examples | 16/40 | 6 / 4 | 78 / 1 / 1 | 2 |
+| − both mistake paragraphs | 15/40 | 7 / 6 | 72 / 5 / 3 | 3 |
+| role line only | 14/40 | 8 / 8 | 77 / 2 / 1 | 4 |
+| − the truth criterion | 11/40 | 6 / 9 | 73 / 3 / 4 | 1 |
+
+Replication of the one lopsided cut, two fresh generations per pair: production
+14/40 and 14/40, cut 20/40 and 17/40; pooled over three generations 42/120
+(35%) against 57/120 (48%), 28 gained / 13 lost (p ≈ 0.03 treating a pair's
+generations as independent; the two fresh ones alone p ≈ 0.16). Weak tier
+(generation on Haiku 4.5, same judge): 14/40 → 25/40, 17 gained / 6 lost
+(exact McNemar p ≈ 0.035); restatement 0 → 3 of 80, wrong-parent pluses 13 →
+14 of 80.
+
+Shipped: the paragraph is out of `AspectGeneration.SYSTEM_PROMPT` (the shipped
+prompt was checked byte-identical to the measured arm), the check stays in
+every user prompt. What the paragraph did, read off the pairs: it warned
+against "Teams choose within centrally aligned standards" and the pluses came
+back in exactly that shape — "Expand budget tied to proven growth milestones",
+"Builds structured path back to technical track". Without it: "Strategic
+reinvestment targeting high-yield growth channels", "Management role channels
+engineer's impact into stable structures".
+
+Open after this fix: 48% is still under the view-style call's 26/40 on the
+same pairs, and that bundle's remaining ingredients (thinking 20 → 26, texts
+only +4) are unresolved; the same system prompt serves
+`_contradiction_pair_prompt` and `_single_aspect_prompt`, which were not
+measured; restatement on the weak tier is not re-measured at the archive's
+192-slot size.
+
+**End to end, the three fixes together — coherence did not move (2026-10-01).**
+Sets A and B through the thesis-only `anchor` path with the context fix, the
+classifier rule and the aspect-prompt cut all in
+(`results/tetrad_quality/set_{a,b}-*-20261001-07*.json`):
+
+| | first tetrad CC | all tetrads CC | antithesis a position (first) | SIMPLE | utterances with a tetrad the Advisor's floor keeps |
+|---|---|---|---|---|---|
+| before, set A (A3) | 7/20 | 12/37 | 11/20 | 0 | 8/20 |
+| after, set A | 8/20 | 22/47 | 15/20 | 0 | 10/20 |
+| before, set B | 7/20 | 11/27 | 14/20 | 3 | 7/20 |
+| after, set B | 6/20 | 13/47 | 12/20 | 0 | 7/20 |
+
+Paired on the first tetrad: set A both 3 / only after 5 / only before 4; set B
+both 2 / 4 / 5. Same-compromise pluses did not fall (14/37 → 18/47, 9/27 →
+25/47). The harness's 35% → 48% on fixed pairs is not visible here. This run is
+NOT paired on T/A (the antithesis is redrawn), n = 40, and the earlier
+same-stack runs ranged 6–9/20, so it cannot exclude a +13-point effect — but
+it does not show one, and the cut was chosen as the best of five arms on the
+pairs it was measured on. The out-of-sample check (old against new prompt on
+the 40 pairs THIS run produced, beside the pipeline's own verdict on them)
+decides whether the cut is kept.
+
+**Out of sample, on 40 pairs the cut was never selected on.** The cut was the
+best of five arms on one fixed pair set, so it was re-run on P2 = the 40
+first-tetrad (thesis, antithesis) pairs the end-to-end pipeline run itself
+produced, two generations per pair, production shape, old prompt against new:
+
+| arm | CC pass | 95% Wilson | paired (gained / lost) |
+|---|---|---|---|
+| with the paragraph (`old`) | 25/80 (31%) | 22–42% | — |
+| without it (`new`) | 33/80 (41%) | 31–52% | 18 / 10, p ≈ 0.19 |
+
+Generation 1 was null (8 gained / 7 lost), generation 2 was 10 / 3. The
+pipeline's own verdict on those same 40 pairs is 14/40 (35%), which the harness
+`new` arm (41%) brackets — so there is no large harness-versus-pipeline gap to
+explain the flat end-to-end result; the harness is measuring the same thing.
+
+**Every measurement of the cut, in one place:** Sonnet in-sample 42/120 → 57/120
+(three generations), Sonnet out-of-sample 25/80 → 33/80, Haiku 14/40 → 25/40
+(p ≈ 0.025). Pooled over all six harness generations, 81/240 (34%) → 115/240
+(48%), Fisher p ≈ 0.002. The direction holds in five of six and the one flat
+cell is the end-to-end pipeline run, which is not paired on T/A.
+
+Shipped on that evidence. What is NOT claimed: that first-tetrad coherence on a
+free utterance improves — the one run that measured it end to end did not move
+(14/40 both ways). The cut is a REVERT of one paragraph to the pre-fix prompt
+(byte-identical to `84ef6bd` again), with the verification step it shipped
+beside kept; so the burden it carries is small, and the open question stays
+where the end-to-end run put it: what else, between a fixed T/A pair and a free
+utterance, costs the tetrad its coherence.
