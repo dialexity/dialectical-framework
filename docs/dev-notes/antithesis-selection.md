@@ -307,3 +307,17 @@ antithesis from eleven isolated one-rung calls and builds aspects afterwards;
 measurements, one variable each: thinking on `AspectGeneration`'s tetrad call
 alone; then a holistic thinking generation with the ladder and the scales
 demoted to CLASSIFYING and SCORING what was generated.
+
+**A6 — thinking on `AspectGeneration`'s full-tetrad call alone (json mode,
+`medium`), set A, 15 of 20 before the run hit its time limit.** Rejected. CC
+2/15 on the first tetrad and 6/30 over all expanded, against 5–7/15 and
+8–14/~30 for the same fifteen utterances in the unthinking runs A1–A3; T+/A+
+the same compromise in 19/30; ~66 s per utterance against ~55 s; no parse
+failures (the nested DTO fills in json mode). Thinking is NOT what separates
+the staged path from the view turn — given room to deliberate over the staged
+prompt, the model converges the pluses, the same drift the derivation-order
+change (A5) produced. Reverted; `_generate_tetrad`'s docstring carries the
+number. Of the three differences listed above, that leaves WHOLENESS and the
+TAXONOMY APEX, and the next run is the holistic one: one call that builds
+thesis reading, antithesis and all four aspects together, with the ladder and
+the scales classifying and scoring afterwards.

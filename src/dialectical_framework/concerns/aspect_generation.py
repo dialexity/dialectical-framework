@@ -490,7 +490,16 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         return False
 
     async def _generate_tetrad(self, positions: list[str]) -> list[AspectResult]:
-        """Generate full tetrad (all 4 aspects together)."""
+        """Generate full tetrad (all 4 aspects together).
+
+        Deliberately UNTHINKING, by measurement (2026-10-01, run A6 of
+        `tests/e2e/probe_tetrad_quality.py`): the same prompt and DTO through a
+        json-mode facilitator at thinking `medium` passed the coherence check on
+        2/15 first tetrads against 5–7/15 for the same utterances without it,
+        with T+/A+ converging on one compromise in 19/30. Thinking is therefore
+        NOT what separates this path from the Consultant's view turn (24/40 on
+        the same judge); see docs/dev-notes/antithesis-selection.md.
+        """
         existing_context = self._build_existing_aspects_context(positions)
 
         result = await self._conversation.submit(
