@@ -287,3 +287,33 @@ process singletons (a second `setup()` re-points every tenant — now a document
 guard). No priority between off-turn weaves and on-turn replies. Event-bus subscriber queues are
 unbounded. None of these corrupts a graph; all wait for a load test. Tests:
 `tests/test_multi_tenant_deferred_work.py`.
+
+## The quality floor never empties the section (2026-10-01)
+
+`DialecticalContext._apply_quality_floor` suppressed every standalone
+perspective below the floors (antithesis HS, SP, DV, or a failed validation
+verdict) and left a count line. Measured on the thesis-only `anchor` path with
+the tetrad-quality instrument (40 free utterances, both sets, after the day's
+three fixes): validation failed on 26/47 and 34/47 committed tetrads, and
+**10/20 and 13/20 utterances ended with no visible tetrad at all** — the
+Advisor's next turn read "1 unexplored tension(s) suppressed for low quality"
+where the tension it planted a turn earlier should have been, with no hash in
+the prompt to reach it by `inspect_node`. On the given-antithesis path the HS
+floor alone would have hidden 5 more of 20.
+
+Fix: when the floor leaves nothing, keep the least weak one (`_floor_rank`:
+a passing verdict first, then SP, DV, HS; unscored sorts below any score) with
+its `Validation:` line and its scores as they are, count the rest. Pruning a
+crowded prompt so the head ranks within it is the floor's purpose; with nothing
+left to rank it is not pruning. The prioritization prompt names the exception
+("read that line before leaning on it"), `TestContextDumpPrePruned` still
+holds the claim. `test_all_suppressed_still_reports_count` asserted the old
+behaviour and was rewritten; the advisory-mode test
+(`TestTheBoundIsTheQualityFloorAndNothingElse`) now plants a sound anchor
+beside the weak one, because what it pins is that advisory mode runs the SAME
+floor, not that a lone anchor disappears.
+
+Not changed: the floors, their defaults, and HS's low scores for genuine
+dilemma antitheses (0.02–0.85, mean 0.45 on 20 named antitheses) — that is an
+open question about HS on a NAMED antithesis, recorded in
+`antithesis-selection.md`.

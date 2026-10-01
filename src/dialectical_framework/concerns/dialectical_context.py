@@ -1214,31 +1214,71 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         The SP + DV pair mirrors the paper's acceptance criterion (SP AND DV
         [P0 p.12]) as soft context-pruning. Missing scores never suppress
         (unscored ≠ bad). Floors of 0 disable the respective check.
+
+        **The floor never empties the section.** If every tension is below it,
+        the best one is kept anyway, with its `Validation:` line and its scores
+        as they are, and the count line reports the rest. A floor prunes a
+        crowded prompt so the head ranks within something; with nothing left to
+        rank it stops being pruning and becomes amnesia — the head reads
+        "1 unexplored tension(s) suppressed for low quality" where the tension
+        it planted a turn ago should be, and cannot see what it built without
+        guessing a hash for `inspect_node`. Measured on the `anchor` path
+        (2026-10-01, 40 free utterances, `tests/e2e/probe_tetrad_quality.py`):
+        validation fails on 26/47 and 34/47 committed tetrads, leaving 10/20 and
+        13/20 utterances with NOTHING visible — the common case, not the corner.
+        Keeping one changes which tensions are hidden, never how they read: a
+        weak tetrad still arrives marked weak, and the Advisor's prioritization
+        prompt names this exception (`TestContextDumpPrePruned`).
         """
         min_hs = self.settings.advisor_polarity_quality_min_hs
         min_sp = self.settings.advisor_perspective_quality_min_sp
         min_dv = self.settings.advisor_perspective_quality_min_dv
 
         kept: list[Perspective] = []
-        suppressed = 0
+        below: list[Perspective] = []
         for pp in perspectives:
             if pp.validation and pp.validation.startswith("failed"):
-                suppressed += 1
+                below.append(pp)
                 continue
             hs = self._get_antithesis_hs(pp)
             if min_hs > 0 and hs is not None and hs < min_hs:
-                suppressed += 1
+                below.append(pp)
                 continue
             sp = pp.area
             if min_sp > 0 and sp is not None and sp < min_sp:
-                suppressed += 1
+                below.append(pp)
                 continue
             dv = self._get_dialectical_validity(pp)
             if min_dv > 0 and dv is not None and dv < min_dv:
-                suppressed += 1
+                below.append(pp)
                 continue
             kept.append(pp)
-        return kept, suppressed
+
+        if not kept and below:
+            # `max` returns the FIRST maximal element, so the graph's own order
+            # breaks ties — no second ordering to keep in step with anything.
+            kept = [max(below, key=self._floor_rank)]
+            below = [pp for pp in below if pp is not kept[0]]
+        return kept, len(below)
+
+    def _floor_rank(self, pp: Perspective) -> tuple[int, float, float, float]:
+        """How the LEAST bad below-floor tension is chosen: a passing verdict
+        first, then the tetrad's own metrics (SP, DV, antithesis HS).
+
+        An unscored term sorts below any real score (-1.0), which only ever
+        compares perspectives that a failed verdict put here — an unscored one
+        cannot be below a numeric floor.
+        """
+        def num(value: Optional[float]) -> float:
+            return -1.0 if value is None else value
+
+        validated = 0 if (pp.validation or "").startswith("failed") else 1
+        return (
+            validated,
+            num(pp.area),
+            num(self._get_dialectical_validity(pp)),
+            num(self._get_antithesis_hs(pp)),
+        )
 
     def _get_antithesis_hs(self, pp: Perspective) -> Optional[float]:
         """HS on the A relationship (how genuine the opposition is)."""

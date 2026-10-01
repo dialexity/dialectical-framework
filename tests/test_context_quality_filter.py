@@ -129,14 +129,84 @@ class TestPerspectiveQualityFloor:
             assert "Thesis weak" in dump
 
     @pytest.mark.asyncio
-    async def test_all_suppressed_still_reports_count(self):
-        """Even when every standalone tension is below the floor the dump
-        must say so — never a silent 'fresh conversation'."""
+    async def test_the_only_tension_is_shown_even_below_the_floor(self):
+        """A floor prunes so the head ranks within something; with nothing left
+        to rank it is amnesia.
+
+        This used to assert the opposite — a lone weak tension became a count
+        line and nothing else. On the `anchor` path that is the COMMON case, not
+        a corner: validation fails on more than half of committed tetrads
+        (2026-10-01, 40 free utterances), so the Advisor's own next turn read
+        "1 unexplored tension(s) suppressed" where the tension it had just
+        planted should be, with no hash to reach it by.
+        """
         sid = _new_sid()
         with scope(sid):
             _perspective_with_hs(0.2, "weak")
             dump = await DialecticalContext().resolve()
+            assert "Thesis weak" in dump
+            assert "suppressed" not in dump, "nothing was left over to suppress"
+
+    @pytest.mark.asyncio
+    async def test_when_every_tension_is_below_the_floor_the_least_weak_shows(self):
+        """One is kept, the rest still counted — pruning without emptying."""
+        sid = _new_sid()
+        with scope(sid):
+            _perspective_with_hs(0.2, "weaker")
+            _perspective_with_hs(0.4, "least weak")
+            _perspective_with_hs(0.1, "weakest")
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Thesis least weak" in dump
+            assert "Thesis weaker" not in dump and "Thesis weakest" not in dump
+            assert "2 unexplored tension(s) suppressed" in dump
+
+    @pytest.mark.asyncio
+    async def test_the_kept_one_still_carries_its_failed_verdict(self):
+        """Keeping it changes which tensions are hidden, never how they read:
+        the head must see that what it is being shown did not pass."""
+        sid = _new_sid()
+        with scope(sid):
+            bad = _create_perspective_with_aspects(thesis_text="Flawed")
+            bad.validation = "failed: Differential minimum: 0.05 < 0.1"
+            bad.save()
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Flawed" in dump
+            assert "failed: Differential minimum" in dump
+
+    @pytest.mark.asyncio
+    async def test_a_passing_verdict_outranks_a_failed_one_for_the_kept_slot(self):
+        """`_floor_rank`'s first term. A tetrad held back by one soft score is a
+        better thing to show than one its own validator rejected."""
+        sid = _new_sid()
+        with scope(sid):
+            rejected = _create_perspective_with_aspects(thesis_text="Rejected")
+            rejected.validation = "failed: the poles are the same claim restated"
+            rejected.save()
+            _perspective_with_hs(0.2, "merely weak")
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Thesis merely weak" in dump
+            assert "Rejected" not in dump
             assert "1 unexplored tension(s) suppressed" in dump
+
+    @pytest.mark.asyncio
+    async def test_a_floor_that_suppresses_nothing_keeps_the_section_whole(self):
+        """The new branch must not fire where the old code already kept things:
+        two tensions above the floor are two tensions, not one."""
+        sid = _new_sid()
+        with scope(sid):
+            _perspective_with_hs(0.9, "first")
+            _perspective_with_hs(0.8, "second")
+
+            dump = await DialecticalContext().resolve()
+
+            assert "Thesis first" in dump and "Thesis second" in dump
+            assert "suppressed" not in dump
 
     @pytest.mark.asyncio
     async def test_low_dv_suppressed(self):

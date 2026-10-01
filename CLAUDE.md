@@ -165,7 +165,7 @@ The graph model uses universal terms (Statement, Polarity, Perspective, T+/T-/A+
 ### Advisor Runtime Budgets (settings, Advisor-only)
 
 Five knobs bound the silent Advisor (`settings.advisor_*`, env `DIALEXITY_ADVISOR_*`; Navigator agents ignore all):
-- `advisor_polarity_quality_min_hs` (0.5), `advisor_perspective_quality_min_sp` (0.3), `advisor_perspective_quality_min_dv` (0.3) — standalone perspectives below floors (or failed validation) are SUPPRESSED from the context dump with a count line. Nexus members exempt; unscored never suppressed. SP+DV pair mirrors the paper's acceptance criterion as soft pruning.
+- `advisor_polarity_quality_min_hs` (0.5), `advisor_perspective_quality_min_sp` (0.3), `advisor_perspective_quality_min_dv` (0.3) — standalone perspectives below floors (or failed validation) are SUPPRESSED from the context dump with a count line. Nexus members exempt; unscored never suppressed. SP+DV pair mirrors the paper's acceptance criterion as soft pruning. **The floor never empties the section** (since 2026-10-01): when every standalone tension is below it, the least weak one (`_floor_rank`: passing verdict, then SP, DV, HS) is shown with its own `Validation:` line and the rest are counted — on the `anchor` path validation fails on more than half of fresh tetrads, so the old behaviour left the Advisor unable to see what it had just planted (`test_context_quality_filter.py`).
 - `advisor_wheel_quality_top_plausible` (3) — wheels per cycle in the unscoped dump (advisory-mode dumps exempt).
 - `advisor_max_perspectives_per_exploration` (2) — per-explore-call weave cap (excess deferred+reported; bounds turn latency, orthogonal to `max_wheel_layer` which bounds structure size).
 

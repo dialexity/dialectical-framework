@@ -230,6 +230,23 @@ class TestValidationRendering:
 
     @pytest.mark.asyncio
     async def test_dialectical_context_suppresses_failed_standalone(self):
+        """A failed verdict is suppressed — when there is something sound to show
+        instead. Alone, the failed one is shown WITH its verdict: the floor never
+        empties the section (`_apply_quality_floor`, 2026-10-01)."""
+        from dialectical_framework.concerns.dialectical_context import \
+            DialecticalContext
+
+        sid = _new_sid()
+        with scope(sid):
+            self._flagged_perspective("failed: Differential minimum: ...")
+            self._flagged_perspective("passed")
+            dump = await DialecticalContext().resolve()
+            assert "Validation: failed" not in dump
+            assert "Validation: passed" in dump
+            assert "suppressed" in dump
+
+    @pytest.mark.asyncio
+    async def test_dialectical_context_shows_a_lone_failed_standalone_with_its_verdict(self):
         from dialectical_framework.concerns.dialectical_context import \
             DialecticalContext
 
@@ -237,8 +254,8 @@ class TestValidationRendering:
         with scope(sid):
             self._flagged_perspective("failed: Differential minimum: ...")
             dump = await DialecticalContext().resolve()
-            assert "Validation: failed" not in dump
-            assert "suppressed" in dump
+            assert "Validation: failed: Differential minimum" in dump
+            assert "suppressed" not in dump
 
     @pytest.mark.asyncio
     async def test_present_analysis_renders_verdict(self):

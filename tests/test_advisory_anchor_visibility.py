@@ -217,9 +217,16 @@ class TestTheBoundIsTheQualityFloorAndNothingElse:
             weak = _create_perspective_with_aspects(thesis_text="Hire the operator")
             weak.validation = "failed: the poles are the same claim restated"
             weak.save()
+            # A sound anchor beside it, because the floor never empties the
+            # section (`_apply_quality_floor`): with the weak one alone there
+            # would be nothing to rank and it would be shown. What is pinned
+            # here is that advisory mode runs the SAME floor, not that a lone
+            # anchor disappears.
+            _create_perspective_with_aspects(thesis_text="Raise a bridge round")
 
             dump = await DialecticalContext(nexus_hash=pinned.short_hash).resolve()
 
+        assert "Raise a bridge round" in dump
         assert "Hire the operator" not in dump
         assert "1 unexplored tension(s) suppressed for low quality" in dump
         assert "reachable via inspect_node" in dump
