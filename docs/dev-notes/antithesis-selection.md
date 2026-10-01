@@ -280,3 +280,30 @@ from 10% before the selection fix; the antithesis is a genuine position in
 about 70% of first tetrads, a caricature in none. Every number is Sonnet 5,
 n = 20 per set, one auditor model — screens, not results, and recorded as
 such.
+
+## The comparison that was missing (2026-10-01)
+
+Path A — the Consultant's view turn, ONE thinking structured call over the
+bare utterance — had only ever been read by hand. Its tetrads scored by the
+pipeline's own judge (`ControlStatementsCheck._evaluate_control_statement`,
+same model, no context), both sets:
+
+| | set A | set B | median latency |
+|---|---|---|---|
+| pipeline, final stack (first tetrad) | 7–9/20 | 7/20 | ~55 s |
+| Consultant view turn | **13/20** | **11/20** | ~6 s |
+
+24/40 against 14–16/40, on the pipeline's own metric, at a tenth of the time,
+with antitheses that are positions by inspection. One judge, one model, n = 40
+— a screen — but it reframes the three reverted generation fixes: the staged
+path is not short of a better-worded step. What differs between the two is
+structural, and each difference is a testable variable: (1) THINKING — the
+view turn thinks, every structured concern call does not (forced tool choice
+suppresses it); (2) WHOLENESS — one call sees thesis, antithesis and all four
+aspects together and can choose the antithesis for the tetrad it yields, which
+is the paper's Optimum A taken literally, where the pipeline picks the
+antithesis from eleven isolated one-rung calls and builds aspects afterwards;
+(3) the taxonomy apex the pipeline's aspects are scored toward. Next
+measurements, one variable each: thinking on `AspectGeneration`'s tetrad call
+alone; then a holistic thinking generation with the ladder and the scales
+demoted to CLASSIFYING and SCORING what was generated.
