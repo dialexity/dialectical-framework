@@ -24,6 +24,7 @@ documents (many theses) and for the two-pole `anchor`/`note` (A given).
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Optional
 
 from dependency_injector.wiring import Provide, inject
@@ -114,11 +115,18 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
             text=self.context,
             input_hashes=self.input_hashes,
         )
-        result = await introduce.resolve()
-        self._report = self._report.merge(introduce.report)
-        if not result.primary_polarity_hash:
+        # Phase 1 commits the pair and the Polarity (HS still unknown); the
+        # opposition's evaluation (phase 2, LLM only) then OVERLAPS the
+        # expansion below, and phase 3 writes its result afterwards on this
+        # task — one writer at a time. Measured before the split: ~12 s of
+        # `AntithesisClassification` standing in the chain ahead of ~14 s of
+        # scoring, grounding and validation that never needed it.
+        prepared = await introduce.prepare()
+        if not prepared.primary_polarity_hash:
+            self._report = self._report.merge(introduce.report)
             self._report.artifacts["perspective_hashes"] = []
             return []
+        result = prepared
 
         given = GivenTetrad(
             texts={
@@ -143,7 +151,11 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
             grounding_context=self.context or material,
             given_tetrad=given,
         )
-        perspectives = await expand.resolve()
+        classification, perspectives = await asyncio.gather(
+            introduce.classify_opposition(), expand.resolve()
+        )
+        introduce.record_opposition(classification)
+        self._report = self._report.merge(introduce.report)
         self._report = self._report.merge(expand.report)
 
         self._report.ok = True

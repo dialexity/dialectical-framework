@@ -108,69 +108,36 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         self._source_inputs_cache: list | None = None
 
     async def resolve(self) -> IntroducePolarityResult:
-        """Introduce a single T-A tension with HS score."""
+        """Introduce a single T-A tension with HS score: the three phases in a
+        row (`prepare`, `classify_opposition`, `record_opposition`)."""
+        prepared = await self.prepare()
+        if not prepared.primary_polarity_hash:
+            return prepared
+        classification = await self.classify_opposition()
+        return self.record_opposition(classification)
 
+    # ------------------------------------------------------------------
+    # The three phases `resolve()` composes. Split (2026-10-02) so a caller
+    # can OVERLAP the opposition's evaluation with work that needs only the
+    # committed pair: `SketchTetrad` runs `classify_opposition()` (pure LLM,
+    # writes nothing) concurrently with `ExpandPolarity` (which writes), then
+    # `record_opposition()` on the parent task — one writer at a time, and the
+    # ~12 s of `AntithesisClassification` come off the wall clock instead of
+    # standing in the chain. The Polarity can be committed before its HS is
+    # known because its hash is the sorted T/A hashes alone; HS is an edge
+    # property, written by `update_properties`.
+    # ------------------------------------------------------------------
+
+    async def prepare(self) -> IntroducePolarityResult:
+        """Phase 1: classify both poles (gathered), commit them, connect the
+        opposition, commit the Polarity with the HS still unknown."""
         if not self.thesis_text or not self.antithesis_text:
             self._report.ok = False
             self._report.summary = "Both thesis and antithesis text are required"
             return IntroducePolarityResult()
-
         input_text = await self._get_input_text()
         context = compose_context(self.text, input_text)
-
-        # 1-2. Create or find both Statements. The two poles are resolved
-        # CONCURRENTLY: neither reads the other, each builds its own concerns with
-        # its own conversation, and the `OPPOSITE_OF` connect below is the first
-        # thing that needs both. They were sequential `await`s purely because the
-        # code was written for one pole and called twice, which cost a whole stage
-        # of the tool's ~40s wall clock.
-        #
-        # Two measurements, and they disagree — quote whichever matches the question.
-        # THIS STAGE frees ~6.2s: the two poles' provider intervals overlap almost
-        # perfectly (12.5s serial -> 6.3s gathered, median, `probe_pole_overlap.py`),
-        # slightly MORE than the ~5.8s the per-DTO arithmetic predicted. The TOOL
-        # moved ~3.3s (median working 40.1s -> 36.8s, parallelism 1.15 -> 1.33,
-        # `probe_anchor_retry_cost.py`). The difference is ~2.5s against the
-        # PREDICTION (5.8 - 3.3, which is the base the probe pre-registered) or
-        # ~2.9s against this measurement (6.2 - 3.3) — say which.
-        #
-        # Either way it is NOT in this stage. The poles cost near-identically
-        # (median |A-B| 0.15s over 5 rows; the min-vs-mean bias is 0.33s, which
-        # is mean spread 0.66s / 2 on the retry-free same-DTO-mix subgroup — a
-        # different statistic on a different subgroup, NOT half the median).
-        # There is no interference: median gathered wall equals median max(busy),
-        # within 0.1s on every row, at 0.000s start skew. Contention is small and
-        # not zero: +9% of provider time, which works out to ~0.5s of wall on the
-        # larger of a gathered pair (derived, not printed), against a reference
-        # pooled from a different Case regime.
-        #
-        # Overhead growth is OUT (2026-09-07, `tests/probe_pole_gather_overhead.py`,
-        # free — mock brain, no provider), and on a BUDGET argument rather than a
-        # null: total non-provider wall for the whole both-poles path is 0.3-0.6s
-        # depending on machine load, which is a CEILING on overhead growth since
-        # gathering cannot add more than exists, and either end is an order of
-        # magnitude under the gap. The gathered-vs-serialized difference itself is
-        # only bounded at ~+-0.1s (tight on a quiet machine, noisy and sign-changing
-        # on a loaded one), so quote the ceiling, not that row. The saving does reach
-        # the tool in FULL, at 2x the injected per-call delay to within 2ms in every
-        # run — this stage is two dependency stages deep
-        # (`StatementClassification`'s own two submits), which is where the 2.8 + 3.0
-        # arithmetic came from. So what is left is provider-side: contention, and
-        # imprecision in the 3.3s itself — a difference of medians at n=3 with two
-        # retrying calls, against a directly measured 6.2s here.
-        #
-        # Only the LLM half is gathered. The commits and the report merges run
-        # after, on this task, one pole at a time — GQLAlchemy is not
-        # concurrency-safe, and `merge` returns a NEW report rather than mutating,
-        # so two tasks assigning `self._report` would silently drop one pole's
-        # nodes from the report. Same reason the order below is thesis-then-
-        # antithesis: it keeps the report's node sequence identical to before.
-        #
-        # No `return_exceptions=True`, deliberately: a failing pole must abort the
-        # whole tool, exactly as the sequential version did. The one thing it costs
-        # is that the surviving pole's calls run on to completion in the background
-        # and are discarded — wasted spend on an error path, never a wrong result,
-        # since nothing has been committed at that point.
+        self._context = context
         expect_progress(self.PROGRESS_STEPS)
         report_progress("Taking in both sides of what you described")
         thesis_draft, antithesis_draft = await asyncio.gather(
@@ -179,38 +146,46 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
         )
         thesis_stmt = self._commit_statement(thesis_draft)
         antithesis_stmt = self._commit_statement(antithesis_draft)
-
-        # 3. Connect OPPOSITE_OF
         thesis_stmt.oppositions.connect(antithesis_stmt)
         self._report.relationship_created(
             thesis_stmt.oppositions, thesis_stmt, antithesis_stmt
         )
+        self._prepared = (thesis_stmt, antithesis_stmt)
+        self._polarity, self._polarity_created = self._ensure_polarity(
+            thesis_stmt, antithesis_stmt, heuristic_similarity=None
+        )
+        return IntroducePolarityResult(
+            primary_polarity_hash=self._polarity.hash,
+            thesis_hash=thesis_stmt.hash,
+            antithesis_hash=antithesis_stmt.hash,
+        )
 
-        # 4. Classify the antithesis against the thesis (get HS)
+    async def classify_opposition(self):
+        """Phase 2: the opposition's HS, Mode and Arousal — LLM only, no
+        graph writes, so it may run concurrently with a writer."""
+        thesis_stmt, antithesis_stmt = self._prepared
         report_progress("Weighing how strongly the two pull against each other")
         classifier = AntithesisClassification()
         classification = await classifier.resolve(
             thesis=thesis_stmt,
             antithesis_statement=antithesis_stmt.text,
-            text=context,
+            text=self._context,
         )
-        self._report = self._report.merge(classifier.report)
+        self._classifier_report = classifier.report
+        return classification
 
-        # 5. Create primary Polarity
-        pol_repo = PolarityRepository()
-        existing_pols = pol_repo.find_by_tension(thesis_stmt, antithesis_stmt)
-
-        if existing_pols:
-            primary_polarity = existing_pols[0]
-            self._report.artifacts["primary_polarity_source"] = "existing"
-        else:
-            primary_polarity = Polarity()
-            primary_polarity.set_t(thesis_stmt, heuristic_similarity=1.0)
-            primary_polarity.set_a(
+    def record_opposition(self, classification) -> IntroducePolarityResult:
+        """Phase 3: write what phase 2 found — the A edge's HS (on a Polarity
+        this call created; an existing one keeps its own), the Mode and Arousal
+        estimations — and build the report. Parent task only."""
+        thesis_stmt, antithesis_stmt = self._prepared
+        self._report = self._report.merge(self._classifier_report)
+        primary_polarity = self._polarity
+        if self._polarity_created:
+            primary_polarity.a.update_properties(
                 antithesis_stmt,
-                heuristic_similarity=classification.heuristic_similarity,
+                {"heuristic_similarity": classification.heuristic_similarity},
             )
-            primary_polarity.commit()
             self._report.node_created(primary_polarity)
             self._report.relationship_created(
                 primary_polarity.t,
@@ -228,8 +203,9 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
                 },
             )
             self._report.artifacts["primary_polarity_source"] = "created"
+        else:
+            self._report.artifacts["primary_polarity_source"] = "existing"
 
-        # Persist Mode/Arousal estimations on the antithesis
         manager = EstimationManager()
         mode_est = manager.upsert_estimation(
             antithesis_stmt, ModeEstimation, classification.mode_value
@@ -246,13 +222,11 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
                 arousal_est, patch={"value": classification.arousal_value}
             )
 
-        # Build result
         result = IntroducePolarityResult(
             primary_polarity_hash=primary_polarity.hash,
             thesis_hash=thesis_stmt.hash,
             antithesis_hash=antithesis_stmt.hash,
         )
-
         self._report.ok = True
         self._report.artifacts["primary_polarity_hash"] = primary_polarity.hash
         self._report.artifacts["thesis_hash"] = thesis_stmt.hash
@@ -271,8 +245,21 @@ class IntroducePolarity(ReasonableConcern[IntroducePolarityResult]):
             f"(HS: {classification.heuristic_similarity:.2f}, "
             f"Mode: {classification.mode_value:.1f})"
         )
-
         return result
+
+    def _ensure_polarity(
+        self, thesis_stmt: Statement, antithesis_stmt: Statement, *, heuristic_similarity
+    ) -> tuple[Polarity, bool]:
+        """The Polarity for this pair: the existing one, or a new one committed
+        now (HS may still be None — see `record_opposition`)."""
+        existing = PolarityRepository().find_by_tension(thesis_stmt, antithesis_stmt)
+        if existing:
+            return existing[0], False
+        polarity = Polarity()
+        polarity.set_t(thesis_stmt, heuristic_similarity=1.0)
+        polarity.set_a(antithesis_stmt, heuristic_similarity=heuristic_similarity)
+        polarity.commit()
+        return polarity, True
 
     async def _classify_statement(self, text: str, context: str) -> _StatementDraft:
         """The LLM half of placing a Statement: NO graph writes and NO report

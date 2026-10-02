@@ -300,3 +300,63 @@ class TestTheSkill:
             pps = await SketchTetrad(thesis="Quit and start my own company", context="He holds 45%.").resolve()
         assert len(pps) == 1
         assert seen == [{"material": "", "context": "He holds 45%.", "thesis": "Quit and start my own company"}]
+
+
+@pytest.mark.llm
+class TestTheOppositionIsEvaluatedWhileTheTetradIsScored:
+    @pytest.mark.asyncio
+    async def test_classify_opposition_overlaps_expand(self, monkeypatch):
+        """The ~12 s antithesis evaluation used to stand in the chain ahead of
+        scoring, grounding and validation, none of which read its result. The
+        skill now gathers it with `ExpandPolarity`; the write of its result
+        (`record_opposition`) follows on the parent task."""
+        import asyncio
+
+        from dialectical_framework.agents.analyst.skills import sketch_tetrad as mod
+        from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+            IntroducePolarity
+        from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
+            SketchTetrad
+
+        fake_tetrad_sketch(monkeypatch)
+        events: list[str] = []
+        original_classify = IntroducePolarity.classify_opposition
+        original_record = IntroducePolarity.record_opposition
+        expand_gate = asyncio.Event()
+
+        async def slow_classify(self):
+            events.append("classify:start")
+            await expand_gate.wait()  # cannot finish until expand has started
+            result = await original_classify(self)
+            events.append("classify:end")
+            return result
+
+        def record(self, classification):
+            events.append("record")
+            return original_record(self, classification)
+
+        original_expand = mod.ExpandPolarity.resolve
+
+        async def expand(self):
+            events.append("expand:start")
+            expand_gate.set()
+            out = await original_expand(self)
+            events.append("expand:end")
+            return out
+
+        monkeypatch.setattr(IntroducePolarity, "classify_opposition", slow_classify)
+        monkeypatch.setattr(IntroducePolarity, "record_opposition", record)
+        monkeypatch.setattr(mod.ExpandPolarity, "resolve", expand)
+
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            pps = await SketchTetrad(thesis="Quit and start my own company").resolve()
+            assert len(pps) == 1
+            # the opposition's HS landed on the edge after the overlap
+            _a, rel = pps[0].polarity.get()[0].a.get()
+            assert rel.heuristic_similarity is not None
+
+        assert events.index("classify:start") < events.index("expand:end")
+        assert events.index("expand:start") < events.index("classify:end"), "no overlap"
+        assert events[-1] == "record", "the write comes last, on the parent task"

@@ -797,3 +797,41 @@ tetrad broke: a plus built to carry the other pole is a compromise, and
 build. Rule carried forward: a restatement lever is measured on COHERENCE
 first (`CLAUDE.md`, the worked-example rule says the same); restatement at
 7–12% stays an open number.
+
+## Step 2: the build's latency (2026-10-02)
+
+**Census first** (`tests/e2e/probe_oneshot_census.py`, four utterances through the
+wired `anchor`): 11–13 provider calls, parallelism 1.4, wall 37–42 s, non-LLM < 1.5 s.
+The chain: sketch ~5 s → both poles' classification + taxonomy location (gathered,
+~8 s) → the antithesis's contextualised taxonomy (~5 s) → its HS/Mode/Arousal
+evaluation (~7 s) → aspect scoring (~3 s) → grounding (~2 s) → the two coherence
+judge calls (gathered, ~8 s). The antithesis evaluation stood in the chain ahead of
+~14 s of work that never read its result.
+
+**The overlap.** `IntroducePolarity` split into `prepare` / `classify_opposition` /
+`record_opposition` (the Polarity commits with its A-edge HS unknown — the hash is
+the two statement hashes; HS is an edge property, written afterwards with
+`update_properties`); `SketchTetrad` gathers the evaluation with `ExpandPolarity`
+and writes the result on the parent task — one writer at a time, pinned by a test
+that proves the overlap happened. Same calls, same provider seconds; wall 23–28 s
+(parallelism 2.0). Semantics-preserving by construction; the 20-utterance quality
+sanity is recorded below.
+
+**What is left in the chain and what each cut would cost in quality terms.** sketch
+4–5 s → classify T ∥ A with taxonomy 7–8 s → max(contextualise + evaluate ≈ 11 s,
+score + ground + validate ≈ 12 s). Further cuts: (B) the sketched antithesis is
+classified standalone AND contextualised against T — on the staged path a generated
+antithesis gets `lookup_antithesis_meaning(thesis)` and no classification, so the
+standalone call is extra; dropping it saves two calls and ~1 s of wall (it is
+gathered with T's), and changes A's `meaning` to the staged convention. (C) On the
+Advisor's pinned-thesis path T is known before the sketch, so its classification
+can run DURING the sketch (~4 s off that path only). (D) Folding the taxonomy
+branch into the reasoning call would remove the whole classification stage (~8 s)
+and is a quality question, not a plumbing one — the branch selects the apex every
+score is read against. None of B–D is semantics-preserving; each is a measured
+change or nothing.
+
+**Sanity after the overlap** (set A, 20 utterances, the probe's `default` mode = the
+wired tool): CC first 9/20 (45%), antithesis a position 18/20, median 26.8 s (max
+31.1 s) against 43 s before — the same tetrads at the rate the one-shot build has
+shown on set A, 16 s faster. No errors.
