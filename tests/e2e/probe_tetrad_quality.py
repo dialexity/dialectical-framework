@@ -74,6 +74,15 @@ MODES (`TETRAD_PROBE_MODE`, default `default` = behaviour unchanged)
             from it (`SurfaceTheses`), every expanded perspective is recorded
             with the same fields, and `extracted_theses` keeps what extraction
             made of the sentence (text + SIMPLE flag per thesis).
+  oneshot   `SketchTetrad(utterance=text)` — item 3: ONE thinking call writes
+            T, A and the four aspects from the utterance, then
+            `IntroducePolarity` + `ExpandPolarity(given_tetrad=)` score, dedup,
+            ground, validate and persist it. Pre-registered bar before it
+            replaces the staged thesis-only `anchor`: first-tetrad CC ≥ 20/40
+            on sets A+B, antithesis a position ≥ 30/40, restatement ≤ 3/80.
+  oneshot_persona  the same with `COUNSELOR_PERSONA` above the method — the
+            bundle the 26/40 harness arm carried; a gap ≥ 5 against `oneshot`
+            says the persona did work (a finding to record, not to ship).
 """
 
 from __future__ import annotations
@@ -346,7 +355,7 @@ def _pct(k: int, n: int) -> str:
     return f"{k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)"
 
 
-_MODES = ("default", "context", "given_a", "ingest")
+_MODES = ("default", "context", "given_a", "ingest", "oneshot", "oneshot_persona")
 
 
 class _NamedAntithesis(BaseModel):
@@ -480,6 +489,18 @@ async def test_probe_tetrad_quality(di_container) -> None:
                     raw = await _anchor(
                         thesis=text, antithesis=item["named_antithesis"], context=text
                     )
+                elif mode in ("oneshot", "oneshot_persona"):
+                    from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
+                        SketchTetrad
+                    from dialectical_framework.agents.apps import COUNSELOR_PERSONA
+
+                    skill = SketchTetrad(
+                        utterance=text,
+                        persona=COUNSELOR_PERSONA if mode == "oneshot_persona" else None,
+                    )
+                    await skill.resolve()
+                    raw = str(skill.report)
+                    item["sketch"] = skill.report.artifacts.get("sketch")
                 elif mode == "ingest":
                     # The pipeline's own capture adds the Input and digests it
                     # (a one-sentence Input is under the digest threshold, so

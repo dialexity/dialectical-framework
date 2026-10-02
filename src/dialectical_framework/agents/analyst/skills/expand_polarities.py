@@ -19,7 +19,7 @@ from pydantic import Field
 
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
-from dialectical_framework.concerns.aspect_generation import (
+from dialectical_framework.concerns.aspect_generation import (GivenTetrad,
     AspectGeneration,
     AspectResult,
 )
@@ -90,9 +90,17 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         polarity_hash: str,
         count: int = 1,
         grounding_context: Optional[str] = None,
+        given_tetrad: Optional[GivenTetrad] = None,
     ) -> None:
         self.polarity_hash = polarity_hash
         self.count = max(1, count)
+        #: A tetrad already written by one reasoning call (the one-shot path,
+        #: `SketchTetrad`): scored by `AspectGeneration.score_given` instead of
+        #: generated, then deduped, named, committed, grounded and validated
+        #: exactly as a generated one. One tetrad per given, so `count` is 1.
+        self.given_tetrad = given_tetrad
+        if given_tetrad is not None:
+            self.count = 1
         #: Conversational material the tension was drawn from. Attached to each
         #: committed tetrad as grounding (`TetradGrounding`) so the case
         #: particulars survive the abstraction into ~7-word poles. Optional:
@@ -155,13 +163,19 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
             # The single most expensive stage in `anchor` — ~10.2s of a ~38s
             # chain, one call, nothing to overlap it with, and no graph node
             # written until it returns.
-            report_progress("Working out how each side helps and how each overreaches")
             generator = AspectGeneration()
-            aspects = await generator.resolve(
-                perspective=pp,
-                text=input_text,
-                not_like_these=not_like_these,
-            )
+            if self.given_tetrad is not None:
+                report_progress("Weighing each side of the picture")
+                aspects = await generator.score_given(
+                    perspective=pp, given=self.given_tetrad, text=input_text
+                )
+            else:
+                report_progress("Working out how each side helps and how each overreaches")
+                aspects = await generator.resolve(
+                    perspective=pp,
+                    text=input_text,
+                    not_like_these=not_like_these,
+                )
             self._report = self._report.merge(generator.report)
 
             # Deduplicate aspects against vocabulary

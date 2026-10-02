@@ -1,0 +1,143 @@
+"""
+SketchTetrad: the one-shot build — reason the tetrad whole, then persist it whole.
+
+Three steps, two of them the existing skills unchanged:
+
+1. `TetradSketch` — ONE thinking call over the person's words writes T, A and
+   the four aspects (`concerns/tetrad_sketch.py`).
+2. `IntroducePolarity(thesis, antithesis, …)` — the two-pole anchor's own step:
+   classification and headline for both poles, OPPOSITE_OF with HS, Mode and
+   Arousal on the antithesis, the Polarity, the source Input linked to both.
+3. `ExpandPolarity(polarity_hash, given_tetrad=…)` — scores the given aspects
+   (`AspectGeneration.score_given`) instead of generating them, then dedups,
+   names the reading, commits, grounds and validates exactly as today.
+
+What this replaces, where it is wired: the thesis-only `anchor`'s staged build
+(headline → ladder → aspects for a pair never seen whole), measured at 14/40
+coherent first tetrads on free utterances against the Consultant's one-shot
+view turn at 24/40 (docs/dev-notes/antithesis-selection.md). It is NOT wired
+into `anchor` until the pre-registered arm passes (`TETRAD_PROBE_MODE=oneshot`:
+first-tetrad CC ≥ 20/40, antithesis a position ≥ 30/40, restatement ≤ 3/80);
+until then the probe calls it directly. The staged path stays for `ingest` of
+documents (many theses) and for the two-pole `anchor`/`note` (A given).
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from dialectical_framework.agents.analyst.skills.expand_polarities import \
+    ExpandPolarity
+from dialectical_framework.agents.analyst.skills.introduce_polarity import \
+    IntroducePolarity
+from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.concerns.aspect_generation import GivenTetrad
+from dialectical_framework.concerns.tetrad_sketch import TetradSketch
+from dialectical_framework.concerns.view_sketch import is_axis_name
+from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
+                                                           POSITION_A_PLUS,
+                                                           POSITION_T_MINUS,
+                                                           POSITION_T_PLUS,
+                                                           Perspective)
+from dialectical_framework.utils.input_context import compose_context
+from dialectical_framework.utils.progress import (expect_progress,
+                                                  report_progress)
+
+
+class SketchTetrad(ReasonableConcern[list[Perspective]]):
+    """One utterance → one scored, validated, persisted tetrad."""
+
+    def __init__(
+        self,
+        utterance: str,
+        context: str = "",
+        input_hashes: Optional[list[str]] = None,
+        persona: Optional[str] = None,
+        thesis: Optional[str] = None,
+    ) -> None:
+        self.utterance = (utterance or "").strip()
+        #: The position to plant, when the caller already named it (`anchor`'s
+        #: `thesis`): pinned in the sketch request. None = find it in the words.
+        self.thesis = (thesis or "").strip() or None
+        #: The model's particulars about the tension (`anchor`'s `context`);
+        #: composed ahead of the utterance for every prompt, as on the staged
+        #: path. Grounding uses it when given, the utterance itself otherwise —
+        #: on this path the utterance IS the person's particulars.
+        self.context = (context or "").strip()
+        #: The Input that keeps the utterance verbatim (`_keep_utterance`),
+        #: linked to both poles by `IntroducePolarity`. `[]` = none.
+        self.input_hashes = input_hashes
+        self._persona = persona
+
+    async def resolve(self) -> list[Perspective]:
+        if not self.utterance:
+            self._report.ok = False
+            self._report.summary = "Nothing to build: the utterance is empty"
+            self._report.artifacts["perspective_hashes"] = []
+            return []
+
+        expect_progress(1)
+        report_progress("Thinking the tension through, whole")
+        sketch = TetradSketch(persona=self._persona)
+        tension = await sketch.resolve(self.utterance, self.context, thesis=self.thesis)
+        self._report = self._report.merge(sketch.report)
+
+        particulars = compose_context(self.context, self.utterance)
+        introduce = IntroducePolarity(
+            thesis=tension.thesis,
+            antithesis=tension.antithesis,
+            text=particulars,
+            input_hashes=self.input_hashes,
+        )
+        result = await introduce.resolve()
+        self._report = self._report.merge(introduce.report)
+        if not result.primary_polarity_hash:
+            self._report.artifacts["perspective_hashes"] = []
+            return []
+
+        given = GivenTetrad(
+            texts={
+                POSITION_T_PLUS: tension.t_plus,
+                POSITION_T_MINUS: tension.t_minus,
+                POSITION_A_PLUS: tension.a_plus,
+                POSITION_A_MINUS: tension.a_minus,
+            },
+            axes={
+                key: axis
+                for key, axis in (
+                    ("t_plus_vs_a_minus", tension.t_plus_vs_a_minus_axis),
+                    ("a_plus_vs_t_minus", tension.a_plus_vs_t_minus_axis),
+                )
+                if is_axis_name(axis)
+            },
+        )
+        expand = ExpandPolarity(
+            polarity_hash=result.primary_polarity_hash,
+            grounding_context=self.context or self.utterance,
+            given_tetrad=given,
+        )
+        perspectives = await expand.resolve()
+        self._report = self._report.merge(expand.report)
+
+        self._report.ok = True
+        self._report.artifacts["perspective_hashes"] = [
+            pp.hash for pp in perspectives if pp.hash
+        ]
+        # The same quality line the staged pipeline reports, for one tension:
+        # no ladder ran, so there is no potential to report (`None`, honestly).
+        polarities = introduce.report.artifacts.get("polarities") or []
+        self._report.artifacts["polarity_quality"] = [
+            {
+                **entry,
+                "tetrad_potential": None,
+                "expanded": bool(perspectives),
+                "status": "expanded" if perspectives else "failed",
+            }
+            for entry in polarities
+        ]
+        self._report.summary = (
+            f"Built one tetrad whole: {tension.thesis} vs {tension.antithesis}"
+            if perspectives
+            else "The sketched tension did not expand"
+        )
+        return perspectives

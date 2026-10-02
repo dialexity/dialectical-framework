@@ -319,3 +319,25 @@ Not changed: the floors, their defaults, and HS's low scores for genuine
 dilemma antitheses (0.02–0.85, mean 0.45 on 20 named antitheses) — that is an
 open question about HS on a NAMED antithesis, recorded in
 `antithesis-selection.md`.
+
+## `anchor`'s thesis-only branch is the one-shot build; HS left the floor (2026-10-01)
+
+`anchor(thesis=, antithesis=None, context=)` no longer runs `AnchorTheses` →
+`AnalysisPipeline(thesis_hashes=)`. It runs `SketchTetrad`: one json-mode
+thinking call over the person's turn (the thesis pinned, the Consultant's
+`method_prompt()` as system prompt) writes A and the four aspects;
+`IntroducePolarity` and `ExpandPolarity(given_tetrad=)` classify, score, dedup,
+ground, validate and persist. Measured in `antithesis-selection.md` ("The
+one-shot build"): coherent first tetrads 42/80 against the staged 14/40,
+genuine antitheses 74/80 against 27/40, ~43 s against ~55 s, two generations.
+The two-pole branch and `note` are unchanged; `ingest` keeps the staged path.
+
+In the same change the HS term left `DialecticalContext._apply_quality_floor`
+and `settings.advisor_polarity_quality_min_hs` is gone (no alias; env
+`DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS` no longer read). Reason: the
+one-shot build's antitheses are genuine positions, HS scores a genuine position
+low by construction (28/40 and 20/40 below 0.5 across the two generations, min
+0.03) while validation passed on 21/40, so with the term the Advisor would have
+hidden 33 of 40 tetrads it had just built. The floor keeps the paper's SP+DV
+pair and the validator's verdict; `_floor_rank` orders the kept slot by
+verdict, SP, DV.

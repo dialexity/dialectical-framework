@@ -311,6 +311,47 @@ class TetradDto(BaseModel):
 # --- Result ---
 
 
+class AspectScoresDto(BaseModel):
+    """Scores for ONE aspect whose text is already fixed (`score_given`)."""
+
+    heuristic_similarity: float = Field(
+        ge=0.0, le=1.0, description="Heuristic Similarity to taxonomy apex (0.0-1.0)"
+    )
+    complementarity_t: float = Field(
+        ge=0.0, le=1.0, description="K_T: how well it complements the thesis (0.0-1.0)"
+    )
+    complementarity_a: float = Field(
+        ge=0.0, le=1.0, description="K_A: how well it complements the antithesis (0.0-1.0)"
+    )
+
+
+class TetradScoresDto(BaseModel):
+    """The four scores of a tetrad written elsewhere. Texts are NOT echoed back:
+    a scorer that could rewrite is a second generator."""
+
+    t_plus: AspectScoresDto
+    t_minus: AspectScoresDto
+    a_plus: AspectScoresDto
+    a_minus: AspectScoresDto
+
+
+@dataclass
+class GivenTetrad:
+    """A tetrad written by ONE reasoning call, to be scored and persisted as
+    any other (`ExpandPolarity(given_tetrad=)`).
+
+    `texts` is keyed by position (`POSITION_T_PLUS`, ...), `axes` by the two
+    diagonal keys `_capture_axis` knows ("t_plus_vs_a_minus",
+    "a_plus_vs_t_minus"). Texts only — the scores come from `score_given`,
+    because K_T/K_A feed `area`, the empirical validation and the Advisor's
+    floor, and a path that left them None would never fail validation and
+    look better by construction.
+    """
+
+    texts: dict[str, str]
+    axes: dict[str, str]
+
+
 @dataclass
 class AspectResult:
     """Result of aspect generation."""
@@ -474,6 +515,92 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         )
 
         return results
+
+    async def score_given(
+        self,
+        perspective: Perspective,
+        given: GivenTetrad,
+        text: str = "",
+    ) -> list[AspectResult]:
+        """Score a tetrad written by ONE reasoning call, instead of writing one.
+
+        The one-shot path (`agents/analyst/skills/sketch_tetrad.py`) builds all
+        six positions in a single thinking call over the person's own words,
+        the way the Consultant's view turn does — measured at 24/40 coherent
+        first tetrads against this concern's staged 14/40 on the same free
+        utterances (docs/dev-notes/antithesis-selection.md). What that call
+        cannot do is score, and the graph needs the scores. So: one forced-tool
+        call that reads the FIXED texts and returns HS and K_T/K_A per
+        position, nothing rewritten (`TetradScoresDto` echoes no text), then the
+        same `_create_aspect_result` the generators use — meaning URI from the
+        parent's taxonomy, committed Statement, `AspectResult`.
+        """
+        self._pp = perspective
+        self._text = text
+        self.axes = {}
+        t_result = perspective.t.get()
+        a_result = perspective.a.get()
+        if not t_result or not a_result:
+            raise ValueError("Perspective must have T and A connected")
+        self._thesis = t_result[0]
+        self._antithesis = a_result[0]
+        self._not_like_these = []
+        self._existing_aspects = {}
+
+        for key, axis in given.axes.items():
+            self._capture_axis(key, axis)
+
+        self._conversation.set_system_prompt(SYSTEM_PROMPT)
+        scores = await self._conversation.submit(
+            response_model=TetradScoresDto,
+            user_content=self._scores_prompt(given),
+        )
+        by_position = {
+            POSITION_T_PLUS: scores.t_plus,
+            POSITION_T_MINUS: scores.t_minus,
+            POSITION_A_PLUS: scores.a_plus,
+            POSITION_A_MINUS: scores.a_minus,
+        }
+        results = [
+            self._create_aspect_result(pos, given.texts[pos], by_position[pos])
+            for pos in (POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS)
+        ]
+        self._report.ok = True
+        self._report.artifacts["generated"] = {
+            r.position: r.component.hash for r in results
+        }
+        self._report.summary = "Scored a given tetrad: " + ", ".join(
+            f"{r.position}={r.component.short_hash}" for r in results
+        )
+        return results
+
+    def _scores_prompt(self, given: GivenTetrad) -> str:
+        """Score four fixed aspects. The apex concepts and both scales are the
+        generators' own, so a scored-given tetrad is on the same scale as a
+        generated one."""
+        apex = {
+            pos: StatementClassification.lookup_aspect_apex(
+                self._thesis if pos in (POSITION_T_PLUS, POSITION_T_MINUS) else self._antithesis,
+                pos,
+            )
+            for pos in (POSITION_T_PLUS, POSITION_T_MINUS, POSITION_A_PLUS, POSITION_A_MINUS)
+        }
+        text_section = f"<context>\n{self._text}\n</context>\n\n" if self._text else ""
+        return f"""{text_section}Score this tetrad. The texts are FIXED — do not rewrite, improve or comment on them; return scores only.
+
+Thesis (T): "{self._thesis.prompt_text}"
+Antithesis (A): "{self._antithesis.prompt_text}"
+
+T+ (develops T): "{given.texts[POSITION_T_PLUS]}" — apex: {apex[POSITION_T_PLUS]}
+T- (overdevelops T): "{given.texts[POSITION_T_MINUS]}" — apex: {apex[POSITION_T_MINUS]}
+A+ (develops A): "{given.texts[POSITION_A_PLUS]}" — apex: {apex[POSITION_A_PLUS]}
+A- (overdevelops A): "{given.texts[POSITION_A_MINUS]}" — apex: {apex[POSITION_A_MINUS]}
+
+For each of the four, rate:
+
+{HS_SCALE}
+
+{COMPLEMENTARITY_SCALE}"""
 
     def _capture_axis(self, key: str, axis: str) -> None:
         """Record a named axis for the caller, filtering disclaimers.

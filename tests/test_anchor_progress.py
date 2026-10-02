@@ -41,8 +41,6 @@ import asyncio
 import pytest
 
 from dialectical_framework.agents.advisor.tools.anchor import anchor
-from dialectical_framework.concerns.antithesis_extraction import (
-    AntithesisExtraction, AntithesisProcessed)
 from dialectical_framework.events.graph_event_bus import GraphEventBus
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.statement import Statement
@@ -138,24 +136,13 @@ async def _drain(received: list, *, timeout: float = 3.0) -> None:
 
 @pytest.fixture
 def five_antitheses(monkeypatch):
-    """The thesis-only branch needs a real fan-out; mock brain returns one DTO."""
+    """The thesis-only branch is the ONE-SHOT build (2026-10-01): its one
+    reasoning call is replaced with a fixed tetrad (the mock brain would fill
+    the sketch with placeholders). The name is historical — it used to fan the
+    staged pipeline out to several antitheses."""
+    from test_tetrad_sketch import fake_tetrad_sketch
 
-    async def fake_extract(self, thesis, text="", not_like_these=None, count=5):
-        out = []
-        for name in ("Reset the terms", "Sell instead", "Let it run"):
-            stmt = Statement(text=name, meaning=A_MEANING)
-            stmt.commit()
-            out.append(
-                AntithesisProcessed(
-                    component=stmt,
-                    mode_value=0.8,
-                    arousal_value=0.6,
-                    heuristic_similarity=0.85,
-                )
-            )
-        return out
-
-    monkeypatch.setattr(AntithesisExtraction, "resolve", fake_extract)
+    fake_tetrad_sketch(monkeypatch)
 
 
 def _assert_accounting_closes(events: list, *, branch: str) -> None:
@@ -225,10 +212,10 @@ async def test_the_thesis_only_branch_reports_from_inside_the_gather(
 ):
     """The branch that would go silent if the scope moved down into a skill.
 
-    `AnalysisPipeline` gathers one `ExpandPolarity` per tension, and those tasks
-    are created inside the tool. Their reports are the majority of this branch's
-    steps, so a scope installed anywhere below `anchor` would leave the expensive
-    stage unannounced while the cheap ones above it still spoke.
+    The one-shot build's steps — the reasoning call, both poles' classification
+    (gathered inside `IntroducePolarity`), the scoring of the given aspects,
+    grounding, validation — all run inside skills the tool composes, so a scope
+    installed anywhere below `anchor` would leave them unannounced.
     """
     case = Case()
     case.commit()
@@ -239,10 +226,11 @@ async def test_the_thesis_only_branch_reports_from_inside_the_gather(
     _assert_accounting_closes(events, branch="thesis-only")
 
     details = [e.detail for e in events if not e.final]
-    assert any("overreaches" in d for d in details), (
-        "the tetrad-generation step never announced itself — it runs inside"
-        " `AnalysisPipeline`'s gather, so this is what a mis-placed scope breaks"
+    assert any("Weighing each side" in d for d in details), (
+        "the scoring step of the given tetrad never announced itself — it runs"
+        " inside `ExpandPolarity`, so this is what a mis-placed scope breaks"
     )
+    assert any("whole" in d for d in details), "the reasoning call never announced itself"
 
 
 class TestTheProgressKeySeparatesConcurrentAnchors:
@@ -296,8 +284,8 @@ async def test_no_detail_string_names_the_machinery(
     detail string is the one place it is easy to leak without any prompt review
     noticing — nothing else in the tree renders these words to a person.
 
-    BOTH branches, because they do not share a single string: `AnchorTheses` and
-    `AnalysisPipeline` speak only on the thesis-only leg, and running one branch
+    BOTH branches, because they do not share a single string: `SketchTetrad` and
+    the scoring of a given tetrad speak only on the thesis-only leg, and running one branch
     left two of the seven details unchecked.
     """
     case = Case()

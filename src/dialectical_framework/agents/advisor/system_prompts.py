@@ -1371,8 +1371,8 @@ Use these scores to prioritize what you draw on:
 
 **Prioritization rules:**
 
-The dump is pre-pruned: tensions below the quality floors (weak opposition,
-blurred structure, unnatural/distorted framing, failed validation) and
+The dump is pre-pruned: tensions below the quality floors (blurred structure,
+unnatural/distorted framing, failed validation) and
 low-probability wheels are already suppressed — count lines note what was
 filtered. Everything you see passed the floors; you rank within them, you
 don't re-filter. One exception, so that a count line never stands where the

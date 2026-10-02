@@ -668,3 +668,76 @@ volume. The Advisor's floor would keep ≥ 1 tetrad for 29/40 utterances (anchor
 and the extraction half is a document procedure; its first tetrad is no better
 than the view turn's and takes ten times as long. The one-shot path (item 3)
 is the design that keeps the Input and drops the extraction.
+
+## The one-shot build (item 3), measured (2026-10-01)
+
+`SketchTetrad` (`agents/analyst/skills/sketch_tetrad.py`): ONE json-mode call
+with thinking (`concerns/tetrad_sketch.py`, system prompt = the Consultant's
+`method_prompt()` read live, request = the utterance + `ASPECT_DEFINITIONS` +
+`_OPPOSING_POSITION_ASK` + the shared `TETRAD_BUILD_PROCEDURE`) writes T, A,
+two axes and four aspects; `IntroducePolarity` classifies, headlines and
+scores the pair; `ExpandPolarity(given_tetrad=)` SCORES the given aspects
+(`AspectGeneration.score_given`, texts fixed, DTO echoes none) and then
+dedups, names, commits, grounds and validates as today. Pre-registered bar
+before it replaces the staged thesis-only `anchor`: first-tetrad CC ≥ 20/40,
+antithesis a position ≥ 30/40, restatement ≤ 3/80 plus slots.
+
+Generation 1, sets A+B, 40/40, 0 errors, called directly by the probe
+(`TETRAD_PROBE_MODE=oneshot`, `oneshot_persona` = `COUNSELOR_PERSONA` above
+the method, the bundle the 26/40 harness arm carried):
+
+| arm | CC first | position | restatement (plus slots) | T+/A+ distinct | latency |
+|---|---|---|---|---|---|
+| one-shot, method alone | 21/40 (52%) | 36/40 | 8/80 | 20/40 | 43 s |
+| one-shot + persona | 23/40 (58%) | 38/40 | 3/80 | 17/40 | 43 s |
+| staged (same day) | 14/40 (35%) | 27/40 | 3/80 | 25/47 | 55 s |
+| Consultant view turn | 24/40 (60%) | 20/20 genuine (one rater) | — | — | ~7 s |
+
+Paired first tetrad, one-shot vs staged: both 7, only one-shot 14, only staged
+7, neither 12. Persona vs method alone: 14 / 9 / 7 / 10 — the persona's two
+extra passes are noise; its 3/80 against 8/80 on restatement is the one cell
+where it may be doing work, and the wrong layer to fix that in. Two of three
+bars met; restatement missed on the production candidate. A second generation
+of both arms is running to resolve both cells (n = 80 / 160 slots).
+
+**The HS floor meets the one-shot path, and the defect has teeth.** HS on the
+first antithesis: 28/40 below 0.5 (min 0.03) against the staged run's 3/40 —
+the one-shot antitheses are genuine positions, and HS measures closeness to
+"[T]-lessness". With `advisor_polarity_quality_min_hs` = 0.5, the Advisor's
+context floor would keep a tetrad for 7/40 of these utterances (persona arm
+12/40; staged 17/40, whose antitheses are nearer the negation end). Validation
+passed on 21/40 against the staged 14/40, so it is the HS term alone that
+hides them. The HS term leaves the floor together with this path, or the
+Advisor builds what it cannot see. Latency: ~7 s is the reasoning call; the
+other ~36 s is the unchanged classify / HS / score / ground / validate chain
+(the design estimated 30 s).
+
+**Generation 2 and the decision (2026-10-01).** Both arms re-run on the same
+40: method alone CC 21/40 again (pooled 42/80, 52%), position 38/40 (pooled
+74/80), restatement 3/80 (pooled 11/160, 6.9%); persona CC 22/40 (pooled
+45/80), restatement 8/80 (pooled 11/160). The persona's gen-1 edges on both
+counts were noise; the method alone is wired. Against the bar: coherence and
+antithesis quality met and replicated; restatement at the archive's post-fix
+level (6.9% vs 7.8%), above the one-generation staged figure the bar was set
+from — recorded as unchanged, not improved. Wired into `anchor`'s thesis-only
+branch with the model's `thesis` PINNED in the request (the measured arm let
+the call find T; the production shape is measured next as the probe's
+`default` mode, which now runs the wired tool). HS left the Advisor's floor in
+the same commit (above). Open: ~36 s of the ~43 s is the classify / HS /
+score / ground / validate chain, untouched; the restatement check in the
+sketch request is the one inherited from the procedure, and a stronger
+verification step there is the next lever if 6.9% matters for the app.
+
+**The production shape, measured after wiring (2026-10-01, probe `default`
+mode = the wired tool, thesis pinned to the utterance, no turn, 40/40, 0
+errors):** CC first 20/40 (50%), antithesis a position 36/40, restatement
+6/80, validation passed 20/40, HS(A) below 0.5 on 22/40 (the floor term that
+left), median 43.5 s. Paired against the staged run on the same utterances:
+both 9, only one-shot 11, only staged 5, neither 15. Against the free arm
+(thesis found by the call) 13 / 7 / 9 / 11 — pinning the model's thesis costs
+nothing measurable; the pinned T is the utterance tightened ("Take the Berlin
+job and relocate"), the free T the same tension in its own words. Three
+one-shot generations now sit at 20–21/40 each against the staged 14/40
+(pooled 62/120, 52%, vs 14/40, 35%); the Consultant's view turn stays the
+ceiling at 24/40 and ~7 s. Where the wired path's 43 s go: ~7 s the reasoning
+call, the rest the unchanged classify / HS / score / ground / validate chain.

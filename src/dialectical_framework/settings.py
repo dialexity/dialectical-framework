@@ -57,7 +57,6 @@ class Settings(BaseModel):
     # <0.3 aspects blur together.
     # DV: 0-1, naturalness of the dialectical relationship; <0.3 = forced/
     # distorted framing (comparative, no theory-derived cutoff).
-    advisor_polarity_quality_min_hs: float = Field(default=0.5, description="Polarity quality floor: suppress perspectives whose antithesis HS (how genuine the T-A opposition is, 0.0-1.0) is below this. 0 disables.")
     # The SP + DV floors together operationalize the paper's acceptance pair
     # (SP > 0.5 AND DV > 0.5 [P0 p.12]) as soft context-pruning — deliberately
     # more conservative defaults than the paper's 0.5 (thresholds are per-LLM
@@ -318,7 +317,6 @@ class Settings(BaseModel):
             transition_length=int(os.getenv("DIALEXITY_DEFAULT_TRANSITION_LENGTH", 15)),
             max_wheel_layer=int(os.getenv("DIALEXITY_MAX_WHEEL_LAYER", 4)),
             cycle_preset=CausalityPreset.AUTO,
-            advisor_polarity_quality_min_hs=float(os.getenv("DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS", 0.5)),
             advisor_perspective_quality_min_sp=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_SP", 0.3)),
             advisor_perspective_quality_min_dv=float(os.getenv("DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV", 0.3)),
             advisor_wheel_quality_top_plausible=int(os.getenv("DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE", 3)),

@@ -2,10 +2,11 @@
 Tests for the context-dump quality filter (task #5).
 
 DialecticalContext pre-prunes instead of instructing: standalone perspectives
-below the quality floors (HS < advisor_polarity_quality_min_hs, SP/area <
-advisor_perspective_quality_min_sp, DV < advisor_perspective_quality_min_dv, or
-failed validation — the SP+DV pair mirrors the paper's acceptance criterion)
-are suppressed with a count line; wheels are capped to the top-%
+below the quality floors (SP/area < advisor_perspective_quality_min_sp, DV <
+advisor_perspective_quality_min_dv, or failed validation — the SP+DV pair
+mirrors the paper's acceptance criterion; HS is NOT a term since 2026-10-01, a
+genuine opposing position scores low on it by construction) are suppressed
+with a count line; wheels are capped to the top-%
 advisor_wheel_quality_top_plausible per cycle with a count line. Nexus members
 are load-bearing and never suppressed. Missing scores never suppress.
 """
@@ -79,9 +80,34 @@ def _perspective_with_hs(a_hs: float, tag: str) -> Perspective:
     return pp
 
 
+def _with_dv(pp: Perspective, value: float) -> Perspective:
+    """Attach a DialecticalValidityEstimation (the DV floor's term)."""
+    from dialectical_framework.graph.nodes.estimation import \
+        DialecticalValidityEstimation
+    from dialectical_framework.graph.nodes.rationale import Rationale
+
+    rationale = Rationale(text="dv fixture")
+    rationale.set_explanation_target(pp)
+    rationale.commit()
+    dv = DialecticalValidityEstimation(
+        value=value,
+        t_plus_without_a_plus_yields_t_minus=value,
+        a_plus_without_t_plus_yields_a_minus=value,
+    )
+    dv.set_target(pp)
+    dv.set_provider(rationale)
+    dv.commit()
+    return pp
+
+
 class TestPerspectiveQualityFloor:
     @pytest.mark.asyncio
-    async def test_weak_hs_suppressed_with_count_line(self):
+    async def test_low_hs_alone_never_suppresses(self):
+        """HS left the floor on 2026-10-01: on the one-shot build 28/40 genuine
+        antitheses scored below 0.5 while validation passed on 21/40, and the
+        floor would have hidden 33 of 40 tetrads the Advisor had just built.
+        HS measures closeness to "[T]-lessness", which a real opposing position
+        is not. It stays a rendered score and the pipeline's selection gate."""
         sid = _new_sid()
         with scope(sid):
             _perspective_with_hs(0.9, "strong")
@@ -90,8 +116,8 @@ class TestPerspectiveQualityFloor:
             dump = await DialecticalContext().resolve()
 
             assert "Thesis strong" in dump
-            assert "Thesis weak" not in dump
-            assert "1 unexplored tension(s) suppressed" in dump
+            assert "Thesis weak" in dump
+            assert "suppressed" not in dump
 
     @pytest.mark.asyncio
     async def test_failed_validation_suppressed(self):
@@ -120,15 +146,6 @@ class TestPerspectiveQualityFloor:
             assert "suppressed" not in dump
 
     @pytest.mark.asyncio
-    async def test_zero_floor_disables_hs_check(self, di_container):
-        sid = _new_sid()
-        with scope(sid):
-            _perspective_with_hs(0.2, "weak")
-            with _settings(di_container, advisor_polarity_quality_min_hs=0.0):
-                dump = await DialecticalContext().resolve()
-            assert "Thesis weak" in dump
-
-    @pytest.mark.asyncio
     async def test_the_only_tension_is_shown_even_below_the_floor(self):
         """A floor prunes so the head ranks within something; with nothing left
         to rank it is amnesia.
@@ -142,9 +159,11 @@ class TestPerspectiveQualityFloor:
         """
         sid = _new_sid()
         with scope(sid):
-            _perspective_with_hs(0.2, "weak")
+            lone = _perspective_with_hs(0.9, "lone")
+            lone.validation = "failed: the poles are the same claim restated"
+            lone.save()
             dump = await DialecticalContext().resolve()
-            assert "Thesis weak" in dump
+            assert "Thesis lone" in dump
             assert "suppressed" not in dump, "nothing was left over to suppress"
 
     @pytest.mark.asyncio
@@ -152,9 +171,10 @@ class TestPerspectiveQualityFloor:
         """One is kept, the rest still counted — pruning without emptying."""
         sid = _new_sid()
         with scope(sid):
-            _perspective_with_hs(0.2, "weaker")
-            _perspective_with_hs(0.4, "least weak")
-            _perspective_with_hs(0.1, "weakest")
+            # all three below the DV floor (0.3); the least distorted shows
+            _with_dv(_perspective_with_hs(0.9, "weaker"), 0.2)
+            _with_dv(_perspective_with_hs(0.9, "least weak"), 0.25)
+            _with_dv(_perspective_with_hs(0.9, "weakest"), 0.1)
 
             dump = await DialecticalContext().resolve()
 
@@ -186,7 +206,7 @@ class TestPerspectiveQualityFloor:
             rejected = _create_perspective_with_aspects(thesis_text="Rejected")
             rejected.validation = "failed: the poles are the same claim restated"
             rejected.save()
-            _perspective_with_hs(0.2, "merely weak")
+            _with_dv(_perspective_with_hs(0.9, "merely weak"), 0.1)
 
             dump = await DialecticalContext().resolve()
 

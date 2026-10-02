@@ -549,53 +549,38 @@ class TestAnchorBranchesGroundAlike:
 
     @pytest.mark.asyncio
     async def test_thesis_only_anchor_passes_context_as_grounding(self, monkeypatch):
-        """The regression itself: `intent` alone is not grounding."""
+        """The regression itself: `intent` alone is not grounding. The branch is
+        the one-shot build since 2026-10-01 (`SketchTetrad`), which grounds on
+        `context` when given and composes it first into every prompt; the seam
+        asserted here is what the tool hands the skill."""
         from dialectical_framework.agents.advisor.tools import anchor as anchor_mod
 
         captured: dict = {}
 
-        class _FakePipeline:
+        class _FakeSketchTetrad:
             def __init__(self, **kwargs) -> None:
                 captured.update(kwargs)
-                self.report = type("R", (), {"ok": True, "summary": ""})()
-
-            async def resolve(self):
-                return type("Res", (), {"perspective_hashes": []})()
-
-        class _FakeAnchorTheses:
-            def __init__(self, statements, text: str = "", input_hashes=None) -> None:
-                captured["anchor_theses_text"] = text
                 self.report = type(
-                    "R",
-                    (),
-                    {
-                        "ok": True,
-                        "summary": "",
-                        "artifacts": {"thesis_hashes": ["t1"]},
-                        "merge": lambda self, other: self,
-                    },
+                    "R", (), {"ok": True, "summary": "", "artifacts": {}}
                 )()
 
             async def resolve(self):
-                return None
+                return []
 
         monkeypatch.setattr(
-            "dialectical_framework.agents.analyst.analyst.AnalysisPipeline",
-            _FakePipeline,
-        )
-        monkeypatch.setattr(
-            "dialectical_framework.agents.analyst.skills.anchor_theses.AnchorTheses",
-            _FakeAnchorTheses,
+            "dialectical_framework.agents.analyst.skills.sketch_tetrad.SketchTetrad",
+            _FakeSketchTetrad,
         )
 
         # `.fn` is the undecorated coroutine; `execute` wants a tool-call payload.
         await anchor_mod.anchor.fn(thesis="Keep him as cofounder", context=CONTEXT)
 
-        assert captured.get("grounding_context") == CONTEXT
-        assert captured.get("anchor_theses_text") == CONTEXT, (
-            "the thesis-only branch must classify and headline WITH the "
-            "particulars, as the two-pole branch does"
-        )
+        assert captured.get("context") == CONTEXT
+        assert captured.get("thesis") == "Keep him as cofounder"
+        # no turn in progress: the thesis itself is the material, and the
+        # tension traces to no source rather than to every document
+        assert captured.get("utterance") == "Keep him as cofounder"
+        assert captured.get("input_hashes") == []
 
 
 @pytest.mark.llm

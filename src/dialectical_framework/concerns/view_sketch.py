@@ -142,6 +142,17 @@ class ViewSketchDto(BaseModel):
 
 # --- The request (the user prompt of the view turn) -----------------------
 
+#: How a tetrad is built when a one-shot call builds one — the same procedure
+#: the graph path gives `AspectGeneration._tetrad_prompt`, stated once here and
+#: shared by the view turn and `concerns/tetrad_sketch.py`, so the two
+#: one-shot builders cannot drift apart.
+TETRAD_BUILD_PROCEDURE = f"""Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
+Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
+For each pair:
+1. Derive each aspect from ITS OWN parent — a plus develops that parent so it also takes up what the other pole offers; a minus overdevelops that parent one-sidedly, with the other pole absent.
+2. Then name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
+3. Re-read both aspects against step 1 for two distinct failures. (a) Wrong parent: if one is really the OTHER parent developed, rewrite it from its own parent. (b) {PLUS_RESTATEMENT_CHECK}"""
+
 
 def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
     """The structured turn's request, over the consultant's own conversation.
@@ -169,12 +180,7 @@ Rules for what goes in the view:
 - Where the ask stops short of a full tetrad (only the two poles, only the antitheses), leave the positions not asked for EMPTY. An empty corner is honest; an invented one is not.
 - At most {VIEW_SKETCH_MAX_PERSPECTIVES} tensions, most central first. Nothing at all rather than a tension the conversation does not support.
 
-Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
-Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
-For each pair:
-1. Derive each aspect from ITS OWN parent — a plus develops that parent so it also takes up what the other pole offers; a minus overdevelops that parent one-sidedly, with the other pole absent.
-2. Then name the **axis** — the single dimension on which the two aspects are opposite ends, so they cannot both hold at once.
-3. Re-read both aspects against step 1 for two distinct failures. (a) Wrong parent: if one is really the OTHER parent developed, rewrite it from its own parent. (b) {PLUS_RESTATEMENT_CHECK}
+{TETRAD_BUILD_PROCEDURE}
 
 Write every position in the person's own terms, {max_words} words or fewer each."""
 

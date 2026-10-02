@@ -69,7 +69,7 @@ async def anchor(
     #
     # Installed HERE, above every branch, because a scope reaches a gathered child
     # only if the child's task is created after the scope is installed
-    # (`utils/progress.py`) — `AnalysisPipeline` gathers its expansions, and
+    # (`utils/progress.py`) — the skills below gather their provider work, and
     # opening the scope inside a skill would leave those children silent.
     # `total` is left at 0 and grown by whoever discovers the work.
     #
@@ -146,9 +146,6 @@ async def _anchor(
     where there is no such turn — a closing's own anchor on an empty graph — and
     the note's own turn for a note planted later.
     """
-    from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
-    from dialectical_framework.agents.analyst.skills.anchor_theses import \
-        AnchorTheses
     from dialectical_framework.agents.analyst.skills.expand_polarities import \
         ExpandPolarity
     from dialectical_framework.agents.analyst.skills.introduce_polarity import \
@@ -185,41 +182,31 @@ async def _anchor(
         combined_report.artifacts.update(source_artifacts)
         return str(combined_report)
 
-    # Thesis only: anchor then discover antithesis via pipeline
-    # `[]`, not None, when there is no turn: None would link the thesis to
-    # every Input in the case (`AnchorTheses._get_inputs`), and a tension
-    # anchored off the turn has no source — its context is `context` alone.
-    anchor_skill = AnchorTheses(
-        statements=[thesis], text=context, input_hashes=input_hashes
-    )
-    ideas = await anchor_skill.resolve()
-
-    thesis_hashes = anchor_skill.report.artifacts.get("thesis_hashes", [])
-    if not thesis_hashes:
-        return str(anchor_skill.report)
-
-    # `context` grounds this branch's tetrads too. It used to ride in as
-    # `intent` alone, which dropped it twice over: `AnalysisPipeline` never
-    # reads `intent` once `thesis_hashes` is supplied (only the surface-theses
-    # step does), and nothing forwarded it to `ExpandPolarity`. So the
-    # thesis-only branch discarded the person's particulars outright while the
-    # both-poles branch above preserved them — the same tool, silently two
-    # different memories depending on whether the model named the opposition.
+    # Thesis only: the ONE-SHOT build (2026-10-01). One thinking call over the
+    # person's words writes the antithesis and the four aspects around the
+    # given thesis; `IntroducePolarity` and `ExpandPolarity(given_tetrad=)`
+    # then classify, score, dedup, ground, validate and persist it as a normal
+    # tetrad. It replaced the staged build here — headline → antithesis ladder →
+    # aspects for a pair never seen whole — on measurement: coherent first
+    # tetrads 42/80 against the staged 14/40 on the same free utterances,
+    # genuine antitheses 74/80 against 27/40, ~43 s against ~55 s, replicated
+    # (docs/dev-notes/antithesis-selection.md, "The one-shot build"). The
+    # staged path still serves `ingest` (many theses from a document) and the
+    # Analyst's `AnalysisPipeline(thesis_hashes=)`.
     #
-    # That fix (2026-09) reached GROUNDING only. A static trace on 2026-10-01
-    # found the antithesis candidates, the aspect call and the coherence judge
-    # still saw nothing but the headline, on both branches. `grounding_context`
-    # is now composed into the context of every one of them
-    # (`utils/input_context.compose_context`), and `AnchorTheses` classifies
-    # with it as `IntroducePolarity` already did.
-    pipeline = AnalysisPipeline(
-        thesis_hashes=thesis_hashes,
-        intent=context or None,
-        grounding_context=context,
-    )
-    result = await pipeline.resolve()
+    # The material is the person's turn when there is one; off the turn (a
+    # note planted later carries its own turn; a closing's anchor on an empty
+    # graph has none) the thesis itself is the material, and `context` — the
+    # model's particulars — is composed first into every prompt as before.
+    from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
+        SketchTetrad
 
-    combined_report = anchor_skill.report.merge(pipeline.report)
-    combined_report.artifacts["perspective_hashes"] = result.perspective_hashes
-    combined_report.artifacts.update(source_artifacts)
-    return str(combined_report)
+    skill = SketchTetrad(
+        utterance=(utterance or "").strip() or thesis,
+        context=context,
+        input_hashes=input_hashes,
+        thesis=thesis,
+    )
+    await skill.resolve()
+    skill.report.artifacts.update(source_artifacts)
+    return str(skill.report)

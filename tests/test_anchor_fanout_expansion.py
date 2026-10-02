@@ -24,6 +24,10 @@ Five perspectives from five polarities is the whole claim. It fails loudly if
 any of those stages starts dropping tetrads — including silently, via a
 misreported structural verdict, which is how it failed in production.
 
+Since 2026-10-01 the Advisor's thesis-only `anchor` is the ONE-SHOT build (one
+tetrad, no fan-out), so this drives the staged path where it still lives: the
+Analyst's `AnchorTheses` → `AnalysisPipeline(thesis_hashes=)`.
+
 Run: poetry run pytest tests/test_anchor_fanout_expansion.py
 """
 
@@ -31,7 +35,9 @@ from __future__ import annotations
 
 import pytest
 
-from dialectical_framework.agents.advisor.tools.anchor import anchor
+from dialectical_framework.agents.analyst.analyst import AnalysisPipeline
+from dialectical_framework.agents.analyst.skills.anchor_theses import \
+    AnchorTheses
 from dialectical_framework.concerns.antithesis_extraction import (
     AntithesisExtraction, AntithesisProcessed)
 from dialectical_framework.graph.nodes.case import Case
@@ -81,6 +87,17 @@ def five_antitheses(monkeypatch):
     monkeypatch.setattr(AntithesisExtraction, "resolve", fake_extract)
 
 
+async def _staged_anchor(thesis: str, context: str) -> str:
+    """The staged thesis-only build as the Analyst still runs it."""
+    skill = AnchorTheses(statements=[thesis], text=context, input_hashes=[])
+    await skill.resolve()
+    pipeline = AnalysisPipeline(
+        thesis_hashes=skill.report.artifacts["thesis_hashes"], grounding_context=context
+    )
+    await pipeline.resolve()
+    return str(pipeline.report)
+
+
 @pytest.mark.llm
 @pytest.mark.asyncio
 async def test_every_polarity_becomes_a_perspective(five_antitheses):
@@ -88,7 +105,7 @@ async def test_every_polarity_becomes_a_perspective(five_antitheses):
     case.commit()
 
     with scope(case.sid):
-        out = await anchor.fn(thesis=THESIS, antithesis=None, context=CONTEXT)
+        out = await _staged_anchor(THESIS, CONTEXT)
 
     # The exact live regression: the count reached 0 and the reason was false.
     assert "no Polarity connected" not in out
@@ -108,7 +125,7 @@ async def test_the_perspectives_are_really_in_the_graph(five_antitheses):
     case.commit()
 
     with scope(case.sid):
-        await anchor.fn(thesis=THESIS, antithesis=None, context=CONTEXT)
+        await _staged_anchor(THESIS, CONTEXT)
 
         pps = PerspectiveRepository().find_all_active()
         assert len(pps) == 5

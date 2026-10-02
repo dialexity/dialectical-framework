@@ -1914,6 +1914,17 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    than every Input in the case — so "Input digest" on this path means the turn the tool fired on (plus the
    document, for an ingested thesis), never an unrelated document. The `context` paraphrase still comes
    first in `compose_context`; it is the model's selection across turns.
+0b. **The one-shot build is a SECOND generator of tetrads, with its own two prompts (2026-10-01).**
+   `concerns/tetrad_sketch.py`: system = `consultant.method_prompt(include_decision=False)` read live
+   (so an engine edit moves the Consultant, the bench's A1 arm AND this builder at once — review all
+   three), user = `tetrad_sketch_prompt` (the utterance, `ASPECT_DEFINITIONS`, `_OPPOSING_POSITION_ASK`,
+   `view_sketch.TETRAD_BUILD_PROCEDURE` — the ONE statement of the build procedure, shared with the view
+   turn; `_tetrad_prompt`'s own copy of the three steps is the staged twin and must say the same thing).
+   `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
+   same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
+   carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the
+   opposing-position ask must reach `_tetrad_prompt`, `TETRAD_BUILD_PROCEDURE` and the mode-point prompts
+   together.
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are
@@ -2276,9 +2287,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   not evaluated" in the dump (never a fake numeric 1.0). Locked by
   `tests/test_perspective_validation_wiring.py`.
 - **Context-dump quality filter** (`DialecticalContext._apply_quality_floor` + wheel cap in `_dump_cycle`,
-  live since 2026-07): standalone perspectives with HS(A) < `settings.advisor_polarity_quality_min_hs` (0.5), SP/area <
+  live since 2026-07): standalone perspectives with SP/area <
   `advisor_perspective_quality_min_sp` (0.3), DV < `advisor_perspective_quality_min_dv` (0.3), or `validation` starting
-  "failed" are SUPPRESSED from the dump (count line notes them) — the SP+DV floor pair mirrors the paper's acceptance
+  "failed" are SUPPRESSED from the dump (count line notes them; HS(A) was a fourth term until 2026-10-01 and was
+  removed — a genuine opposing position scores low on HS by construction, and the term would have hidden 33/40 of
+  the one-shot build's tetrads; the floor also never empties the section since the same day) — the SP+DV floor pair mirrors the paper's acceptance
   criterion (SP AND DV [P0 p.12]) as soft pruning, conservative defaults, never the paper's 0.5 verbatim; wheels per
   cycle capped to top-% `advisor_wheel_quality_top_plausible` (3), % denominator stays the full
   sibling set. Nexus members and unscored perspectives are never suppressed, and the wheel cap applies to
@@ -2286,7 +2299,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
   (same load-bearing exemption). This is a RENDER gate — it
   filters what the Advisor sees, not what exists; `inspect_node` reaches everything. The Advisor's
   prioritization rules now say "pre-pruned, rank within it, don't re-filter" — if you change the floors,
-  reconcile that section (`TestContextDumpPrePruned`). Env: `DIALEXITY_ADVISOR_POLARITY_QUALITY_MIN_HS` /
+  reconcile that section (`TestContextDumpPrePruned`). Env:
   `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_SP` / `DIALEXITY_ADVISOR_PERSPECTIVE_QUALITY_MIN_DV` /
   `DIALEXITY_ADVISOR_WHEEL_QUALITY_TOP_PLAUSIBLE`. Locked by
   `tests/test_context_quality_filter.py`. The unscoped Advisor `sync` tool takes an optional `nexus_hash`

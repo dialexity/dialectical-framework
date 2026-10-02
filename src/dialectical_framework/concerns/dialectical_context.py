@@ -3,9 +3,9 @@ DialecticalContext: Reads graph state and produces a structured dump.
 
 Designed for injection into the Advisor agent's system prompt.
 Dumps the graph as structured text with scores inline — pre-pruned:
-perspectives below the quality floors (settings.advisor_polarity_quality_min_hs /
-advisor_perspective_quality_min_sp / advisor_perspective_quality_min_dv — the SP+DV
-pair mirrors the paper's acceptance criterion, all mirroring the prompt's own scales) and failed-validation
+perspectives below the quality floors (settings.advisor_perspective_quality_min_sp /
+advisor_perspective_quality_min_dv — the SP+DV pair mirrors the paper's acceptance
+criterion, both mirroring the prompt's own scales) and failed-validation
 perspectives are suppressed with a count line, and wheels are capped to the
 top-% few per cycle (settings.advisor_wheel_quality_top_plausible). Pre-computed pruning
 beats prioritization rules the model must self-apply; a weak tetrad
@@ -167,8 +167,8 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if suppressed_count:
             sections.append(
                 f"{suppressed_count} unexplored tension(s) suppressed for low "
-                f"quality (weak opposition, blurred structure, unnatural/"
-                f"distorted framing, or failed validation) — reachable via "
+                f"quality (blurred structure, unnatural/distorted framing, or "
+                f"failed validation) — reachable via "
                 f"inspect_node if needed."
             )
 
@@ -294,8 +294,8 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         if suppressed_count:
             sections.append(
                 f"{suppressed_count} unexplored tension(s) suppressed for low "
-                f"quality (weak opposition, blurred structure, unnatural/"
-                f"distorted framing, or failed validation) — reachable via "
+                f"quality (blurred structure, unnatural/distorted framing, or "
+                f"failed validation) — reachable via "
                 f"inspect_node if needed."
             )
         if other_exploration_count:
@@ -1208,12 +1208,22 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
     ) -> tuple[list[Perspective], int]:
         """
         Split perspectives into (kept, suppressed_count) by the quality floor:
-        antithesis HS < advisor_polarity_quality_min_hs, SP (`area`) <
-        advisor_perspective_quality_min_sp, DV <
+        SP (`area`) < advisor_perspective_quality_min_sp, DV <
         advisor_perspective_quality_min_dv, or a failed validation verdict.
         The SP + DV pair mirrors the paper's acceptance criterion (SP AND DV
         [P0 p.12]) as soft context-pruning. Missing scores never suppress
         (unscored ≠ bad). Floors of 0 disable the respective check.
+
+        HS is NOT a floor term (removed 2026-10-01). HS on an antithesis is
+        similarity to the apex "[T]-lessness" — complete absence of T — so a
+        genuine opposing POSITION scores low by construction: on the one-shot
+        build 28/40 and 20/40 first antitheses sat below 0.5 (min 0.03) while
+        validation passed on 21/40; on named antitheses 11/20; and HS did not
+        track coherence there (CC passed 6/16 below 0.7, 1/4 above). With the
+        term in, the Advisor would have hidden 33 of 40 tetrads it had just
+        built. HS keeps its two real jobs — the pipeline's selection GATE in
+        `_rank_polarities` (measured to matter at 0.7) and a rendered score —
+        and the floor keeps the paper's pair plus the validator's verdict.
 
         **The floor never empties the section.** If every tension is below it,
         the best one is kept anyway, with its `Validation:` line and its scores
@@ -1230,7 +1240,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         weak tetrad still arrives marked weak, and the Advisor's prioritization
         prompt names this exception (`TestContextDumpPrePruned`).
         """
-        min_hs = self.settings.advisor_polarity_quality_min_hs
         min_sp = self.settings.advisor_perspective_quality_min_sp
         min_dv = self.settings.advisor_perspective_quality_min_dv
 
@@ -1238,10 +1247,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
         below: list[Perspective] = []
         for pp in perspectives:
             if pp.validation and pp.validation.startswith("failed"):
-                below.append(pp)
-                continue
-            hs = self._get_antithesis_hs(pp)
-            if min_hs > 0 and hs is not None and hs < min_hs:
                 below.append(pp)
                 continue
             sp = pp.area
@@ -1261,9 +1266,10 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             below = [pp for pp in below if pp is not kept[0]]
         return kept, len(below)
 
-    def _floor_rank(self, pp: Perspective) -> tuple[int, float, float, float]:
+    def _floor_rank(self, pp: Perspective) -> tuple[int, float, float]:
         """How the LEAST bad below-floor tension is chosen: a passing verdict
-        first, then the tetrad's own metrics (SP, DV, antithesis HS).
+        first, then the tetrad's own metrics (SP, then DV) — the floor's own
+        terms, nothing the floor does not read.
 
         An unscored term sorts below any real score (-1.0), which only ever
         compares perspectives that a failed verdict put here — an unscored one
@@ -1277,7 +1283,6 @@ class DialecticalContext(ReasonableConcern[str], SettingsAware):
             validated,
             num(pp.area),
             num(self._get_dialectical_validity(pp)),
-            num(self._get_antithesis_hs(pp)),
         )
 
     def _get_antithesis_hs(self, pp: Perspective) -> Optional[float]:

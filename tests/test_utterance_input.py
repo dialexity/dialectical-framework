@@ -16,8 +16,6 @@ from __future__ import annotations
 import pytest
 
 from dialectical_framework.agents.advisor.tools import anchor as anchor_mod
-from dialectical_framework.concerns.antithesis_extraction import (
-    AntithesisExtraction, AntithesisProcessed)
 from dialectical_framework.graph.nodes.case import Case
 from dialectical_framework.graph.nodes.input import Input
 from dialectical_framework.graph.nodes.statement import Statement
@@ -43,22 +41,11 @@ def _new_sid() -> str:
 
 @pytest.fixture
 def one_antithesis(monkeypatch):
-    """The mock brain returns one DTO per call; give the pipeline a real
-    antithesis so the thesis-only branch commits a perspective."""
+    """The thesis-only branch is the one-shot build: its reasoning call is
+    replaced with a fixed tetrad so the graph gets real-looking poles."""
+    from test_tetrad_sketch import fake_tetrad_sketch
 
-    async def fake_extract(self, thesis, text="", not_like_these=None, count=5):
-        stmt = Statement(text="Keep him and reset the terms", meaning=A_MEANING)
-        stmt.commit()
-        return [
-            AntithesisProcessed(
-                component=stmt,
-                mode_value=0.8,
-                arousal_value=0.6,
-                heuristic_similarity=0.85,
-            )
-        ]
-
-    monkeypatch.setattr(AntithesisExtraction, "resolve", fake_extract)
+    return fake_tetrad_sketch(monkeypatch)
 
 
 def _report(json_text: str) -> dict:
@@ -99,8 +86,7 @@ class TestAnchorKeepsThePersonsWords:
             inputs = InputRepository().get_all()
             assert [i.content for i in inputs] == [UTTERANCE]
             assert report["artifacts"]["input_hash"] == inputs[0].hash
-            theses = report["artifacts"]["thesis_hashes"]
-            assert theses
+            theses = [report["artifacts"]["thesis_hash"]]
             sources = _sources_of(theses)
             assert {i.hash for i in sources[theses[0]]} == {inputs[0].hash}
 
@@ -204,25 +190,24 @@ class TestATensionReadsItsOwnSources:
         to its Ideas container, so both poles traced to every document and the
         own-sources rule collapsed back to "all" on exactly this path."""
         from dialectical_framework.concerns.aspect_generation import AspectGeneration
-        from test_expand_polarities_grounding import _distinct_aspect_stub
 
         sid = _new_sid()
         seen: list[str] = []
+        original = AspectGeneration.score_given
+
+        async def _recording(self, perspective, given, text=""):
+            seen.append(text)
+            return await original(self, perspective, given, text)
+
         with scope(sid):
             other = Input(content="OTHER DOCUMENT: an unrelated quarterly report")
             other.commit()
-            stub, _ = _distinct_aspect_stub(sid)
-
-            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
-                seen.append(text)
-                return await stub(self, perspective, positions, text, not_like_these)
-
-            monkeypatch.setattr(AspectGeneration, "resolve", _recording)
+            monkeypatch.setattr(AspectGeneration, "score_given", _recording)
             with speaking("MY TURN: " + UTTERANCE):
                 report = _report(
                     await anchor_mod.anchor.fn(thesis="Buy out the cofounder", context="")
                 )
-            theses = report["artifacts"]["thesis_hashes"]
+            theses = [report["artifacts"]["thesis_hash"]]
             sources = _sources_of(theses)
             assert {i.content for i in sources[theses[0]]} == {"MY TURN: " + UTTERANCE}
 
