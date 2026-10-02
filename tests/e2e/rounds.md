@@ -7732,3 +7732,11 @@ antitheses: revert the `anchor` wiring (the staged branch is one commit away), r
 (c) A regression with notes naming counsel over tensions that should not have been
 visible: revert the HS-floor removal first. (d) A regression the notes attribute to
 neither: stop, do not guess — one change at a time against this stem.
+
+AMENDED before any cell ran (2026-10-02): run as a 4-cell SCREEN, not the 12-cell matrix —
+`decide` branch only, 1 replicate, A1.7 and A2, stem `oneshot-anchor-screen`. n = 12 could
+not have resolved a quality delta either (±0.4 at that n); what a screen answers is the
+catastrophic class — counsel built on a flagged tension, a broken turn, a leak — plus two
+machine facts: whether the one-shot branch fires at all in a real session (`poles=1`,
+recorded since 69d236c) and the anchor turn's time. Endpoints 1–4 above are read as a
+screen: prose and direction, no number promoted.
