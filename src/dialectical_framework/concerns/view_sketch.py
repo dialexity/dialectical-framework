@@ -80,6 +80,20 @@ class ViewSketchPerspectiveDto(BaseModel):
     A position not yet worked out is left EMPTY, not invented: a view of
     "the two poles" is a tetrad with four blank corners, and the view shows it
     as unfinished rather than filled in.
+
+    Tried and reverted (2026-10-02): two `*_takes_up` text fields, each ahead
+    of its plus, naming what the OTHER pole is for that the plus delivers — a
+    verification step made into output, aimed at the restated-A+ shape
+    ("Ownership builds equity", 10/80 plus slots on this turn, 7% on the
+    one-shot build). It worked on its target and broke the tetrad: restatement
+    0/80, antitheses 40/40 positions, and coherence 25/40 → 15/40 (paired 6
+    gained / 15 lost) with compromise pluses 18 → 23 of 40 — a plus made to
+    carry the other pole no longer satisfies "T+ without A+ yields T-". The
+    archive registered exactly this over-correction as the secondary risk of
+    any restatement fix (`probe_plus_takeup`); this is its measurement
+    (`tests/e2e/probe_view_turn_ask.py`, tag `takeup`;
+    docs/dev-notes/antithesis-selection.md). Restatement at 7–12% stays open;
+    the next lever must be measured on coherence first.
     """
 
     thesis: str = Field(description="T — the position, in the person's own terms.")

@@ -781,3 +781,19 @@ differs from the view turn's in pinning one tension and in having no
 conversation to render, so the plus-restatement gap, if real, is the next
 thing to isolate — and it is the SAME lever on both surfaces, since they share
 `TETRAD_BUILD_PROCEDURE`.
+
+**Restatement: the take-up fields, tried and reverted (2026-10-02).** The
+flagged pluses on both one-shot surfaces were almost all A+ stating A's own
+benefit (18/20 on the view turn, 12/12 on the build) — advocacy for the
+invented pole. Lever tried: two text fields in the shared sketch DTO,
+`t_plus_takes_up` / `a_plus_takes_up`, each ahead of its plus, naming what
+the other pole is for that the plus delivers — the archive's "verification
+step beats restatement" made structural. Measured on the view turn (40
+utterances, same judges): restatement 10/80 → 0/80, position 39 → 40/40, and
+coherence 25/40 → 15/40 (paired both 9 / only after 6 / only before 15 /
+neither 10), compromise pluses 18 → 23/40. The target defect vanished and the
+tetrad broke: a plus built to carry the other pole is a compromise, and
+"T+ without A+ yields T-" has nothing to yield. Reverted before it reached the
+build. Rule carried forward: a restatement lever is measured on COHERENCE
+first (`CLAUDE.md`, the worked-example rule says the same); restatement at
+7–12% stays an open number.

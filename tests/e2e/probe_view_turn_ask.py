@@ -71,7 +71,10 @@ async def _draw(text: str) -> dict:
 async def test_view_turn_with_the_ask(di_container) -> None:
     judge = E2EConfig.from_env().judge_model
     utterances = list(SET_A) + list(SET_B)
-    out = _RESULTS / f"view_turn_ask-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    import os
+
+    tag = os.environ.get("VIEW_TURN_PROBE_TAG", "ask")
+    out = _RESULTS / f"view_turn_{tag}-{time.strftime('%Y%m%d-%H%M%S')}.json"
     print(f"\n=== view turn WITH the opposing-position ask: {len(utterances)} utterances → {out}", flush=True)
 
     rows: list[dict] = []
@@ -118,4 +121,12 @@ async def test_view_turn_with_the_ask(di_container) -> None:
     print(f"  restatement     {restated}/{2*len(complete)} plus slots   (before: 10/80)")
     print(f"  T+/A+ relation  {dict(collections.Counter(r.get('plus_relation') for r in complete))}")
     print(f"  paired CC vs before (both/only after/only before/neither) {paired}")
+    # the latest earlier view-turn run of the OTHER tag, for a second baseline
+    others = sorted(p for p in _RESULTS.glob("view_turn_*.json") if p != out and "audit" not in p.name)
+    if others:
+        prev = {r["utterance"]: r for r in json.loads(others[-1].read_text()) if r.get("thesis")}
+        prev_restated = sum(1 for r in prev.values() for s in ("t_plus", "a_plus") if r.get(f"{s}_parent") == "own_pole" and r.get(f"{s}_valence_ok") is False)
+        prev_cc = sum(bool(r.get("pass")) for r in prev.values())
+        prev_pos = sum(1 for r in prev.values() if r.get("a_kind") == "position")
+        print(f"  previous view-turn run {others[-1].name}: CC {prev_cc}/{len(prev)}  position {prev_pos}/{len(prev)}  restated {prev_restated}/{2*len(prev)}")
     print(f"  latency median  {sorted(r['seconds'] for r in rows)[len(rows)//2]}s")
