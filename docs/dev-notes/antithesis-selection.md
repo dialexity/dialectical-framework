@@ -651,7 +651,7 @@ free utterances, first tetrad per utterance:
 
 | door | CC pass, first tetrad | any tetrad passes | tetrads / utterance | median latency | antithesis a position (first) |
 |---|---|---|---|---|---|
-| Consultant view turn | 24/40 (60%) | — (one drawn) | 1 | ~6–8 s | 20/20 rated genuine (one rater) |
+| Consultant view turn | 24/40 (60%) | — (one drawn) | 1 | ~6–8 s | 30/40 on the auditor (hand count 20/20 was set A, one rater) |
 | `anchor` thesis-only (staged) | 14/40 (35%) | 18/40 | 2.4 | ~55 s | 27/40 |
 | `ingest` (extract, then staged) | 18/40 (45%) | 31/40 | 4.3 | ~75 s | 27/40; mirror 10/40 |
 
@@ -691,7 +691,7 @@ the method, the bundle the 26/40 harness arm carried):
 | one-shot, method alone | 21/40 (52%) | 36/40 | 8/80 | 20/40 | 43 s |
 | one-shot + persona | 23/40 (58%) | 38/40 | 3/80 | 17/40 | 43 s |
 | staged (same day) | 14/40 (35%) | 27/40 | 3/80 | 25/47 | 55 s |
-| Consultant view turn | 24/40 (60%) | 20/20 genuine (one rater) | — | — | ~7 s |
+| Consultant view turn | 24/40 (60%) | 30/40 on the auditor (hand count was 20/20, set A, one rater) | 10/80 | 25/40 | ~7 s |
 
 Paired first tetrad, one-shot vs staged: both 7, only one-shot 14, only staged
 7, neither 12. Persona vs method alone: 14 / 9 / 7 / 10 — the persona's two
@@ -741,3 +741,24 @@ one-shot generations now sit at 20–21/40 each against the staged 14/40
 (pooled 62/120, 52%, vs 14/40, 35%); the Consultant's view turn stays the
 ceiling at 24/40 and ~7 s. Where the wired path's 43 s go: ~7 s the reasoning
 call, the rest the unchanged classify / HS / score / ground / validate chain.
+
+**Same instruments, both paths (2026-10-02, `tests/e2e/probe_view_turn_audit.py`).**
+The view turn's "20/20 genuine antitheses" was a hand count on set A by one
+rater; the one-shot figures came from the probe's LLM auditors. The view
+turn's 40 tetrads (`path_a_cc-20261001.json`) were put through the same three
+auditors, sequentially:
+
+| | coherent first tetrad | antithesis a position (auditor) | mirror / not an opposition | restatement (plus slots) | T+/A+ distinct |
+|---|---|---|---|---|---|
+| Consultant view turn (1 gen) | 24/40 (60%) | 30/40 | 6 / 4 | 10/80 (12.5%) | 25/40 |
+| one-shot build, wired (3 gens) | 62/120 (52%) | 36–38/40 per gen | 2–4 / 1–2 | 11/160 (6.9%) + 6/80 | 17–20/40 |
+| staged build (before) | 14/40 (35%) | 27/40 | 5 / 1 | 3/80 | 25/47 |
+
+Read together: the view turn is ahead on coherence by four tetrads at n = 40
+(not resolved), the one-shot build is ahead on antithesis quality (the view
+turn's ten non-positions are plain mirrors — "Saying no to clients" for "I
+always say yes to clients", "Keep owning the flat" for "Sell the flat") and on
+restatement, and ~6x slower. The view turn's own `_OPPOSING_POSITION_ASK` is
+not in `view_sketch_prompt`; the one-shot request carries it, which is the
+likely source of the antithesis difference and a one-line change to measure
+on the view turn. The hand count overstated the view turn; corrected above.
