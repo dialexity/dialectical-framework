@@ -1920,6 +1920,10 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    three), user = `tetrad_sketch_prompt` (the utterance, `ASPECT_DEFINITIONS`, `_OPPOSING_POSITION_ASK`,
    `view_sketch.TETRAD_BUILD_PROCEDURE` — the ONE statement of the build procedure, shared with the view
    turn; `_tetrad_prompt`'s own copy of the three steps is the staged twin and must say the same thing).
+   **The two writers are MEASURED, not redundant** (2026-10-02): the one-shot writer handed a fixed pair
+   drifted off it in 17–22 of 40 (coherence non-inferior), so `_generate_tetrad` stays the writer for a GIVEN
+   pair and `TetradSketch` writes only where it also chooses the opposition; consolidating them is a new
+   measurement, not a cleanup.
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the
