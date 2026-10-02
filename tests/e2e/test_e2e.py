@@ -3584,14 +3584,16 @@ class TestReport:
                 last_tool_call_args=[
                     {"thesis": "buy out", "context": "his 45%, three-week holiday"},
                     {"node_hash": "abc"},
-                    {"thesis": "keep him"},
+                    {"thesis": "keep him", "antithesis": "let him go"},
                 ],
             )
         )
 
+        # `poles=` says which `anchor` branch ran: 1 = thesis only (the one-shot
+        # build), 2 = antithesis named. The archive kept only `anchor:ok`.
         assert arm.last_grounding_args == [
-            "anchor:context=27c",
-            "anchor:context=MISSING",
+            "anchor:context=27c,poles=1",
+            "anchor:context=MISSING,poles=2",
         ]
 
     def test_decision_args_record_the_ground_set_and_nothing_else(self):

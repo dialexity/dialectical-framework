@@ -334,6 +334,13 @@ class AdvisorArm:
         Recorded as a presence flag with a length, never the text: `context`
         holds the person's whole case, and every saved record would carry a
         second copy of the transcript.
+
+        `anchor` also records its SHAPE — `poles=1` (thesis only, the one-shot
+        build since fac4909) or `poles=2` (antithesis named, the two-pole
+        branch) — because the archive could not say which branch its 170
+        Sonnet anchor calls took (`anchor:ok` was all it kept), and a
+        regression run on the one-shot build is only evidence about that build
+        in the cells where it fired.
         """
         flags = []
         conversation = self._advisor._conversation
@@ -342,10 +349,11 @@ class AdvisorArm:
             if name not in _GROUNDING_TOOLS:
                 continue
             value = args.get("context") or ""
-            if value:
-                flags.append(f"{name}:context={len(value)}c")
-            else:
-                flags.append(f"{name}:context=MISSING")
+            flag = f"{name}:context={len(value)}c" if value else f"{name}:context=MISSING"
+            if name == "anchor":
+                poles = 2 if (args.get("antithesis") or "").strip() else 1
+                flag += f",poles={poles}"
+            flags.append(flag)
         return flags
 
     @property

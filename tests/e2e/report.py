@@ -1049,7 +1049,8 @@ def render_report(
         for t in s.turns
         for flag in t.grounding_args
     ]
-    missing_context = [f for f in grounding_args if f.endswith("MISSING")]
+    # `in`, not `endswith`: an anchor flag now carries `,poles=N` after it.
+    missing_context = [f for f in grounding_args if "context=MISSING" in f]
     if missing_context:
         add(
             f"!! {len(missing_context)} of {len(grounding_args)} grounding call(s) "
