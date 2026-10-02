@@ -7682,3 +7682,53 @@ THE AUDIT of every place thinking is decided, so nothing is on or off unexpected
 - The bench records the level on every cell (`RunRecord.conversation_thinking_level`).
 No other switch exists. Tests: `TestTheConversationalDefaultIsMedium`,
 `TestConversationThinkingIsPerSession`, `test_thinking_compat.py`.
+
+### oneshot-anchor-regression: pre-registered 2026-10-02, before any cell ran
+
+THE QUESTION. Yesterday's changes were measured on ONE shape — one utterance in, one
+tetrad out (`tests/e2e/probe_tetrad_quality.py`, 40 free utterances): `anchor`'s
+thesis-only branch now builds the tetrad in one reasoning call (`SketchTetrad`, fac4909),
+HS left the Advisor's context floor and the floor never empties its section (cb2cc88,
+fac4909), the person's turn is an Input and a tension reads its own sources (4289b04), the
+aspect prompt lost its worked plus example (0b431dc). None of that has run through a long
+conversation. Does the Advisor's judged counsel on the archive's reference scenario hold
+against the honest prompt opponent after these changes — or did a change that improved
+the single tetrad cost the conversation?
+
+DESIGN. `cofounder_equity`, all three branches (decide, wobble_a, wobble_b), Sonnet 5
+talking and reasoning (tier `strong`; read the recorded model), judge Fable, 2 replicates,
+arms A1.7 and A2. One stem, `oneshot-anchor-regression`, 12 cells, 12 judged pairs
+(decide n=6, wobble_a n=3, wobble_b n=3). Build e7c3616. Conversational thinking at the
+default `medium` (recorded on every cell). Same design as `prompt-vs-machinery-equity`
+(2026-09-22, A2 v A1.7 strong, 12 cells, composite +0.076), which is the like-for-like
+reference; `r21-strong-current-build` (+0.325, 20 cells) is the second.
+
+ENDPOINTS, in order:
+1. JUDGED, primary — `A2 vs A1.7` composite per session, read beside the two reference
+   stems. The strong-tier composite set has sd ≈ 0.24 (`across_runs.py`, 12 sets), so
+   nothing within ±0.4 of the references is a finding at this n. A composite at or below
+   −0.25 — a full sd under the reference floor — is a REGRESSION and triggers a revert
+   review; judge prose read whole either way, with `judge_notes.py --all-cells`.
+2. MACHINE, on the A2 cells — `anchor` elections per cell (archive: 6/6 on turn 1), the
+   anchor turn's reply path (expected LOWER: ~43 s build against ~55 s), the share of
+   anchored perspectives with `validation` passed (expected HIGHER: 52% against 35% on
+   the single-utterance instrument), `score_machinery_leak` (expected unchanged, Sonnet
+   leaks ~0), records and their grounds (expected unchanged — the closing seam is
+   untouched).
+3. CONTROL — the A1.7 cells against `prompt-vs-machinery-equity`'s A1.7 cells: the same
+   arm and configuration; a systematic shift there is provider drift, and endpoint 1 is
+   read against it.
+4. SEAM — `pytest -m seam --real-llm` green on e7c3616 before the matrix starts (run
+   first, same day).
+
+VALIDITY. n=12 is a screen: direction and prose. The reference stems ran before the
+2026-09-24 thinking fix, so their A2 cells thought by provider default; today's think at
+`medium` by setting — close to the same regime, not identical (`rounds.md` 2026-09-26).
+
+WHAT WOULD CHANGE. (a) Composite in the references' band and the machine columns as
+expected: the one-shot build and the floor change stand as measured on a long conversation
+too, and step 2 (latency) may proceed. (b) A regression, with notes naming the tensions or
+antitheses: revert the `anchor` wiring (the staged branch is one commit away), re-measure.
+(c) A regression with notes naming counsel over tensions that should not have been
+visible: revert the HS-floor removal first. (d) A regression the notes attribute to
+neither: stop, do not guess — one change at a time against this stem.
