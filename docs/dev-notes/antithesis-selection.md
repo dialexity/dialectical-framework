@@ -882,3 +882,87 @@ measured, each on the shape it won; the review map carries the parity rule.
 Not tried: persisting the writer's OWN poles for a given pair (it would make
 "given" mean "suggested"), and a drift-repair step — both would be new
 measurements, not tidying.
+
+## Consolidation 2: the one-shot build per extracted thesis, for any Input (pre-registered 2026-10-02)
+
+`ingest` is extraction (finds the theses in material — a document job, kept) followed by
+the staged per-thesis build: the antithesis ladder (≤ 11 mode points + ranking) and
+the four-aspect call, up to five polarities per thesis. The one-shot writer wins
+where it chooses its own opposition, and an extracted thesis with its own Input as
+material is exactly that shape. Route: `AnalysisPipeline` with
+`BUILD_PER_THESIS_ONE_SHOT = True` builds each thesis with
+`SketchTetrad(input_hashes=the thesis's own sources, thesis=thesis.text,
+context=grounding_context)` instead of `FindPolarities` + `ExpandPolarity`. The
+constant defaults to False until this measurement says otherwise.
+
+DESIGN, two instruments, both arms on each:
+1. `tests/e2e/probe_tetrad_quality.py` mode `ingest` on the 40 one-sentence Inputs
+   (sets A+B), staged baseline already measured 18/40 first-tetrad CC, 31/40 any,
+   172 tetrads, ~75 s; `TETRAD_PROBE_ONESHOT_PER_THESIS=1` runs the same mode with
+   the route on.
+2. `tests/e2e/probe_ingest_documents.py` — NEW, the document instrument that did not
+   exist: five documents written for the probe (a founder's memo, a product retro, a
+   care-home letter, a process complaint, a policy note; 400–700 words, several
+   tensions each; authored by the assistant — a bias, recorded), `AnalysisPipeline(
+   text=document)` per arm in a fresh Case, every perspective judged by the same CC
+   judge and the antithesis / parentage auditors, latency and call census per doc.
+
+SHIP CRITERIA. On both instruments: first-tetrad CC per thesis not below the staged
+arm by more than noise (≥ staged − 2/40 on the sentences; on documents read per
+thesis, direction and prose), antithesis a position not below, latency per Input
+lower, extraction unchanged (same thesis texts — the route starts after it). If met,
+the constant flips to True, `FindPolarities`' ladder loses its last production
+caller and is removed with `AntithesisExtraction`'s mode-point generation
+(`AntithesisClassification` — Mode/Arousal/HS on a named antithesis — stays);
+`_rank_polarities` and `tetrad_potential` go with it. If not met, the staged build
+stays for documents and the record says why.
+
+**Instrument 1 result (2026-10-02): the 40 one-sentence Inputs, `ingest`, one-shot per
+thesis against the staged build.**
+
+| ingest on 40 sentences | first-tetrad CC | all tetrads CC | tetrads | antithesis a position (first) | mirror / caricature | median latency |
+|---|---|---|---|---|---|---|
+| staged (ladder + four-aspect call) | 18/40 (45%) | 63/172 (37%) | 172 | 27/40 | 10 / 2 | 75 s |
+| one-shot per thesis | 16/40 (40%) | 49/120 (41%) | 120 | **37/40** | 1 / 0 | **53 s** |
+
+Extraction identical (three theses per sentence in both arms). Coherence on the
+first tetrad at the non-inferiority line exactly (16 ≥ 18 − 2); over all tetrads
+41% against 37%; antithesis quality the one-shot's usual step up (mirrors 10 → 1);
+30% faster, 30% fewer tetrads (one per thesis instead of up to five). Read: the
+one-shot build is at least as good per tetrad and much better on the antithesis,
+and builds less — which on one-sentence material is the right direction. The
+document instrument decides.
+
+**Instrument 2 result (2026-10-02): five documents, both builds — and the decision: no.**
+
+| five documents | tetrads | CC pass | antithesis a position | restated | calls / doc | s / doc |
+|---|---|---|---|---|---|---|
+| staged (ladder + four-aspect call) | 21 | 6/21 (29%) | **20/21** | 1/42 | 78 | 111 |
+| one-shot per thesis | 15 | 4/15 (27%) | 12/15 | 1/30 | 51 | 88 |
+
+Per document (staged → one-shot, CC / positions): founder memo 2/5 → 1/3, 5/5 → 3/3;
+product retro 0/3 → 1/3, 3/3 → 2/3; care letter 3/3 → 1/3, 3/3 → 2/3; process
+complaint 0/5 → 0/3, 4/5 → 3/3; policy note 1/5 → 1/3, 5/5 → 2/3. Extraction
+identical (three theses per document in both arms).
+
+Coherence equal within this n; cost and time 30% lower; antithesis quality the
+other way round from the sentences — on a document the ladder draws a genuine
+opposing position 20 times in 21, the one-shot 12 in 15. The reading that fits
+all three instruments: the ladder was never the defect; running it on a
+seven-word headline with nothing to read was. On the thesis-only `anchor` of
+2026-09-30 it had no material and drew caricatures; given a document it does its
+job. The one-shot writer's win is the free utterance, where material and
+position are the same ten words and choosing the opposition in the same breath
+as the aspects is what works.
+
+DECISION. The pre-registered criterion "antithesis a position not below" is not
+met; the constant does not flip. Per the minimal-SDK rule a route that stays
+False is dead code, so `BUILD_PER_THESIS_ONE_SHOT` and `_build_one_shot` are
+removed again (this commit's predecessor has them); the two probes keep the arm
+as historical. `ingest` keeps the staged build for documents; `anchor` keeps
+the one-shot for a bare position. Two writers, each measured on the shape it
+won — now on three instruments. Caveats that travel with the number: five
+documents, authored for the probe, one generation; the one-shot read the
+document's DIGEST as material (as every skill does above 1,500 chars), so a
+"material = the thesis's own passage" variant is the untried lever if this is
+ever revisited.

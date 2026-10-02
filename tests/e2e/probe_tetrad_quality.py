@@ -471,7 +471,8 @@ async def test_probe_tetrad_quality(di_container) -> None:
     if mode == "default" and not offset:
         out = out_dir / f"set_{which}-{stamp}.json"
     else:
-        out = out_dir / f"set_{which}-{mode}-off{offset:02d}-{stamp}.json"
+        variant = "-oneshot" if mode == "ingest" and os.environ.get("TETRAD_PROBE_ONESHOT_PER_THESIS") else ""
+        out = out_dir / f"set_{which}-{mode}{variant}-off{offset:02d}-{stamp}.json"
     gen_model = di_container.settings().ai_model
     print(f"\n=== tetrad quality: set {which}, mode {mode}, {len(utterances)} utterances, "
           f"generator {gen_model}, auditor {judge_model} ===\n→ {out}", flush=True)
@@ -508,6 +509,13 @@ async def test_probe_tetrad_quality(di_container) -> None:
                     # The pipeline's own capture adds the Input and digests it
                     # (a one-sentence Input is under the digest threshold, so
                     # the digest IS the sentence); `intent` left to its default.
+                    # TETRAD_PROBE_ONESHOT_PER_THESIS=1 flips the pipeline's
+                    # per-thesis build to the one-shot writer (consolidation 2).
+                    if os.environ.get("TETRAD_PROBE_ONESHOT_PER_THESIS"):
+                        # HISTORICAL: the per-thesis one-shot route was measured
+                        # (set_*-ingest-oneshot-off*-20261002-*.json) and removed;
+                        # see the dev note, "Consolidation 2".
+                        raise RuntimeError("TETRAD_PROBE_ONESHOT_PER_THESIS is historical: the route was removed")
                     pipeline = AnalysisPipeline(text=text)
                     await pipeline.resolve()
                     raw = str(pipeline.report)

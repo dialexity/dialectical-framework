@@ -642,6 +642,16 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         )
         return quality
 
+    # Tried and removed (2026-10-02, docs/dev-notes/antithesis-selection.md,
+    # "Consolidation 2"): a per-thesis ONE-SHOT build in place of the ladder +
+    # four-aspect call. On 40 one-sentence Inputs coherence was equal and the
+    # antitheses better; on five documents coherence was equal and the
+    # antitheses WORSE (12/15 positions against the ladder's 20/21). The ladder
+    # draws well when it has material to read — it was the headline-only path
+    # that starved it — so it stays the build for documents, and the one-shot
+    # stays the build for a bare position (`anchor`). Not kept behind a flag:
+    # a route nobody turns on is a redundant reasoning technique.
+
     async def _expand_one(self, polarity_hash: str) -> tuple[list[str], object]:
         from dialectical_framework.agents.analyst.skills.expand_polarities import \
             ExpandPolarity
