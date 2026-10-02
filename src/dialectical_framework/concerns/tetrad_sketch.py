@@ -63,6 +63,16 @@ def tetrad_sketch_prompt(
     THAT one — the call may word it in the person's terms, not replace it.
     Without it (a host's one paste, the probe's free form) the call finds the
     position IN the material. One of the two must be present.
+
+    There is deliberately NO way to pin the antithesis as well. It was tried
+    (2026-10-02, `tests/e2e/probe_aspect_variants.py` arm `oneshot_pinned`):
+    with both poles given and "keep BOTH poles" in the request, this writer
+    still built its aspects on a shifted tension in 17/40 and 22/40 of the
+    pairs (coherence 20/40 and 23/40, non-inferior). Where the poles already
+    exist as nodes that is disqualifying, so the staged four-aspect call
+    (`AspectGeneration._generate_tetrad`) stays THE writer for a given pair and
+    this one writes only where it also chooses the opposition. Two writers,
+    measured — not an accident to tidy away (docs/dev-notes/antithesis-selection.md).
     """
     context_section = f"<context>\n{context}\n</context>\n\n" if context.strip() else ""
     material_section = f"<material>\n{material}\n</material>\n\n" if material.strip() else ""

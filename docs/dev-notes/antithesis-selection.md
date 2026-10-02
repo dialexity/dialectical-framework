@@ -835,3 +835,50 @@ change or nothing.
 wired tool): CC first 9/20 (45%), antithesis a position 18/20, median 26.8 s (max
 31.1 s) against 43 s before — the same tetrads at the rate the one-shot build has
 shown on set A, 16 s faster. No errors.
+
+## Consolidation 1: can the one-shot writer be THE writer for a given pair? (pre-registered 2026-10-02)
+
+Three writers of a tetrad exist (`TetradSketch` from material; `AspectGeneration.
+_generate_tetrad` for a given T/A; the Consultant's view turn), and the review map
+has to say "these must say the same thing" — the sign of redundancy. The one-shot
+style scored 26/40 on fixed pairs in the harness but built on a REWORDED pair in
+18/40 — fatal where the poles are already nodes. `TetradSketch` now takes both
+poles pinned ("Keep BOTH poles as given").
+
+DESIGN. `tests/e2e/probe_aspect_variants.py`, arm `oneshot_pinned` (two
+generations, `#g1`/`#g2`): `TetradSketch(material=utterance, thesis=T,
+antithesis=A)` on the 40 P pairs, judged by the same CC judge, audited for drift
+(the arm joins `DRIFT_AUDITED`) and plus parentage. Comparator: the production
+four-aspect call as it is NOW — the cut prompt — whose rows on these pairs are the
+`sys_no_plus_mistake` arm (20/40, 17/40, 20/40 across three generations; `base`'s
+14/40 rows are the pre-cut prompt and are not the comparator).
+
+SHIP CRITERIA, all three: drift ≤ 4/40 per generation (the given pair is kept);
+CC not below the comparator by more than 2/40 per generation (non-inferior; a gain
+is welcome, not required); restatement not above the comparator's 3/80. If met,
+`_generate_tetrad` and `_tetrad_prompt` are removed, `ExpandPolarity` always
+scores a given tetrad, and the two-pole `anchor`/`note` and `ingest` write their
+aspects with the one writer. If drift fails, the staged four-aspect call stays
+and the duplication is recorded as measured, not accidental.
+
+**RESULT (2026-10-02): no.** Two generations on the 40 P pairs, pinned both poles,
+utterance as material:
+
+| arm | CC pass | built on the given pair | drifted |
+|---|---|---|---|
+| production four-aspect call (cut prompt), 3 gens | 20, 20, 17 /40 | by construction | — |
+| `oneshot_pinned` gen 1 | 20/40 | 23/40 (CC 11/23) | 17/40 (CC 9/17) |
+| `oneshot_pinned` gen 2 | 23/40 | 18/40 (CC 13/18) | 22/40 (CC 10/22) |
+
+Coherence non-inferior (paired vs the comparator's rows 10/4 and 14/5 in the
+one-shot's favour), drift far past the 4/40 line: the writer that chooses its
+opposition does not stay on an opposition it is handed, even told to keep both
+poles. Decision per the pre-registration: the staged four-aspect call stays THE
+writer for a given pair (two-pole `anchor`/`note`, `ingest`, the Analyst); the
+one-shot writes where it also chooses A (thesis-only `anchor`, a host's material).
+The `antithesis=` pin is removed from `TetradSketch` — no production caller, and
+a parameter kept for a rejected use is not a minimal SDK. Two writers, both
+measured, each on the shape it won; the review map carries the parity rule.
+Not tried: persisting the writer's OWN poles for a given pair (it would make
+"given" mean "suggested"), and a drift-repair step — both would be new
+measurements, not tidying.

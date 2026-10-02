@@ -71,6 +71,15 @@ class TestThePrompt:
         assert "is GIVEN" not in free
         assert "the position the person holds or is weighing in this material" in free
 
+    def test_the_antithesis_cannot_be_pinned(self):
+        """Measured and removed (2026-10-02): with both poles given the writer
+        drifted off the pair in 17–22 of 40. The given-pair writer is
+        `AspectGeneration._generate_tetrad`; this one chooses its opposition."""
+        import inspect
+
+        assert "antithesis" not in inspect.signature(tetrad_sketch_prompt).parameters
+        assert "antithesis" not in inspect.signature(TetradSketch.resolve).parameters
+
     def test_material_is_optional_when_the_thesis_is_pinned(self):
         """Off the turn the Advisor's `anchor` has no Input: the pinned thesis
         plus `context` is what the call reads, and no empty tag is sent."""

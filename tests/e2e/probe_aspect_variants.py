@@ -134,7 +134,14 @@ P2_ARMS: tuple[tuple[str, str], ...] = (
     ("old#p2r2", "P2"),
     ("new#p2r2", "P2"),
 )
-ARMS = ARMS + P2_ARMS
+#: Consolidation 1 (2026-10-02): can the one-shot writer be THE writer for a GIVEN
+#: pair? `oneshot_pinned` = `TetradSketch` with both poles pinned and the utterance
+#: as material, against `base` (the production four-aspect call) on the same P pairs,
+#: two generations, with the drift audit over its rows. Pre-registered in
+#: docs/dev-notes/antithesis-selection.md.
+PINNED_ARMS: tuple[tuple[str, str], ...] = (("oneshot_pinned#g1", "P"), ("oneshot_pinned#g2", "P"))
+ARMS = ARMS + P2_ARMS + PINNED_ARMS
+DRIFT_AUDITED = ("viewstyle", "oneshot_pinned#g1", "oneshot_pinned#g2")
 OLD_PROMPT_COMMIT = "b96483b"
 
 
@@ -501,6 +508,12 @@ async def _generate(arm: str, pair: dict[str, str], meaning: str) -> dict[str, s
     from dialectical_framework.concerns.aspect_generation import TetradDto
 
     arm = arm.split("#", 1)[0]  # `#r1` / `#weak` reuse the named arm's prompt
+    if arm == "oneshot_pinned":
+        # HISTORICAL (2026-10-02): the `antithesis=` pin this arm needed was
+        # removed from `TetradSketch` on this arm's own result (drift 17/40 and
+        # 22/40). Its rows are kept in the state file; re-running needs the
+        # parameter from commit c83badc's successor.
+        raise RuntimeError("oneshot_pinned is historical: TetradSketch no longer pins the antithesis")
     if arm in ("old", "new"):
         prompt = _service(pair, meaning, "")._tetrad_prompt("")
         system = _old_system_prompt() if arm == "old" else None  # None = live prompt
@@ -578,7 +591,7 @@ async def _drift_audit(container: Any, state: dict[str, Any], pairs: dict[str, l
     judge_model = E2EConfig.from_env().judge_model
     sem = asyncio.Semaphore(5)
 
-    async def one(row: dict[str, Any]) -> None:
+    async def one(drift_key: str, row: dict[str, Any]) -> None:
         async with sem:
             try:
                 conversation = ConversationFacilitator()
@@ -590,28 +603,32 @@ async def _drift_audit(container: Any, state: dict[str, Any], pairs: dict[str, l
                     f'A+: "{row["a_plus"]}"\nA-: "{row["a_minus"]}"\n\n'
                     "Are the aspects built on the given pair?",
                 )
-                drift[row["utterance"]] = {
+                drift[drift_key] = {
                     "verdict": verdict.verdict,
                     "reasoning": verdict.reasoning,
                     "judge": judge_model,
                 }
             except Exception as exc:  # noqa: BLE001
-                drift[row["utterance"]] = {"verdict": None, "error": repr(exc)[:200]}
+                drift[drift_key] = {"verdict": None, "error": repr(exc)[:200]}
             _save_state(state)
 
     todo = []
-    for pair in pairs["P"]:
-        row = state["rows"].get(_key("viewstyle", "P", pair["utterance"]))
-        if row is None or row.get("error"):
-            continue
-        done = drift.get(pair["utterance"])
-        if done is None or done.get("verdict") is None:
-            todo.append(row)
+    for arm in DRIFT_AUDITED:
+        for pair in pairs["P"]:
+            row = state["rows"].get(_key(arm, "P", pair["utterance"]))
+            if row is None or row.get("error"):
+                continue
+            # keyed by arm from the second audited arm on; `viewstyle` keeps its
+            # historical key so the recorded 18/40 stays readable
+            drift_key = pair["utterance"] if arm == "viewstyle" else f"{arm}|{pair['utterance']}"
+            done = drift.get(drift_key)
+            if done is None or done.get("verdict") is None:
+                todo.append((drift_key, row))
     if not todo:
         return
-    print(f"drift audit: {len(todo)} viewstyle row(s), judge {judge_model}", flush=True)
+    print(f"drift audit: {len(todo)} row(s) over {DRIFT_AUDITED}, judge {judge_model}", flush=True)
     with using_model(container, judge_model):
-        await asyncio.gather(*(one(row) for row in todo))
+        await asyncio.gather(*(one(key, row) for key, row in todo))
 
 
 async def _weak_tier(
@@ -839,6 +856,9 @@ async def _run(budget_s: float, retry_errors: bool) -> None:
 
 def _report() -> None:
     pairs = _load_pairs()
+
+    def pairs_by_utt(source: str) -> list[str]:
+        return [pair["utterance"] for pair in pairs[source]]
     state = _load_state()
     rows = state["rows"]
 
@@ -973,12 +993,25 @@ def _report() -> None:
     if drift:
         groups: dict[str, list[bool]] = {}
         for u, d in drift.items():
+            if "|" in u:
+                continue  # the per-arm keys below; bare keys are `viewstyle`'s
             x = view.get(u)
             if d.get("verdict") is None or x is None:
                 continue
             groups.setdefault(d["verdict"], []).append(x)
         for name, xs in sorted(groups.items()):
             print(f"drift audit of viewstyle: {name} {len(xs)}/40, CC pass {sum(xs)}/{len(xs)}")
+        # consolidation 1: the pinned-pair one-shot writer, drift per generation
+        for arm in DRIFT_AUDITED:
+            if arm == "viewstyle":
+                continue
+            arm_verdicts = {u: verdicts(arm, "P").get(u) for u in pairs_by_utt("P")}
+            kept = [u for u in arm_verdicts if (drift.get(f"{arm}|{u}") or {}).get("verdict") == "on_given"]
+            drifted = [u for u in arm_verdicts if (drift.get(f"{arm}|{u}") or {}).get("verdict") == "drifted"]
+            if kept or drifted:
+                cc_kept = sum(1 for u in kept if arm_verdicts.get(u))
+                cc_drift = sum(1 for u in drifted if arm_verdicts.get(u))
+                print(f"drift audit of {arm}: on_given {len(kept)}/40 (CC {cc_kept}/{len(kept)}), drifted {len(drifted)}/40 (CC {cc_drift}/{len(drifted)})")
         unjudged = sum(1 for d in drift.values() if d.get("verdict") is None)
         if unjudged:
             print(f"drift audit: {unjudged} row(s) not judged")
