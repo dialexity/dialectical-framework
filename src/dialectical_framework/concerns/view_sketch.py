@@ -49,6 +49,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from dialectical_framework.concerns.antithesis_extraction import \
+    _OPPOSING_POSITION_ASK
 from dialectical_framework.concerns.aspect_generation import (
     PLUS_RESTATEMENT_CHECK, is_axis_name)
 from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
@@ -163,7 +165,12 @@ def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
     for a thesis so far only stated). The build follows the same procedure the
     graph path gives `AspectGeneration` — one fixed parent per aspect, axis
     named second, both re-read — so a drawn tetrad is built to the graph's
-    rules even though nothing checks it here.
+    rules even though nothing checks it here. The antithesis is asked for as a
+    POSITION (`_OPPOSING_POSITION_ASK`, the same words the ladder and the
+    one-shot build carry): on the pipeline's auditor the view turn's
+    antitheses were a position for 30/40 and plain mirrors for 6 before the
+    ask was here, against the one-shot build's 36–38/40 with it
+    (docs/dev-notes/antithesis-selection.md, 2026-10-02).
     """
     focus_line = (
         f"What to show: {focus}\n\n"
@@ -179,6 +186,8 @@ Rules for what goes in the view:
 - Where the ask needs structure not yet worked out — a perspective for a thesis so far only stated, the antithesis of a position, the corners of a tension you only named — build it now, by the method below, and then draw it.
 - Where the ask stops short of a full tetrad (only the two poles, only the antitheses), leave the positions not asked for EMPTY. An empty corner is honest; an invented one is not.
 - At most {VIEW_SKETCH_MAX_PERSPECTIVES} tensions, most central first. Nothing at all rather than a tension the conversation does not support.
+
+{_OPPOSING_POSITION_ASK}
 
 {TETRAD_BUILD_PROCEDURE}
 

@@ -762,3 +762,22 @@ restatement, and ~6x slower. The view turn's own `_OPPOSING_POSITION_ASK` is
 not in `view_sketch_prompt`; the one-shot request carries it, which is the
 likely source of the antithesis difference and a one-line change to measure
 on the view turn. The hand count overstated the view turn; corrected above.
+
+**The ask in the view turn's request (2026-10-02, `tests/e2e/probe_view_turn_ask.py`,
+same 40 utterances drawn as the pre-MVP draws them, same judge and auditors):**
+
+| view turn | coherent first tetrad | antithesis a position | mirror / non-opposition | restatement | latency |
+|---|---|---|---|---|---|
+| without the ask (2026-10-01) | 24/40 | 30/40 | 6 / 4 | 10/80 | ~7 s |
+| with `_OPPOSING_POSITION_ASK` | 25/40 | **39/40** | 1 / 0 | 10/80 | 6.8 s |
+
+Paired coherence: both 16, only after 9, only before 8, neither 7 — unchanged.
+The antithesis gap between the two surfaces was that one paragraph: with it,
+the view turn draws a genuine opposing position for 39/40 against the one-shot
+build's 36–38/40, and the two surfaces now differ in nothing measured but the
+time the graph chain adds (~7 s against ~43 s). Restatement is the same 10/80
+on both counts and sits above the one-shot build's 6.9%; the one-shot request
+differs from the view turn's in pinning one tension and in having no
+conversation to render, so the plus-restatement gap, if real, is the next
+thing to isolate — and it is the SAME lever on both surfaces, since they share
+`TETRAD_BUILD_PROCEDURE`.

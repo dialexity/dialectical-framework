@@ -208,6 +208,13 @@ class TestTheRequestAndTheRecord:
         assert "7 words or fewer" in prompt
         assert str(VIEW_SKETCH_MAX_PERSPECTIVES) in prompt
         assert "build it now" in prompt, "the ask may require reasoning, not just rendering"
+        from dialectical_framework.concerns.antithesis_extraction import \
+            _OPPOSING_POSITION_ASK
+
+        assert _OPPOSING_POSITION_ASK in prompt, (
+            "the antithesis is asked for as a position, as on the ladder and the "
+            "one-shot build — without it the view turn drew mirrors for 6/40"
+        )
 
     def test_no_focus_asks_for_what_is_established(self):
         assert "worked out so far" in view_sketch_prompt(None, 7)
