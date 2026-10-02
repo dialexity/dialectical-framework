@@ -111,13 +111,11 @@ async def _keep_utterance(utterance: str | None, report_artifacts: dict) -> list
     if not text:
         return []
     try:
-        from dialectical_framework.concerns.add_input import AddInput
-        from dialectical_framework.concerns.source_digest import ensure_digest
+        from dialectical_framework.concerns.add_input import capture_input
 
-        input_node = await AddInput().resolve(content=text)
-        if not input_node.hash:
+        input_node = await capture_input(text)
+        if input_node is None or not input_node.hash:
             return []
-        await ensure_digest(input_node.hash)
         report_artifacts["input_hash"] = input_node.hash
         return [input_node.hash]
     except Exception:
@@ -194,19 +192,14 @@ async def _anchor(
     # staged path still serves `ingest` (many theses from a document) and the
     # Analyst's `AnalysisPipeline(thesis_hashes=)`.
     #
-    # The material is the person's turn when there is one; off the turn (a
-    # note planted later carries its own turn; a closing's anchor on an empty
-    # graph has none) the thesis itself is the material, and `context` — the
-    # model's particulars — is composed first into every prompt as before.
+    # The material is the person's turn, kept as an Input above, when there is
+    # one; off the turn (a note planted later carries its own turn; a closing's
+    # anchor on an empty graph has none) there is no material and the pinned
+    # thesis plus `context` — the model's particulars — is what the call reads.
     from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
         SketchTetrad
 
-    skill = SketchTetrad(
-        utterance=(utterance or "").strip() or thesis,
-        context=context,
-        input_hashes=input_hashes,
-        thesis=thesis,
-    )
+    skill = SketchTetrad(input_hashes=input_hashes, thesis=thesis, context=context)
     await skill.resolve()
     skill.report.artifacts.update(source_artifacts)
     return str(skill.report)

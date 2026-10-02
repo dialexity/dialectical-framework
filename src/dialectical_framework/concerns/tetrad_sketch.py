@@ -49,31 +49,30 @@ class TetradSketchDto(BaseModel):
 
 
 def tetrad_sketch_prompt(
-    utterance: str, context: str, max_words: int, thesis: Optional[str] = None
+    material: str, context: str, max_words: int, thesis: Optional[str] = None
 ) -> str:
-    """The request: the person's words, then the ask. One tension, all six
-    positions, by the shared procedure, with the antithesis asked for as a
-    POSITION (the Optimum-A ask the ladder path carries), and every position in
-    the person's own terms.
+    """The request: the material, then the ask. One tension, all six positions,
+    by the shared procedure, with the antithesis asked for as a POSITION (the
+    Optimum-A ask the ladder path carries), and every position in the person's
+    own terms.
 
-    `thesis` pins T: on the Advisor's `anchor` the model has already named the
-    position to plant, and the tool's contract is to plant THAT one — the call
-    may word it in the person's terms, not replace it. Without it (the probe's
-    free form, the first app's one utterance) the call finds the position
-    itself.
+    `material` is whatever the person said or pasted, as the Input renders it
+    (`input_context`: the digest of a long paste, the words of a short one) —
+    never the thesis. `thesis` pins T: on the Advisor's `anchor` the model has
+    already named the position to plant, and the tool's contract is to plant
+    THAT one — the call may word it in the person's terms, not replace it.
+    Without it (a host's one paste, the probe's free form) the call finds the
+    position IN the material. One of the two must be present.
     """
     context_section = f"<context>\n{context}\n</context>\n\n" if context.strip() else ""
+    material_section = f"<material>\n{material}\n</material>\n\n" if material.strip() else ""
     thesis_line = (
         f'The thesis (T) is GIVEN: "{thesis.strip()}". Keep its meaning as the position; '
         f"word it in the person's own terms, {max_words} words or fewer."
         if thesis and thesis.strip()
-        else "The thesis (T) is the position the person holds or is weighing, in their own terms — not a restatement of the whole utterance, not a generalisation they did not make."
+        else "The thesis (T) is the position the person holds or is weighing in this material, in their own terms — not a restatement of the whole, not a generalisation they did not make."
     )
-    return f"""{context_section}<utterance>
-{utterance}
-</utterance>
-
-Work out the ONE tension at the heart of what this person said, as a complete dialectical tetrad. Answer with ONE JSON object in the requested schema and nothing else — no prose.
+    return f"""{context_section}{material_section}Work out the ONE tension at the heart of this material — what the person said or pasted — as a complete dialectical tetrad. Answer with ONE JSON object in the requested schema and nothing else — no prose.
 
 {ASPECT_DEFINITIONS}
 
@@ -104,13 +103,13 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
         return f"{persona}\n\n{method}" if persona else method
 
     async def resolve(
-        self, utterance: str, context: str = "", thesis: Optional[str] = None
+        self, material: str, context: str = "", thesis: Optional[str] = None
     ) -> ViewSketchPerspectiveDto:
-        utterance = (utterance or "").strip()
-        if not utterance:
+        material = (material or "").strip()
+        if not material and not (thesis or "").strip():
             self._report.ok = False
-            self._report.summary = "Nothing to sketch: the utterance is empty"
-            raise ValueError("TetradSketch needs the person's words")
+            self._report.summary = "Nothing to sketch: no material and no thesis"
+            raise ValueError("TetradSketch needs material or a thesis")
 
         # Thinks at the deployment's conversational level: this is the heaviest
         # reasoning a structured call is asked to do, and it is the ONE
@@ -122,7 +121,7 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
         result = await conversation.submit(
             TetradSketchDto,
             tetrad_sketch_prompt(
-                utterance, context or "", self.settings.component_length, thesis
+                material, context or "", self.settings.component_length, thesis
             ),
         )
         tension = result.tension

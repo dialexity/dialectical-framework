@@ -7740,3 +7740,24 @@ catastrophic class — counsel built on a flagged tension, a broken turn, a leak
 machine facts: whether the one-shot branch fires at all in a real session (`poles=1`,
 recorded since 69d236c) and the anchor turn's time. Endpoints 1–4 above are read as a
 screen: prose and direction, no number promoted.
+
+### oneshot-anchor-screen: RESULT — the one-shot branch fires in a real session and nothing broke (2026-10-02)
+
+2 cells (A1.7, A2; `decide`; Sonnet 5 both; thinking `medium` recorded), build e7c3616 +
+69d236c (the `poles=` flag). Read as a screen: direction and prose.
+
+MACHINE (A2). Turn 0 elected `anchor` with `poles=1` — the one-shot build ran in a real
+conversation; its reply path 79.7 s against the archive's anchor-turn medians of 169 s
+(`thinking-check-medium`) and 407 s (`prompt-vs-machinery-equity`). `context` carried
+(195 chars). Graph FULL: 1 perspective, woven, 6 transformations, 1 decision with a
+risk-grounded cost (T-) and an adopted pathway. Leak 0. Deferred-weave wait 0.
+
+JUDGED, one pair. Composite +0.67 for A2; no dimension lost (A2 ≥ A1.7 on all 12;
++1 on convergence, fit, cross-turn coherence, closure, entanglement, non-triviality,
+recipe, warmth). Prose: A2 "tighter — establishes the causal mechanism, concedes gracefully
+when the lawsuit risk is rebutted, closes crisply without restating"; A1.7 "pads its closing
+turns with repeated decision summaries". Position bias noted (Y +0.67 over 12 scores, A2
+was Y); verbosity gap 54% (A2 shorter). One pair resolves nothing; it rules out the
+catastrophic class the screen was sized for.
+
+DECISION. (a) — the one-shot wiring and the floor change stand; step 2 may proceed.

@@ -24,13 +24,16 @@ documents (many theses) and for the two-pole `anchor`/`note` (A given).
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+from dependency_injector.wiring import Provide, inject
 
 from dialectical_framework.agents.analyst.skills.expand_polarities import \
     ExpandPolarity
 from dialectical_framework.agents.analyst.skills.introduce_polarity import \
     IntroducePolarity
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.aspect_generation import GivenTetrad
 from dialectical_framework.concerns.tetrad_sketch import TetradSketch
 from dialectical_framework.concerns.view_sketch import is_axis_name
@@ -39,9 +42,11 @@ from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_T_MINUS,
                                                            POSITION_T_PLUS,
                                                            Perspective)
-from dialectical_framework.utils.input_context import compose_context
 from dialectical_framework.utils.progress import (expect_progress,
                                                   report_progress)
+
+if TYPE_CHECKING:
+    from dialectical_framework.protocols.input_resolver import InputResolver
 
 
 class SketchTetrad(ReasonableConcern[list[Perspective]]):
@@ -49,44 +54,64 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
 
     def __init__(
         self,
-        utterance: str,
-        context: str = "",
         input_hashes: Optional[list[str]] = None,
-        persona: Optional[str] = None,
         thesis: Optional[str] = None,
+        context: str = "",
+        persona: Optional[str] = None,
     ) -> None:
-        self.utterance = (utterance or "").strip()
+        #: The material: Inputs in the current Case — the person's turn the
+        #: Advisor's `anchor` captured, or a host's paste (`capture_input`).
+        #: Read through `input_context` (digest or words), and linked to both
+        #: poles as their source by `IntroducePolarity`. Not the thesis: the
+        #: build finds the position IN the material unless `thesis` pins it.
+        self.input_hashes = list(input_hashes or [])
         #: The position to plant, when the caller already named it (`anchor`'s
-        #: `thesis`): pinned in the sketch request. None = find it in the words.
+        #: `thesis`): pinned in the sketch request. None = find it in the material.
         self.thesis = (thesis or "").strip() or None
         #: The model's particulars about the tension (`anchor`'s `context`);
-        #: composed ahead of the utterance for every prompt, as on the staged
-        #: path. Grounding uses it when given, the utterance itself otherwise —
-        #: on this path the utterance IS the person's particulars.
+        #: composed ahead of the material for every prompt, as on the staged path.
         self.context = (context or "").strip()
-        #: The Input that keeps the utterance verbatim (`_keep_utterance`),
-        #: linked to both poles by `IntroducePolarity`. `[]` = none.
-        self.input_hashes = input_hashes
         self._persona = persona
 
+    @inject
+    async def _material(
+        self, input_resolver: InputResolver = Provide[DI.input_resolver]
+    ) -> str:
+        """What the Inputs say, as every skill reads material: digests, words
+        as the fallback, bounded. Empty when there are no Inputs."""
+        if not self.input_hashes:
+            return ""
+        from dialectical_framework.graph.nodes.input import Input
+        from dialectical_framework.graph.repositories.node_repository import \
+            NodeRepository
+        from dialectical_framework.utils.input_context import input_context
+
+        inputs = NodeRepository().find_by_hashes(self.input_hashes, node_type=Input)
+        unresolved = len(self.input_hashes) - len(inputs)
+        if unresolved > 0:
+            self._report.artifacts["unresolved_input_hashes"] = unresolved
+        return await input_context(inputs, input_resolver)
+
     async def resolve(self) -> list[Perspective]:
-        if not self.utterance:
+        material = await self._material()
+        if not material and not self.thesis:
             self._report.ok = False
-            self._report.summary = "Nothing to build: the utterance is empty"
+            self._report.summary = "Nothing to build: no material and no thesis"
             self._report.artifacts["perspective_hashes"] = []
             return []
 
         expect_progress(1)
         report_progress("Thinking the tension through, whole")
         sketch = TetradSketch(persona=self._persona)
-        tension = await sketch.resolve(self.utterance, self.context, thesis=self.thesis)
+        tension = await sketch.resolve(material, self.context, thesis=self.thesis)
         self._report = self._report.merge(sketch.report)
 
-        particulars = compose_context(self.context, self.utterance)
+        # The poles' classification reads the same material; `IntroducePolarity`
+        # reads it from the Inputs itself, so only the particulars travel here.
         introduce = IntroducePolarity(
             thesis=tension.thesis,
             antithesis=tension.antithesis,
-            text=particulars,
+            text=self.context,
             input_hashes=self.input_hashes,
         )
         result = await introduce.resolve()
@@ -111,9 +136,11 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
                 if is_axis_name(axis)
             },
         )
+        # Grounding: the particulars when the model named them, else the material
+        # itself — on this path the person's words ARE their particulars.
         expand = ExpandPolarity(
             polarity_hash=result.primary_polarity_hash,
-            grounding_context=self.context or self.utterance,
+            grounding_context=self.context or material,
             given_tetrad=given,
         )
         perspectives = await expand.resolve()

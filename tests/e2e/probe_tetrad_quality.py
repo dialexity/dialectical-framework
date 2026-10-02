@@ -74,7 +74,7 @@ MODES (`TETRAD_PROBE_MODE`, default `default` = behaviour unchanged)
             from it (`SurfaceTheses`), every expanded perspective is recorded
             with the same fields, and `extracted_theses` keeps what extraction
             made of the sentence (text + SIMPLE flag per thesis).
-  oneshot   `SketchTetrad(utterance=text)` — item 3: ONE thinking call writes
+  oneshot   `capture_input(text)` + `SketchTetrad(input_hashes=[…])` — item 3: ONE thinking call writes
             T, A and the four aspects from the utterance, then
             `IntroducePolarity` + `ExpandPolarity(given_tetrad=)` score, dedup,
             ground, validate and persist it. Pre-registered bar before it
@@ -494,8 +494,11 @@ async def test_probe_tetrad_quality(di_container) -> None:
                         SketchTetrad
                     from dialectical_framework.agents.apps import COUNSELOR_PERSONA
 
+                    from dialectical_framework.concerns.add_input import capture_input
+
+                    source = await capture_input(text)
                     skill = SketchTetrad(
-                        utterance=text,
+                        input_hashes=[source.hash] if source and source.hash else [],
                         persona=COUNSELOR_PERSONA if mode == "oneshot_persona" else None,
                     )
                     await skill.resolve()

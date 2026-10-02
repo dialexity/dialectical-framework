@@ -577,10 +577,10 @@ class TestAnchorBranchesGroundAlike:
 
         assert captured.get("context") == CONTEXT
         assert captured.get("thesis") == "Keep him as cofounder"
-        # no turn in progress: the thesis itself is the material, and the
-        # tension traces to no source rather than to every document
-        assert captured.get("utterance") == "Keep him as cofounder"
+        # no turn in progress: no Input was captured, so the skill gets no
+        # material and builds from the pinned thesis — never from every document
         assert captured.get("input_hashes") == []
+        assert "utterance" not in captured
 
 
 @pytest.mark.llm

@@ -51,8 +51,8 @@ def fake_tetrad_sketch(monkeypatch, tension: ViewSketchPerspectiveDto = SKETCH) 
     """
     seen: list[dict] = []
 
-    async def fake(self, utterance, context="", thesis=None):
-        seen.append({"utterance": utterance, "context": context, "thesis": thesis})
+    async def fake(self, material, context="", thesis=None):
+        seen.append({"material": material, "context": context, "thesis": thesis})
         self._report.ok = True
         return tension
 
@@ -69,7 +69,14 @@ class TestThePrompt:
         assert "Keep its meaning as the position" in pinned
         free = tetrad_sketch_prompt(UTTERANCE, "", 7)
         assert "is GIVEN" not in free
-        assert "the position the person holds or is weighing" in free
+        assert "the position the person holds or is weighing in this material" in free
+
+    def test_material_is_optional_when_the_thesis_is_pinned(self):
+        """Off the turn the Advisor's `anchor` has no Input: the pinned thesis
+        plus `context` is what the call reads, and no empty tag is sent."""
+        prompt = tetrad_sketch_prompt("", "", 7, thesis="Keep the Berlin office")
+        assert "<material>" not in prompt
+        assert 'is GIVEN: "Keep the Berlin office"' in prompt
 
     def test_the_system_prompt_is_the_method(self):
         """Read, not copied: the bench's A1 baseline and this builder cannot
@@ -84,7 +91,7 @@ class TestThePrompt:
             _OPPOSING_POSITION_ASK
 
         prompt = tetrad_sketch_prompt(UTTERANCE, "He holds 45%.", 7)
-        assert "<utterance>\n" + UTTERANCE in prompt
+        assert "<material>\n" + UTTERANCE in prompt
         assert "<context>\nHe holds 45%." in prompt
         assert TETRAD_BUILD_PROCEDURE in prompt
         assert _OPPOSING_POSITION_ASK in prompt
@@ -108,6 +115,11 @@ class TestThePrompt:
 
 @pytest.mark.llm
 class TestTheSketchCall:
+    @pytest.mark.asyncio
+    async def test_no_material_and_no_thesis_is_refused(self):
+        with pytest.raises(ValueError, match="material or a thesis"):
+            await TetradSketch().resolve("   ")
+
     @pytest.mark.asyncio
     async def test_a_sketch_with_an_empty_corner_is_refused(self, monkeypatch):
         """A complete tetrad or nothing: the graph cannot hold a blank
@@ -232,8 +244,10 @@ class TestTheSkill:
         from dialectical_framework.graph.repositories.perspective_repository import \
             PerspectiveRepository
 
-        async def fake_sketch(self, utterance, context="", thesis=None):
-            assert utterance == UTTERANCE
+        async def fake_sketch(self, material, context="", thesis=None):
+            # the material is what the Input renders, not a text the host repeats
+            assert UTTERANCE in material and "<Input id=" in material
+            assert thesis is None, "a host's paste pins nothing; the call finds the position"
             self._report.ok = True
             return SKETCH
 
@@ -243,7 +257,7 @@ class TestTheSkill:
         with scope(case.sid):
             source = Input(content=UTTERANCE)
             source.commit()
-            skill = SketchTetrad(utterance=UTTERANCE, input_hashes=[source.hash])
+            skill = SketchTetrad(input_hashes=[source.hash])
             pps = await skill.resolve()
             assert len(pps) == 1
             pp = pps[0]
@@ -262,13 +276,27 @@ class TestTheSkill:
             assert PerspectiveRepository().find_by_polarity(pp.polarity.get()[0])
 
     @pytest.mark.asyncio
-    async def test_an_empty_utterance_builds_nothing(self):
+    async def test_no_input_and_no_thesis_builds_nothing(self):
         from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
             SketchTetrad
 
         case = Case()
         case.commit()
         with scope(case.sid):
-            skill = SketchTetrad(utterance="   ")
+            skill = SketchTetrad()
             assert await skill.resolve() == []
             assert skill.report.ok is False
+
+    @pytest.mark.asyncio
+    async def test_a_pinned_thesis_with_no_input_builds_from_the_thesis(self, monkeypatch):
+        """The Advisor's `anchor` off the turn: no Input, the thesis pinned."""
+        from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
+            SketchTetrad
+
+        seen = fake_tetrad_sketch(monkeypatch)
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            pps = await SketchTetrad(thesis="Quit and start my own company", context="He holds 45%.").resolve()
+        assert len(pps) == 1
+        assert seen == [{"material": "", "context": "He holds 45%.", "thesis": "Quit and start my own company"}]
