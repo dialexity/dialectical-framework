@@ -966,3 +966,71 @@ documents, authored for the probe, one generation; the one-shot read the
 document's DIGEST as material (as every skill does above 1,500 chars), so a
 "material = the thesis's own passage" variant is the untried lever if this is
 ever revisited.
+
+**Tried and reverted (2026-10-02): classifying the pinned thesis DURING the reasoning
+call.** On the Advisor's path T is known before the sketch, so its ~8 s of classification
+was moved into the ~5 s reasoning call (`IntroducePolarity.classify_pole` +
+`prepare(thesis_draft=)`). Census: wall 28–33 s against 23–28 s before — WORSE by ~3 s.
+Why: T and A were already classified in parallel, so T's cost was hidden behind A's;
+pulling T forward left A — which exists only after the sketch — running alone for 8 s.
+The chain's floor on this path is sketch → A's classification → max(opposition
+evaluation, scoring + grounding + validation) ≈ 5 + 8 + 12 s, and the only way below it
+is to not classify A separately (its meaning is `lookup_antithesis_meaning(thesis)` on
+the staged path anyway) or to fold the taxonomy branch into the reasoning call — both
+quality questions, measured or nothing. Reverted the same hour.
+
+## Restatement, lever 2: repair a flagged plus (pre-registered 2026-10-02)
+
+The take-up fields removed restatement at the source and cost coherence by
+manufacturing compromises. This tries the other shape (`tests/e2e/probe_plus_repair.py`,
+DB-free): build with the one-shot writer as today, audit both pluses with the archive's
+parentage judge, regenerate ONLY a flagged plus with a repair instruction (the draft
+named as a restatement, the take-up asked for, "not a compromise, not the other pole
+in this pole's clothes"), then judge the repaired tetrad's coherence and re-audit.
+40 utterances (sets A+B), one generation. A production repair step — one extra
+check call per tetrad plus a regeneration in the ~10% flagged — is worth it only if,
+over the repaired tetrads: restatement drops by at least half, CC does not fall, and
+the T+/A+ `same_compromise` share does not rise. Otherwise restatement stays an
+open number at 7–12% and the record says what the two obvious levers did.
+
+**RESULT (2026-10-03): the repair step does not earn its call — and the flag it
+repairs is not a coherence defect.** 40 utterances, one generation, one-shot writer:
+CC 20/40; restated plus slots 5/80 (6.2%) in 4 tetrads. Every one of those 4 had
+PASSED coherence before repair. After repairing only the flagged plus: restated
+0/5, CC 4/4 → 2/4, `same_compromise` 0 → 1. Two of the five repairs read as what
+they are — the plus bent toward the other pole ("Raise prices, earning accessible
+value customers trust"; "Price low enough to fund growth") — the same compromise
+shape the take-up fields manufactured at scale. n = 4 is a screen, but the sign
+agrees with the 40-pair result and with the theory: a plus that already develops
+its parent and passes "T+ without A+ yields T-" is doing its job; the auditor's
+"restates its pole" verdict on such a plus is a vocabulary disagreement about what
+"takes up" must look like, not a tetrad defect. Decision: no repair step; the
+restatement rate (6–12% across runs) is recorded as a property of the auditor's
+strictness as much as of the writer, and stops being a target. Two levers tried,
+both cost coherence; the number stays open only in the sense that nobody should
+chase it with a third lever that is not measured on coherence first.
+
+**Real documents in the instrument (2026-10-03).** Five public-domain passages
+(~950 words each, `tests/e2e/fixtures/documents/`, provenance on the first line:
+Madison's Federalist No. 10, Mill's *On Liberty* ch. I and *The Subjection of Women*
+ch. I, Thoreau's *Civil Disobedience*, Emerson's *Self-Reliance*) replace the
+authored five as the probe's default set. Staged `ingest` baseline on them:
+
+| document | theses | tetrads | CC | antithesis a position | calls | s |
+|---|---|---|---|---|---|---|
+| Federalist 10 | 3 | 5 | 5/5 | 3/5 | 101 | 135 |
+| Civil Disobedience | 3 | 5 | 4/5 | 4/5 | 96 | 113 |
+| On Liberty ch. I | 3 | 5 | 3/5 | 4/5 | 77 | 73 |
+| Self-Reliance | 3 | 5 | 1/5 | 3/5 | 87 | 145 |
+| Subjection of Women | 3 | 5 | 1/5 | 3/5 | 83 | 77 |
+| **all** | 15 | 25 | **14/25 (56%)** | 17/25 (68%) | median 87 | median 113 |
+
+Restated 1/50. Against the authored five (CC 6/21, positions 20/21): real
+argumentative prose builds more coherent tetrads and the ladder draws more mirrors
+on it ("Liberty is a price worth paying" against "Destroying liberty to cure faction
+is worse than faction itself" — a mirror of a position that is itself a weighing).
+Two observations for whoever next touches `ingest`, neither acted on: extraction
+returns exactly three theses per document whatever its length (`count=3` from
+`_parse_intent`'s default — a 950-word Mill chapter has more than three tensions),
+and the per-document cost is 77–101 calls, ~2 minutes. One generation, five texts:
+a baseline to pair against, not a result.

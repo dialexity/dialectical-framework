@@ -12,6 +12,7 @@ same coherence judge and the same antithesis / parentage auditors as
 are the same material read the same way; what differs is the build.
 
     INGEST_DOC_ARMS=staged poetry run pytest tests/e2e/probe_ingest_documents.py --real-llm -q -s
+    INGEST_DOC_SET=authored ...                # the five documents written for the probe (default: public)
     (the `oneshot` arm is historical since the route it measured was removed)
     INGEST_DOC_LIMIT=2 ...                     # the first two documents only
 
@@ -163,6 +164,23 @@ Recommendation: do not vote on the two options as drafted.""",
 }
 
 
+#: Real, public-domain material (`tests/e2e/fixtures/documents/*.txt`, ~950-word
+#: passages with their provenance on the first line) — the default set since the
+#: authored five are the assistant's own prose. `INGEST_DOC_SET=authored` runs those.
+_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "documents"
+
+
+def _document_set(name: str) -> dict[str, str]:
+    if name == "authored":
+        return DOCUMENTS
+    docs: dict[str, str] = {}
+    for path in sorted(_FIXTURES.glob("*.txt")):
+        lines = path.read_text().splitlines()
+        body = "\n".join(lines[1:]).strip() if lines and lines[0].startswith("#") else path.read_text()
+        docs[path.stem] = body
+    return docs
+
+
 def _fmt(k: int, n: int) -> str:
     lo, hi = _wilson(k, n)
     return f"{k}/{n} ({100*k/max(n,1):.0f}%, 95% {100*lo:.0f}–{100*hi:.0f}%)"
@@ -183,9 +201,10 @@ async def test_probe_ingest_documents(di_container) -> None:
 
     arms = [a for a in os.environ.get("INGEST_DOC_ARMS", "staged").split(",") if a]
     limit = int(os.environ.get("INGEST_DOC_LIMIT", "0") or 0)
-    docs = list(DOCUMENTS.items())[: limit or None]
+    doc_set = os.environ.get("INGEST_DOC_SET", "public")
+    docs = list(_document_set(doc_set).items())[: limit or None]
     judge = E2EConfig.from_env().judge_model
-    out = _RESULTS / f"ingest_documents-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    out = _RESULTS / f"ingest_documents-{doc_set}-{time.strftime('%Y%m%d-%H%M%S')}.json"
     print(f"\n=== ingest on {len(docs)} document(s), arms {arms} → {out}", flush=True)
 
     rows: list[dict] = []
