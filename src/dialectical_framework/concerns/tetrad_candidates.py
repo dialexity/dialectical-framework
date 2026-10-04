@@ -51,13 +51,17 @@ logger = logging.getLogger(__name__)
 #: positions 36/40, +6–10 s), on the view turn the primary bar held resolved
 #: (36/40 from 25/40, 12 up / 0 down) with two side conditions one and two
 #: counts short at n = 40. The staged writer (`AspectGeneration` for documents,
-#: the pipeline and the two-pole anchor) draws ONE: on five documents it moved
-#: 56% → 71% on 21 tetrads with the position rate down 68% → 62% — a point
-#: estimate in the right direction that did not clear its bar; a replication
-#: decides, not this constant. Capped: a fourth draw buys ~3 points for a third
-#: more cost, and the pairs that fail every draw need a different tension.
+#: the pipeline and the two-pole anchor) also draws THREE since the same-day
+#: replication (four runs, public + authored texts, 90 tetrads): CC 26/46 (57%)
+#: against the single draw's 17/44 (39%), positions 83% against 82%, restated
+#: 2/92 against 4/88, compromise pluses 12 against 22, 1.24x the seconds and
+#: 1.5x the calls per document. Caveat carried, not hidden: the public set moved
+#: +40 points and the authored set −11, and the single draw itself ranged 20–63%
+#: across runs — the pooled difference clears the pre-registered bar and is not
+#: resolved. Capped: a fourth draw buys ~3 points for a third more cost, and the
+#: pairs that fail every draw need a different tension.
 DEFAULT_SKETCH_ATTEMPTS = 3
-DEFAULT_ASPECT_ATTEMPTS = 1
+DEFAULT_ASPECT_ATTEMPTS = 3
 MAX_SKETCH_ATTEMPTS = 3
 
 

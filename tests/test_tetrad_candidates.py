@@ -316,7 +316,7 @@ class TestTheStagedWriterSelectsToo:
             POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS, POSITION_T_PLUS)
 
         gen = self._generator(monkeypatch)
-        gen._attempts = None  # the staged writer's default is ONE draw
+        gen._attempts = 1  # one draw asked for: the call as it always was
         seen: list = []
 
         async def fake_submit(self, response_model, user_content):

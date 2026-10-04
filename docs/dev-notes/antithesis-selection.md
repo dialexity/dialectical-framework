@@ -1170,6 +1170,31 @@ single-draw arm; the genuine-position rate is not more than 5 points below it; r
 plus slots do not double; median seconds per document ≤ 1.3× the single-draw arm. Any
 miss keeps `DEFAULT_ASPECT_ATTEMPTS = 1` and records the figures. Unpaired by construction.
 
+**RESULT, replication (2026-10-04 13:43–15:01, four runs, files `ingest_documents-{public,authored}-att{3,1}-20261004-*.json`):**
+
+| arm | tetrads | CC (fresh judge) | position | restated | compromise pluses | median s/doc | median calls/doc |
+|---|---|---|---|---|---|---|---|
+| best-of-3, public | 25 | 15 (60%) | 21 | 2/50 | 6 | 112 | 121 |
+| best-of-3, authored | 21 | 11 (52%) | 17 | 0/42 | 6 | 125 | 129 |
+| single draw, public | 25 | 5 (20%) | 21 | 3/50 | 10 | 94 | 80 |
+| single draw, authored | 19 | 12 (63%) | 15 | 1/38 | 12 | 108 | 81 |
+| **pooled best-of-3** | 46 | **26 (57%)** | 38 (83%) | 2/92 | 12 | 120 | 124 |
+| **pooled single draw** | 44 | **17 (39%)** | 36 (82%) | 4/88 | 22 | 96 | 81 |
+
+Against the rule: CC +18 points (bar +10) — holds; position 83% against 82% (bar: not
+more than 5 below) — holds; restated 2/92 against 4/88 (bar: not doubled) — holds;
+1.24× the seconds per document (bar 1.3×) — holds. **`DEFAULT_ASPECT_ATTEMPTS` moves to 3.**
+What the table also says, and the constant's comment carries: the two sets DISAGREE
+(public +40 points, authored −11), and the single draw alone ranged 20% to 63% across
+runs of five documents — yesterday's 56% on the public set became 20% today with no code
+change on that path. Per-run figures on 20–25 tetrads are weather; only pooled,
+same-day, pre-registered comparisons mean anything here, and even this pooled +18 on 90
+tetrads is not resolved (its own interval reaches zero). The cost is real and bounded:
+1.5× the calls and 1.24× the wall clock per document, because the draws and the judge
+round run in parallel. A deployment that prices calls over coherence sets the constant
+back to 1; the measurement, not the constant, is the thing to argue with. Compromise
+pluses halving (22 → 12) is the one secondary that moved in both sets.
+
 **Open beside it, not in it:** calibrating the 0.7 line needs two human raters on
 a blind sheet (15 pass / 15 fail near the line, scores hidden) — the sheet is a
 framework task (`tests/e2e/calibration_sheet.py` → `results/tetrad_quality/calibration_sheet.md`,
