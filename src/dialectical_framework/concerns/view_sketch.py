@@ -162,6 +162,22 @@ class ViewSketchDto(BaseModel):
 #: the graph path gives `AspectGeneration._tetrad_prompt`, stated once here and
 #: shared by the view turn and `concerns/tetrad_sketch.py`, so the two
 #: one-shot builders cannot drift apart.
+#: What the thesis IS, for a writer that finds it in free words. Measured
+#: without it (`tests/e2e/probe_question_entry.py`, 2026-10-04, 20 questions
+#: through the view turn): the tetrad was statement-grade (CC 17/20, a genuine
+#: opposing position 18/20) but T echoed the QUESTION in 6/20 — "Why should I
+#: keep paying for his phone when he never calls?" came back as T "Why keep
+#: paying when he never calls me" — so the card showed the person a question
+#: as their own position. Shared by the view turn and `tetrad_sketch_prompt`
+#: (its free-thesis branch; a GIVEN thesis is kept as given), and by the intake
+#: gate `concerns/stance_capture.py`, so the three say the same thing about what
+#: a stance is. Re-run with it: the echo went to 0/20 and the view turn declined
+#: 3 of 4 informational questions it had drawn before; a third example that
+#: named the lean of "why do I keep hiring people like me" was then removed
+#: because the writer used that line as BOTH poles on its own utterance
+#: (one item, unmeasured deletion, said so). Story: the lab notes in examples/blindspots.ipynb.
+THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all."""
+
 TETRAD_BUILD_PROCEDURE = f"""Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
 Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
 For each pair:
@@ -184,7 +200,9 @@ def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
     one-shot build carry): on the pipeline's auditor the view turn's
     antitheses were a position for 30/40 and plain mirrors for 6 before the
     ask was here, against the one-shot build's 36–38/40 with it
-    (docs/dev-notes/antithesis-selection.md, 2026-10-02).
+    (docs/dev-notes/antithesis-selection.md, 2026-10-02). The thesis is asked
+    for as a STANCE (`THESIS_IS_A_STANCE`): on 20 questions the turn echoed the
+    question as T in 6 before the ask was here (lab notes in examples/blindspots.ipynb).
     """
     focus_line = (
         f"What to show: {focus}\n\n"
@@ -199,7 +217,9 @@ Rules for what goes in the view:
 - Show what this conversation has ESTABLISHED: a tension you named and the person took up is drawn as you both have it, in their terms. Do not re-derive what is already on the table.
 - Where the ask needs structure not yet worked out — a perspective for a thesis so far only stated, the antithesis of a position, the corners of a tension you only named — build it now, by the method below, and then draw it.
 - Where the ask stops short of a full tetrad (only the two poles, only the antitheses), leave the positions not asked for EMPTY. An empty corner is honest; an invented one is not.
-- At most {VIEW_SKETCH_MAX_PERSPECTIVES} tensions, most central first. Nothing at all rather than a tension the conversation does not support.
+- At most {VIEW_SKETCH_MAX_PERSPECTIVES} tensions, most central first. Nothing at all rather than a tension the conversation does not support — a turn that carries no stance (a request for information) supports none.
+
+{THESIS_IS_A_STANCE}
 
 {_OPPOSING_POSITION_ASK}
 

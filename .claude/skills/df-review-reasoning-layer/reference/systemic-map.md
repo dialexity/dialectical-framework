@@ -1928,7 +1928,23 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the
    opposing-position ask must reach `_tetrad_prompt`, `TETRAD_BUILD_PROCEDURE` and the mode-point prompts
-   together.
+   together. **Both free writers ask for T as a STANCE** through `view_sketch.THESIS_IS_A_STANCE`
+   (2026-10-04; the view turn's request and `tetrad_sketch_prompt`'s free-thesis branch — a GIVEN thesis
+   is not re-asked for): measured on 20 questions without it, T echoed the question in 6/20 while the
+   tetrad itself was statement-grade (`tests/e2e/probe_question_entry.py`). The same text is the stance
+   definition of the intake gate (0d), so what the gate passes as "carrying a lean" is what the writer
+   then reads as T — edit it in one place and re-run the probe on both.
+0d. **The intake gate is a structured call ahead of both writers (2026-10-04).**
+   `concerns/stance_capture.py::StanceCapture`: system = `SYSTEM_PROMPT` (the stance text, three shapes
+   stance/fork/none, a menu of which question to ask for which words), user = the person's turns in order.
+   Output `StanceCaptureDto` (shape + stance + ask); `_settle` makes it a stance OR one question in code —
+   the model is never trusted to keep them exclusive, and a blank stance under the `stance` shape is NONE.
+   `FORK_ASK` / `NO_STANCE_ASK` are person-facing fallbacks (no framework vocabulary; pinned by
+   `tests/test_stance_capture.py`). Why a call and not a conversational turn: the view turn never declines
+   (20/20 drew, two of four informational questions got a tetrad around a stance nobody took) and a free
+   turn told to "just get the point" counsels. The host loops it under `MAX_INTAKE_ASKS = 2` and pins the
+   stance (`focus` on the view turn, `thesis=` on `SketchTetrad`); the notebook's `Intake` is the reference
+   loop. Review it with the writers: a change to what counts as a stance moves all three.
 0c. **The thesis COUNT is a parameter, not a prompt output (2026-10-04).** `SurfaceTheses(count=)` /
    `ingest(count=)` / `analyze(count=)`, `clamp_thesis_count` (None → `DEFAULT_THESIS_COUNT` = 3, max 10);
    `_parse_intent` parses focus/constraints/domain ONLY and runs only when an `intent` was given. On a
@@ -1950,8 +1966,8 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    the single-draw request — a per-attempt prompt variation would make the selection a prompt comparison
    (the archive's 87.5% view-turn figure has that caveat); (d) the selection's own verdict flatters the
    winner (max of noisy reads) — the honest number is a FRESH judge pass, which is what the probes report.
-   Defaults differ per writer (`DEFAULT_SKETCH_ATTEMPTS = 3`, `DEFAULT_ASPECT_ATTEMPTS = 1`) because they were
-   measured apart; the three pre-registered runs and the decision: `antithesis-selection.md`, "Best-of-N".
+   One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
+   apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are

@@ -116,6 +116,17 @@ class TestThePrompt:
         assert TETRAD_BUILD_PROCEDURE.startswith("Building a tetrad, when you build one")
         assert "(b) Restated parent:" in TETRAD_BUILD_PROCEDURE
 
+    def test_the_thesis_is_asked_for_as_a_stance_in_both_free_writers(self):
+        """Measured 2026-10-04 (`probe_question_entry.py`): without it the view
+        turn echoed a QUESTION as T in 6/20. One text, both writers; a GIVEN
+        thesis is kept as given and not re-asked for."""
+        from dialectical_framework.concerns.view_sketch import THESIS_IS_A_STANCE
+
+        assert THESIS_IS_A_STANCE in view_sketch_prompt(None, 7)
+        assert THESIS_IS_A_STANCE in tetrad_sketch_prompt(UTTERANCE, "", 7)
+        assert THESIS_IS_A_STANCE not in tetrad_sketch_prompt(UTTERANCE, "", 7, thesis="Quit")
+        assert "never their question restated" in THESIS_IS_A_STANCE
+
     def test_the_dto_is_one_flat_tension_with_no_numbers(self):
         fields = TetradSketchDto.model_fields
         assert list(fields) == ["tension"]

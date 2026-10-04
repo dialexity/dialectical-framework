@@ -36,7 +36,7 @@ from dialectical_framework.concerns.antithesis_extraction import \
     _OPPOSING_POSITION_ASK
 from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
 from dialectical_framework.concerns.view_sketch import (
-    TETRAD_BUILD_PROCEDURE, ViewSketchPerspectiveDto)
+    TETRAD_BUILD_PROCEDURE, THESIS_IS_A_STANCE, ViewSketchPerspectiveDto)
 from dialectical_framework.protocols.has_config import SettingsAware
 
 
@@ -63,7 +63,9 @@ def tetrad_sketch_prompt(
     already named the position to plant, and the tool's contract is to plant
     THAT one — the call may word it in the person's terms, not replace it.
     Without it (a host's one paste, the probe's free form) the call finds the
-    position IN the material. One of the two must be present.
+    position IN the material — asked for as a STANCE (`THESIS_IS_A_STANCE`,
+    shared with the view turn: a question's lean, never the question
+    restated). One of the two must be present.
 
     There is deliberately NO way to pin the antithesis as well. It was tried
     (2026-10-02, `tests/e2e/probe_aspect_variants.py` arm `oneshot_pinned`):
@@ -81,7 +83,8 @@ def tetrad_sketch_prompt(
         f'The thesis (T) is GIVEN: "{thesis.strip()}". Keep its meaning as the position; '
         f"word it in the person's own terms, {max_words} words or fewer."
         if thesis and thesis.strip()
-        else "The thesis (T) is the position the person holds or is weighing in this material, in their own terms — not a restatement of the whole, not a generalisation they did not make."
+        else "The thesis (T) is the position the person holds or is weighing in this material, in their own terms — not a restatement of the whole, not a generalisation they did not make.\n"
+        + THESIS_IS_A_STANCE
     )
     return f"""{context_section}{material_section}Work out the ONE tension at the heart of this material — what the person said or pasted — as a complete dialectical tetrad. Answer with ONE JSON object in the requested schema and nothing else — no prose.
 
