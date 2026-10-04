@@ -80,10 +80,49 @@ When parsing intent:
 # --- DTOs for LLM structured outputs ---
 
 
-class ParsedIntentDto(BaseModel):
-    """Result of parsing the extraction intent."""
+#: How many theses an extraction places when the caller names no number. A
+#: module constant, not a setting ("Policy is not config"), and deliberately NOT
+#: scaled by the material's length: length is a poor proxy for how many
+#: tensions a text holds, and on a long source the count was never the defect —
+#: WHICH candidates were placed was (the sweep took the first N in document
+#: order; see `_select_candidates`). More is one `count=` or one more call away:
+#: extraction is incremental, the case's vocabulary is `not_like_these`.
+DEFAULT_THESIS_COUNT = 3
+#: The most one call places. The loop path tops up over ≤4 attempts of ≤4 each;
+#: the sweep selects from every window's candidates; past this a second call is
+#: the honest shape (its report says what it left unplaced).
+MAX_THESIS_COUNT = 10
 
-    count: int = Field(default=3, description="Number of theses to extract (1-10)")
+
+def clamp_thesis_count(count: Optional[int]) -> int:
+    """`None` → the default; anything else into [1, MAX_THESIS_COUNT]."""
+    if count is None:
+        return DEFAULT_THESIS_COUNT
+    return max(1, min(int(count), MAX_THESIS_COUNT))
+
+
+class CandidateSelectionDto(BaseModel):
+    """The swept candidates a document should be read through, best first.
+
+    One comparative call, the same shape as `OptimumARankingDto`: on a source
+    too long for one prompt every window is READ, and until 2026-10-04 the
+    merged candidates were then cut positionally — `candidates[:count]`, in
+    document order — so a thirty-page source was fully swept and the theses
+    placed were page one's first three. Ranking across windows makes coverage
+    of reading into coverage of placement.
+    """
+
+    ranking: list[int] = Field(
+        description="Every candidate's number exactly once, the most central and most DISTINCT tensions first."
+    )
+    reasoning: str = Field(default="", description="One sentence on what led.")
+
+
+class ParsedIntentDto(BaseModel):
+    """Result of parsing the extraction intent — focus, constraints, domain.
+    NOT the count: that is an explicit parameter (`SurfaceTheses(count=)`), so a
+    tool argument is never both a literal and an instruction to re-interpret."""
+
     constraints: list[str] = Field(
         default_factory=list,
         description="Things to avoid (e.g., 'not about security', 'exclude X')",
@@ -125,9 +164,18 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
     5. Creates Ideas node with final component set
     """
 
-    def __init__(self, intent: str, input_hashes: list[str] | None = None) -> None:
-        self.intent = intent
+    def __init__(
+        self,
+        intent: Optional[str] = None,
+        input_hashes: list[str] | None = None,
+        count: Optional[int] = None,
+    ) -> None:
+        #: Focus / constraints / domain, free text, parsed by ONE call — or
+        #: None, in which case nothing is parsed and no call is made.
+        self.intent = (intent or "").strip() or None
         self.input_hashes = input_hashes
+        #: How many theses to place this call (`clamp_thesis_count`).
+        self.count = clamp_thesis_count(count)
         self._conversation: Optional[ConversationFacilitator] = None
 
     async def resolve(self) -> Optional[Ideas]:
@@ -163,11 +211,17 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
         # all here would put steps in the denominator that may never run, and the
         # closing event reports what COMPLETED (`utils/progress.py`), so a phantom
         # step is indistinguishable to a host from a failed one.
-        expect_progress(1)
-        report_progress("Working out what to look for")
         self._conversation = ConversationFacilitator()
         self._conversation.set_system_prompt(SYSTEM_PROMPT)
-        parsed = await self._parse_intent()
+        if self.intent:
+            expect_progress(1)
+            report_progress("Working out what to look for")
+            parsed = await self._parse_intent()
+        else:
+            # Nothing to parse: no focus, no constraints, no call. The pipeline
+            # used to substitute "extract key theses from the input" so this
+            # call fired on every ingest with nothing in it to read.
+            parsed = ParsedIntentDto()
 
         # 3. Get existing vocabulary for dedup
         comp_repo = StatementRepository()
@@ -181,14 +235,14 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
             extracted_components, extraction_reports = await self._extraction_sweep(
                 windows=windows,
                 parsed=parsed,
-                target_count=parsed.count,
+                target_count=self.count,
                 not_like_these=not_like_these,
             )
         else:
             extracted_components, extraction_reports = await self._extraction_loop(
                 input_text=input_text,
                 parsed=parsed,
-                target_count=parsed.count,
+                target_count=self.count,
                 not_like_these=not_like_these,
             )
         for r in extraction_reports:
@@ -232,6 +286,19 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
             {"hash": c.hash, "text": c.text} for c in deduped
         ]
         self._report.summary = f"Extracted {len(deduped)} thesis(es)"
+        # What was READ but not PLACED, so the model learns from the artifact —
+        # not from prompt prose — that extraction is incremental: the same
+        # shape as the pipeline's "N strong tension(s) NOT expanded — call
+        # again". Only the sweep knows its pool; the loop asks for what it
+        # places.
+        seen = self._report.artifacts.get("swept_candidate_count")
+        if seen is not None and seen > len(extracted_components):
+            unplaced = seen - len(extracted_components)
+            self._report.artifacts["unplaced_candidates"] = unplaced
+            self._report.summary += (
+                f" — {unplaced} more candidate tension(s) seen in the material; "
+                f"call again (or pass a larger `count`) to place them"
+            )
 
         return ideas
 
@@ -247,25 +314,20 @@ class SurfaceTheses(ReasonableConcern[Optional[Ideas]]):
 
 Determine:
 
-1. **count**: Number of theses to extract.
-   - If a number is specified in intent (e.g., "3 theses" → count: 3), use it
-   - Otherwise default to 3
-2. **constraints**: What to avoid or exclude
-3. **preferences**: What to prefer (e.g., "prefer existing", "focus on X")
-4. **domain_hint**: Derive a contextual domain hint from intent and inputs
-5. **focus**: Topic/theme to focus extraction on"""
+1. **constraints**: What to avoid or exclude
+2. **preferences**: What to prefer (e.g., "prefer existing", "focus on X")
+3. **domain_hint**: Derive a contextual domain hint from intent and inputs
+4. **focus**: Topic/theme to focus extraction on
+(How MANY theses to extract is not yours to decide — it is a parameter of the call.)"""
 
     async def _parse_intent(self) -> ParsedIntentDto:
         """Parse unstructured intent into structured parameters."""
         input_previews = await self._get_input_previews()
 
-        result = await self._conversation.submit(
+        return await self._conversation.submit(
             response_model=ParsedIntentDto,
             user_content=self._parse_intent_prompt(input_previews),
         )
-
-        result.count = max(1, min(result.count, 10))
-        return result
 
     # --- Extraction Loop ---
 
@@ -394,8 +456,9 @@ Determine:
         if not candidates:
             return [], reports
 
-        # Classify only the survivors, each against the window it came from.
-        selected = candidates[:target_count]
+        # Classify only the survivors, each against the window it came from —
+        # chosen ACROSS windows, not the first `target_count` in document order.
+        selected = await self._select_candidates(candidates, target_count, parsed)
         expect_progress(1)
         # Shared with `ThesisExtraction.resolve`'s single-window announcement, by
         # construction rather than by two comments agreeing: a person must not be able
@@ -489,6 +552,63 @@ Determine:
                     merged.append((candidate, window))
 
         return merged
+
+    async def _select_candidates(
+        self,
+        candidates: list[tuple[str, str]],
+        target_count: int,
+        parsed: ParsedIntentDto,
+    ) -> list[tuple[str, str]]:
+        """Which of the swept candidates become Statements.
+
+        Positional until 2026-10-04 (`candidates[:target_count]` over a
+        document-order merge), which placed page one's first theses and nothing
+        from the rest of a source every window had been read for. Now ONE
+        comparative call ranks the pool (shuffled numbering so document order
+        is not the position bias), the top `target_count` are placed, and the
+        rest are reported as seen. Fail-soft to the positional cut; a ranking
+        that names a number twice or not at all is completed positionally.
+        Nothing to choose (pool ≤ target) costs no call.
+        """
+        if len(candidates) <= target_count:
+            return list(candidates)
+        import random
+
+        order = list(range(len(candidates)))
+        random.Random(len(candidates) * 7919 + target_count).shuffle(order)
+        numbered = "\n".join(f"{n + 1}. {candidates[i][0]}" for n, i in enumerate(order))
+        focus_line = f'Focus: "{parsed.focus}".\n' if parsed.focus else ""
+        prompt = f"""{focus_line}These candidate theses were found across the whole of a long source. Rank them, the most central and most DISTINCT tensions first — a claim worth developing as a position, not a restatement of another candidate, not a detail of the same point. Return every number exactly once.
+
+{numbered}"""
+        picked: list[int] = []
+        try:
+            assert self._conversation is not None
+            verdict = await self._conversation.isolate().submit(
+                response_model=CandidateSelectionDto, user_content=prompt
+            )
+            for number in verdict.ranking:
+                index = order[number - 1] if 1 <= number <= len(order) else None
+                if index is not None and index not in picked:
+                    picked.append(index)
+        except Exception as exc:  # noqa: BLE001 — degrade to the positional cut
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Candidate selection failed; placing the first %d in document order: %s",
+                target_count, exc,
+            )
+        # Recorded BEFORE the positional pad, or a failed ranking would read as
+        # "ranked" once the pad had filled the selection.
+        self._report.artifacts["candidate_selection"] = (
+            "ranked" if len(picked) >= target_count else "positional"
+        )
+        for index in range(len(candidates)):
+            if len(picked) >= target_count:
+                break
+            if index not in picked:
+                picked.append(index)
+        return [candidates[i] for i in picked[:target_count]]
 
     def _build_param_variations(self, parsed: ParsedIntentDto) -> list[dict]:
         """Build list of parameter variations to try."""
@@ -632,7 +752,7 @@ Determine:
         if not components:
             return None
 
-        ideas = Ideas(intent=self.intent)
+        ideas = Ideas(intent=self.intent or "extract key theses from the input")
         ideas.save()
         self._report.node_created(ideas)
 
@@ -667,25 +787,27 @@ Determine:
 @llm.tool
 async def surface_theses(
     intent: Annotated[
-        str,
+        str | None,
         Field(
-            description="Extraction instructions — e.g. 'extract 3 theses about trust', 'find themes in the inputs', 'surface theses about security'"
+            description="What to look for — a focus, things to avoid, a domain (e.g. 'themes about trust', 'avoid anything about performance'). Omit to extract the key theses. NOT a number: use `count`."
         ),
-    ],
+    ] = None,
     input_hashes: Annotated[
         list[str] | None,
         Field(
             description="Optional list of input hashes to process selectively. If None, processes all inputs in scope."
         ),
     ] = None,
+    count: Annotated[
+        int | None,
+        Field(
+            description="How many theses to place this call (1-10; default 3). Extraction is incremental: a later call adds theses it has not placed yet, and the report says how many more it saw."
+        ),
+    ] = None,
 ) -> str:
     """Extract theses from inputs. Requires inputs in scope — returns empty if none.
     For anchoring named concepts directly, use anchor_theses instead.
-
-    Examples: 'extract 5 theses about trust and integrity',
-    'find theses from inputs, prefer existing ones if suitable',
-    'surface 3 new theses about security, avoid anything about performance'
-    """
+    Incremental: call again (or raise `count`) for more; already-placed theses are avoided."""
     # The one site in the tree with a denominator known in ADVANCE: `_sweep_windows`
     # chunks the source first, so "Reading section 3 of 33" is truthful from the
     # first event — and it was mute here, because only `ingest`/`analyze` ever
@@ -698,6 +820,6 @@ async def surface_theses(
     # `progress_key` hashes.
     key = progress_key(intent, input_hashes)
     with progress_scope("extraction", key=key):
-        concern = SurfaceTheses(intent=intent, input_hashes=input_hashes)
+        concern = SurfaceTheses(intent=intent, input_hashes=input_hashes, count=count)
         await concern.resolve()
         return str(concern.report)

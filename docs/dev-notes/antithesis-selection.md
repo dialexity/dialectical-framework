@@ -1029,8 +1029,10 @@ Restated 1/50. Against the authored five (CC 6/21, positions 20/21): real
 argumentative prose builds more coherent tetrads and the ladder draws more mirrors
 on it ("Liberty is a price worth paying" against "Destroying liberty to cure faction
 is worse than faction itself" — a mirror of a position that is itself a weighing).
-Two observations for whoever next touches `ingest`, neither acted on: extraction
-returns exactly three theses per document whatever its length (`count=3` from
-`_parse_intent`'s default — a 950-word Mill chapter has more than three tensions),
-and the per-document cost is 77–101 calls, ~2 minutes. One generation, five texts:
+Two observations for whoever next touches `ingest`: extraction returned exactly
+three theses per document whatever its length (the default, and the only way to
+ask for more was a number inside `intent` — CLOSED 2026-10-04, see
+`ingest-and-extraction.md`: `count` is a parameter, and on long sources the swept
+candidates are ranked across windows instead of cut in document order), and the
+per-document cost is 77–101 calls, ~2 minutes (open). One generation, five texts:
 a baseline to pair against, not a result.

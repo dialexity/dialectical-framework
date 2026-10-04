@@ -399,7 +399,7 @@ async def test_probe_tool_progress_streams(di_container):
             #    in advance, though only when the source SWEEPS; at 10 KB it does not.
             run = await _watch(
                 bus, case.sid,
-                lambda: surface_theses.fn(intent=f"{INTENT}. Extract {THESES}."),
+                lambda: surface_theses.fn(intent=INTENT, count=THESES),
                 label="surface_theses (stage `extraction`, key = digest of the intent)",
             )
             runs.append(run)

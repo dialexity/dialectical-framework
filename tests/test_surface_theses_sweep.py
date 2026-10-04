@@ -172,6 +172,9 @@ def _skill() -> SurfaceTheses:
 
 
 def _parsed(**kwargs) -> ParsedIntentDto:
+    # `count` left the DTO (2026-10-04): it is `SurfaceTheses(count=)` now, and
+    # these tests pass `target_count` explicitly already.
+    kwargs.pop("count", None)
     return ParsedIntentDto(**kwargs)
 
 

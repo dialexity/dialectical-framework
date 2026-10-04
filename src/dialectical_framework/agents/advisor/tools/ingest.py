@@ -35,11 +35,17 @@ async def ingest(
     ] = None,
     intent: Annotated[
         str | None,
-        Field(description="Focus for extraction — what tensions to look for"),
+        Field(description="Focus for extraction — what tensions to look for. Not a number: use `count`."),
     ] = None,
     input_hashes: Annotated[
         list[str] | None,
         Field(description="Specific input hashes to analyze; omit to process all"),
+    ] = None,
+    count: Annotated[
+        int | None,
+        Field(
+            description="How many tensions to extract this call (1-10; default 3). Incremental: calling again places tensions not yet placed, and the report says how many more were seen."
+        ),
     ] = None,
 ) -> str:
     """Process raw material through dialectical analysis to discover tensions. Extracts theses, finds oppositions, and builds full perspectives (T/A/T+/T-/A+/A-). Use when substantial material exists but tensions aren't yet clear to you."""
@@ -62,7 +68,9 @@ async def ingest(
     # was installed above it. `total` starts at 0 and is grown by whoever
     # discovers the work, since nobody here knows the window count yet.
     with progress_scope("ingest", key=_progress_key(text, input_hashes)):
-        return await _ingest(text=text, intent=intent, input_hashes=input_hashes)
+        return await _ingest(
+            text=text, intent=intent, input_hashes=input_hashes, count=count
+        )
 
 
 async def _ingest(
@@ -70,6 +78,7 @@ async def _ingest(
     text: str | None,
     intent: str | None,
     input_hashes: list[str] | None,
+    count: int | None = None,
 ) -> str:
     """The tool's body, so the progress scope wraps it without re-indenting it.
 
@@ -120,7 +129,9 @@ async def _ingest(
     elif added_hash and effective_hashes and added_hash not in effective_hashes:
         effective_hashes = [added_hash] + list(effective_hashes)
 
-    pipeline = AnalysisPipeline(text=text, intent=intent, input_hashes=effective_hashes)
+    pipeline = AnalysisPipeline(
+        text=text, intent=intent, input_hashes=effective_hashes, count=count
+    )
     result = await pipeline.resolve()
 
     if digest_status:

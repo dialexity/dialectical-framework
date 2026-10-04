@@ -87,7 +87,7 @@ class TestTheMigration:
 
         log: list = []
 
-        async def fake_ingest(*, text, intent, input_hashes):
+        async def fake_ingest(*, text, intent, input_hashes, count=None):
             log.append(("ingest", text, intent, input_hashes))
             return '{"artifacts": {"perspective_hashes": ["pp0001", "pp0002"]}}'
 

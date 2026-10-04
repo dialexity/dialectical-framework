@@ -257,11 +257,15 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
         thesis_hashes: Optional[list[str]] = None,
         input_hashes: Optional[list[str]] = None,
         grounding_context: Optional[str] = None,
+        count: Optional[int] = None,
     ) -> None:
         self.text = text
         self.intent = intent
         self.thesis_hashes = thesis_hashes or []
         self.input_hashes = input_hashes
+        #: How many theses extraction places this run (`SurfaceTheses(count=)`;
+        #: None = its default). Explicit, never read out of `intent`.
+        self.count = count
         #: Conversational material about ONE tension, forwarded to every
         #: `ExpandPolarity` this run performs so the case particulars survive
         #: the abstraction into ~7-word poles (`TetradGrounding`).
@@ -324,9 +328,13 @@ class AnalysisPipeline(ReasonableConcern[AnalysisResult]):
             # sitting in scope. Whether there is anything to read is
             # `SurfaceTheses`' question, and it answers it precisely.
             try:
+                # `intent` passes through as given — None means no focus and NO
+                # intent-parsing call; the old substitute string made that call
+                # fire on every ingest with nothing in it to parse.
                 surface = SurfaceTheses(
-                    intent=self.intent or "extract key theses from the input",
+                    intent=self.intent,
                     input_hashes=self.input_hashes,
+                    count=self.count,
                 )
                 ideas = await surface.resolve()
                 reports.append(surface.report)
@@ -710,6 +718,12 @@ async def analyze(
             description="Optional list of input hashes to process selectively. If None, processes all inputs in scope."
         ),
     ] = None,
+    count: Annotated[
+        int | None,
+        Field(
+            description="How many theses to extract from the material (1-10; default 3). Incremental: a later call adds theses not yet placed. Ignored when `thesis_hashes` are given."
+        ),
+    ] = None,
 ) -> str:
     """Run full dialectical analysis: captures input, extracts theses, finds tensions, and builds complete perspectives with quality-gated expansion. Use when the user describes a new situation or provides material to analyze."""
     from dialectical_framework.utils.progress import progress_scope
@@ -744,6 +758,7 @@ async def analyze(
         pipeline = AnalysisPipeline(
             text=text,
             intent=intent,
+            count=count,
             thesis_hashes=thesis_hashes,
             input_hashes=input_hashes,
         )

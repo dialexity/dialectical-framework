@@ -1929,6 +1929,14 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the
    opposing-position ask must reach `_tetrad_prompt`, `TETRAD_BUILD_PROCEDURE` and the mode-point prompts
    together.
+0c. **The thesis COUNT is a parameter, not a prompt output (2026-10-04).** `SurfaceTheses(count=)` /
+   `ingest(count=)` / `analyze(count=)`, `clamp_thesis_count` (None → `DEFAULT_THESIS_COUNT` = 3, max 10);
+   `_parse_intent` parses focus/constraints/domain ONLY and runs only when an `intent` was given. On a
+   multi-window source `_select_candidates` ranks the merged pool in ONE call (`CandidateSelectionDto`,
+   shuffled numbering) instead of taking the first N in document order; the sweep's "N more seen — call
+   again" summary line is what tells the model extraction is incremental. Review any change to the
+   `count + 2` arithmetic below against `MAX_THESIS_COUNT`, not against the old 1..10 clamp; a
+   length-scaled default was argued and rejected (`ingest-and-extraction.md`).
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are

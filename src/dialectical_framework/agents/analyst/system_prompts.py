@@ -215,7 +215,7 @@ When the user wants to explore interactions between perspectives:
 **Granular analysis:**
 - `add_input` — Capture source material before extraction.
 - `anchor_theses` — Anchor named concepts directly as theses (no extraction needed).
-- `surface_theses` — Extract theses from inputs (requires inputs in scope).
+- `surface_theses` — Extract theses from inputs (requires inputs in scope). `count` (default 3) is how many to place per call; incremental — call again for more, the report says how many it saw.
 - `find_polarities` — Find antitheses for existing theses.
 - `introduce_polarity` — Directly introduce a known T-A tension (both sides clear).
 - `expand_polarities` — Expand polarities into full Perspectives (T+/T-/A+/A-). Pass `count > 1` to generate several diverse tetrads per polarity in one call.

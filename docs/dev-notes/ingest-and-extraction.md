@@ -22,3 +22,49 @@ probe before quoting one. The rules distilled from these notes live in CLAUDE.md
 **OPEN, and bigger than the setting above: roughly a THIRD of what step 2 emits is not cleanly supported by its own source, and the instrument saying so is now VALIDATED.** The unpaired per-claim check built for that A/B rated every candidate against the source on its own and returned **36 distorted + 16 invented of 120 claims for the shipped default path** (arm C the same shape, 45.7%). That was recorded here as an unvalidated LEAD; it is no longer one. `tests/e2e/probe_support_validity.py` spikes 84 claims of KNOWN ground truth into REAL batches of arm-A output, judged by the same imported `_support` in the same call as the real claims (a homogeneous control set does not transfer, because `_support` batches a whole candidate list into one call and a claim is judged among its neighbours): **specificity 93% (28/30) [0.79,0.98], sensitivity 100% (45/45) [0.92,1.00]**, verbatim floor 18/18 against a pre-registered 90%, verdict FIT TO QUOTE on pre-registered bands. **The strongest control cost nothing extra and is the one no argument about spike authorship can explain away:** every `foreign` spike IS another document's `verbatim` spike, so all 18 verbatim strings are judged twice with wording held exactly constant — once against the source that states them, once against one that does not — and the judge answered 18/18 supported vs 0/18. Rogan-Gladen corrects the recorded 43.3% to **39.3% [28.0,45.9]**, or **35.0%** if legitimate two-sentence synthesis counts as supported; that class is excluded from the registered primary and real extracted theses often ARE such joins, so **quote 35-39%, and note that pooling all three supported classes reads INDETERMINATE (87%) rather than FIT TO QUOTE** — the exclusion is load-bearing, not cosmetic.
 
 **But the actionable result is that `distorted` and `invented` are NOT one instrument, so the 36 + 16 must not be corrected as one number.** `invented` attracted **ZERO of 39 truly-supported spikes** (0% [0.00,0.09], including every `combined`) while catching **27/27** truly-absent ones, so the **16 invented — 13.3% — needs no correction and is quotable as it stands**: that is content not in the source at all. Every false positive in the run was a `distorted` (5/39, 13%), so the **36 distorted (30%) corrects to 24.4%**. The two sum to ~38%, which is why the pooled figures bracket it. The named suspicion is CONFIRMED as the mechanism and sized: verbatim 100% vs compressed 83%, a +17pp gap against a pre-registered 15pp bar, and all five misses were stable across two byte-identical passes (`['distorted','distorted']` each), so this is a systematic reading of compression and synthesis, not judge noise. Test-retest 94% over 120 items; the spiked composition did not move the judge (11/36 [0.18,0.47] overlaps the recorded 52/120 [0.35,0.52], so the registered condition on transferring specificity back is NOT triggered). **So extraction quality is a real defect of the size the lead claimed, and the instrument is no longer the thing to doubt — but the correct target is `distorted`-class over-reading of compression, and the hard core is the 13% invented.** **The lesson that generalises past this finding: `probe_step2_isolate_ab.py` printed a RATE and persisted no per-item verdict, so the original 44% could not be audited at any price short of re-running it.** An instrument that emits a rate must persist per-item verdicts or its output is unfalsifiable by construction — which is also how this validation got its `combined` pricing, its per-label decomposition and its list of the five specific misjudged claims for free, after the run, with no further provider spend.
+
+## The thesis count is a parameter; placement covers the whole source (2026-10-04)
+
+Three defects, found when "documents get three tensions" was questioned and two
+subagents (an adversarial reviewer and a site mapper) checked the proposed fix:
+
+1. **The count lived inside `intent`.** `_parse_intent`, an LLM call, read a number
+   out of the free-text intent and defaulted to 3; no tool exposed a count, so the
+   Advisor's `ingest` always got 3 per call and could only widen blind. A tool
+   argument that is both a literal and an instruction to re-interpret is the
+   repo's own anti-pattern. Now: `count` on `surface_theses`, `ingest`, `analyze`,
+   `AnalysisPipeline`, `SurfaceTheses` (`clamp_thesis_count`: None → 3, else
+   1..10); `ParsedIntentDto` has no `count`; the prompt says the number is not the
+   parser's to decide. The reviewer REJECTED a length-scaled default — length is a
+   poor proxy for how many tensions a text holds, and it would have papered over
+   defect 2 — so the default stays a flat 3 with more one `count=` or one call away.
+2. **On a long source, placement was the first N in document order.** The sweep
+   reads every window (`_sweep_windows`), merges candidates in document order, and
+   took `candidates[:target_count]` — a thirty-page source fully read and page one's
+   first three placed; nothing from page two onward ever became a Statement. No
+   test pinned it (the sweep tests use one candidate per window or `count ==
+   windows`). Now `_select_candidates`: ONE comparative ranking over the merged pool
+   (`CandidateSelectionDto`, shuffled numbering as `OptimumARankingDto`), top
+   `count` placed, fail-soft to the positional cut, recorded as
+   `candidate_selection: ranked|positional`; no call when the pool is not larger
+   than the count. Note `ThesisExtraction` hard-caps each call at 4, so the old
+   1..10 clamp only ever multiplied retry attempts.
+3. **The intent parser fired with nothing to parse.** `AnalysisPipeline`
+   substituted "extract key theses from the input" when no intent was given, so
+   the call ran on every ingest. Now `intent` passes through as None and no call is
+   made; `Ideas` keeps the label.
+
+Plus a REPORT line rather than prompt prose (prune, don't instruct): when the sweep
+saw more candidates than it placed, the summary ends "N more candidate tension(s)
+seen in the material; call again (or pass a larger `count`) to place them" — the
+same shape as the pipeline's "strong tension(s) NOT expanded — call again". Both
+engine prompts name `count` and the incrementality in one sentence.
+
+Incrementality itself was already real and is still soft: `not_like_these` is the
+case's whole vocabulary, so a second call avoids the first's theses by instruction,
+and `StatementDeduplication` folds a near-repeat onto the existing node. Two traps
+the reviewer found, recorded and NOT fixed: a re-extracted thesis that survives dedup
+makes `FindPolarities` build NEW antitheses around an old thesis (the ladder paid
+again); and `ingest(text=same, intent=narrow)` re-runs `ensure_digest(refresh=True)`,
+which REFINES the digest toward the new intent and replaces the broad digest every
+downstream prompt reads. Tests: `tests/test_extraction_count.py`.

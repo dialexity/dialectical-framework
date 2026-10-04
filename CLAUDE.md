@@ -277,7 +277,7 @@ All DB queries must go through `graph/repositories/` classes, scoped by `sid`. N
 
 ### Tool Parameter Clarity: No Double-Duty Strings
 
-A tool parameter must not be both "literal value" AND "instructions for an inner LLM to interpret." If a tool needs two modes, split it into two tools rather than adding an `intent` string an inner LLM must re-interpret. Reference: `anchor_theses` (literal statements) vs `surface_theses` (extraction instructions).
+A tool parameter must not be both "literal value" AND "instructions for an inner LLM to interpret." If a tool needs two modes, split it into two tools rather than adding an `intent` string an inner LLM must re-interpret. Reference: `anchor_theses` (literal statements) vs `surface_theses` (extraction instructions). The rule's own repair, 2026-10-04: `surface_theses`/`ingest`/`analyze` take an explicit `count` (`clamp_thesis_count`, default `DEFAULT_THESIS_COUNT = 3`, max 10) — the number used to be read out of `intent` by an LLM call that fired on every ingest even with nothing to parse; now `intent` is focus/constraints/domain only, parsed only when given.
 
 ---
 
@@ -347,7 +347,7 @@ All nodes share `sid` from their Case. Enforced at connect time. Use `with scope
 
 `Input.digest`: mutable field (excluded from hash) storing LLM-generated understanding of a source. Populated by `SourceDigest`; content <1500 chars skips the LLM. **A source larger than one prompt is READ IN PARTS** (`utils/chunking.py`, `CHUNK_SIZE = 40_000`): one reading per part, then one reduce; coverage is the guarantee. Fitting sources keep the single-pass prompt byte-for-byte; each part gets a FRESH `ConversationFacilitator`; media is never chunked (branch on TYPE, not size). Whoever adds the input, digests it — via `ensure_digest()` (`concerns/source_digest.py`), which takes a **hash, not the node** (`commit()` returns the caller's fresh object on a dedup hit). `refresh=True` only where there is a fresh intent (`ingest`).
 
-**Consumption:** skills use `input_context()` (`utils/input_context.py`) — digests in `<Input id="{hash}">` tags, falling back to content. **Bounded**: `INPUT_CONTEXT_BUDGET` (24k chars) shared across Inputs by water-filling; a cut announces itself. Exception: `surface_theses` needs raw content, so it **SWEEPS**: chunks the source, runs `ThesisExtraction.extract_candidates` per window (`MAX_CONCURRENT_WINDOW_SWEEPS = 3`), merges in document order, then ONE `classify_candidates` over the survivors, each candidate classified against its own window. Extraction has no query, so retrieval is the wrong tool here. Tools: `read_digest` | `read_input` | `digest_input`.
+**Consumption:** skills use `input_context()` (`utils/input_context.py`) — digests in `<Input id="{hash}">` tags, falling back to content. **Bounded**: `INPUT_CONTEXT_BUDGET` (24k chars) shared across Inputs by water-filling; a cut announces itself. Exception: `surface_theses` needs raw content, so it **SWEEPS**: chunks the source, runs `ThesisExtraction.extract_candidates` per window (`MAX_CONCURRENT_WINDOW_SWEEPS = 3`), merges in document order, then ONE `classify_candidates` over the survivors, each candidate classified against its own window. **The survivors are chosen by ONE comparative ranking over the merged pool** (`_select_candidates`, `CandidateSelectionDto`, fail-soft to the positional cut) — until 2026-10-04 they were `candidates[:count]` in document order, so a thirty-page source was fully read and only page one's first theses were ever placed; the rest are now reported as "N more candidate tension(s) seen — call again", the artifact that teaches the model extraction is incremental. Extraction has no query, so retrieval is the wrong tool here. Tools: `read_digest` | `read_input` | `digest_input`.
 
 **`settings.extraction_step2_carries_source` (True) is a DECLINED lever — closed, not a to-do.** Step 2 re-sends the whole window once per extracted item (75% of a large ingest's tokens), and the elided arm saves 6.7x, but four A/B runs returned a different faithfulness verdict each time; the default stays because no stable positive result exists, NOT because the elided arm was shown worse. Three lessons: the decision metric must be the fields the code branches on; a pairwise LLM judge carries set SIZE and POSITION as nuisance variables, prefer an unpaired per-item rating; a verdict is provisional until it reproduces. **OPEN and bigger: ~35-39% of what step 2 emits is not cleanly supported by its own source, 13% invented outright** — the instrument (`tests/e2e/probe_support_validity.py`) is validated (specificity 93%, sensitivity 100%), `invented` needs no correction, `distorted` over-reads compression. This is a real extraction-quality defect. An instrument that emits a rate must persist per-item verdicts. Full record: `docs/dev-notes/ingest-and-extraction.md`.
 
@@ -426,10 +426,11 @@ Two-layer: `ReasonableConcern[T]` (implementation) + `@llm.tool` function (LLM-f
 ```python
 @llm.tool
 async def surface_theses(
-    intent: Annotated[str, Field(description="What theses to find")],
+    intent: Annotated[str | None, Field(description="What to look for")] = None,
+    count: Annotated[int | None, Field(description="How many to place")] = None,
 ) -> str:
     """Surfaces theses for dialectical analysis."""
-    skill = SurfaceTheses(intent=intent)
+    skill = SurfaceTheses(intent=intent, count=count)
     await skill.resolve()
     return str(skill.report)
 ```

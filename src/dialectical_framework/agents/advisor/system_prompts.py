@@ -689,7 +689,9 @@ _TOOL_DOCS: dict[str, str] = {
   named a clear position (or an explicit either/or), prefer `anchor` — it is
   more reliable than extraction. Do NOT ingest greetings or small talk. When
   pre-loaded sources exist (shown in the dump under Sources), call ingest with
-  just an `intent` to extract tensions from them without new text.""",
+  just an `intent` to extract tensions from them without new text. It places a
+  few tensions per call (`count`, default 3) and is INCREMENTAL: its report
+  says how many more it saw, and calling again places the ones not yet placed.""",
     "anchor": """- `anchor` — Plants a specific tension from the conversation. More precise
   than ingest; use when you can see at least the person's position. Two modes:
   - Thesis + antithesis: you know both sides — creates one polarity and one
