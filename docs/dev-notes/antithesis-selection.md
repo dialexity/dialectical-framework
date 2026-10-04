@@ -1160,6 +1160,16 @@ no deployment chooses them, a measurement does. The runners-up a build returns
 `SketchTetrad(sketch=)` — the "another" door; the pre-MVP notebook is left to the app
 session to wire.
 
+**Replication for the staged writer (pre-registered 2026-10-04, owner's ask: "run the documents
+replication so the Analyst gets best-of-3 too").** Four runs the same afternoon, same model,
+sequential: `TETRAD_PROBE_ATTEMPTS=3` and the single draw, each on the five public texts and
+the five authored ones (`INGEST_DOC_SET=public|authored`), so the control is a fresh
+generation and not yesterday's file. Pooled over both sets (~40–50 tetrads an arm), the
+staged default moves to 3 if: CC (fresh judge) is at least 10 points above the same-day
+single-draw arm; the genuine-position rate is not more than 5 points below it; restated
+plus slots do not double; median seconds per document ≤ 1.3× the single-draw arm. Any
+miss keeps `DEFAULT_ASPECT_ATTEMPTS = 1` and records the figures. Unpaired by construction.
+
 **Open beside it, not in it:** calibrating the 0.7 line needs two human raters on
 a blind sheet (15 pass / 15 fail near the line, scores hidden) — the sheet is a
 framework task (`tests/e2e/calibration_sheet.py` → `results/tetrad_quality/calibration_sheet.md`,
