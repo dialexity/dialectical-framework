@@ -349,7 +349,9 @@ class Consultant:
         """The conversation so far — the only state this head has."""
         return self._conversation._messages
 
-    async def exploration_view(self, focus: Optional[str] = None) -> ExplorationView:
+    async def exploration_view(
+        self, focus: Optional[str] = None, attempts: Optional[int] = None
+    ) -> ExplorationView:
         """The structure of this conversation as a view — drawn by this head.
 
         The same name as `graph/views.py::exploration_view` because it is the
@@ -380,21 +382,48 @@ class Consultant:
             ViewSketchDto, exploration_view_from_sketch, history_ask,
             history_text, view_sketch_prompt)
 
+        import asyncio
+
+        from dialectical_framework.concerns.tetrad_candidates import (
+            clamp_attempts, select_sketch)
+
         level = self._conversation._thinking_kwargs().get("thinking")
-        sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
         history = self._conversation._messages
-        sketch_turn._messages = history  # the same list: one history
-        before = len(history)
-        sketch = await sketch_turn.submit(
-            ViewSketchDto,
-            view_sketch_prompt(focus, self._conversation.settings.component_length),
-        )
+        request = view_sketch_prompt(focus, self._conversation.settings.component_length)
+
+        async def draw() -> ViewSketchDto:
+            # Each draw works on a COPY of the history: the turns run in
+            # parallel and none of them may write into the record the others
+            # read. What the view leaves behind is appended once, below.
+            sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
+            sketch_turn._messages = list(history)
+            return await sketch_turn.submit(ViewSketchDto, request)
+
+        n = clamp_attempts(attempts)
+        drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
+        sketches = [d for d in drawn if not isinstance(d, BaseException)]
+        if not sketches:
+            raise next(d for d in drawn if isinstance(d, BaseException))
+        # With several draws the framework's own coherence check picks the one
+        # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
+        # draw with no complete first tension sorts last. The card a blindspot
+        # screen shows is that first tension.
+        if len(sketches) > 1:
+            firsts = [s.tensions[0] if s.tensions else None for s in sketches]
+            judgeable = [i for i, t in enumerate(firsts) if t is not None and all(
+                (getattr(t, k) or "").strip() for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus"))]
+            if len(judgeable) > 1:
+                best_among, _verdicts = await select_sketch([firsts[i] for i in judgeable])
+                sketch = sketches[judgeable[best_among]]
+            else:
+                sketch = sketches[judgeable[0]] if judgeable else sketches[0]
+        else:
+            sketch = sketches[0]
         view = exploration_view_from_sketch(sketch)
         # What the turn leaves behind is NOT what it sent: the long request and
         # the DTO come off, and the person's ask plus the drawing in words go
         # on. Kept as a request→prose pair, the long request taught the next
         # view turn to answer in prose (`view_sketch.history_ask`).
-        del history[before:]
         history.append(llm.messages.user(history_ask(focus)))
         history.append(
             llm.messages.assistant(history_text(view), model_id=None, provider_id=None)

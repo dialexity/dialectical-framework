@@ -16,6 +16,7 @@ the same three auditors, and pairs them against the pre-ask file.
 from __future__ import annotations
 
 import asyncio
+import os
 import collections
 import json
 import time
@@ -52,7 +53,8 @@ async def _draw(text: str) -> dict:
     )
     started = time.perf_counter()
     try:
-        view = await head.exploration_view(focus=FOCUS)
+        attempts = int(os.environ.get("VIEW_TURN_ATTEMPTS", "1") or 1)
+        view = await head.exploration_view(focus=FOCUS, attempts=attempts)
     except Exception as exc:  # noqa: BLE001 — a probe records failure
         return {"utterance": text, "error": repr(exc), "seconds": round(time.perf_counter() - started, 1)}
     first = view.perspectives[0] if view.perspectives else None
@@ -78,8 +80,11 @@ async def test_view_turn_with_the_ask(di_container) -> None:
     print(f"\n=== view turn WITH the opposing-position ask: {len(utterances)} utterances → {out}", flush=True)
 
     rows: list[dict] = []
-    for start in range(0, len(utterances), 10):
-        rows += await asyncio.gather(*(_draw(u) for u in utterances[start : start + 10]))
+    # Ten draws in flight; with VIEW_TURN_ATTEMPTS=N each draw is N calls, so
+    # the batch shrinks to keep the same number of provider calls in flight.
+    batch = max(1, 10 // int(os.environ.get("VIEW_TURN_ATTEMPTS", "1") or 1))
+    for start in range(0, len(utterances), batch):
+        rows += await asyncio.gather(*(_draw(u) for u in utterances[start : start + batch]))
         out.write_text(json.dumps(rows, indent=2, ensure_ascii=False))
         print(f"  drawn {len(rows)}/{len(utterances)}", flush=True)
 

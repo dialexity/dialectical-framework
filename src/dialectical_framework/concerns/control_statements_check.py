@@ -255,6 +255,30 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
         self._build_report(result)
         return result
 
+    async def score_texts(
+        self,
+        *,
+        t_plus: str,
+        t_minus: str,
+        a_plus: str,
+        a_minus: str,
+        text: str = "",
+    ) -> tuple[CoherenceEvaluationDto, CoherenceEvaluationDto]:
+        """The two control statements on bare texts — no Perspective, no graph.
+
+        What `resolve` does after reading the four aspects off a committed
+        node, offered to callers that hold a tetrad as text: the best-of-N
+        selector (`concerns/tetrad_candidates.py`) and the harness. Built with
+        the same quoting as `resolve`'s statements so a verdict here is the
+        same question as the one asked after persistence.
+        """
+        stmt_1 = f'"{t_plus}" without "{a_plus}" yields "{t_minus}"'
+        stmt_2 = f'"{a_plus}" without "{t_plus}" yields "{a_minus}"'
+        return await asyncio.gather(
+            self._evaluate_control_statement(stmt_1, text),
+            self._evaluate_control_statement(stmt_2, text),
+        )
+
     async def _evaluate_control_statement(
         self,
         statement: str,

@@ -44,6 +44,8 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
@@ -394,6 +396,11 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         # human-readable name of THIS reading of the tension. Disclaimer
         # axes ("no shared dimension...") are filtered to None.
         self.axes: dict[str, str] = {}
+        #: Full-tetrad draws per call (`concerns/tetrad_candidates.py`; None =
+        #: its default). Set by `resolve(attempts=)`; read in `_generate_tetrad`.
+        self._attempts: Optional[int] = None
+        #: The chosen draw's verdict when more than one was drawn, else None.
+        self.verdict = None
 
     async def resolve(
         self,
@@ -401,6 +408,7 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         positions: Optional[list[str]] = None,
         text: str = "",
         not_like_these: Optional[list[Perspective]] = None,
+        attempts: Optional[int] = None,
     ) -> list[AspectResult]:
         """
         Generate aspects for a Perspective.
@@ -422,6 +430,8 @@ class AspectGeneration(ReasonableConcern[list[AspectResult]], SettingsAware):
         self._pp = perspective
         self._text = text
         self.axes = {}
+        self._attempts = attempts
+        self.verdict = None
 
         # Extract T and A from Perspective
         t_result = perspective.t.get()
@@ -633,12 +643,43 @@ For each of the four, rate:
         NOT what separates this path from the Consultant's view turn (24/40 on
         the same judge); see docs/dev-notes/antithesis-selection.md.
         """
-        existing_context = self._build_existing_aspects_context(positions)
+        from dialectical_framework.concerns.tetrad_candidates import (
+            DEFAULT_ASPECT_ATTEMPTS, clamp_attempts, is_complete, select_sketch)
 
-        result = await self._conversation.submit(
-            response_model=TetradDto,
-            user_content=self._tetrad_prompt(existing_context),
-        )
+        existing_context = self._build_existing_aspects_context(positions)
+        prompt = self._tetrad_prompt(existing_context)
+
+        # Best-of-N, the same selection the one-shot writer runs: N draws of
+        # this very request in PARALLEL on fresh facilitators (the shared one
+        # would interleave their histories), the framework's own control
+        # statements judge each, the best is kept and the rest are reported.
+        # One draw is the call as it always was — no judging, nothing extra.
+        n = clamp_attempts(self._attempts, DEFAULT_ASPECT_ATTEMPTS)
+        if n == 1:
+            result = await self._conversation.submit(
+                response_model=TetradDto, user_content=prompt
+            )
+        else:
+            async def draw() -> TetradDto:
+                conversation = ConversationFacilitator()
+                conversation.set_system_prompt(SYSTEM_PROMPT)
+                return await conversation.submit(response_model=TetradDto, user_content=prompt)
+
+            drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
+            candidates = [d for d in drawn if not isinstance(d, BaseException) and is_complete(d)]
+            if not candidates:
+                errors = [d for d in drawn if isinstance(d, BaseException)]
+                if errors:
+                    raise errors[0]
+                raise ValueError("Every drawn tetrad left a position blank")
+            best, verdicts = await select_sketch(candidates, self._text)
+            result = candidates[best]
+            self.verdict = verdicts[best]
+            self._report.artifacts["attempts"] = {
+                "drawn": len(candidates),
+                "selected": best,
+                "floors": [None if v is None else round(v.floor, 2) for v in verdicts],
+            }
 
         self._capture_axis("t_plus_vs_a_minus", result.t_plus_vs_a_minus_axis)
         self._capture_axis("a_plus_vs_t_minus", result.a_plus_vs_t_minus_axis)

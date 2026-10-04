@@ -578,8 +578,12 @@ from), made by a structured TURN on this same conversation — full history, bot
 own system prompt — that renders what is established and builds what `focus` asks for that
 is not yet worked out (`concerns/view_sketch.py`). It thinks (json mode) and it is
 kept in `messages` as the consultant's own words, so the next turn knows what it drew. No
-hash, alias or score exists to strip; nothing is checked (no HS gate, no validation, no
-dedup) and nothing is persisted. The model cannot call it; the host owns the trigger.
+hash, alias or score exists to strip; nothing is validated (no HS gate, no validation flag, no
+dedup) and nothing is persisted. `attempts=` (default `DEFAULT_SKETCH_ATTEMPTS`, max 3,
+`concerns/tetrad_candidates.py`) draws that many in parallel, each on a copy of the history,
+and the framework's own control statements pick the one that holds best — the agent checking
+its work before the person sees it; the record lands in `messages` once. The model cannot
+call it; the host owns the trigger.
 The Advisor has the same method over its graph: `await advisor.exploration_view()` resolves
 the pin (that exploration, numbered as the prompts number it; else every active perspective
 in the Case) and applies `hides_terminology` itself, so a persona app and a Navigator get the

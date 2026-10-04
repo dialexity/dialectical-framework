@@ -51,8 +51,9 @@ def fake_tetrad_sketch(monkeypatch, tension: ViewSketchPerspectiveDto = SKETCH) 
     """
     seen: list[dict] = []
 
-    async def fake(self, material, context="", thesis=None):
-        seen.append({"material": material, "context": context, "thesis": thesis})
+    async def fake(self, material, context="", thesis=None, attempts=None):
+        seen.append({"material": material, "context": context, "thesis": thesis,
+                     "attempts": attempts})
         self._report.ok = True
         return tension
 
@@ -253,7 +254,7 @@ class TestTheSkill:
         from dialectical_framework.graph.repositories.perspective_repository import \
             PerspectiveRepository
 
-        async def fake_sketch(self, material, context="", thesis=None):
+        async def fake_sketch(self, material, context="", thesis=None, attempts=None):
             # the material is what the Input renders, not a text the host repeats
             assert UTTERANCE in material and "<Input id=" in material
             assert thesis is None, "a host's paste pins nothing; the call finds the position"
@@ -297,6 +298,27 @@ class TestTheSkill:
             assert skill.report.ok is False
 
     @pytest.mark.asyncio
+    async def test_a_runner_up_is_persisted_without_a_new_reasoning_call(self, monkeypatch):
+        """`SketchTetrad(sketch=)`: a previous build's alternative, kept on the
+        person's "another" — classified, scored and validated like a fresh one,
+        but the reasoning call is not made again."""
+        from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
+            SketchTetrad
+
+        async def boom(self, *args, **kwargs):
+            raise AssertionError("a given sketch is not re-drawn")
+
+        monkeypatch.setattr(TetradSketch, "resolve", boom)
+        case = Case()
+        case.commit()
+        with scope(case.sid):
+            skill = SketchTetrad(sketch=SKETCH, context="He holds 45%.")
+            pps = await skill.resolve()
+        assert len(pps) == 1
+        assert pps[0].t.get()[0].text == SKETCH.thesis
+        assert skill.report.artifacts["sketch"]["a_plus"] == SKETCH.a_plus
+
+    @pytest.mark.asyncio
     async def test_a_pinned_thesis_with_no_input_builds_from_the_thesis(self, monkeypatch):
         """The Advisor's `anchor` off the turn: no Input, the thesis pinned."""
         from dialectical_framework.agents.analyst.skills.sketch_tetrad import \
@@ -308,7 +330,7 @@ class TestTheSkill:
         with scope(case.sid):
             pps = await SketchTetrad(thesis="Quit and start my own company", context="He holds 45%.").resolve()
         assert len(pps) == 1
-        assert seen == [{"material": "", "context": "He holds 45%.", "thesis": "Quit and start my own company"}]
+        assert seen == [{"material": "", "context": "He holds 45%.", "thesis": "Quit and start my own company", "attempts": None}]
 
 
 @pytest.mark.llm

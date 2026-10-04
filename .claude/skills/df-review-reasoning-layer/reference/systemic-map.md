@@ -1937,6 +1937,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    again" summary line is what tells the model extraction is incremental. Review any change to the
    `count + 2` arithmetic below against `MAX_THESIS_COUNT`, not against the old 1..10 clamp; a
    length-scaled default was argued and rejected (`ingest-and-extraction.md`).
+0d. **Best-of-N selection sits BETWEEN the tetrad call and persistence, on BOTH writers, and it is selection only (2026-10-04).**
+   `concerns/tetrad_candidates.py`: `TetradSketch.resolve(attempts=)` and the staged
+   `AspectGeneration._generate_tetrad` (via `resolve(attempts=)` / `ExpandPolarity(attempts=)`) draw N identical
+   requests in parallel (fresh facilitator each; the view turn on COPIES of its history) and `select_sketch` ranks them by the
+   framework's own control statements (`ControlStatementsCheck.score_texts` — the SAME two statements
+   `_validate_and_flag` scores after commit, built from the same words; a verdict here and one taken
+   later are the same question). Review points: (a) the judge never sees T/A, so it passes a MIRROR
+   antithesis more readily than a position — any change that feeds the verdict BACK into generation turns
+   selection into regeneration and converges on coherent strawmen; measure the antithesis kind beside CC;
+   (b) one candidate is never judged (`attempts=1` must stay today's cost); (c) the request is byte-for-byte
+   the single-draw request — a per-attempt prompt variation would make the selection a prompt comparison
+   (the archive's 87.5% view-turn figure has that caveat); (d) the selection's own verdict flatters the
+   winner (max of noisy reads) — the honest number is a FRESH judge pass, which is what the probes report.
+   Defaults differ per writer (`DEFAULT_SKETCH_ATTEMPTS = 3`, `DEFAULT_ASPECT_ATTEMPTS = 1`) because they were
+   measured apart; the three pre-registered runs and the decision: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
    verdict on the *generated wording* routes the entire antithesis path. Wording that reads as a bare fact flips
    COMPLEX→SIMPLE → mechanical negation with **HS hardcoded 1.0**. Two classes the bare rule reads as facts are

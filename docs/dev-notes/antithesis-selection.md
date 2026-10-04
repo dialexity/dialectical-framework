@@ -1036,3 +1036,131 @@ ask for more was a number inside `intent` — CLOSED 2026-10-04, see
 candidates are ranked across windows instead of cut in document order), and the
 per-document cost is 77–101 calls, ~2 minutes (open). One generation, five texts:
 a baseline to pair against, not a result.
+
+## Best-of-N: the agent checks its own tetrad before anyone sees it (pre-registered 2026-10-04)
+
+**The question.** Both one-shot surfaces are coherent about half the time (view turn
+with the ask 25/40, build 21/40 on sets A+B). The owner's position: the person may
+polish, but it is the agent that should reach quality — manual polishing is steering
+an agent during its quality pursuit. Four readings of the existing draws, 2026-10-04:
+
+- **The judge is stable and roughly valid, with known blind spots.** Re-judging the
+  same 40 texts agreed with the stored verdict on 92%; ~10% of scores sit within
+  0.05 of the 0.7 rule, which is where the disagreement lives. A blind read of 24
+  verdicts by a second judge prompt agreed on 18. It never sees T or A — it scores
+  the four aspects' coherence — so a MIRROR antithesis passes more readily than a
+  position (its aspects are the thesis's own, reflected). The 0.7 line was never
+  calibrated against a human read. DV is scored in the same call and is redundant
+  with CC (0.96 corr on the archive): a DV gate would be the CC gate twice.
+- **The failure is over-dispersed: part pair, part draw.** Across the generations
+  that drew the same utterance more than once, a third to a half of the failure
+  variance sits with the PAIR (8/40 utterances failed on every draw) and the rest
+  with the DRAW — the same T/A pair passing on one roll and failing on the next.
+  The draw share is what a second roll buys back; the pair share needs a
+  different tension, not another roll.
+- **The dominant defect by eye is the hedged plus** (9 of 13 failures read): a T+
+  that is "T, but moderately" rather than T developed so that A's good arrives
+  too — the verifier's "T+ without A+ yields T-" then has nothing to yield.
+- **Keep-any-passing-draw, counted on the existing files:** the build's pass rate
+  goes 52.5% → 72.5% with two draws → 80% with three (the same 40 pairs, the draws
+  already stored); the view turn's best-of-three reads 87.5%, with the caveat that
+  its three draws came from three prompt variants, not three rolls of one.
+
+**The lever: `attempts` — N sketches in parallel, the framework's own control
+statements judge each, the best is kept** (`concerns/tetrad_candidates.py`;
+`TetradSketch.resolve(attempts=)`, `SketchTetrad(attempts=)`,
+`Consultant.exploration_view(attempts=)`). Ranking: the weaker control statement
+first (the pass rule), then the mean, then the earlier draw; a judging that fails
+sorts last; one candidate is never judged, so `attempts=1` is today's call for
+today's cost. The runners-up come back with their verdicts (`SketchTetrad.alternatives`,
+the `attempts` artifact) — a person's "another" can be one of them without a new
+reasoning call; nothing but the winner is persisted. Capped at 3: a fourth draw
+buys ~3 points for a third more cost. **What it is not:** a loop that regenerates
+from the verdict. The judge rewards mirrors, so a generation steered by it would
+converge on coherent strawmen — the 2026-09-30 shape by another road. Selection
+among independent draws is bounded by what the prompt already asks for;
+regeneration is not. The antithesis kind is therefore measured beside the pass
+rate, and a run that raises CC by lowering `position` fails.
+
+**Pre-registration.** Same 40 utterances (sets A+B), one generation each, `attempts=3`
+on both surfaces, scored by the probes' FRESH judge pass (`_judge`, a separate call
+on the winner's texts — the selection's own verdict is the max of three noisy reads
+and would flatter it) and the three auditors:
+
+| surface | baseline | ship bar (fresh judge) | must not move | screen |
+|---|---|---|---|---|
+| view turn (`VIEW_TURN_PROBE_TAG=attempts3 VIEW_TURN_ATTEMPTS=3`) | CC 25/40, position 39/40, 8 s median | CC ≥ 30/40 (75%) | position ≥ 37/40, restated ≤ 10/80 | median ≤ 16 s |
+| build (`TETRAD_PROBE_ATTEMPTS=3`, default mode) | CC 21/40, position 37/40, 23–28 s | CC ≥ 28/40 (70%) | position ≥ 35/40, restated ≤ 10/80 | median ≤ 35 s |
+
+| documents, staged writer (`TETRAD_PROBE_ATTEMPTS=3 INGEST_DOC_SET=public`, `probe_ingest_documents.py`; added to the registration before its run, after the view-turn result and during the build's) | CC 14/25, position 17/25, restated 1/50, median 113 s/document | CC ≥ 18/25 (72%) | position ≥ 16/25, restated ≤ 5/50 | median ≤ 150 s/document |
+
+Pass on both: `DEFAULT_SKETCH_ATTEMPTS` becomes 3 and the notebook's "another"
+serves a runner-up first. Pass on one: the default moves on that surface's caller
+only, and the record says why the other did not follow. Fail: the parameter stays
+at 1, available to a host, and the next lever is the hedged plus at the prompt
+(measured on the downstream judge, as the aspect prompt was). Cost is three
+reasoning calls plus six short judge calls per tetrad in either case; latency is
+the longest of three parallel calls plus one judge round.
+
+**RESULT, view turn (2026-10-04, `view_turn_attempts3-20261004-104227.json`, 40/40 drawn,
+0 errors):** CC **36/40 (90%)** against the ask baseline's 25/40 — paired 24 both / **12 only
+after / 0 only before** / 4 neither; the bar (≥ 30) is cleared and the sign is resolved.
+Antithesis a position **36/40** against the bar's 37 (baseline 39): kind transitions
+position→position 36, position→mirror 2, position→not_an_opposition 1, mirror→mirror 1 — the
+two new mirrors are the auditor's thin line ("Keep offering help regardless of what they do
+with it" against the baseline's "Keep offering support as act of friendship"), not the
+2026-09-30 caricature. Restated plus slots **12/80** against the bar's 10 (baseline 10/80);
+T+/A+ `same_compromise` 11/40 against 18/40 before. Latency median **15.0 s** (bar 16, baseline
+8). Reading: the primary bar passes resolved; both "must not move" conditions miss by one and
+two counts at n = 40, inside their own intervals, with no sign of mirror convergence in the
+pairwise kinds. A pass to replicate, not a pass — see the decision below.
+
+**RESULT, build (2026-10-04, `set_a-default-att3-off00-20261004-105901.json` +
+`set_b-default-att3-off00-20261004-111403.json`, 40/40 built, 0 errors; the post-commit
+validation is the fresh read — a separate call on the persisted texts):** CC **30/40
+(75%)** against the 2026-10-01/02 default runs' 20/40 on the same utterances — paired
+17 both / **13 only after / 3 only before** / 7 neither; bar ≥ 28 cleared. Antithesis a
+position **36/40** (bar 35; baseline 37/40; kinds {'position': 36, 'not_an_opposition': 2, 'mirror': 2}). Restated **9/80** (bar 10;
+baseline 6/80). `same_compromise` 19/40 against 20/40. Latency median **33.8 s** (bar 35;
+baseline 35.25 s on those runs, which predate the phase overlap that brought the single draw
+to 23–28 s — so three draws plus the judge round cost the turn roughly 6–10 s). Every
+pre-registered condition holds on this surface.
+
+**Documents, first launch (2026-10-04 11:29): hung, not slow.** After 63 minutes the probe
+process had used 7 s of CPU and exchanged 4.5 KB with the provider on ONE established
+Bedrock connection — the Anthropic SDK stall shape (`streaming-latency-and-retry.md`: a
+600 s read timeout below `use_brain`'s ladder, invisible to the retry account), not a
+throttle ladder (which would show many short requests). Killed, Memgraph restarted,
+relaunched with `-o faulthandler_timeout=1500` so a repeat dumps its stacks.
+
+**RESULT, documents (2026-10-04, second launch, `ingest_documents-public-att3-20261004-122203.json`,
+5/5 documents, 0 errors):** CC **15/21 (71%)** against the baseline's 14/25 (56%) — the bar
+was 72%, missed by six tenths of a point on a different tetrad count (the pipeline placed
+21 tetrads this time, 25 last time; three theses per document both times). Antithesis a
+position **13/21 (62%)** against 17/25 (68%) and the bar's 64%. Restated 2/42 (bar 5/50;
+baseline 1/50). `same_compromise` 4/21. Median **116 s** and **121 calls** per document against
+113 s and 87–96 calls (bar 150 s). Per document: civil_disobedience 5/5 (positions 3, 124 calls, 118.6 s); federalist_10 3/3 (positions 3, 92 calls, 82.5 s); on_liberty_ch1 2/3 (positions 1, 97 calls, 116.1 s); self_reliance 3/5 (positions 2, 123 calls, 121.2 s); subjection_of_women 2/5 (positions 4, 121 calls, 106.4 s).
+Reading: the point estimate moved fifteen points in the right direction and the position
+rate six points in the wrong one, on 21 tetrads with a 50–86% interval — unresolved on
+both counts, and the pre-registered bar is not met. Unpaired by construction (the
+extracted theses differ run to run), so no sign test is available here.
+
+**Decision (2026-10-04): two defaults, one per writer, because the two writers were
+measured apart.** `DEFAULT_SKETCH_ATTEMPTS = 3` for the one-shot writer: the build cleared
+every condition and the view turn cleared its primary bar resolved (12 up / 0 down), its two
+side conditions one and two counts short at n = 40 with no mirror convergence in the
+pairwise kinds — shipped as a pass that owes a replication of the side conditions, said
+plainly rather than re-read as a pass. `DEFAULT_ASPECT_ATTEMPTS = 1` for the staged writer:
+the document point estimate is encouraging and unresolved, the position rate dipped, and
+the cost is +25% calls per document; a second generation on the five public texts plus the
+authored five (n ≈ 45) decides, with `TETRAD_PROBE_ATTEMPTS=3` on `probe_ingest_documents.py`
+already wired. Both are module constants with the figures in their comment, not settings:
+no deployment chooses them, a measurement does. The runners-up a build returns
+(`SketchTetrad.alternatives`) can be persisted without a new reasoning call through
+`SketchTetrad(sketch=)` — the "another" door; the pre-MVP notebook is left to the app
+session to wire.
+
+**Open beside it, not in it:** calibrating the 0.7 line needs two human raters on
+a blind sheet (15 pass / 15 fail near the line, scores hidden) — the sheet is a
+framework task (`tests/e2e/calibration_sheet.py` → `results/tetrad_quality/calibration_sheet.md`,
+key beside it, 30 tetrads whose weaker score sits in 0.60–0.75), the second rater is not.

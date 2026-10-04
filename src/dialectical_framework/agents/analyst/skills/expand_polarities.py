@@ -91,9 +91,14 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
         count: int = 1,
         grounding_context: Optional[str] = None,
         given_tetrad: Optional[GivenTetrad] = None,
+        attempts: Optional[int] = None,
     ) -> None:
         self.polarity_hash = polarity_hash
         self.count = max(1, count)
+        #: Full-tetrad draws per generated perspective, the best kept by the
+        #: coherence check (`concerns/tetrad_candidates.py`; None = its
+        #: default). A given tetrad is scored, not drawn, so it ignores this.
+        self.attempts = attempts
         #: A tetrad already written by one reasoning call (the one-shot path,
         #: `SketchTetrad`): scored by `AspectGeneration.score_given` instead of
         #: generated, then deduped, named, committed, grounded and validated
@@ -175,6 +180,7 @@ class ExpandPolarity(ReasonableConcern[list[Perspective]]):
                     perspective=pp,
                     text=input_text,
                     not_like_these=not_like_these,
+                    attempts=self.attempts,
                 )
             self._report = self._report.merge(generator.report)
 

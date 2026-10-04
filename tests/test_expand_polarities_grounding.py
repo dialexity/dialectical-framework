@@ -82,7 +82,7 @@ def _distinct_aspect_stub(sid: str):
     """
     call_index = {"n": 0}
 
-    async def _resolve(self, perspective, positions=None, text="", not_like_these=None):
+    async def _resolve(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
         i = call_index["n"]
         call_index["n"] += 1
         with scope(sid):
@@ -314,7 +314,7 @@ def _identical_aspect_stub(sid: str):
     case where the model re-anchors a tension already in the graph.
     """
 
-    async def _resolve(self, perspective, positions=None, text="", not_like_these=None):
+    async def _resolve(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
         with scope(sid):
             results: list[AspectResult] = []
             for pos, label in (
@@ -606,7 +606,7 @@ class TestContextReachesGeneration:
             polarity = _make_polarity(case_node.sid)
             stub, _ = _distinct_aspect_stub(case_node.sid)
 
-            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
+            async def _recording(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
                 seen["aspect_text"] = text
                 return await stub(self, perspective, positions, text, not_like_these)
 
@@ -634,7 +634,7 @@ class TestContextReachesGeneration:
             polarity = _make_polarity(case_node.sid)
             stub, _ = _distinct_aspect_stub(case_node.sid)
 
-            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
+            async def _recording(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
                 seen["aspect_text"] = text
                 return await stub(self, perspective, positions, text, not_like_these)
 

@@ -59,7 +59,7 @@ def _distinct_aspect_stub(sid: str):
     """
     call_index = {"n": 0}
 
-    async def _resolve(self, perspective, positions=None, text="", not_like_these=None):
+    async def _resolve(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
         # Record how many prior tetrads this call was asked to differ from.
         self._seen_not_like_these = len(not_like_these or [])
         i = call_index["n"]
@@ -148,7 +148,7 @@ class TestExpandPolarityCount:
 
             async def _resolve(
                 self, perspective, positions=None, text="", not_like_these=None
-            ):
+            , attempts=None):
                 seen_counts.append(len(not_like_these or []))
                 i = call_index["n"]
                 call_index["n"] += 1
@@ -335,7 +335,7 @@ class TestExpandPolarityResumesAnInterruptedTetrad:
 
             # First run dies during aspect generation — after the Perspective
             # node was saved.
-            async def _boom(self, perspective, positions=None, text="", not_like_these=None):
+            async def _boom(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
                 raise RuntimeError("session closed mid-generation")
 
             monkeypatch.setattr(AspectGeneration, "resolve", _boom)
@@ -374,7 +374,7 @@ class TestExpandPolarityResumesAnInterruptedTetrad:
         with scope(case_node.sid):
             polarity = _make_polarity(case_node.sid)
 
-            async def _boom(self, perspective, positions=None, text="", not_like_these=None):
+            async def _boom(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
                 raise RuntimeError("session closed mid-generation")
 
             monkeypatch.setattr(AspectGeneration, "resolve", _boom)

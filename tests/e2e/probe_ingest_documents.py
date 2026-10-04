@@ -204,7 +204,16 @@ async def test_probe_ingest_documents(di_container) -> None:
     doc_set = os.environ.get("INGEST_DOC_SET", "public")
     docs = list(_document_set(doc_set).items())[: limit or None]
     judge = E2EConfig.from_env().judge_model
-    out = _RESULTS / f"ingest_documents-{doc_set}-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    # TETRAD_PROBE_ATTEMPTS=N: every staged aspect call draws N and keeps the
+    # best by the control statements (`concerns/tetrad_candidates.py`); the
+    # file name says so, so the archive's default-run globs stay clean.
+    import dialectical_framework.concerns.tetrad_candidates as cands
+
+    attempts = os.environ.get("TETRAD_PROBE_ATTEMPTS")
+    if attempts:
+        cands.DEFAULT_ASPECT_ATTEMPTS = int(attempts)
+    variant = f"-att{attempts}" if attempts else ""
+    out = _RESULTS / f"ingest_documents-{doc_set}{variant}-{time.strftime('%Y%m%d-%H%M%S')}.json"
     print(f"\n=== ingest on {len(docs)} document(s), arms {arms} → {out}", flush=True)
 
     rows: list[dict] = []

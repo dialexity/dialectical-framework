@@ -195,7 +195,7 @@ class TestATensionReadsItsOwnSources:
         seen: list[str] = []
         original = AspectGeneration.score_given
 
-        async def _recording(self, perspective, given, text=""):
+        async def _recording(self, perspective, given, text="", attempts=None):
             seen.append(text)
             return await original(self, perspective, given, text)
 
@@ -260,7 +260,7 @@ class TestATensionReadsItsOwnSources:
 
             stub, _ = _distinct_aspect_stub(sid)
 
-            async def _recording(self, perspective, positions=None, text="", not_like_these=None):
+            async def _recording(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
                 seen["text"] = text
                 return await stub(self, perspective, positions, text, not_like_these)
 

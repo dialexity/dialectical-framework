@@ -147,7 +147,7 @@ def _axis_aware_stub(sid: str, axes_per_call: list[dict[str, str]]):
     mimicking the real capture from TetradDto."""
     call_index = {"n": 0}
 
-    async def _resolve(self, perspective, positions=None, text="", not_like_these=None):
+    async def _resolve(self, perspective, positions=None, text="", not_like_these=None, attempts=None):
         i = call_index["n"]
         call_index["n"] += 1
         self.axes = dict(axes_per_call[i]) if i < len(axes_per_call) else {}

@@ -24,6 +24,7 @@ guess (`AspectGeneration.score_given` scores afterwards).
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -104,6 +105,10 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
         #: whether the persona did any of that work is unmeasured. Production
         #: passes None — the method alone.
         self._persona = persona
+        #: Set by `resolve`: the chosen sketch's verdict (None at attempts=1 or
+        #: when judging failed) and the runners-up with theirs.
+        self.verdict = None
+        self.alternatives: list = []
 
     @staticmethod
     def system_prompt(persona: Optional[str] = None) -> str:
@@ -113,27 +118,70 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
         return f"{persona}\n\n{method}" if persona else method
 
     async def resolve(
-        self, material: str, context: str = "", thesis: Optional[str] = None
+        self,
+        material: str,
+        context: str = "",
+        thesis: Optional[str] = None,
+        attempts: Optional[int] = None,
     ) -> ViewSketchPerspectiveDto:
+        """One tension, whole. With `attempts` > 1 (`clamp_attempts`, max 3) the
+        call is drawn that many times IN PARALLEL and the framework's own
+        coherence check picks the best (`concerns/tetrad_candidates.py`); the
+        runners-up stay on `self.alternatives` with their verdicts, the
+        winner's verdict on `self.verdict`. Measured reason and the guard
+        against turning this into a loop: that module's docstring.
+        """
+        from dialectical_framework.concerns.tetrad_candidates import (
+            clamp_attempts, select_sketch)
+
         material = (material or "").strip()
         if not material and not (thesis or "").strip():
             self._report.ok = False
             self._report.summary = "Nothing to sketch: no material and no thesis"
             raise ValueError("TetradSketch needs material or a thesis")
 
-        # Thinks at the deployment's conversational level: this is the heaviest
-        # reasoning a structured call is asked to do, and it is the ONE
-        # ingredient the staged generator was measured not to profit from while
-        # the whole-tetrad call did (20/40 without, 26/40 with, in the harness).
+        n = clamp_attempts(attempts)
+        prompt = tetrad_sketch_prompt(
+            material, context or "", self.settings.component_length, thesis
+        )
+        drawn = await asyncio.gather(
+            *(self._draw_once(prompt) for _ in range(n)), return_exceptions=True
+        )
+        candidates = [d for d in drawn if not isinstance(d, BaseException)]
+        if not candidates:
+            first = next(d for d in drawn if isinstance(d, BaseException))
+            self._report.ok = False
+            self._report.summary = f"Sketch failed: {first}"
+            raise first
+
+        best, verdicts = await select_sketch(candidates, context or "")
+        tension = candidates[best]
+        self.verdict = verdicts[best]
+        self.alternatives = [
+            (c, v) for i, (c, v) in enumerate(zip(candidates, verdicts)) if i != best
+        ]
+        self._report.ok = True
+        self._report.summary = f"Sketched: {tension.thesis} vs {tension.antithesis}"
+        self._report.artifacts["sketch"] = tension.model_dump()
+        if n > 1:
+            self._report.artifacts["attempts"] = {
+                "drawn": len(candidates),
+                "selected": best,
+                "floors": [None if v is None else round(v.floor, 2) for v in verdicts],
+                "alternatives": [c.model_dump() for c, _v in self.alternatives],
+            }
+        return tension
+
+    async def _draw_once(self, prompt: str) -> ViewSketchPerspectiveDto:
+        """One reasoning call. Thinks at the deployment's conversational level:
+        this is the heaviest reasoning a structured call is asked to do, and it
+        is the ONE ingredient the staged generator was measured not to profit
+        from while the whole-tetrad call did (20/40 without, 26/40 with, in the
+        harness). A sketch with an empty corner is an error, not a tetrad."""
         level = ConversationFacilitator()._thinking_kwargs().get("thinking")
         conversation = ConversationFacilitator(format_mode="json", thinking=level)
         conversation.set_system_prompt(self.system_prompt(self._persona))
-        result = await conversation.submit(
-            TetradSketchDto,
-            tetrad_sketch_prompt(
-                material, context or "", self.settings.component_length, thesis
-            ),
-        )
+        result = await conversation.submit(TetradSketchDto, prompt)
         tension = result.tension
         missing = [
             name
@@ -141,11 +189,5 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
             if not (getattr(tension, name) or "").strip()
         ]
         if missing:
-            self._report.ok = False
-            self._report.summary = f"Sketch left positions empty: {', '.join(missing)}"
-            raise ValueError(self._report.summary)
-
-        self._report.ok = True
-        self._report.summary = f"Sketched: {tension.thesis} vs {tension.antithesis}"
-        self._report.artifacts["sketch"] = tension.model_dump()
+            raise ValueError(f"Sketch left positions empty: {', '.join(missing)}")
         return tension

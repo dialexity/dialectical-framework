@@ -454,6 +454,12 @@ async def test_probe_tetrad_quality(di_container) -> None:
     if mode not in _MODES:
         raise ValueError(f"TETRAD_PROBE_MODE={mode!r}; expected one of {_MODES}")
     utterances = list(_SETS[which])
+    # TETRAD_PROBE_ATTEMPTS=N: the build draws N sketches and keeps the best
+    # (`concerns/tetrad_candidates.py`); the module default is what production
+    # runs. The probe's own validation read is a FRESH judge pass.
+    import dialectical_framework.concerns.tetrad_candidates as cands
+
+    cands.DEFAULT_SKETCH_ATTEMPTS = int(os.environ.get("TETRAD_PROBE_ATTEMPTS", str(cands.DEFAULT_SKETCH_ATTEMPTS)))
     offset = int(os.environ.get("TETRAD_PROBE_OFFSET", "0") or 0)
     limit = int(os.environ.get("TETRAD_PROBE_LIMIT", "0") or 0)
     if offset or limit:
@@ -468,10 +474,12 @@ async def test_probe_tetrad_quality(di_container) -> None:
     stamp = time.strftime("%Y%m%d-%H%M%S")
     # The historical name is kept for the unsliced default run, so the archive's
     # globs still mean what they meant; anything else names its mode and offset.
-    if mode == "default" and not offset:
+    if mode == "default" and not offset and not os.environ.get("TETRAD_PROBE_ATTEMPTS"):
         out = out_dir / f"set_{which}-{stamp}.json"
     else:
         variant = "-oneshot" if mode == "ingest" and os.environ.get("TETRAD_PROBE_ONESHOT_PER_THESIS") else ""
+        if os.environ.get("TETRAD_PROBE_ATTEMPTS"):
+            variant += f"-att{os.environ['TETRAD_PROBE_ATTEMPTS']}"
         out = out_dir / f"set_{which}-{mode}{variant}-off{offset:02d}-{stamp}.json"
     gen_model = di_container.settings().ai_model
     print(f"\n=== tetrad quality: set {which}, mode {mode}, {len(utterances)} utterances, "

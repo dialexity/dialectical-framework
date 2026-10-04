@@ -37,7 +37,8 @@ from dialectical_framework.agents.reasonable_concern import ReasonableConcern
 from dialectical_framework.enums.di import DI
 from dialectical_framework.concerns.aspect_generation import GivenTetrad
 from dialectical_framework.concerns.tetrad_sketch import TetradSketch
-from dialectical_framework.concerns.view_sketch import is_axis_name
+from dialectical_framework.concerns.view_sketch import (
+    ViewSketchPerspectiveDto, is_axis_name)
 from dialectical_framework.graph.nodes.perspective import (POSITION_A_MINUS,
                                                            POSITION_A_PLUS,
                                                            POSITION_T_MINUS,
@@ -59,6 +60,8 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
         thesis: Optional[str] = None,
         context: str = "",
         persona: Optional[str] = None,
+        attempts: Optional[int] = None,
+        sketch: Optional[ViewSketchPerspectiveDto] = None,
     ) -> None:
         #: The material: Inputs in the current Case — the person's turn the
         #: Advisor's `anchor` captured, or a host's paste (`capture_input`).
@@ -73,6 +76,18 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
         #: composed ahead of the material for every prompt, as on the staged path.
         self.context = (context or "").strip()
         self._persona = persona
+        #: Sketches drawn in parallel, the best kept by the coherence check
+        #: (`concerns/tetrad_candidates.py`; None = its default, max 3).
+        self.attempts = attempts
+        #: After `resolve`: the runners-up as (sketch, verdict) — texts a host
+        #: can offer as "another" without a new reasoning call. Not persisted.
+        self.alternatives: list = []
+        #: A tetrad already drawn — one of a previous build's `alternatives` —
+        #: to persist WITHOUT a new reasoning call: the person said "another"
+        #: and the framework already has one. Classified, scored, grounded and
+        #: validated exactly as a fresh sketch; `thesis` and `attempts` are
+        #: ignored when this is given.
+        self.sketch = sketch
 
     @inject
     async def _material(
@@ -95,17 +110,24 @@ class SketchTetrad(ReasonableConcern[list[Perspective]]):
 
     async def resolve(self) -> list[Perspective]:
         material = await self._material()
-        if not material and not self.thesis:
-            self._report.ok = False
-            self._report.summary = "Nothing to build: no material and no thesis"
-            self._report.artifacts["perspective_hashes"] = []
-            return []
+        if self.sketch is not None:
+            tension = self.sketch
+            self._report.artifacts["sketch"] = tension.model_dump()
+        else:
+            if not material and not self.thesis:
+                self._report.ok = False
+                self._report.summary = "Nothing to build: no material and no thesis"
+                self._report.artifacts["perspective_hashes"] = []
+                return []
 
-        expect_progress(1)
-        report_progress("Thinking the tension through, whole")
-        sketch = TetradSketch(persona=self._persona)
-        tension = await sketch.resolve(material, self.context, thesis=self.thesis)
-        self._report = self._report.merge(sketch.report)
+            expect_progress(1)
+            report_progress("Thinking the tension through, whole")
+            sketch = TetradSketch(persona=self._persona)
+            tension = await sketch.resolve(
+                material, self.context, thesis=self.thesis, attempts=self.attempts
+            )
+            self.alternatives = list(sketch.alternatives)
+            self._report = self._report.merge(sketch.report)
 
         # The poles' classification reads the same material; `IntroducePolarity`
         # reads it from the Inputs itself, so only the particulars travel here.

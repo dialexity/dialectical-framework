@@ -191,12 +191,15 @@ conversation has established and, where `focus` asks for structure not yet worke
 perspective for the thesis you named", "the antitheses we discussed"), builds it by the
 method first (`concerns/view_sketch.py`). It thinks at the session's level (json
 mode, the one structured shape that can), and what it drew stays in `messages` as the
-consultant's own words so the next turn can be asked about a corner. Same `ExplorationView`
+consultant's own words so the next turn can be asked about a corner. `attempts=` draws N in
+parallel on copies of the history and keeps the one the framework's coherence check prefers
+(`concerns/tetrad_candidates.py`; default `DEFAULT_SKETCH_ATTEMPTS`, max 3) — the same
+selection the Advisor's build and the document pipeline run. Same `ExplorationView`
 — texts and the reading (`intent`, composed as the graph composes it) only, a corner the ask
 did not reach left `null`. Terminology-free by construction (no hash, alias or score exists;
 `without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
-validation, no dedup, nothing kept): the view BEFORE the upgrade, not a lighter version
-of the checked one. It raises on a provider failure rather than returning an empty view,
+validation flag, no dedup, nothing kept; a best-of-N selection is a choice among draws, not
+a flag on the one shown): the view BEFORE the upgrade, not a lighter version of the checked one. It raises on a provider failure rather than returning an empty view,
 so "nothing drawn yet" and "the drawing failed" stay distinguishable to the button that asked.
 
 Not built: any tool that lets the model open a view itself. The trigger is the host's

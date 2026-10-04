@@ -259,12 +259,18 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         calls = _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
         head = Consultant(app_preamble="You are a thinking partner.", messages=list(_HISTORY))
 
-        view = await head.exploration_view(focus="a perspective for the office question")
+        # One draw here: this test is about WHOSE history the turn runs on; the
+        # best-of-N selection is pinned in `tests/test_tetrad_candidates.py`.
+        view = await head.exploration_view(focus="a perspective for the office question", attempts=1)
 
         (call,) = calls
         sketch_turn = call["facilitator"]
         assert sketch_turn is not head._conversation, "a second facilitator..."
-        assert sketch_turn._messages is head._conversation._messages, "...over the SAME history"
+        # ...over a COPY of the same history: the draws of a best-of-N run in
+        # parallel and none may write into the record the others read; what
+        # the view leaves behind is appended to the head's history once.
+        assert sketch_turn._messages is not head._conversation._messages
+        assert sketch_turn._messages[: len(_HISTORY) + 1] == head._conversation._messages[: len(_HISTORY) + 1]
         assert sketch_turn._format_mode == "json"
         assert call["model"] is ViewSketchDto
         assert "What to show: a perspective for the office question" in call["prompt"]
