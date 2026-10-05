@@ -91,6 +91,8 @@ Synthesis (S+/S-) is a wheel-level phenomenon. One wheel → one S+/S-.
 
 **Scaling:** N-PP wheel = 2N edges, N edge pairs. Opposite-edge Transformations are Ac+/Re+ role-swapped (E1's Ac+ = E3's Re+). **Transformations = 2N × |`INSIGHT_CATEGORIES`| = 6N per wheel**: `ActionExtraction` returns one Ac+ candidate per insight category (`concerns/ac_re_taxonomy.py`) and `ExploreTransformations` Phase 2 generates a tetrad per candidate, so each edge carries 3 depth alternatives. 1-PP = 2 edges / 1 pair / **6** Transformations (`tests/test_single_perspective_explore_real_llm.py`). Each Transformation is 4 sequential `TransformationGeneration` calls, + 2 audit calls only when `settings.audit_transformations` is on.
 
+**S- is asked for as ONE named state, S+ as a gain in dimension** (`synthesis_generation.SYSTEM_PROMPT`, "The shape of the inputs, exactly", 2026-10-05): the prompt states the Transformation as a tetrad (Ac/Re poles, Ac±/Re± their developments) and says Ac-/Re- are the action/reflection gone wrong, never the segments' traps — without it S- read as "either T- or A-" in 10/17 on 1-PP wheels, with it 12/17 named a third failure, level with a whole one-shot call handed the same theory. On S- quality the chopped pipeline is NOT measurably below a whole call once its synthesis prompt carries the theory; a whole call per edge pair + one reassembly remains an OPEN cost-and-register measurement at N ≥ 2, never a cleanup (`docs/dev-notes/one-shot-transformation.md`).
+
 **Discrete spiral:** Wheel edges form a directed circle where each step transforms the minus of one segment into the plus of the next (T1-→A2+→T2-→A1+→...). S+ emerges from ALL Transformations operating simultaneously.
 
 **BuildWheels is purely structural:** builds all valid Cycle/Wheel combinations from the Nexus's Perspectives and estimates them (layer 2+). Never generates transformations — those run separately via `ExploreTransformations`, even for layer-1 wheels.
@@ -566,3 +568,4 @@ Lab-notebook material moved out of this file on 2026-09-18: the reasoning behind
 | `host-integration.md` | `py.typed`, the pinned doc claims |
 | `views.md` | The view schema decisions, the reading-is-a-label correction, the Consultant's view turn and its three real runs (label leak, prose exemplar) |
 | `antithesis-selection.md` | HS-ranked antithesis selection picked the strawman end of the ladder; the Optimum-A fix and its before/after on 20 utterances |
+| `one-shot-transformation.md` | Whole vs chopped at the transformation layer: the wise-pill arms on 17 tetrads, the S- shape rule in the synthesis prompt (4 → 12/17 third failures), the per-edge-pair architecture as an open N ≥ 2 measurement, and what the framework is for at N = 1 |

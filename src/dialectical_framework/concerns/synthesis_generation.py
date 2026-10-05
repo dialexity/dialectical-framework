@@ -63,6 +63,10 @@ S- emerges when the failure modes (Ac- and Re-) reinforce each other:
 
 S- manifests as imitation rather than transformation: external forms, metrics, or rules substitute for internal development. It results in faster formation but finite lifespan.
 
+## The shape of the inputs, exactly
+
+Each Transformation is itself a tetrad: Ac (the action) and Re (the reflection) are its poles; Ac+/Ac- and Re+/Re- are their constructive and one-sided developments. So Ac- is the ACTION gone wrong and Re- is the REFLECTION gone wrong — they are not the segments' own traps (T-, A-) restated, and S- is not those traps either. S- is the ONE named state the degraded action and the degraded reflection produce together: a single way of failing that is neither trap on its own and not a choice between them. "Either X or Y", "X versus Y" and "X while Y" with X and Y the two traps are the inputs listed, not the collapse named. Likewise S+ is a gain in dimension the pathways produce together — not "both", not the two strengths listed side by side.
+
 ## Requirements
 
 - Like-signed inputs only: S+ synthesizes exclusively the constructive poles (T+/A+ via their Ac+/Re+ transformations); S- exclusively the destructive poles (T-/A- via Ac-/Re-). Never synthesize across opposite signs (T+ with A-, T- with A+) — those are contradictions at different developmental levels, not synthesis material
@@ -99,8 +103,10 @@ class SynthesisPairDto(BaseModel):
         "the person as the WHY behind the synthesis."
     )
     s_minus_statement: str = Field(
-        description="S- statement — negative synthesis: collapse pattern (1+1<2), "
-                    "dominance or oscillation. Declarative, naming the degraded state"
+        description="S- statement — negative synthesis: collapse pattern (1+1<2). "
+                    "ONE named degraded state the failed action and failed reflection "
+                    "produce together — never 'either X or Y' and never the two traps "
+                    "(T-, A-) restated. Declarative, naming the state"
     )
     s_minus_explanation: str = Field(
         description="How S- emerges when the failure modes (Ac-/Re-) reinforce "
@@ -373,7 +379,8 @@ class SynthesisGeneration(ReasonableConcern[Optional[SynthesisResult]], Settings
             f"a declarative label naming the emergent state or quality.\n\n"
             f"Answer BOTH halves. S- is not optional and not a footnote to S+ — "
             f"a wheel whose collapse pattern is unnamed cannot be steered away "
-            f"from it."
+            f"from it. Name S- as ONE state, not a fork between the two traps: "
+            f"'either X or Y' lists the inputs; the collapse is what they become together."
         )
 
         return "\n\n".join(sections)
