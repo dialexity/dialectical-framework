@@ -169,9 +169,9 @@ class ViewSketchDto(BaseModel):
 #: keep paying for his phone when he never calls?" came back as T "Why keep
 #: paying when he never calls me" — so the card showed the person a question
 #: as their own position. Shared by the view turn and `tetrad_sketch_prompt`
-#: (its free-thesis branch; a GIVEN thesis is kept as given), and by the intake
-#: gate `concerns/stance_capture.py`, so the three say the same thing about what
-#: a stance is. Re-run with it: the echo went to 0/20 and the view turn declined
+#: (its free-thesis branch; a GIVEN thesis is kept as given); a host's intake
+#: gate reads the same constant (the alsotrue app's `StanceCapture`), so the
+#: writers and the gate say the same thing about what a stance is. Re-run with it: the echo went to 0/20 and the view turn declined
 #: 3 of 4 informational questions it had drawn before; a third example that
 #: named the lean of "why do I keep hiring people like me" was then removed
 #: because the writer used that line as BOTH poles on its own utterance

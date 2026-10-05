@@ -1,6 +1,6 @@
 """Re-generate the synthesis on the 17 existing 1-PP wheels with the fixed prompt.
 
-`probe_wisdom_theory_prompt2.py` found the machinery's S- read as the two traps
+`probe_synthesis_arms_theory2.py` found the machinery's S- read as the two traps
 restated in 10/17 (third-trap auditor) against 11/17 third failures for a one
 call that was handed the Transformation AS a tetrad and told S- is one named
 state. That instruction was the confound: `SynthesisGeneration` never had it.
@@ -35,8 +35,8 @@ from dialectical_framework.graph.repositories.wheel_repository import \
     WheelRepository
 from dialectical_framework.graph.scope_context import scope
 from e2e.config import E2EConfig
-from e2e.probe_wisdom_theory_prompt import _judge_sminus
-from e2e.probe_wisdom_theory_prompt2 import _third_trap
+from e2e.probe_synthesis_arms_theory1 import _judge_sminus
+from e2e.probe_synthesis_arms_theory2 import _third_trap
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
 _MACHINERY = _RESULTS / "wisdom_machinery-20261005-082435.json"

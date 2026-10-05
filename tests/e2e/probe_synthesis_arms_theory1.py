@@ -4,13 +4,13 @@ corners by the framework's own rule, then writes the pill — against the machin
 Owner's question (2026-10-05): "if T-→A+ and A-→T+ give S+, and T+→A- and
 A+→T- give S-, a prompt that knows that produces the same without machinery —
 so why the framework?" This arm is that prompt, on the same 17 tetrads as
-`probe_wisdom_machinery.py`, 5 s a call. Side by side: S+/S- from the wheel
+`probe_synthesis_arms_machinery.py`, 5 s a call. Side by side: S+/S- from the wheel
 (`GenerateSynthesis`, ~88 s) vs S+/S- from the one call; and a blind pairwise
 judge on S- only (the line the corner pill could not say), order randomised
 and persisted. Parity here is expected and would be a finding about WHERE the
 machinery's leverage is (N ≥ 2, checks, memory), not a verdict against it.
 
-    poetry run pytest tests/e2e/probe_wisdom_theory_prompt.py --real-llm -q -s
+    poetry run pytest tests/e2e/probe_synthesis_arms_theory1.py --real-llm -q -s
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from e2e.config import E2EConfig
 from e2e.modelctx import using_model
-from e2e.probe_wisdom_line import _prompt as _corner_prompt
+from e2e.probe_synthesis_arms_corners import _prompt as _corner_prompt
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
 _MACHINERY = _RESULTS / "wisdom_machinery-20261005-082435.json"

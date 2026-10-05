@@ -1,6 +1,6 @@
 """Theory-in-prompt, second arm: the FULL Transformation shape in one call.
 
-The first arm (`probe_wisdom_theory_prompt.py`) asked for Ac+/Re+/Ac-/Re-/S+/S-
+The first arm (`probe_synthesis_arms_theory1.py`) asked for Ac+/Re+/Ac-/Re-/S+/S-
 from the six corners and got Ac- = T- restated, Re- = A- restated, S- = "either
 T- or A-" in 14/17 — it collapsed the Transformation tetrad onto the Perspective
 tetrad, because it never derived the neutral action Ac and reflection Re whose
@@ -10,7 +10,7 @@ S+/S- from the pairs — the owner's hypothesis stated properly. Same 17, same
 blind S- judge, plus a "third trap?" auditor on BOTH arms' S- (distinct from
 T- and A-, or the two traps restated).
 
-    poetry run pytest tests/e2e/probe_wisdom_theory_prompt2.py --real-llm -q -s
+    poetry run pytest tests/e2e/probe_synthesis_arms_theory2.py --real-llm -q -s
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from e2e.config import E2EConfig
 from e2e.modelctx import using_model
-from e2e.probe_wisdom_line import _prompt as _corner_prompt
-from e2e.probe_wisdom_theory_prompt import _judge_sminus
+from e2e.probe_synthesis_arms_corners import _prompt as _corner_prompt
+from e2e.probe_synthesis_arms_theory1 import _judge_sminus
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
 _MACHINERY = _RESULTS / "wisdom_machinery-20261005-082435.json"

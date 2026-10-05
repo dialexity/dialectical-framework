@@ -1,6 +1,6 @@
 """The machinery arm of the wise pill: Ac+/Re+/S+ from the framework, then the same writer.
 
-`probe_wisdom_line.py` rendered the pill from the six CORNERS of an existing
+`probe_synthesis_arms_corners.py` rendered the pill from the six CORNERS of an existing
 tetrad and let the writer improvise the move ("the fix isn't X, it's Z") — which
 is Transformation-level (Ac+: T- → A+, Re+: A- → T+) and the "what becomes
 possible only with both" is Wheel-level (S+). The owner's question: why not
@@ -16,7 +16,7 @@ one per insight band per edge) and its synthesis, then the pathways and S+/S-
 are read back and handed to the writer. Graph writes are sequential (one case
 per tetrad, one at a time).
 
-    poetry run pytest tests/e2e/probe_wisdom_machinery.py --real-llm -q -s
+    poetry run pytest tests/e2e/probe_synthesis_arms_machinery.py --real-llm -q -s
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ from dialectical_framework.graph.repositories.node_repository import \
 from dialectical_framework.graph.repositories.wheel_repository import \
     WheelRepository
 from dialectical_framework.graph.scope_context import scope
-from e2e.probe_wisdom_line import SYSTEM, WisdomDto
+from e2e.probe_synthesis_arms_corners import SYSTEM, WisdomDto
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
 #: The corner-only pills, for the side-by-side.

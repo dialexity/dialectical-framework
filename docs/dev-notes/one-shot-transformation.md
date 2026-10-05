@@ -21,17 +21,17 @@ the question is the framework's.
 Same 17 tetrads throughout (12 statements, 5 questions, drawn by the view turn
 best-of-3; `wisdom_line-20261004-153912.json` carries their six texts).
 
-- `probe_wisdom_line.py` — the six corners → one rendering call, told "do not
+- `probe_synthesis_arms_corners.py` — the six corners → one rendering call, told "do not
   reason the structure". 5 s. Its prose improvised the move (Ac+-shaped) with
   no structure behind it — the baseline that raised the question.
-- `probe_wisdom_machinery.py` — each tetrad persisted through
+- `probe_synthesis_arms_machinery.py` — each tetrad persisted through
   `SketchTetrad(sketch=)` (no re-reasoning), `run_exploration_detailed` on the
   1-PP wheel (2 edges × 3 insight bands = 6 Transformations) + synthesis, then
   the same writer handed Ac±/Re±/S±. `wisdom_machinery-20261005-082435.json`:
   17/17 built, persist 22 s, explore 56–75 s (median 61), **~88 s a tetrad**.
-- `probe_wisdom_theory_prompt.py` (arm 1) — one call, the six corners + the
+- `probe_synthesis_arms_theory1.py` (arm 1) — one call, the six corners + the
   theory stated loosely ("Ac- carries T+ into A-"). 9.4 s.
-- `probe_wisdom_theory_prompt2.py` (arm 2) — one call, the Transformation AS A
+- `probe_synthesis_arms_theory2.py` (arm 2) — one call, the Transformation AS A
   TETRAD: Ac and Re first, then each one's ± development, then S± from the
   pairs; S- told to be one named state. 9.5 s. Adds a **third-trap auditor**
   (is S- a failure distinct from T- and A-, or the traps restated / one trap)

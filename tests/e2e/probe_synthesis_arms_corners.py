@@ -8,7 +8,7 @@ the person's words, from EXISTING draws (no new reasoning), beside a ≤60-word
 paragraph that holds the tension and pushes for T+/A+ complementarity — so the
 line and the paragraph can be eyeballed against the bare A+.
 
-    poetry run pytest tests/e2e/probe_wisdom_line.py --real-llm -q -s
+    poetry run pytest tests/e2e/probe_synthesis_arms_corners.py --real-llm -q -s
 """
 
 from __future__ import annotations
