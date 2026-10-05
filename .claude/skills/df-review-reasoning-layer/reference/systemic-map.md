@@ -1883,7 +1883,7 @@ outranks plausibility when choosing a rung — a more plausible ancestor that no
 the climb a rung early, and the transitive walk is what the refinement is. OFF is not a cheaper version of the
 same reasoning: it is `find_parent_transformations` returning nothing, i.e. the deepest wheel generated with no
 `<broader_journey>` at all — see the §Gates bullet) → **ExploreTransformations ×deepened-wheels**
-(Phase-1 `ApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
+(Phase-1 `AcReApexDerivation` + `ActionExtraction`; Phase-2 `TransformationGeneration` = 4 sequential LLM calls
 `_generate_ac_minus`→`_generate_re_side`→`_score_hs`→`_generate_category_reframings`; `TransformationAudit`
 annotation, **opt-in and off by default** in this chain — `settings.audit_transformations`; the same concern is
 reachable per-pathway on demand via the `audit_feasibility` tool) → **GenerateSynthesis**
@@ -1978,7 +1978,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
 3. **Aspect statement text → wheel segments → transition context.** `build_edge_context` feeds exact
    T/T+/T-/A+/A- wording into Ac+/Re+ generation. Prompts require prose to "refer to concepts by their actual
    statement wording, never by T/A notation" — upstream phrasing is quoted verbatim.
-4. **ApexDerivation apex text → `TransformationGeneration._score_hs`.** Apex-prompt wording sets the HS
+4. **AcReApexDerivation apex text → `TransformationGeneration._score_hs`.** Apex-prompt wording sets the HS
    reference frame for Ac+/Re+. **The frame is also structural, not only verbal**: the Ac+ apex must be
    derived from THIS edge and the Re+ apex from the OPPOSITE edge, because Re+ is generated from
    `opposite_edge_context` (an edge's Re+ IS the opposite edge's Ac+ arrow — `explore_transformations`

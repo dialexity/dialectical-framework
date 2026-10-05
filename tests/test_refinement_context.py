@@ -261,11 +261,11 @@ class TestScoringIsDeliberatelyNotRefined:
 
     async def test_hs_scoring_carries_no_refinement_instruction(self, monkeypatch):
         from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
-            ApexDerivationResultDto
+            AcReApexDerivationResultDto
 
         records = _spy_on_submits(monkeypatch)
 
-        apexes = ApexDerivationResultDto.model_construct(
+        apexes = AcReApexDerivationResultDto.model_construct(
             ac_plus_apex=_candidate("ac apex"),
             re_plus_apex=_candidate("re apex"),
         )

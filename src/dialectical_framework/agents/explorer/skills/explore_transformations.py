@@ -5,7 +5,7 @@ Orchestrates the transformation generation pipeline at the wheel level:
 1. Resolves the wheel and its edge pairs (diametrically opposite edges)
 2. For each pair, checks for reusable Transformations in the same Nexus
 3. If not found: derives context from the edge pair's source/target PPs
-4. Runs ApexDerivation → ActionExtraction → TransformationGeneration
+4. Runs AcReApexDerivation → ActionExtraction → TransformationGeneration
 5. Creates Transformation nodes scoped to the Nexus
 
 Usage:
@@ -38,7 +38,7 @@ from dialectical_framework.concerns.ac_re_taxonomy import (
 from dialectical_framework.concerns.action_extraction import (
     ActionCandidateResultDto, ActionExtraction)
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import (
-    ApexDerivation, ApexDerivationResultDto)
+    AcReApexDerivation, AcReApexDerivationResultDto)
 from dialectical_framework.concerns.transformation_generation import (
     TransformationGeneration, TransformationTetradDto)
 from dialectical_framework.graph.nodes.statement import Statement
@@ -75,7 +75,7 @@ class _EdgeProcessingData:
     #: run was interrupted part-way through the write loop.
     missing_categories: set[str] = field(default_factory=set)
     ac_candidates: list = field(default_factory=list)
-    apexes: Optional[ApexDerivationResultDto] = None
+    apexes: Optional[AcReApexDerivationResultDto] = None
     #: Rendered coarser-layer refinement context for this edge, looked up ONCE
     #: in Phase 1 and reused by every Phase 2 candidate. Both phases generate
     #: against it (Ac+ in Phase 1, Ac-/Re in Phase 2), and it cannot change
@@ -95,7 +95,7 @@ class ExploreTransformationsResult:
 
     existing: list[Transformation] = field(default_factory=list)
     new: list[Transformation] = field(default_factory=list)
-    apexes: Optional[ApexDerivationResultDto] = None
+    apexes: Optional[AcReApexDerivationResultDto] = None
 
     @property
     def all(self) -> list[Transformation]:
@@ -168,7 +168,7 @@ class ExploreTransformations(
 
         all_existing: list[Transformation] = []
         all_new: list[Transformation] = []
-        last_apexes: Optional[ApexDerivationResultDto] = None
+        last_apexes: Optional[AcReApexDerivationResultDto] = None
         failed_pairs: list[str] = []
 
         # The progress scope spans BOTH phases and the audit, i.e. the whole span
@@ -326,7 +326,7 @@ class ExploreTransformations(
         edge_a: Transition,
         edge_b: Transition,
         input_text: str,
-    ) -> tuple[list[Transformation], list[Transformation], Optional[ApexDerivationResultDto]]:
+    ) -> tuple[list[Transformation], list[Transformation], Optional[AcReApexDerivationResultDto]]:
         """
         Process a diametrically opposite edge pair.
 
@@ -340,7 +340,7 @@ class ExploreTransformations(
 
         tr_repo = TransformationRepository()
         all_existing: list[Transformation] = []
-        last_apexes: Optional[ApexDerivationResultDto] = None
+        last_apexes: Optional[AcReApexDerivationResultDto] = None
 
         # Phase 1: Extract Ac+ for both edges in parallel (check existing first)
         phase1_tasks: list[tuple[Transition, asyncio.Task]] = []
@@ -410,7 +410,7 @@ class ExploreTransformations(
         # Buildability is a property of the PAIR for the same reason: if either
         # edge's segments are unfinished, neither edge can earn a Transformation,
         # because the missing side has no Ac+ to lend. Extracting anyway burned
-        # an ApexDerivation + one ActionExtraction per band on every attempt and
+        # an AcReApexDerivation + one ActionExtraction per band on every attempt and
         # wrote nothing — and the derived status then invited another `deepen`,
         # so the same cost repeated for as long as the user kept trying.
         pair_buildable = workable[edge_a.hash] and workable[edge_b.hash]
@@ -662,8 +662,8 @@ class ExploreTransformations(
         wheel: Wheel,
         input_text: str,
         only_categories: Optional[set[str]] = None,
-    ) -> tuple[Optional[ApexDerivationResultDto], list[ActionCandidateResultDto], Any, str]:
-        """Run ApexDerivation + ActionExtraction for one edge.
+    ) -> tuple[Optional[AcReApexDerivationResultDto], list[ActionCandidateResultDto], Any, str]:
+        """Run AcReApexDerivation + ActionExtraction for one edge.
 
         Returns (apexes, candidates, merged_report, parent_context).
 
@@ -698,7 +698,7 @@ class ExploreTransformations(
         expect_progress(2)
 
         report_progress("Working out what good looks like here")
-        apex_service = ApexDerivation()
+        apex_service = AcReApexDerivation()
         apexes = await apex_service.resolve(edge, input_text)
         merged_report = merged_report.merge(apex_service.report)
 
@@ -730,7 +730,7 @@ class ExploreTransformations(
         edge: Transition,
         ac_plus: ActionCandidateResultDto,
         opposite_ac: ActionCandidateResultDto,
-        apexes: ApexDerivationResultDto,
+        apexes: AcReApexDerivationResultDto,
         input_text: str,
         parent_context: Optional[str] = None,
     ) -> tuple[TransformationTetradDto, Any]:

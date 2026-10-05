@@ -464,7 +464,3 @@ the whole point."""
             proactiveness_label=proactiveness_label,
         )
 
-
-# Backward compatibility aliases
-ApexDerivation = AcReApexDerivation
-ApexDerivationResultDto = AcReApexDerivationResultDto

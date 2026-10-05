@@ -226,16 +226,24 @@ class ActionExtraction(
         return results
 
     def _build_exclusion_list(self, transformations: list[Transformation]) -> list[str]:
-        """Extract Ac+ statements from existing transformations to avoid."""
+        """The Ac+ TEXTS of existing transformations, to avoid re-proposing.
+
+        The text is the Transition's own instruction (its summary when the
+        instruction is absent) — what a candidate's `statement` is compared
+        against and what the prompt lists as already covered. Until 2026-10-05
+        this collected the Ac+ transition's TARGET statement (the segment's A+
+        pole), so the list named poles, never pathways, and the post-filter
+        below could not match anything (found by the one-shot-transformation
+        review; docs/dev-notes/one-shot-transformation.md).
+        """
         exclusions = []
         for t in transformations:
             ac_plus_result = t.ac_plus.get()
             if ac_plus_result:
                 transition, _ = ac_plus_result
-                target_result = transition.target.get()
-                if target_result:
-                    comp, _ = target_result
-                    exclusions.append(comp.prompt_text)
+                text = (transition.instruction or transition.summary or "").strip()
+                if text:
+                    exclusions.append(text)
         return exclusions
 
     async def _generate_candidate_for_category(

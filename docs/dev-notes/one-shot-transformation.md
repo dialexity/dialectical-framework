@@ -197,7 +197,8 @@ generation or any N = 2 Ac+ stays inside its source tetrad in > 2/20 — the
 ## Open
 
 - The two-rung N = 2 measurement above (never the direct-build form).
-- The two bugs named in the review.
+- (The two bugs named in the review were fixed the same day: the exclusion list
+  now collects Ac+ instruction text; the apex aliases are deleted and swept.)
 - Register: the synthesis statements are written to `component_length` as
   "declarative labels naming the emergent state"; arm 2's were written for a
   person. Whether a person-facing register belongs on the Statement or only

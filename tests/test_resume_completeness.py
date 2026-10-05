@@ -568,7 +568,7 @@ async def test_blocked_pair_spends_nothing_and_invites_nothing(monkeypatch):
     """An unfinished partner makes the whole pair unbuildable — say so, cheaply.
 
     Neither edge can earn a Transformation, because the side whose segments are
-    unfinished has no Ac+ to lend. Extracting anyway burned an ApexDerivation
+    unfinished has no Ac+ to lend. Extracting anyway burned an AcReApexDerivation
     plus one ActionExtraction per band and wrote nothing — and derived status
     then invited another `deepen`, repeating the cost for as long as the user
     kept trying.

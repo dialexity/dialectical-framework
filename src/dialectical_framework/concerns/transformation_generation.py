@@ -33,7 +33,7 @@ from dialectical_framework.utils.edge_context import (
     REFINE_REFLECTION, REFINE_TETRAD, build_coarser_context,
     build_edge_context, coarser_journey_section)
 from dialectical_framework.concerns.positive_ac_re_apex_derivation import \
-    ApexDerivationResultDto
+    AcReApexDerivationResultDto
 from dialectical_framework.concerns.scoring_scales import HS_SCALE
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.progress import report_progress
@@ -348,7 +348,7 @@ class TransformationGeneration(
         edge: Transition,
         ac_plus: ActionCandidateResultDto,
         opposite_ac_plus: ActionCandidateResultDto,
-        apexes: ApexDerivationResultDto,
+        apexes: AcReApexDerivationResultDto,
         input_text: str = "",
         parent_context: Optional[str] = None,
     ) -> TransformationTetradDto:
@@ -661,7 +661,7 @@ Requirements:
         self,
         ac_plus_statement: str,
         re_plus_statement: str,
-        apexes: ApexDerivationResultDto,
+        apexes: AcReApexDerivationResultDto,
     ) -> HsScoringDto:
         """Score HS for Ac+ and Re+ against their respective apexes."""
         prompt = f"""Score the Heuristic Similarity (HS) for these transitions against their apex statements.
