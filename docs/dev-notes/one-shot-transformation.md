@@ -38,6 +38,9 @@ best-of-3; `wisdom_line-20261004-153912.json` carries their six texts).
   and a blind pairwise "sharper S-" judge, order randomised and persisted.
 - `probe_synthesis_rerun.py` — `GenerateSynthesis` re-run on the 17 existing
   wheels after the prompt fix below; 5.5 s a call.
+- `probe_synthesis_arms_rejudge.py` — every S- pair judged in BOTH slot orders,
+  a win counted only when the orders agree (the bench's exact-split rule, which
+  the two probes above did not follow).
 
 One judge (Fable 5), one rater, n = 17; the third-trap auditor is new and
 unvalidated against a hand count.
@@ -111,9 +114,90 @@ blind pairwise new-vs-old 10–7, new-vs-arm 2 7–10 — neither resolved.
    node — the bench never resolved that in either direction and this did not
    either.
 
+## Review (2026-10-05, four reviewers on the proposal; the owner's prompt: "transformations are recursive for N ≥ 2")
+
+**Retractions.** The 12–5 pairwise was slot bias: the RNG put arm 2 in slot A in
+12/17 pairs and slot A won 13/17. Re-judged with exact crossed order
+(`synthesis_arms_rejudge-20261005-112123.json`, order-bound pairs excluded):
+arm 2 over the old machinery **9–4** (4 order-bound), new machinery vs old
+**6–7** (4), new machinery vs arm 2 **5–9** (3). Arm 2 keeps an edge on S-
+sharpness; nothing resolves at this n, and the prompt-fix did not move the
+pairwise. The third-trap auditor is saturated by the instruction it tests for
+(arm 2 and the fixed synthesis were both told "never either/or"; the auditor
+defines `traps_restated` as either/or) — its 4 → 12 reads as instruction
+compliance, not insight. The 88 s vs 9.5 s cost compares different products:
+six scored, persisted Transformations with bands, apexes and HS plus a synthesis
+against eight unscored one-line strings; the real one-shot DTO is ~50 fields
+(headline/statement/explanation/haiku/insight/proactiveness per position), the
+shape the provider has been recorded dropping. Register is an instruction
+difference (the generation prompts ask for labels at `component_length`; arm 2
+asked for second person). Nothing instrumented Ac-/Re-; "arm 1 collapsed Ac-
+onto T-" is a reading.
+
+**What "recursive" means at N ≥ 2, from the code** (theory reviewer):
+(A) layer recursion — a layer-k Transformation is generated against the
+committed Transformations of the edge it subdivides at k−1…1
+(`TransformationRepository.find_parent_transformations`, `[]` at
+`polarity_count <= 1`; rendered coarsest-first by `build_coarser_context`;
+rung barrier in `explorer.py`, one layer at a time; synthesis recurses the
+same way over sub-wheel S±); (B) antipode recursion — Re+ is written FRESH
+"responding to" the antipode's same-band Ac+ (`_generate_re_side`), never
+copied, so CLAUDE.md's "E1's Ac+ = E3's Re+" is not what the code does;
+(C) the Transition-as-tetrad rule (5.2), partial, checked by nobody. **No
+cross-pair dependence within a wheel**: pairs already run in parallel at a
+rung. **Every wheel measured here was 1-PP, where `parent_context == ""`:
+recursion was structurally absent from all 17**, and an N = 2 gate built
+directly from statement pairs would repeat that — it must be a two-rung climb.
+
+**What the proposal got wrong about the code** (code reviewer):
+`_create_transformation` is per EDGE, not per pair; the existing DTO carries
+scores, so "reuse unchanged" puts scoring in the writer, and kept separate
+it is writer + scorer + HS (which needs the apex the proposal deleted) ≈ 3
+calls per edge-band; refinement is per edge (two ancestries per pair) and
+collapsing the three `REFINE_*` instructions into one prompt is the
+"an instruction that names neither is an instruction to both" trap; writing
+S± in the writer breaks R5's belt-and-suspenders; "cannot drift because
+endpoints are nodes" is unsupported — fixed endpoints make drift invisible.
+Two bugs found on the way, independent of the proposal:
+`ActionExtraction._build_exclusion_list` compares Ac+ candidate text against
+the Ac+ transition's TARGET (A+) text, so the dedup never matches (dead
+code); `positive_ac_re_apex_derivation.py` still carries `ApexDerivation` /
+`ApexDerivationResultDto` aliases, against the no-alias rule.
+
+**What the product contract pins** (consumer reviewer): "one band by default"
+falsifies every derived-status read on day one — `len(INSIGHT_CATEGORIES)` is
+the `expected` of completeness lines, synthesis stamps ("built from 2 of 6"),
+`build_status` (`WHEEL_COMPLETE` never fires), views, `partial_wheels`; the
+depth ladder is a claim in both system prompts and the docs, with `deepen`
+elected 0/6 by the Advisor. Either three bands ship in the one call or the
+ladder is retired as a product decision. Maintenance that would shrink: about
+a third of the transformation layer (four prompts, extraction, apex, band
+pairing, the which-position-reads-which-line argument); what stays is the
+larger half — completeness, resume, blocked edges, parent lookup,
+persistence, grounds — which exists because of layers, pairs and interrupted
+builds, not the chop. Failure granularity coarsens: one ParseError on a
+~50-field DTO empties a pair.
+
+**The proposal as written is not earned.** The honest revised shape: a
+one-shot per EDGE writing the full DTO minus scores; apex and HS kept; scorer
+separate and not elective; all three bands in the call (measure the drop
+rate); refinement lines per position inside the one prompt (Ac+ ← the
+`Action:` line, Re+ ← the `Reflection:` line, negatives refine nothing); S±
+left to the synthesis. Expected ~14 → ~5 calls per edge — a 3× figure, not
+10×. **The decisive experiment, corrected:** ten N = 2 wheels as a two-rung
+climb (both layer-1 wheels first), both arms, two generations, exact crossed
+judge order, three binary reads per Transition — endpoint fidelity (does the
+Ac+ text carry THIS source minus to THIS target tetrad's plus), antipode
+consistency, and whether the layer-2 Ac+ is more concrete than its layer-1
+parent (`probe_transformation_recursion.py`'s exposure table is the starting
+instrument). Reject if the sketch's fidelity trails by > 2/20 in either
+generation or any N = 2 Ac+ stays inside its source tetrad in > 2/20 — the
+1-PP collapse surfacing at the seam the owner named.
+
 ## Open
 
-- The N ≥ 2 measurement above.
+- The two-rung N = 2 measurement above (never the direct-build form).
+- The two bugs named in the review.
 - Register: the synthesis statements are written to `component_length` as
   "declarative labels naming the emergent state"; arm 2's were written for a
   person. Whether a person-facing register belongs on the Statement or only
