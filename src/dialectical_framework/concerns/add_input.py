@@ -19,7 +19,7 @@ async def capture_input(text: str) -> Input | None:
     raises and a short text needs no model call anyway.
 
     Used by the Advisor's `anchor` for the person's turn, by the one-shot build
-    for a host's pasted material (`examples/blindspots.ipynb`), and by probes.
+    for a host's pasted material (the alsotrue app), and by probes.
     """
     from dialectical_framework.concerns.source_digest import ensure_digest
 

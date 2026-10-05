@@ -1,6 +1,6 @@
 """Does the view turn find a STANCE in a QUESTION? — the intake-gate probe.
 
-The pre-MVP (`examples/blindspots.ipynb`) takes whatever the person types and
+The pre-MVP (the alsotrue app, once `examples/blindspots.ipynb`) takes whatever the person types and
 asks the Consultant's view turn for the tetrad around it. The 40 bench
 utterances are 36 statements and 4 questions, and on the 4 the turn drew a
 coherent tetrad every time — by picking the option the question NAMED ("Should

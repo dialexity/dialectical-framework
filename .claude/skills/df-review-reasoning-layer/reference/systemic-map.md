@@ -1943,7 +1943,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `tests/test_stance_capture.py`). Why a call and not a conversational turn: the view turn never declines
    (20/20 drew, two of four informational questions got a tetrad around a stance nobody took) and a free
    turn told to "just get the point" counsels. The host loops it under `MAX_INTAKE_ASKS = 2` and pins the
-   stance (`focus` on the view turn, `thesis=` on `SketchTetrad`); the notebook's `Intake` is the reference
+   stance (`focus` on the view turn, `thesis=` on `SketchTetrad`); the alsotrue app's `Intake` (its `docs/reference-loops.md`) is the reference
    loop. Review it with the writers: a change to what counts as a stance moves all three.
 0c. **The thesis COUNT is a parameter, not a prompt output (2026-10-04).** `SurfaceTheses(count=)` /
    `ingest(count=)` / `analyze(count=)`, `clamp_thesis_count` (None → `DEFAULT_THESIS_COUNT` = 3, max 10);

@@ -175,7 +175,7 @@ class ViewSketchDto(BaseModel):
 #: 3 of 4 informational questions it had drawn before; a third example that
 #: named the lean of "why do I keep hiring people like me" was then removed
 #: because the writer used that line as BOTH poles on its own utterance
-#: (one item, unmeasured deletion, said so). Story: the lab notes in examples/blindspots.ipynb.
+#: (one item, unmeasured deletion, said so). Story: the alsotrue app repo, docs/lab-notes-entry.md.
 THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all."""
 
 TETRAD_BUILD_PROCEDURE = f"""Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
@@ -202,7 +202,7 @@ def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
     ask was here, against the one-shot build's 36–38/40 with it
     (docs/dev-notes/antithesis-selection.md, 2026-10-02). The thesis is asked
     for as a STANCE (`THESIS_IS_A_STANCE`): on 20 questions the turn echoed the
-    question as T in 6 before the ask was here (lab notes in examples/blindspots.ipynb).
+    question as T in 6 before the ask was here (the alsotrue app repo, docs/lab-notes-entry.md).
     """
     focus_line = (
         f"What to show: {focus}\n\n"
