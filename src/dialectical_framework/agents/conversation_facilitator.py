@@ -429,6 +429,12 @@ class ConversationFacilitator(SettingsAware):
                 str((p.get("text") if isinstance(p, dict) else getattr(p, "text", "")) or "")
                 for p in parts
             )
+        elif isinstance(content, dict) and content.get("type") == "text":
+            # A SYSTEM message's content is ONE text part, not a list, and the
+            # documented recipe (`dataclasses.asdict`) renders it as a dict —
+            # the shape a host's saved history carries for the prompt at
+            # position 0 (found by the first app's backend, 2026-10-05).
+            text = str(content.get("text") or "")
         elif isinstance(content, str) or content is None:
             text = content or ""
         else:

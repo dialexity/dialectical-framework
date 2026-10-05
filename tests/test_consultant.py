@@ -111,6 +111,20 @@ class TestWhatTheHeadCarries:
             "the head rewrites messages[0] from its own prompt"
         )
 
+    def test_the_asdict_recipe_round_trips_a_system_message(self):
+        """`dataclasses.asdict` renders a SYSTEM message's content as ONE text
+        part (a dict, not a list) — the shape at position 0 of every saved
+        head conversation. Until 2026-10-05 the loader raised on it, so the
+        documented recipe failed on its own first message (found by the first
+        app's backend)."""
+        import dataclasses
+
+        first = Consultant(app_preamble="p", messages=[{"role": "user", "content": "hello"}])
+        saved = [dataclasses.asdict(m) for m in first.messages]
+        assert isinstance(saved[0]["content"], dict) and saved[0]["content"]["type"] == "text"
+        again = Consultant(app_preamble="p", messages=saved)
+        assert [m.role for m in again.messages] == ["system", "user"]
+
     def test_a_saved_history_with_tool_parts_is_refused_at_construction(self):
         import pytest
         saved = [{"role": "assistant", "content": [{"type": "tool_call", "id": "c1", "name": "x", "args": "{}"}]}]
