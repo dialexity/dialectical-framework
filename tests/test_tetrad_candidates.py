@@ -331,3 +331,15 @@ class TestTheStagedWriterSelectsToo:
         await gen._generate_tetrad([POSITION_T_PLUS, POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS])
         assert seen == [gen._conversation]
         assert gen.verdict is None and "attempts" not in gen.report.artifacts
+
+
+def test_ranking_orders_by_the_floor_then_the_mean_with_unjudged_last():
+    from dialectical_framework.concerns.tetrad_candidates import SketchVerdict, ranking
+
+    verdicts = [
+        SketchVerdict(0.5, 0.9),  # floor .5
+        None,  # unjudged: last
+        SketchVerdict(0.8, 0.8),  # floor .8, mean .8
+        SketchVerdict(0.8, 0.9),  # floor .8, mean .85: wins
+    ]
+    assert ranking(verdicts) == [3, 2, 0, 1]

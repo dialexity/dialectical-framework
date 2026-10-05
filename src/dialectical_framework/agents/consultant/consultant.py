@@ -51,7 +51,7 @@ from dialectical_framework.agents.conversation_facilitator import (
     FROM_SETTINGS, ConversationFacilitator)
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.turn_timing import TurnTiming
-from dialectical_framework.graph.views import ExplorationView
+from dialectical_framework.graph.views import ExplorationView, PerspectiveView
 
 #: Tool verbs → mental acts. These are REWRITES, not drops: dropping every
 #: paragraph that mentions a tool name would also delete the discrimination test
@@ -380,12 +380,13 @@ class Consultant:
         """
         from dialectical_framework.concerns.view_sketch import (
             ViewSketchDto, exploration_view_from_sketch, history_ask,
-            history_text, view_sketch_prompt)
+            history_text, perspective_from_sketch, view_sketch_prompt)
 
         import asyncio
+        import dataclasses
 
         from dialectical_framework.concerns.tetrad_candidates import (
-            clamp_attempts, select_sketch)
+            clamp_attempts, ranking, select_sketch)
 
         level = self._conversation._thinking_kwargs().get("thinking")
         history = self._conversation._messages
@@ -407,19 +408,24 @@ class Consultant:
         # With several draws the framework's own coherence check picks the one
         # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
         # draw with no complete first tension sorts last. The card a blindspot
-        # screen shows is that first tension.
+        # screen shows is that first tension. The judged draws that lost come
+        # back too, best first, as `runners_up` — a host's "again"/"another"
+        # can serve one without a new call (the module's stated intent).
+        runners_up: list[PerspectiveView] = []
         if len(sketches) > 1:
             firsts = [s.tensions[0] if s.tensions else None for s in sketches]
             judgeable = [i for i, t in enumerate(firsts) if t is not None and all(
                 (getattr(t, k) or "").strip() for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus"))]
             if len(judgeable) > 1:
-                best_among, _verdicts = await select_sketch([firsts[i] for i in judgeable])
-                sketch = sketches[judgeable[best_among]]
+                _best, verdicts = await select_sketch([firsts[i] for i in judgeable])
+                order = ranking(verdicts)
+                sketch = sketches[judgeable[order[0]]]
+                runners_up = [perspective_from_sketch(firsts[judgeable[i]]) for i in order[1:]]
             else:
                 sketch = sketches[judgeable[0]] if judgeable else sketches[0]
         else:
             sketch = sketches[0]
-        view = exploration_view_from_sketch(sketch)
+        view = dataclasses.replace(exploration_view_from_sketch(sketch), runners_up=runners_up)
         # What the turn leaves behind is NOT what it sent: the long request and
         # the DTO come off, and the person's ask plus the drawing in words go
         # on. Kept as a request→prose pair, the long request taught the next

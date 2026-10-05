@@ -284,6 +284,54 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         assert [p.t.text for p in view.perspectives] == ["Keep the Berlin office"]
 
     @pytest.mark.asyncio
+    async def test_the_draws_that_lost_come_back_as_runners_up_best_first(self, monkeypatch):
+        """Best-of-3: the judge's winner is the view; the other two judged draws
+        are `runners_up` in the judge's order, so a host's "again"/"another"
+        can show one without a new call. The history records the winner only."""
+        from dialectical_framework.concerns import tetrad_candidates
+
+        drafts = iter([
+            ViewSketchDto(tensions=[_tension(thesis="Draw one")]),
+            ViewSketchDto(tensions=[_tension(thesis="Draw two")]),
+            ViewSketchDto(tensions=[_tension(thesis="Draw three")]),
+        ])
+
+        async def fake_submit(self, response_model, user_content, max_tool_rounds=10):
+            dto = next(drafts)
+            self._messages.append(llm.messages.user(user_content))
+            self._messages.append(llm.messages.assistant(str(dto), model_id=None, provider_id=None))
+            return dto
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+
+        async def fake_select(candidates, context=""):
+            verdicts = [
+                tetrad_candidates.SketchVerdict(0.5, 0.6),  # draw one: weakest
+                tetrad_candidates.SketchVerdict(0.9, 0.8),  # draw two: the winner
+                tetrad_candidates.SketchVerdict(0.7, 0.9),  # draw three: second
+            ]
+            return tetrad_candidates.ranking(verdicts)[0], verdicts
+
+        monkeypatch.setattr(tetrad_candidates, "select_sketch", fake_select)
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+
+        view = await head.exploration_view(focus="a perspective", attempts=3)
+
+        assert [p.t.text for p in view.perspectives] == ["Draw two"]
+        assert [p.t.text for p in view.runners_up] == ["Draw three", "Draw one"]
+        assert all(p.complete for p in view.runners_up)
+        assert "Draw two" in message_text(head.messages[-1])
+        assert "Draw three" not in message_text(head.messages[-1]), "the record is what was shown"
+        assert view.without_terminology().runners_up[0].t.text == "Draw three"
+
+    @pytest.mark.asyncio
+    async def test_one_draw_has_no_runners_up(self, monkeypatch):
+        _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        view = await head.exploration_view(attempts=1)
+        assert view.runners_up == []
+
+    @pytest.mark.asyncio
     async def test_what_it_drew_stays_in_the_history_as_words(self, monkeypatch):
         _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
         head = Consultant(app_preamble="x", messages=list(_HISTORY))

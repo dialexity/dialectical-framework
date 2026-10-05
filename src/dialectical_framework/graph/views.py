@@ -339,12 +339,18 @@ class ExplorationView:
     perspectives: list[PerspectiveView] = field(default_factory=list)
     #: The Nexus this is a view of; None when it is the whole case.
     nexus_hash: Optional[str] = None
+    #: The best-of-N draws that lost, best first — the first tension of each
+    #: (`concerns/tetrad_candidates.py`: "returned, not thrown away"). A
+    #: host's "again"/"another" can show one without a new reasoning call.
+    #: Empty for a view read off the graph, or drawn once.
+    runners_up: list[PerspectiveView] = field(default_factory=list)
 
     def without_terminology(self) -> ExplorationView:
         return dataclasses.replace(
             self,
             perspectives=[p.without_terminology() for p in self.perspectives],
             nexus_hash=None,
+            runners_up=[p.without_terminology() for p in self.runners_up],
         )
 
     def to_dict(self) -> dict[str, Any]:

@@ -149,6 +149,13 @@ async def select_sketch(
             return None
 
     verdicts = list(await asyncio.gather(*(one(c) for c in candidates)))
+    return ranking(verdicts)[0], verdicts
+
+
+def ranking(verdicts: Sequence[Optional[SketchVerdict]]) -> list[int]:
+    """Candidate indices best first, by `select_sketch`'s rule: the weaker
+    control statement, then the mean, then the earlier draw; unjudged last.
+    `[0]` is the winner; the rest are the runners-up in order."""
 
     def key(index: int) -> tuple[int, float, float, int]:
         verdict = verdicts[index]
@@ -157,5 +164,4 @@ async def select_sketch(
         mean = (verdict.t_plus_without_a_plus + verdict.a_plus_without_t_plus) / 2
         return (1, verdict.floor, mean, -index)
 
-    best = max(range(len(candidates)), key=key)
-    return best, verdicts
+    return sorted(range(len(verdicts)), key=key, reverse=True)
