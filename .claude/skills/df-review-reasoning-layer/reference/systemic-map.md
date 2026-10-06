@@ -1958,11 +1958,14 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    from its own side's plus; it need NOT name where it starts (the paper's Re- is "Dogmatize"). An auditor
    requiring the start to be named — the app's, used until 2026-10-06 — fails half the valid lines.
    The STAGED generator, read back from the graph with each edge oriented (`probe_staged_endpoints.py`):
-   Ac- valid 70%, Re- 49%, and Re-'s failures LAND in A- ("reflection without action" read as "keep
+   Ac- valid 70%, Re- 49%, and Re-'s failures LANDED in A- ("reflection without action" read as "keep
    watching", which is A's trap wherever A is the passive pole); 27% valid on T->A edges. The one-shot's
-   scaffold-field fix did NOT carry there (within noise; reverted). The Re- prompt's "the Reflection
-   Perspective's positive" also names neither positive in the reflection block, which `build_edge_context`
-   renders relative to the OPPOSITE edge (its T+ = the other side's strength, its A- = your own trap).
+   scaffold-field fix did NOT carry there (within noise; reverted). What did: the Re- instruction in
+   `_generate_re_side` now names the landing by the reflection block's OWN label — its A- line is your own
+   trap (`build_edge_context` renders the block relative to the OPPOSITE edge, so its T+ is the other
+   side's strength and its T- the other side's trap) — and names the miss ("keep watching and do nothing"
+   leaves THEIR trap in place). Lands 59% → 76% (+18, clears), valid 49% → 61% (+12, edge of noise), Ac-
+   control flat. A Re- edit is a block-label edit: keep the labels and the block's rendering in step.
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the

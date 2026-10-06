@@ -364,3 +364,27 @@ from/into fields did not move it (strict read, within noise). The staged Ac- is 
 **Open:** the staged Re- landing (try naming the landing — the reflection block's A- — in the
 instruction, measured on `probe_staged_endpoints.py` by `TransitionVerdict`); and the first app's
 endpoint judge is the same strict auditor, so its endpoint figures read low by the same margin.
+
+### The staged Re- names its landing (2026-10-06, same day)
+
+The Re- instruction in `_generate_re_side` said "the Reflection Perspective's positive regresses you
+toward your negative" — no landing in the block's own labels, and a definition ("reflection without
+the action") the writer read as "keep watching, do nothing". It now says where Re- LANDS (the A-
+line of `<reflection_perspective>`, your own trap), that the start (its T+ line) need not be named,
+and names the miss: doing nothing leaves the OTHER side's trap in place (the block's T- line), which
+is not Re-. Rebuilt the 17 wheels and judged with `TransitionVerdict`, paired by (tetrad, edge,
+band) against the re-scored baseline (`staged_endpoints-20261006-185109.json`):
+
+| staged, 102 | before | after | paired |
+|---|---|---|---|
+| Re- lands in T- | 59% | **76%** | +18 (+7..+29), clears |
+| Re- is the reflection degenerated | 88% | 97% | +9 (+2..+16), clears |
+| Re- valid | 49% | 61% | +12 (-0..+24), at the edge of noise |
+| — T -> A edges | 27% | 57% | |
+| — A -> T edges | 71% | 65% | |
+| Ac- valid (unchanged, the control) | 70% | 70% | +0 |
+
+Shipped: the targeted defect moved and cleared, the makeup read moved WITH it rather than trading
+against it, and the control held. Not resolved: validity overall (the CI touches zero), and the A->T
+dip, unpaired. What is left (40 failures): 22 still do not land (the "keep watching" shape, less of
+it), 14 land but start from T+ — the shape two of the three theory reviewers called borderline.

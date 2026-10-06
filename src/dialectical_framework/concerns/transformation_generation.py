@@ -252,12 +252,13 @@ class ReSideCompletionDto(BaseModel):
     # 2026-10-06 (`tests/e2e/probe_staged_endpoints.py`, 102 Transformations on
     # 17 one-tension wheels, read with the theory-faithful `TransitionVerdict`):
     # Re- valid 49% against Ac- 70%, and it is the LANDING that fails (59%
-    # land in T-; 27% valid on T->A edges). The prompt below asks for "the
-    # reflection without the action", which the writer reads as "keep watching,
+    # land in T-; 27% valid on T->A edges). The prompt asked for "the
+    # reflection without the action", which the writer read as "keep watching,
     # do nothing" — and wherever A is the passive pole, doing nothing is A's
     # trap, not T's. Two `re_minus_from` / `re_minus_into` fields ahead of these
-    # (the one-shot's fix) moved it within noise and were reverted. Open; see
-    # docs/dev-notes/one-shot-transformation.md.
+    # (the one-shot's fix) moved it within noise and were reverted; the
+    # landing is now named in `_generate_re_side`'s Re- instruction instead.
+    # See docs/dev-notes/one-shot-transformation.md.
     re_minus_headline: str = Field(description="Re- headline (component length)")
     re_minus_statement: str = Field(description="Re- statement (fuller than the headline)")
     re_minus_explanation: str = Field(
@@ -650,7 +651,8 @@ Given their action, what reflection does it trigger that leads to growth?
 
 What happens when their action IS taken in, but nothing you do grounds that reflection?
 - What Re+ ITSELF degenerates into when Ac+ is absent — an overextension of the reflection, not the absence of one
-- Path: the Reflection Perspective's positive regresses you toward your negative
+- Where it LANDS is what makes it Re-: it ends in the A- line of <reflection_perspective> — YOUR OWN trap. It starts from that block's T+ line (the other side's strength); you need not name the start, but the landing must be your trap
+- The common miss: "keep watching and do nothing". When the other side is the passive one, doing nothing just leaves THEIR trap in place (the block's T- line) — that is not Re-. Re- is your reflecting, overdone, carrying YOU into your own trap
 - NOT the same failure as Ac-: Ac- is your action left unreflected, Re- is your reflection left unacted
 - Your Ac+ must CONTRADICT Re- (your positive action opposes this regression)
 - Usually lower insight than Re+

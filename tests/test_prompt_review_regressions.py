@@ -686,6 +686,22 @@ class TestDegenerationSubjectIsPreserved:
         # action being taken, never about reflection occurring alone
         assert "reflection occurs WITHOUT" not in src
 
+    def test_re_minus_names_where_it_lands(self):
+        """Re- "transforms A+ into T-" [P0 pp.16-17]: the landing is the
+        definition. Measured weak on exactly that (2026-10-06,
+        `probe_staged_endpoints.py`, `TransitionVerdict`): Re- valid 49%,
+        landing in T- 59% — "the reflection without the action" was read as
+        "keep watching, do nothing", which leaves the OTHER side's trap in
+        place. The instruction names the landing by the reflection block's own
+        label (its A- line is your own trap) and the miss by name."""
+        from dialectical_framework.concerns import transformation_generation as m
+
+        src = inspect.getsource(m.TransformationGeneration._generate_re_side)
+        assert "it ends in the A- line of <reflection_perspective>" in src
+        assert "YOUR OWN trap" in src
+        assert '"keep watching and do nothing"' in src
+        assert "regresses you toward your negative" not in src, "named neither positive"
+
     def test_re_minus_body_degenerates_the_reflection_not_the_action(self):
         from dialectical_framework.concerns import transformation_generation as m
 
