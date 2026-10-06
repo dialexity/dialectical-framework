@@ -1949,6 +1949,13 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    remaining twin — an edit to the definition reaches both. `attempts=` reuses the tetrad judge through
    `as_control_tetrad` (Rule 5.2's control statements in the tetrad's corners); default ONE, unmeasured,
    and blind to S- shape and endpoint fidelity, the two defects this layer has shown.
+   **A definition in prose is not an instruction the writer follows** (2026-10-06): the both-halves text
+   landed Ac-/Re- on their ends in 22%/18% — the makeup half ("Ac+ without Re+") reads like the aspect
+   tetrad's "T+ without A+ yields T-" and pulls the line onto T's own trap. The DTO's `*_minus_from` /
+   `*_minus_into` fields, written before each minus line, took it to 60%/58%. Review an edit here on
+   `tests/e2e/probe_transformation_sketch.py` (third-trap + endpoint/makeup auditors + crossed S-,
+   paired against `current`), never by reading the prompt. Open: whether the staged generator lands the
+   ends — it was never instrumented (its stored pathways carry no edge orientation to judge against).
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the

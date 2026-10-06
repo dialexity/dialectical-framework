@@ -206,13 +206,16 @@ so "nothing drawn yet" and "the drawing failed" stay distinguishable to the butt
 `PerspectiveView`) and wants the layer above it (the action and the reflection, their
 developments, S+ and S-) without building a wheel calls
 `await TransformationSketch().resolve(tetrad, material=utterance)`
-(`concerns/transformation_sketch.py`): one structured call, eight texts, nothing persisted, no
-scores, one tension only (two or more tensions are the graph path). A host that writes its own
+(`concerns/transformation_sketch.py`): one structured call, eight texts plus four short
+scaffold fields (where each minus line starts and lands, written before it — they are why
+Ac-/Re- end where the theory says; a host may ignore them), nothing persisted, no scores, one
+tension only (two or more tensions are the graph path). A host that writes its own
 person-facing text in the same call does not restate the theory: it embeds
 `TRANSFORMATION_BUILD_PROCEDURE` in its system prompt and subclasses `TransformationSketchDto`
-(the first app's card does). `attempts=` draws N and keeps the most coherent by the transition
-tetrad's control statements ("Ac+ without Re+ yields Ac-"); default ONE, because nothing about
-this call is measured yet.
+(the first app's card does), so it inherits the scaffold fields too. `attempts=` draws N and
+keeps the most coherent by the transition tetrad's control statements ("Ac+ without Re+ yields
+Ac-"); default ONE, unmeasured. An edit to the definition text or the DTO is gated by
+`tests/e2e/probe_transformation_sketch.py`.
 
 Not built: any tool that lets the model open a view itself. The trigger is the host's
 (a button calling `exploration_view()` inside the scope, or `consultant.exploration_view()`), and that

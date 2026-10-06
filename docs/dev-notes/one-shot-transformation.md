@@ -240,3 +240,44 @@ pairwise new 7, old 4, same 1, order-bound 5. **No regression, no resolved gain*
 that held the measured S- rule, not an S- improvement. Note the before is the 10-05 prompt WITH its
 shape rule (it already scored 12/17 on the old wheels), so the 4 → 12 of 10-05 is not re-earned here.
 Same caveats as above: one judge, n = 17, the auditor saturated by the either/or rule both sides carry.
+
+### The ends did not land in text; they land through the DTO (2026-10-06, same day)
+
+**The host caught it.** The first app measured the pill on 25 frozen tetrads (its 8 plus the 17
+above), old arm-2 text against the both-halves text, Sonnet 5 writing, Opus 5 judging, 2 reps,
+paired: the endpoint half did not land in either arm (Ac- on T+ → A- 30% → 14%, the drop clearing
+noise; Re- 20% → 12%), with the card text, S- and the makeup reads unchanged within noise. The writer
+put Ac- on T's OWN trap — "T overdone into T-" — instead of carrying T's strength into A's trap. The
+mechanism is in the wording: "Ac+ without Re+" reads like the aspect tetrad's "T+ without A+ yields
+T-", so the makeup half pulls the line onto T-. Shipping the both-halves text into the framework as
+"Ac-/Re- carry both halves" claimed an instruction works because it was stated. It was not measured.
+
+**The framework now owns the instrument.** `tests/e2e/probe_transformation_sketch.py` ports the app's
+eval onto `TransformationSketch`: the same 25 tetrads (`fixtures/transformation_tetrads.jsonl`), the
+same two auditors verbatim (third-trap; endpoints + makeup, four booleans), crossed-order S-
+pairwise, every read a paired delta against the shipped arm with a 95% CI, the bench judge (Fable 5)
+on a Sonnet 5 writer. Run it before any edit to `TRANSFORMATION_POSITIONS`, `SYNTHESIS_SHAPE` or the
+DTO. `transformation_sketch-20261006-130616.json`, n = 50 per arm:
+
+| arm | Ac- ends | Re- ends | Ac- is the action | Re- is the reflection | S- third |
+|---|---|---|---|---|---|
+| both-halves text (dd2be18) | 22% | 18% | 88% | 94% | 72% |
+| makeup only (arm 2) | 16% | 4% | 92% | 96% | 78% |
+| ends first, wrong pattern named | 40% (+18, clears) | 28% | 82% | 82% | 70% |
+| **text + `from`/`into` fields before each line** | **60% (+38, clears)** | **58% (+40, clears)** | 82% (−6) | 88% (−6) | 82% (+10) |
+
+S- pairwise, fields vs text, crossed: 17–23 with 10 order-bound — unresolved, a lean against.
+Read before trusting (the app's caution): the text-only failures are what the app described ("a
+clean break, dropped from the rolls" for T+ "stay engaged" — T's own cut-off, T-); the fields'
+passes are the theory's non-obvious failures ("keep visiting him so often the conversation drifts
+into just accepting his checks again"); the fields' failures are a line drifting back to T- past a
+correct scaffold, and twice a wrong target named in the scaffold itself.
+
+**Shipped:** the four scaffold fields in `TransformationSketchDto`, before their lines; the text is
+unchanged. The app's own "both-halves did worse than none" did not replicate on this judge and
+without the app's voice (22% vs 16% the other way, within noise); its "the ends do not land in text"
+did. A host subclassing the DTO inherits the fields.
+
+**Open:** whether the staged generator lands the ends at all — never instrumented; its stored
+pathways carry no edge orientation, so judging them needs the wheel read back from the graph. That is
+also the first number the N = 2 one-shot-per-edge measurement needs.

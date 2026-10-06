@@ -32,8 +32,12 @@ state, scored 11/17 on the third-trap auditor where a call that skipped the
 poles and stated the theory loosely scored 0/17 (`one-shot-transformation.md`,
 arms 1 and 2; the auditor is saturated by the either/or instruction, so read
 that as compliance). The endpoint half of the minus definitions was added
-afterwards and is NOT yet measured in this one-call form; the app's first-card
-eval is its first measurement. Arm 1 is not evidence against the endpoints:
+afterwards and, stated in text alone, did NOT land: the first app measured it
+at 14-30% and `tests/e2e/probe_transformation_sketch.py` at 22% / 18% (Ac- /
+Re-). What lands the ends is the DTO, not the sentence: the writer names where
+each minus line starts and lands before writing it (`TransformationSketchDto`
+says why and by how much). That probe is the gate for any change to the
+definition text or those fields. Arm 1 is not evidence against the endpoints:
 it differed from arm 2 in three ways at once, and its Ac- came back as T-,
 which violates the endpoint reading too.
 
@@ -128,13 +132,26 @@ def as_control_tetrad(sketch: Any) -> SimpleNamespace:
 
 
 class TransformationSketchDto(BaseModel):
-    """One transformation and its synthesis, as eight texts.
+    """One transformation and its synthesis: eight texts, plus the two ends of
+    each minus line written first.
 
     Flat and text-only for the reasons `ViewSketchPerspectiveDto` gives: the
     flatter the schema the less often a real provider drops a branch, and a
     score here would be a guess dressed as a measurement. The field ORDER is
     the build order (poles, developments, synthesis) because the model writes
     the fields in order.
+
+    `ac_minus_from` / `ac_minus_into` (and the Re- pair) come BEFORE their
+    line on purpose, and they are the measured fix, not decoration. Stating the
+    ends in the definition does not make the writer use them: the shipped text
+    put Ac- on T+ -> A- in 22% of drafts and Re- on A+ -> T- in 18%, because
+    "the action without the reflection" reads like the tetrad's own "T+ without
+    A+ yields T-" and the line lands on T's OWN trap. Making the writer name
+    the start and the landing first moved both to 60% / 58% (+38 / +40, both
+    clearing noise), with the makeup reads and S- unchanged within noise
+    (`tests/e2e/probe_transformation_sketch.py`, 25 tetrads x 2 reps,
+    2026-10-06). A host may ignore the four scaffold fields; their job is done
+    by the time the line is written.
 
     Hosts SUBCLASS it to add their own person-facing fields after these, so
     the derivation and the words that rest on it stay one call: the first
@@ -161,6 +178,14 @@ class TransformationSketchDto(BaseModel):
             "into A's strength (A+)."
         )
     )
+    ac_minus_from: str = Field(
+        description=(
+            "Which of T's strengths (T+) the degraded action starts from — a phrase."
+        )
+    )
+    ac_minus_into: str = Field(
+        description="Which part of A's trap (A-) it lands in — a phrase."
+    )
     ac_minus: str = Field(
         description=(
             "Ac- — the good action without the good reflection (Ac+ without Re+): the "
@@ -173,6 +198,14 @@ class TransformationSketchDto(BaseModel):
             "Re+ — the reflection developed well: the version that turns A's trap "
             "(A-) into T's strength (T+)."
         )
+    )
+    re_minus_from: str = Field(
+        description=(
+            "Which of A's strengths (A+) the degraded reflection starts from — a phrase."
+        )
+    )
+    re_minus_into: str = Field(
+        description="Which part of T's trap (T-) it lands in — a phrase."
     )
     re_minus: str = Field(
         description=(

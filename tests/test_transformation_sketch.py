@@ -79,10 +79,27 @@ class TestTheShape:
     def test_the_fields_are_in_build_order_and_text_only(self):
         fields = ts.TransformationSketchDto.model_fields
         assert list(fields) == [
-            "action", "reflection", "ac_plus", "ac_minus",
-            "re_plus", "re_minus", "s_plus", "s_minus",
+            "action", "reflection", "ac_plus",
+            "ac_minus_from", "ac_minus_into", "ac_minus",
+            "re_plus",
+            "re_minus_from", "re_minus_into", "re_minus",
+            "s_plus", "s_minus",
         ]
         assert all(f.annotation is str for f in fields.values()), "no scores"
+
+    def test_each_minus_line_is_preceded_by_its_ends(self):
+        """The measured fix (2026-10-06, `probe_transformation_sketch.py`): the
+        definition in text landed the ends in 22% / 18%; naming the start and
+        the landing BEFORE the line moved them to 60% / 58%. The order is the
+        mechanism — the model writes fields in order."""
+        order = list(ts.TransformationSketchDto.model_fields)
+        assert order.index("ac_minus_from") < order.index("ac_minus_into") < order.index("ac_minus")
+        assert order.index("re_minus_from") < order.index("re_minus_into") < order.index("re_minus")
+        fields = ts.TransformationSketchDto.model_fields
+        assert "T's strengths (T+)" in fields["ac_minus_from"].description
+        assert "A's trap (A-)" in fields["ac_minus_into"].description
+        assert "A's strengths (A+)" in fields["re_minus_from"].description
+        assert "T's trap (T-)" in fields["re_minus_into"].description
 
     def test_a_host_extends_it_after_the_derivation(self):
         """The first app's card writes its sentences in the same call; a
@@ -111,10 +128,7 @@ class TestTheConcern:
 
         async def fake_submit(self, response_model, user_content):
             calls.append((self, response_model, user_content))
-            return ts.TransformationSketchDto(
-                action="a", reflection="r", ac_plus="a+", ac_minus="a-",
-                re_plus="r+", re_minus="r-", s_plus="s+", s_minus="s-",
-            )
+            return _dto("x", ac_plus="a+", s_minus="s-")
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
         concern = ts.TransformationSketch()
@@ -148,10 +162,7 @@ class TestSelectionIsAvailableAndOffByDefault:
         from dialectical_framework.concerns.control_statements_check import \
             control_statements
 
-        sketch = ts.TransformationSketchDto(
-            action="a", reflection="r", ac_plus="AC+", ac_minus="AC-",
-            re_plus="RE+", re_minus="RE-", s_plus="s+", s_minus="s-",
-        )
+        sketch = _dto("x", ac_plus="AC+", ac_minus="AC-", re_plus="RE+", re_minus="RE-")
         c = ts.as_control_tetrad(sketch)
         first, second = control_statements(
             t_plus=c.t_plus, t_minus=c.t_minus, a_plus=c.a_plus, a_minus=c.a_minus
@@ -212,9 +223,13 @@ class TestSelectionIsAvailableAndOffByDefault:
         }
 
 
-def _dto(tag: str) -> ts.TransformationSketchDto:
-    return ts.TransformationSketchDto(
+def _dto(tag: str, **overrides: str) -> ts.TransformationSketchDto:
+    fields = dict(
         action=f"{tag}-ac", reflection=f"{tag}-re", ac_plus=f"{tag}-ac+",
-        ac_minus=f"{tag}-ac-", re_plus=f"{tag}-re+", re_minus=f"{tag}-re-",
+        ac_minus_from=f"{tag}-from", ac_minus_into=f"{tag}-into", ac_minus=f"{tag}-ac-",
+        re_plus=f"{tag}-re+",
+        re_minus_from=f"{tag}-rfrom", re_minus_into=f"{tag}-rinto", re_minus=f"{tag}-re-",
         s_plus=f"{tag}-s+", s_minus=f"{tag}-s-",
     )
+    fields.update(overrides)
+    return ts.TransformationSketchDto(**fields)
