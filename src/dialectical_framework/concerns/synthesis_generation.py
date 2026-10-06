@@ -30,6 +30,8 @@ from dialectical_framework.agents.conversation_facilitator import (
     ConversationFacilitator,
 )
 from dialectical_framework.agents.reasonable_concern import ReasonableConcern
+from dialectical_framework.concerns.transformation_sketch import (
+    SYNTHESIS_SHAPE, TRANSFORMATION_POSITIONS)
 from dialectical_framework.graph.nodes.statement import Statement
 from dialectical_framework.protocols.has_config import SettingsAware
 
@@ -39,7 +41,12 @@ if TYPE_CHECKING:
     from dialectical_framework.graph.nodes.wheel import Wheel
 
 
-SYSTEM_PROMPT = """You are an expert in dialectical synthesis — the emergent properties arising from circular causality loops.
+#: "The shape of the inputs" is the framework's ONE statement of the
+#: Transformation (`transformation_sketch.TRANSFORMATION_POSITIONS`) and of S±
+#: (`SYNTHESIS_SHAPE`), not a copy: this prompt reads graph-built
+#: Transformations and the one-shot writes them, and the two must not define
+#: Ac-/Re- differently (2026-10-06 — this paragraph had dropped where Ac- GOES).
+SYSTEM_PROMPT = f"""You are an expert in dialectical synthesis — the emergent properties arising from circular causality loops.
 
 ## What Synthesis IS
 
@@ -57,7 +64,7 @@ S+ produces new qualitative dimensions — it increases a system's capacity for 
 ## S- (Negative Synthesis): Collapse Pattern (1+1<2)
 
 S- emerges when the failure modes (Ac- and Re-) reinforce each other:
-- Acting without reflecting yields Ac- (the action's own drift); reflecting without acting yields Re- (the reflection's own regression)
+- Ac+ without Re+ yields Ac- (the action's own drift, which carries T+ into A-); Re+ without Ac+ yields Re- (the reflection's own regression, which carries A+ into T-)
 - Together these create downward spirals — dominance of one pole, or unstable oscillation between them
 - Diversity is reduced and qualitative growth is replaced by quantitative amplification
 
@@ -65,7 +72,11 @@ S- manifests as imitation rather than transformation: external forms, metrics, o
 
 ## The shape of the inputs, exactly
 
-Each Transformation is itself a tetrad: Ac (the action) and Re (the reflection) are its poles; Ac+/Ac- and Re+/Re- are their constructive and one-sided developments. So Ac- is the ACTION gone wrong and Re- is the REFLECTION gone wrong — they are not the segments' own traps (T-, A-) restated, and S- is not those traps either. S- is the ONE named state the degraded action and the degraded reflection produce together: a single way of failing that is neither trap on its own and not a choice between them. "Either X or Y", "X versus Y" and "X while Y" with X and Y the two traps are the inputs listed, not the collapse named. Likewise S+ is a gain in dimension the pathways produce together — not "both", not the two strengths listed side by side.
+Each Transformation is itself a tetrad, built this way:
+
+{TRANSFORMATION_POSITIONS}
+
+{SYNTHESIS_SHAPE}
 
 ## Requirements
 

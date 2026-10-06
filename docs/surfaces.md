@@ -202,6 +202,18 @@ validation flag, no dedup, nothing kept; a best-of-N selection is a choice among
 a flag on the one shown): the view BEFORE the upgrade, not a lighter version of the checked one. It raises on a provider failure rather than returning an empty view,
 so "nothing drawn yet" and "the drawing failed" stay distinguishable to the button that asked.
 
+**The way through one drawn tension, graph-free.** A host that has a complete tetrad (a
+`PerspectiveView`) and wants the layer above it (the action and the reflection, their
+developments, S+ and S-) without building a wheel calls
+`await TransformationSketch().resolve(tetrad, material=utterance)`
+(`concerns/transformation_sketch.py`): one structured call, eight texts, nothing persisted, no
+scores, one tension only (two or more tensions are the graph path). A host that writes its own
+person-facing text in the same call does not restate the theory: it embeds
+`TRANSFORMATION_BUILD_PROCEDURE` in its system prompt and subclasses `TransformationSketchDto`
+(the first app's card does). `attempts=` draws N and keeps the most coherent by the transition
+tetrad's control statements ("Ac+ without Re+ yields Ac-"); default ONE, because nothing about
+this call is measured yet.
+
 Not built: any tool that lets the model open a view itself. The trigger is the host's
 (a button calling `exploration_view()` inside the scope, or `consultant.exploration_view()`), and that
 is a decision, not an omission — an LLM-elected `show` tool would be unreliable anyway

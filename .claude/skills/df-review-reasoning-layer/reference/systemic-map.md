@@ -1935,6 +1935,19 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    drifted off it in 17–22 of 40 (coherence non-inferior), so `_generate_tetrad` stays the writer for a GIVEN
    pair and `TetradSketch` writes only where it also chooses the opposition; consolidating them is a new
    measurement, not a cleanup.
+   **The layer above, graph-free: `concerns/transformation_sketch.py`** (2026-10-06). ONE statement of the
+   Transformation as a tetrad, `TRANSFORMATION_POSITIONS` (Ac/Re poles; Ac+ = T-→A+, Re+ = A-→T+; Ac- = Ac+
+   without Re+ carrying T+ into A-, Re- the mirror; the diagonal contradictions) and `SYNTHESIS_SHAPE` (S+
+   a gain in dimension, S- one named state, the measured either/or rule verbatim), read by THREE sites:
+   the concern's own `SYSTEM_PROMPT` (via `TRANSFORMATION_BUILD_PROCEDURE`, poles-first order),
+   `synthesis_generation.SYSTEM_PROMPT` ("The shape of the inputs") and host prompts (the first app's
+   pill embeds the procedure and subclasses `TransformationSketchDto`). Why one statement: the app's copy
+   kept the makeup half of Ac-/Re- and dropped the endpoint half, and the synthesis prompt carried the
+   same weakening ("acting without reflecting"). Parity to hold: `transformation_generation`'s staged
+   Ac-/Re- bodies state the same two halves in their own words (endpoint + degeneration) and are the
+   remaining twin — an edit to the definition reaches both. `attempts=` reuses the tetrad judge through
+   `as_control_tetrad` (Rule 5.2's control statements in the tetrad's corners); default ONE, unmeasured,
+   and blind to S- shape and endpoint fidelity, the two defects this layer has shown.
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the

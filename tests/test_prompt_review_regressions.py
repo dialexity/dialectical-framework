@@ -706,11 +706,31 @@ class TestDegenerationSubjectIsPreserved:
         assert "Failure: acting (boundaries) without reflecting" not in p
 
     def test_negative_synthesis_names_which_minus_is_which(self):
+        """Both halves of the paper's statement of the minus transitions
+        [P0 pp.6,16-17], in the prompt that reads them for S-: what each is MADE
+        of (the degeneration rule, stated on the PLUS positions — "acting
+        without reflecting" was the weaker form, and the one the alsotrue pill
+        copied) and where it GOES (Ac- = T+ → A-, Re- = A+ → T-, the
+        transitions `_create_transformation` wires)."""
         from dialectical_framework.concerns import synthesis_generation as m
 
         p = m.SYSTEM_PROMPT
-        assert "Acting without reflecting yields Ac-" in p
-        assert "reflecting without acting yields Re-" in p
+        assert "Ac+ without Re+ yields Ac-" in p
+        assert "Re+ without Ac+ yields Re-" in p
+        assert "Acting without reflecting yields Ac-" not in p
+        assert "carries T's strength (T+) into A's trap (A-)" in p
+        assert "carries A's strength (A+) into T's trap (T-)" in p
+
+    def test_the_minus_transitions_end_in_the_traps_without_being_them(self):
+        """The measured S- fix (one named state, never the traps as a fork,
+        docs/dev-notes/one-shot-transformation.md) and the endpoints must hold
+        together: a path that ends in A- is not A- restated."""
+        from dialectical_framework.concerns import synthesis_generation as m
+
+        p = m.SYSTEM_PROMPT
+        assert "a path is not its destination" in p
+        assert "S- is the ONE named state" in p
+        assert '"Either X or Y"' in p
 
 
 # --- S4: transition length is settings-driven --------------------------------

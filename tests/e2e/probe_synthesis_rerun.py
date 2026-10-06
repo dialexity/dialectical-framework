@@ -39,7 +39,12 @@ from e2e.probe_synthesis_arms_theory1 import _judge_sminus
 from e2e.probe_synthesis_arms_theory2 import _third_trap
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
-_MACHINERY = _RESULTS / "wisdom_machinery-20261005-082435.json"
+#: The machinery run whose wheels are re-synthesised. Default: the 2026-10-05
+#: run this probe was written against. A rebuild (the DB does not keep wheels
+#: across a cleanup) names its own file: PROBE_MACHINERY_FILE=wisdom_machinery-<stamp>.json.
+_MACHINERY = _RESULTS / os.environ.get(
+    "PROBE_MACHINERY_FILE", "wisdom_machinery-20261005-082435.json"
+)
 
 
 def _latest(prefix: str) -> Path:

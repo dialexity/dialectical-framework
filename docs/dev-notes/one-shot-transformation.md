@@ -204,3 +204,39 @@ generation or any N = 2 Ac+ stays inside its source tetrad in > 2/20 — the
   person. Whether a person-facing register belongs on the Statement or only
   on a renderer is a product question the app repo owns.
 - The third-trap auditor against a hand count.
+
+## Ac-/Re- with both halves, and the one statement of the Transformation (2026-10-06)
+
+**What was wrong.** The paper gives each minus transition twice [P0 pp.6,16-17]: by its ENDS
+(Ac- = T+ → A-, Re- = A+ → T-, which is how `_create_transformation` wires them) and by what it is
+MADE of ("Ac+ without Re+ degenerates into Ac-"). The staged generator says both. Two prompts said
+half: the synthesis prompt ("acting without reflecting yields Ac-", and the "shape of the inputs"
+paragraph of 10-05 with no endpoints) and the first app's pill, which carried arm 2 verbatim. A host
+noticed: in the app, Ac- read as "the action done badly" with no say on where it goes.
+
+**Arm 1 is not evidence against the endpoints.** The host's note read the 0/17 above as "stating
+the endpoints collapsed it". Arm 1 differed from arm 2 in three ways at once (no Ac/Re poles, the
+endpoints, no either/or rule), and its Ac- came back as T- — which violates the endpoint reading too
+(Ac- ends in A-). What arm 1 shows is that a degradation needs a pole to degrade.
+
+**What changed.** `concerns/transformation_sketch.py` holds the one statement:
+`TRANSFORMATION_POSITIONS` (poles; developments; both halves of Ac-/Re-; the diagonal
+contradictions), `SYNTHESIS_SHAPE` (the 10-05 S- rule verbatim) and `TRANSFORMATION_BUILD_PROCEDURE`
+(poles first). The synthesis prompt's "shape of the inputs" IS those two constants now; the app's pill
+embeds the procedure and subclasses `TransformationSketchDto`; `TransformationSketch` is the graph-free
+one-shot for a host with a drawn tetrad and no wheel (one tension only). `attempts=` reuses the tetrad
+judge on the transition tetrad through `as_control_tetrad` — Rule 5.2's control statements in the
+tetrad's corners — default ONE, because nothing about this call is measured and the judge cannot see
+the two defects this layer has shown (S- shape, endpoint fidelity).
+
+**Measured on the synthesis prompt only** (the pill's change is the app's first-card eval). The 17
+wheels of 10-05 were gone from the DB, so they were rebuilt with the PRE-change prompt
+(`wisdom_machinery-20261006-105337.json`, 17/17, ~95 s each), synthesis re-run on the same wheels with
+the new one (`synthesis_rerun-20261006-112425.json`), and both sides read by
+`probe_synthesis_rescore.py` (written for this: `probe_synthesis_rerun.py` audits only the new side and
+prints 10-05 constants for the old, and its pairwise is single-order):
+`synthesis_rescore-20261006-113009.json` — third-trap old **11/17**, new **12/17**; crossed-order
+pairwise new 7, old 4, same 1, order-bound 5. **No regression, no resolved gain**: a correctness fix
+that held the measured S- rule, not an S- improvement. Note the before is the 10-05 prompt WITH its
+shape rule (it already scored 12/17 on the old wheels), so the 4 → 12 of 10-05 is not re-earned here.
+Same caveats as above: one judge, n = 17, the auditor saturated by the either/or rule both sides carry.

@@ -170,7 +170,10 @@ when the edge joins the two sides of one Polarity. The implementation generalize
 tetrad obedient to rules 3.1–3.3": **Ac+ must directly contradict Re−, Ac− must directly contradict
 Re+**; degeneration: "Ac+ without Re+ degenerates into Ac−; Re+ without Ac+ degenerates into Re−".
 [P0 pp.6,16-17]
-**Implementation:** `concerns/transformation_generation.py` (generates Ac+/Ac−/Re+/Re−; encodes the
+**Implementation:** `concerns/transformation_sketch.py` (`TRANSFORMATION_POSITIONS`: the one statement of
+the transition tetrad, both halves of Ac−/Re−, read by the synthesis prompt and host prompts;
+`as_control_tetrad` puts the degeneration rule through the tetrad's control-statement judge);
+`concerns/transformation_generation.py` (generates Ac+/Ac−/Re+/Re−; encodes the
 degeneration rule and CC on transitions).
 **Status:** partial
 **Notes:** Generation produces all four positions and the degeneration coherence, but the diagonal
