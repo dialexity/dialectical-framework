@@ -318,3 +318,73 @@ async def test_per_draft_judge(di_container) -> None:
           f"; old stored vs re-run winner {winner_agree('stored', 'old_rerun')}")
     print(f"  winner vs old re-run: per-draft {winner_agree('per_draft_a', 'old_rerun')}; vs stored {winner_agree('per_draft_a', 'stored')}")
     print(f"  winners decided by a tie: old re-run {ties('old_rerun')}, per-draft A {ties('per_draft_a')}, B {ties('per_draft_b')}")
+
+
+@pytest.mark.real_llm
+@pytest.mark.asyncio
+async def test_short_reasoning_judge(di_container, monkeypatch) -> None:
+    """The third candidate: the SAME per-statement prompt and DTO, only the two
+    reasoning fields capped at one short sentence. Why it might be free: the
+    DTO asks for `coherence_score` BEFORE `reasoning`, so the reasoning is
+    written after the score selection reads; ~550 output tokens a call may be
+    post-hoc explanation. Two phases, never interleaved (the DTO swap is a
+    module attribute): the old judge re-run (baseline), then the short one.
+    Reads: pass/fail agreement with the stored verdict for each, floor shift,
+    winner agreement with the old re-run, and output tokens per call."""
+    from dialectical_framework.concerns import control_statements_check as csc
+    from dialectical_framework.utils.call_census import call_census
+
+    class ShortCoherenceEvaluationDto(csc.CoherenceEvaluationDto):
+        reasoning: str = Field(description="One short sentence on the coherence assessment — at most 20 words.")
+        dv_reasoning: str = Field(description="One short sentence on the dialectical-validity assessment — at most 20 words.")
+
+    triples = _triples()
+    out = _RESULTS / f"short_reasoning_judge-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    gate = asyncio.Semaphore(_CONCURRENCY)
+
+    async def judge_all() -> tuple[list[list[Optional[list[float]]]], list[int]]:
+        async def one(t: dict[str, Any]) -> list[Optional[list[float]]]:
+            async with gate:
+                return list(await asyncio.gather(*(_old(d) for d in t["drafts"])))
+        with call_census() as census:
+            scores = list(await asyncio.gather(*(one(t) for t in triples)))
+        tokens = [c.output_tokens for c in census.calls if "CoherenceEvaluationDto" in c.label and c.output_tokens]
+        return scores, tokens
+
+    old, old_tokens = await judge_all()
+    with monkeypatch.context() as mp:
+        mp.setattr(csc, "CoherenceEvaluationDto", ShortCoherenceEvaluationDto)
+        short, short_tokens = await judge_all()
+
+    rows = []
+    for t, o, s in zip(triples, old, short):
+        row = {"utterance": t["utterance"], "stored": [d["stored_cc"] for d in t["drafts"]], "old_rerun": o, "short": s}
+        for name in ("stored", "old_rerun", "short"):
+            row[f"winner_{name}"], row[f"tied_{name}"] = _winner(row[name], [0, 1, 2])
+        rows.append(row)
+    out.write_text(json.dumps({"rows": rows, "old_tokens": old_tokens, "short_tokens": short_tokens}, indent=2, ensure_ascii=False))
+
+    def pass_agree(x: str, y: str) -> str:
+        judged = [(_passes(r[x][i]), _passes(r[y][i])) for r in rows for i in range(3)
+                  if r[x][i] is not None and r[y][i] is not None]
+        same = sum(1 for p, q in judged if p == q)
+        return f"{same}/{len(judged)} ({100 * same / max(1, len(judged)):.0f}%)"
+
+    def winner_agree(x: str, y: str) -> str:
+        judged = [r for r in rows if r[f"winner_{x}"] is not None and r[f"winner_{y}"] is not None]
+        same = sum(1 for r in judged if r[f"winner_{x}"] == r[f"winner_{y}"])
+        return f"{same}/{len(judged)} ({100 * same / max(1, len(judged)):.0f}%)"
+
+    def shift(x: str, y: str) -> str:
+        d = [min(r[y][i]) - min(r[x][i]) for r in rows for i in range(3) if r[x][i] is not None and r[y][i] is not None]
+        return f"mean {sum(d) / max(1, len(d)):+.3f}, |mean| {sum(abs(v) for v in d) / max(1, len(d)):.3f}"
+
+    mean = lambda xs: sum(xs) / max(1, len(xs))  # noqa: E731
+    print(f"\n--- short-reasoning judge, {len(rows)} triples -> {out.name} ---")
+    print(f"  pass/fail vs stored : old re-run {pass_agree('stored', 'old_rerun')}, short {pass_agree('stored', 'short')}")
+    print(f"  pass/fail short vs old re-run: {pass_agree('old_rerun', 'short')}")
+    print(f"  floor shift vs stored: old re-run {shift('stored', 'old_rerun')}; short {shift('stored', 'short')}")
+    print(f"  winner: short vs old re-run {winner_agree('short', 'old_rerun')}; short vs stored {winner_agree('short', 'stored')}; "
+          f"old re-run vs stored {winner_agree('old_rerun', 'stored')}")
+    print(f"  winners decided by a tie: old re-run {sum(1 for r in rows if r['tied_old_rerun'])}, short {sum(1 for r in rows if r['tied_short'])}")
+    print(f"  output tokens per call: old {mean(old_tokens):.0f} (n={len(old_tokens)}), short {mean(short_tokens):.0f} (n={len(short_tokens)})")

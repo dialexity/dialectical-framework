@@ -129,8 +129,13 @@ async def judge_sketches(
       it picked by position and ties;
     - one call per draft with both statements in it (the same lean prompt):
       73% against 90%, the same winner as this judge in 23/40 — stable with
-      itself, but measuring something else.
-    A cheaper judge has to be measured against this one on that probe first.
+      itself, but measuring something else;
+    - THIS prompt with each reasoning field capped at one short sentence
+      (the score is written before the reasoning, so the cap looked free):
+      output 534 -> 181 tokens a call, but 78% against 90%, scores +0.05, the
+      same winner as this judge in 29/40. The reasoning is not dead weight.
+    A cheaper judge has to be measured against this one on that probe first;
+    the owner closed the cost question at this point (2026-10-06).
     """
 
     async def one(tension: Any) -> Optional[SketchVerdict]:
