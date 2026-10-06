@@ -248,13 +248,16 @@ class ReSideCompletionDto(BaseModel):
         description="Proactiveness category for Re+"
     )
 
-    # Re- fields. Measured weak on its ENDS (2026-10-06,
-    # `tests/e2e/probe_staged_endpoints.py`, 102 Transformations on 17
-    # one-tension wheels): Re- on A+ -> T- in 34-40% against Ac- on T+ -> A- in
-    # 72-74%; the landing is usually right, the START is not. Two `re_minus_from`
-    # / `re_minus_into` fields ahead of these — the fix that took the one-shot
-    # from 18% to 58% — moved it +6 (-6..+18, paired), within noise, and were
-    # reverted. Open; see docs/dev-notes/one-shot-transformation.md.
+    # Re- fields. The weak position of the staged generator, measured
+    # 2026-10-06 (`tests/e2e/probe_staged_endpoints.py`, 102 Transformations on
+    # 17 one-tension wheels, read with the theory-faithful `TransitionVerdict`):
+    # Re- valid 49% against Ac- 70%, and it is the LANDING that fails (59%
+    # land in T-; 27% valid on T->A edges). The prompt below asks for "the
+    # reflection without the action", which the writer reads as "keep watching,
+    # do nothing" — and wherever A is the passive pole, doing nothing is A's
+    # trap, not T's. Two `re_minus_from` / `re_minus_into` fields ahead of these
+    # (the one-shot's fix) moved it within noise and were reverted. Open; see
+    # docs/dev-notes/one-shot-transformation.md.
     re_minus_headline: str = Field(description="Re- headline (component length)")
     re_minus_statement: str = Field(description="Re- statement (fuller than the headline)")
     re_minus_explanation: str = Field(

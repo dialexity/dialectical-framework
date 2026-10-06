@@ -32,9 +32,10 @@ state, scored 11/17 on the third-trap auditor where a call that skipped the
 poles and stated the theory loosely scored 0/17 (`one-shot-transformation.md`,
 arms 1 and 2; the auditor is saturated by the either/or instruction, so read
 that as compliance). The endpoint half of the minus definitions was added
-afterwards and, stated in text alone, did NOT land: the first app measured it
-at 14-30% and `tests/e2e/probe_transformation_sketch.py` at 22% / 18% (Ac- /
-Re-). What lands the ends is the DTO, not the sentence: the writer names where
+afterwards and, stated in text alone, did NOT land: valid Ac- / Re- in 30% /
+26% of drafts by the theory-faithful auditor (`probe_transition_rescore.py`;
+the app's stricter auditor read 14-30%). What lands the ends is the DTO, not
+the sentence: the writer names where
 each minus line starts and lands before writing it (`TransformationSketchDto`
 says why and by how much). That probe is the gate for any change to the
 definition text or those fields. Arm 1 is not evidence against the endpoints:
@@ -143,15 +144,18 @@ class TransformationSketchDto(BaseModel):
 
     `ac_minus_from` / `ac_minus_into` (and the Re- pair) come BEFORE their
     line on purpose, and they are the measured fix, not decoration. Stating the
-    ends in the definition does not make the writer use them: the shipped text
-    put Ac- on T+ -> A- in 22% of drafts and Re- on A+ -> T- in 18%, because
-    "the action without the reflection" reads like the tetrad's own "T+ without
-    A+ yields T-" and the line lands on T's OWN trap. Making the writer name
-    the start and the landing first moved both to 60% / 58% (+38 / +40, both
-    clearing noise), with the makeup reads and S- unchanged within noise
-    (`tests/e2e/probe_transformation_sketch.py`, 25 tetrads x 2 reps,
-    2026-10-06). A host may ignore the four scaffold fields; their job is done
-    by the time the line is written.
+    ends in the definition does not make the writer use them: with the text
+    alone a valid Ac- (lands in A-, is the action degenerated, does not start
+    from A+) came back in 30% of drafts and a valid Re- in 26%, because "the
+    action without the reflection" reads like the tetrad's own "T+ without A+
+    yields T-" and the line lands on T's OWN trap. Making the writer name the
+    start and the landing first moved them to 56% / 62% (paired +26 / +36, both
+    clearing noise), S- unchanged within noise (`tests/e2e/probe_transformation_sketch.py`,
+    25 tetrads x 2 reps, 2026-10-06, re-read by `probe_transition_rescore.py`
+    with the auditor three blind theory reviewers agreed with on 51/52 clear
+    cases; the app's stricter auditor had read 22/18% -> 60/58%). A host may
+    ignore the four scaffold fields; their job is done by the time the line is
+    written.
 
     The price to watch, OPEN: the ends rose and the makeup reads dipped
     ("Re- is the reflection itself" 94% -> 88% here, within noise; the first

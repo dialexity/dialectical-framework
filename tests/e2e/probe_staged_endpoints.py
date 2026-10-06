@@ -28,15 +28,21 @@ tetrads, a different writer shape), so read the rates side by side, not as a
 delta.
 
 Result (2026-10-06, Fable 5 judging, 17 wheels x 6 Transformations):
-`staged_endpoints-20261006-151300.json` — Ac- ends 74%, Re- ends 34% (18% on
-T->A edges, 51% on A->T); Ac- / Re- "is the action / reflection itself" 75% /
-88%; wiring 102/102. The Re- failures land right (T-) and START wrong (the
-reflection's own noticing, or T+, instead of A+). Two `re_minus_from/_into`
-fields before the Re- lines (the one-shot's fix) gave
-`staged_endpoints-20261006-154414.json`: Re- 40%, paired by (tetrad, edge,
-band) +6 (-6..+18), within noise, Ac- (unchanged, the control) -2 — reverted.
-To compare two builds cell by cell, pair the two result files on
-(utterance, orientation, category) as the dev note did.
+`staged_endpoints-20261006-151300.json`, read by the app's STRICT auditor at the
+time — Ac- ends 74%, Re- ends 34%; wiring 102/102. That auditor required each
+line to visibly start from the other side's strength, which three blind theory
+reviewers found stricter than the papers (half its Re- failures were valid).
+Re-read with the theory-faithful `TransitionVerdict`
+(`transition_rescore-20261006-175449.json`): **Ac- valid 70% (lands 91%), Re-
+valid 49% (lands 59%)**; T->A edges 53% / 27%, A->T edges 86% / 71%. The real Re-
+defect is the LANDING: "reflection without action" read as "keep watching, do
+nothing", which ends in A- wherever A is the passive pole. (An earlier reading
+here, "lands right, starts wrong", was the strict auditor talking; corrected.)
+Two `re_minus_from/_into` fields before the Re- lines (the one-shot's fix) gave
+`staged_endpoints-20261006-154414.json`: +6 on the strict read (-6..+18), within
+noise, the unchanged Ac- -2 — reverted; not re-read with the new auditor.
+This probe now judges with `TransitionVerdict`. To compare two builds cell by
+cell, pair the two result files on (utterance, orientation, category).
 
     PROBE_MACHINERY_FILE=wisdom_machinery-<stamp>.json \\
         poetry run pytest tests/e2e/probe_staged_endpoints.py --real-llm -q -s
@@ -64,7 +70,7 @@ from dialectical_framework.graph.repositories.transformation_repository import \
 from dialectical_framework.graph.scope_context import scope
 from e2e.config import E2EConfig
 from e2e.modelctx import using_model
-from e2e.probe_transformation_sketch import _endpoints
+from e2e.probe_transformation_sketch import _transitions
 
 _RESULTS = Path(__file__).resolve().parent / "results" / "tetrad_quality"
 _CONCURRENCY = 6
@@ -155,11 +161,12 @@ async def test_staged_endpoints(di_container) -> None:
 
     async def one(item: dict[str, Any]) -> None:
         async with gate:
-            ep = await _endpoints(item["corners"], item["out"])
-        if ep is not None:
-            item["endpoints"] = ep.model_dump()
-            item.update(ac_ends=float(ep.ac_minus_from_t_plus_to_a_minus), re_ends=float(ep.re_minus_from_a_plus_to_t_minus),
-                        ac_own=float(ep.ac_minus_is_the_action), re_own=float(ep.re_minus_is_the_reflection))
+            tv = await _transitions(item["corners"], item["out"])
+        if tv is not None:
+            item["transition_verdict"] = tv.model_dump()
+            item.update(ac_valid=float(tv.ac_valid), re_valid=float(tv.re_valid),
+                        ac_lands=float(tv.ac_minus_ends_in_a_minus), re_lands=float(tv.re_minus_ends_in_t_minus),
+                        ac_own=float(tv.ac_minus_is_degenerated_action), re_own=float(tv.re_minus_is_degenerated_reflection))
 
     with using_model(di_container, judge):
         await asyncio.gather(*(one(i) for i in judgeable))
@@ -175,9 +182,10 @@ async def test_staged_endpoints(di_container) -> None:
     for label, subset in (("all", judgeable),
                           ("T->A edges", [i for i in judgeable if i["orientation"] == "T->A"]),
                           ("A->T edges", [i for i in judgeable if i["orientation"] == "A->T"])):
-        print(f"  {label:11} Ac- ends {rate('ac_ends', subset)} | Re- ends {rate('re_ends', subset)} | "
+        print(f"  {label:11} Ac- valid {rate('ac_valid', subset)} (lands {rate('ac_lands', subset)}) | "
+              f"Re- valid {rate('re_valid', subset)} (lands {rate('re_lands', subset)}) | "
               f"Ac- own {rate('ac_own', subset)} | Re- own {rate('re_own', subset)}")
     for cat in sorted({i.get("category") or "?" for i in judgeable}):
         subset = [i for i in judgeable if (i.get("category") or "?") == cat]
-        print(f"  {cat:11} Ac- ends {rate('ac_ends', subset)} | Re- ends {rate('re_ends', subset)}")
-    print("  one-shot, same judge (transformation_sketch-20261006-130616): text alone 22% / 18%, with the from/into fields 60% / 58%")
+        print(f"  {cat:11} Ac- valid {rate('ac_valid', subset)} | Re- valid {rate('re_valid', subset)}")
+    print("  one-shot, same auditor (transition_rescore-20261006-175449): text alone 30% / 26%, with the from/into fields 56% / 62%")

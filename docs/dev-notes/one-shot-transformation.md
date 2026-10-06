@@ -319,3 +319,48 @@ other side's strength to count is a reading of the theory, not a measurement. Op
   or wrong;
 - the prose fix: name the block's T+ as the start in the Re- instruction itself;
 - hand-read 10 Re- failures with the owner against the paper's Re- definition before either.
+
+### The auditor was too strict, and the staged Re- fails on its landing (2026-10-06, the same day)
+
+The last bullet above was done by three theory reviewers instead of the owner, who asked for it:
+three independent agents, each told to settle from the papers what Re- must express and then judge
+15 staged Re- lines BLIND — 10 the auditor had failed, 5 it had passed, shuffled, no verdicts shown
+(`tests/e2e/fixtures/re_minus_theory_cases.jsonl` holds the cases and their verdicts). They agreed
+with each other on every clear case and cited the same passages: Re- "transforms A+ into T-"
+[P0 pp.6, 16-17], so it must END in T- — the definition, not optional; "Re+ without Ac+ degenerates
+into Re-" is a coherence test it passes, not its definition; it need NOT name A+ (the paper's only
+named Re- is the one word "Dogmatize", Fig. 1B, p.3); and it should not start from T+ (T+ decaying
+into T- is the base tetrad's control statement, not a transition).
+
+**Against the auditor:** its 5 passes were all valid; of its 10 failures, 5 were genuinely invalid —
+every one LANDING in A-, not T- — and 5 were valid or borderline, failed only for not naming A+. So
+the reading recorded above, "Re- lands right and starts wrong", was the strict auditor talking, and
+it is withdrawn: the real defect is the landing. The writer reads "the reflection without the
+action" as "keep watching, do nothing", and wherever A is the passive pole (postponing, paying on,
+keeping one's distance) doing nothing IS A's trap.
+
+**The auditor that replaced it.** `TransitionVerdict` (`tests/e2e/probe_transformation_sketch.py`):
+lands in the right trap (asked first), is the operation degenerated, does not start from the wrong
+side's plus; valid = all three. Validated before use (`probe_transition_rescore.py`, two runs of
+two passes on the 15 cases): 51/52 agreement with the reviewers' consensus on clear cases against
+the old auditor's 10/13; landing 15/15; self-agreement 29/30; both borderline cases called invalid.
+Validated on Re- only — Ac- rests on the mirror rule.
+
+**Everything re-read, nothing regenerated** (`transition_rescore-20261006-175449.json`):
+
+| | Ac- valid (lands) | Re- valid (lands) | strict auditor read |
+|---|---|---|---|
+| staged generator, 102 | 70% (91%) | **49% (59%)** | 74% / 34% |
+| — T -> A edges | 53% | 27% | |
+| — A -> T edges | 86% | 71% | |
+| one-shot, text only | 30% (30%) | 26% (30%) | 22% / 18% |
+| one-shot, from/into fields (shipped) | **56% (64%)** | **62% (64%)** | 60% / 58% |
+| one-shot, makeup only (arm 2) | 16% | 10% | 16% / 4% |
+
+The shipped fields' gain survives the honest test (paired +26 / +36, both clearing noise), so they
+stay. The staged Re- is the open defect, and it is a landing problem worst on T -> A edges; the
+from/into fields did not move it (strict read, within noise). The staged Ac- is fine.
+
+**Open:** the staged Re- landing (try naming the landing — the reflection block's A- — in the
+instruction, measured on `probe_staged_endpoints.py` by `TransitionVerdict`); and the first app's
+endpoint judge is the same strict auditor, so its endpoint figures read low by the same margin.

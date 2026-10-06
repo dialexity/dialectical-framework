@@ -1948,16 +1948,21 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `as_control_tetrad` (Rule 5.2's control statements in the tetrad's corners); default ONE, unmeasured,
    and blind to S- shape and endpoint fidelity, the two defects this layer has shown.
    **A definition in prose is not an instruction the writer follows** (2026-10-06): the both-halves text
-   landed Ac-/Re- on their ends in 22%/18% — the makeup half ("Ac+ without Re+") reads like the aspect
-   tetrad's "T+ without A+ yields T-" and pulls the line onto T's own trap. The DTO's `*_minus_from` /
-   `*_minus_into` fields, written before each minus line, took it to 60%/58%. Review an edit here on
-   `tests/e2e/probe_transformation_sketch.py` (third-trap + endpoint/makeup auditors + crossed S-,
-   paired against `current`), never by reading the prompt. The STAGED generator, read back from the
-   graph with each edge oriented (`tests/e2e/probe_staged_endpoints.py`): Ac- 74% on its ends, Re- 34%
-   (landing right, start wrong). The Re- prompt's "the Reflection Perspective's positive" names neither of
-   the two positives in the reflection block, which `build_edge_context` renders relative to the
-   OPPOSITE edge (its T+ = the other side's strength, its A- = your own trap) — a drift hotspot. The
-   one-shot's scaffold-field fix did NOT carry there (+6, within noise; reverted).
+   gave a valid Ac-/Re- in 30%/26% — the makeup half ("Ac+ without Re+") reads like the aspect tetrad's
+   "T+ without A+ yields T-" and pulls the line onto T's own trap. The DTO's `*_minus_from` /
+   `*_minus_into` fields, written before each minus line, took it to 56%/62%. Review an edit here on
+   `tests/e2e/probe_transformation_sketch.py` (third-trap + `TransitionVerdict` + crossed S-, paired
+   against `current`), never by reading the prompt. **What a valid minus transition is**, as three blind
+   theory reviewers settled it from the papers (`fixtures/re_minus_theory_cases.jsonl`): it LANDS in the
+   right trap (Re- in T-, Ac- in A-; the definition), is the operation degenerated, and does not start
+   from its own side's plus; it need NOT name where it starts (the paper's Re- is "Dogmatize"). An auditor
+   requiring the start to be named — the app's, used until 2026-10-06 — fails half the valid lines.
+   The STAGED generator, read back from the graph with each edge oriented (`probe_staged_endpoints.py`):
+   Ac- valid 70%, Re- 49%, and Re-'s failures LAND in A- ("reflection without action" read as "keep
+   watching", which is A's trap wherever A is the passive pole); 27% valid on T->A edges. The one-shot's
+   scaffold-field fix did NOT carry there (within noise; reverted). The Re- prompt's "the Reflection
+   Perspective's positive" also names neither positive in the reflection block, which `build_edge_context`
+   renders relative to the OPPOSITE edge (its T+ = the other side's strength, its A- = your own trap).
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the
