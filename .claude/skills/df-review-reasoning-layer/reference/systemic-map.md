@@ -1644,11 +1644,12 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    not in the net at all": stating a rule and checking a rule are different acts, in prompts and in tests
    alike.
 7. **CC control-statement wording stated 2×** — and within `control_statements_check.py` the statements
-   themselves are now built ONCE (`control_statements()`) and the CC/DV scales are module constants
-   (`_PATTERN`, `_CC_SCALE`, `_DV_SCALE`) shared by the per-statement prompt and the joint one
-   (`score_texts_many`, one call for a whole best-of-N field, 2026-10-06) — so a scale edited in one
-   prompt reaches both; what is NOT shared is the framing sentence of each prompt, and the joint one
-   additionally forbids comparing or ranking the drafts. `control_statements_check.py` (aspect) vs.
+   themselves are built ONCE (`control_statements()`, for `resolve` and `score_texts`) and the CC/DV
+   scales are module constants (`_PATTERN`, `_CC_SCALE`, `_DV_SCALE`). The selector and the post-commit
+   validator ask the SAME prompt on purpose: a joint one-call judge and a lean per-draft one were measured
+   against it on 2026-10-06 and rejected (`tests/e2e/probe_joint_judge_stability.py`: 70% / 73% agreement
+   with the stored verdict against 92%; the joint one picked by position). A judge-prompt edit is a
+   selector edit — re-run that probe. `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 
 ### Agent-prompt hand-typed scales (also drift-prone, currently untested for agreement)
@@ -1974,7 +1975,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `concerns/tetrad_candidates.py`: `TetradSketch.resolve(attempts=)` and the staged
    `AspectGeneration._generate_tetrad` (via `resolve(attempts=)` / `ExpandPolarity(attempts=)`) draw N identical
    requests in parallel (fresh facilitator each; the view turn on COPIES of its history) and `select_sketch` ranks them by the
-   framework's own control statements (`ControlStatementsCheck.score_texts_many`, one call for the whole field since 2026-10-06 — the SAME two statements
+   framework's own control statements (`ControlStatementsCheck.score_texts`, per draft and per statement; a one-call judge was tried and rejected 2026-10-06 — the SAME two statements
    `_validate_and_flag` scores after commit, built from the same words; a verdict here and one taken
    later are the same question). Review points: (a) the judge never sees T/A, so it passes a MIRROR
    antithesis more readily than a position — any change that feeds the verdict BACK into generation turns

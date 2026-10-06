@@ -1200,7 +1200,7 @@ a blind sheet (15 pass / 15 fail near the line, scores hidden) — the sheet is 
 framework task (`tests/e2e/calibration_sheet.py` → `results/tetrad_quality/calibration_sheet.md`,
 key beside it, 30 tetrads whose weaker score sits in 0.60–0.75), the second rater is not.
 
-### The judge in one call (2026-10-06)
+### The judge in one call (2026-10-06) — shipped, measured, rejected the same day
 
 Best-of-N made judging the most expensive thing about a card. The first app's own
 census (`utils/call_census.py` around its real entry points, Sonnet 5 via Bedrock,
@@ -1235,11 +1235,37 @@ done). And the placement is by the tetrad NUMBER the model echoes, not by list
 order, because a verdict out of place would score every later draft on another's
 words.
 
-**Open, and the reason to keep reading this as a cost change only.** Judge stability
-was 92% on re-judging the same text when each statement had its own call (above);
-the joint call's stability and its POSITION BIAS — a draft winning for being listed
-first — are unmeasured. Re-measure both with the same probe, and card quality with
-the app's paired eval (`v<N>` against the baseline, `--reps 2`, which reports
-`cost_usd`, `latency_s` and the cache numbers per case). If stability falls below
-~85%, the rung down is one call per candidate with both statements in one DTO —
-still half the output of the per-statement shape.
+**Measured the same day, and rejected — both it and its fallback.**
+`tests/e2e/probe_joint_judge_stability.py` re-judged stored drafts instead of
+generating new ones: 41 utterances had three or more drafts carrying the
+per-statement judge's `cc` pair, 40 triples were used (120 drafts). The old judge
+was re-run on the same drafts as the baseline, so nothing was compared against a
+92% from a different set.
+
+| read | per-statement (re-run) | joint, one call | per draft, one call each |
+|---|---|---|---|
+| pass/fail agrees with stored verdict | 92% / 90% (two runs) | **70%** | **73%** |
+| mean \|floor shift\| from stored | 0.025 | 0.113 | 0.101 |
+| same winner when re-run | 90% | 78% | 82% |
+| same winner, order reversed | — | **7/40** | — |
+| winner in the first slot shown | 11/40 | **29/40** (21/40 reversed) | — |
+| winners decided by a tie | 3–5 | 18 | 10–11 |
+| same winner as the per-statement judge | — | 42% | 58% |
+
+(`joint_judge_stability-20261006-122506.json`, `per_draft_judge-20261006-122730.json`.)
+The joint call picked by position and ties: its scores are coarse (a third of the
+triples tied at the top, and `ranking()` breaks ties toward the earlier draft), and
+it also preferred the first-listed draft outright. The per-draft fallback removed
+the position effect by construction and stayed stable with itself (96%), but it
+measured something else: the lean prompt (CC only, a one-sentence note) shifts
+scores by ~0.1 and agrees with the validated judge on the winner barely more than
+chance. So the defect is the prompt, not only the field. And a selection judge that
+disagrees with the post-commit judge breaks the property this module rests on —
+a verdict before persistence and one after are the same question.
+
+Reverted: `judge_sketches` scores each draft with `ControlStatementsCheck.score_texts`
+(two calls, the `resolve` prompt), fail-soft per draft again. The candidate judges
+live in the probe, not in `src/`. A third of a card's cost stays where it is until a
+cheaper judge clears this probe against the per-statement one; the obvious next
+candidate is the per-statement PROMPT with a shorter reasoning field, which keeps the
+question and cuts output, measured the same way.

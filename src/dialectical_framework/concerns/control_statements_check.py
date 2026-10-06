@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -97,74 +97,15 @@ class CoherenceEvaluationDto(BaseModel):
     )
 
 
-class TetradCoherenceDto(BaseModel):
-    """One tetrad's two control statements, from the JOINT call.
-
-    No DV field, deliberately. DV is an annotation that only `resolve`
-    persists (`DialecticalValidityEstimation`) and nothing reads it when
-    choosing among drafts — `SketchVerdict` has no DV term — so asking for it
-    here would buy output tokens and nothing else. A draft that goes on to be
-    persisted is scored by `resolve` afterwards, DV and all.
-    """
-
-    tetrad: int = Field(
-        description=(
-            "The number of the tetrad this verdict scores, exactly as labelled "
-            "in the request."
-        )
-    )
-    t_plus_without_a_plus_yields_t_minus: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="Conceptual Coherence (0.0-1.0) of that tetrad's statement (a).",
-    )
-    a_plus_without_t_plus_yields_a_minus: float = Field(
-        ge=0.0,
-        le=1.0,
-        description="Conceptual Coherence (0.0-1.0) of that tetrad's statement (b).",
-    )
-    reasoning: str = Field(
-        description=(
-            "One sentence on the weaker of that tetrad's two statements. A note, "
-            "not an essay."
-        )
-    )
-
-
-class JointCoherenceEvaluationDto(BaseModel):
-    """Every tetrad of one request, scored in one call."""
-
-    verdicts: list[TetradCoherenceDto] = Field(
-        description=(
-            "One entry per tetrad in the request, in the request's order. Score "
-            "every tetrad; omit none."
-        )
-    )
-
-
-@dataclass(frozen=True)
-class TetradTexts:
-    """The four aspect texts of one tetrad — all the control statements need.
-
-    What `score_texts_many` takes, so a caller holding several drafts as text
-    cannot mix up the order of four positional strings.
-    """
-
-    t_plus: str
-    t_minus: str
-    a_plus: str
-    a_minus: str
-
-
 def control_statements(
     *, t_plus: str, t_minus: str, a_plus: str, a_minus: str
 ) -> tuple[str, str]:
     """The paper's two control statements, built from four texts.
 
-    One builder for all three askers (`resolve` off a committed Perspective,
-    `score_texts` and `score_texts_many` off bare texts) so the quoting cannot
-    drift: a verdict taken before persistence and one taken after must be the
-    same question asked of the same words.
+    One builder for both askers (`resolve` off a committed Perspective,
+    `score_texts` off bare texts) so the quoting cannot drift: a verdict taken
+    before persistence and one taken after must be the same question asked of
+    the same words.
     """
     return (
         f'"{t_plus}" without "{a_plus}" yields "{t_minus}"',
@@ -172,13 +113,12 @@ def control_statements(
     )
 
 
-# --- Shared prompt text ---
+# --- Prompt text ---
 #
-# Written once because two prompts ask for it: one statement at a time
-# (`_evaluate_control_statement`, for `resolve` and `score_texts`) and all of
-# several tetrads at once (`score_texts_many`). Re-typed inline the scales
-# would drift, and a verdict from one prompt is ranked against a verdict from
-# the other (`concerns/tetrad_candidates.py`).
+# The pattern and the two scales of `_evaluate_control_statement`, as constants
+# so a probe can put the SAME scales in front of a candidate judge
+# (`tests/e2e/probe_joint_judge_stability.py` did, 2026-10-06, and rejected two
+# cheaper shapes against this one).
 
 _PATTERN = """The pattern "[Positive] without [Balancing factor] yields [Negative]" tests whether
 the absence of a balancing positive aspect naturally leads to the negative/shadow aspect."""
@@ -372,14 +312,12 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
         """The two control statements on bare texts — no Perspective, no graph.
 
         What `resolve` does after reading the four aspects off a committed
-        node, for a caller holding ONE tetrad as text and wanting DV with it.
-        Built by the same statement builder as `resolve`, so a verdict here is
-        the same question as the one asked after persistence.
-
-        Not what best-of-N selection uses: a field of drafts goes through
-        `score_texts_many`, which asks once for all of them and leaves DV out
-        (nothing in selection reads it). Two statements, two calls, both with
-        reasoning, is the shape that made judging a third of a card's cost.
+        node, offered to callers that hold a tetrad as text: the best-of-N
+        selector (`concerns/tetrad_candidates.py`) and the harness. Built by
+        the same statement builder and asked with the same prompt as `resolve`,
+        so a verdict here is the same question as the one asked after
+        persistence. Two calls per tetrad is the cost of that: the cheaper
+        shapes measured against it disagreed (`tetrad_candidates.judge_sketches`).
         """
         stmt_1, stmt_2 = control_statements(
             t_plus=t_plus, t_minus=t_minus, a_plus=a_plus, a_minus=a_minus
@@ -388,73 +326,6 @@ class ControlStatementsCheck(ReasonableConcern[ControlStatementsCheckResult]):
             self._evaluate_control_statement(stmt_1, text),
             self._evaluate_control_statement(stmt_2, text),
         )
-
-    async def score_texts_many(
-        self,
-        tetrads: Sequence[TetradTexts],
-        *,
-        text: str = "",
-    ) -> list[Optional[TetradCoherenceDto]]:
-        """Several tetrads' control statements, all in ONE call.
-
-        What `score_texts` asks for one draft at a time, asked for a whole
-        best-of-N field at once. Measured reason (2026-10-06, the first app's
-        real entry points through `utils/call_census.py`): per-statement calls
-        made judging 6 of the 11 provider calls behind one card and ~3.3k of
-        its ~5.1k output tokens — about a third of the card's cost — because
-        each call spent ~550 output tokens of reasoning on one sentence. One
-        call with a short note per tetrad replaces six.
-
-        The question is unchanged and so is its discipline: the judge sees
-        only each tetrad's four aspects (never the thesis or antithesis, see
-        `concerns/tetrad_candidates.py`), the statements are built by the same
-        builder `resolve` uses, and the prompt forbids comparing the drafts —
-        selection stays among independent draws. CC only; `TetradCoherenceDto`
-        says why DV is not asked for here.
-
-        Fail-soft per tetrad: a verdict the model omits, or labels with a
-        number that is out of range or already filled, comes back `None` for
-        that tetrad rather than shifting every later one onto the wrong draft.
-        """
-        if not tetrads:
-            return []
-
-        blocks = []
-        for n, tetrad in enumerate(tetrads, 1):
-            stmt_a, stmt_b = control_statements(
-                t_plus=tetrad.t_plus,
-                t_minus=tetrad.t_minus,
-                a_plus=tetrad.a_plus,
-                a_minus=tetrad.a_minus,
-            )
-            blocks.append(f"Tetrad {n}:\n(a) {stmt_a}\n(b) {stmt_b}")
-
-        context_section = f"<context>\n{text}\n</context>\n\n" if text else ""
-        joined = "\n\n".join(blocks)
-        prompt = f"""{context_section}Rate the control statements of {len(tetrads)} tetrads. Each tetrad has two statements, (a) and (b).
-
-{joined}
-
-{_PATTERN}
-
-Rate every statement on one scale:
-
-{_CC_SCALE}
-
-Score each tetrad on its own, against the pattern above and nothing else. These are independent drafts: do not compare them with each other, do not rank them, do not pick a best, and do not let one tetrad's wording move another's score. The order they appear in carries no information. Return one verdict per tetrad, labelled with that tetrad's number."""
-
-        conversation = ConversationFacilitator()
-        result = await conversation.submit(
-            response_model=JointCoherenceEvaluationDto,
-            user_content=prompt,
-        )
-
-        placed: list[Optional[TetradCoherenceDto]] = [None] * len(tetrads)
-        for verdict in result.verdicts:
-            index = verdict.tetrad - 1
-            if 0 <= index < len(placed) and placed[index] is None:
-                placed[index] = verdict
-        return placed
 
     async def _evaluate_control_statement(
         self,

@@ -11,8 +11,6 @@ and the cap. DB-free.
 
 from __future__ import annotations
 
-import dataclasses
-
 import pytest
 from mirascope import llm
 
@@ -56,9 +54,8 @@ def _tension(**overrides) -> ViewSketchPerspectiveDto:
 def _verdicts_by_thesis(table: dict[str, tuple[float, float] | None]):
     """Monkeypatch-able judge keyed on the sketch's thesis text.
 
-    Stands in for `judge_sketches`, which scores the whole field in ONE call:
-    a thesis the table maps to `None`, or omits, is a verdict that did not come
-    back for that candidate.
+    Stands in for `judge_sketches`: a thesis the table maps to `None`, or
+    omits, is a candidate whose judging failed.
     """
 
     async def fake(candidates, context=""):
@@ -71,7 +68,7 @@ def _verdicts_by_thesis(table: dict[str, tuple[float, float] | None]):
 
 
 def _judging_fails():
-    """The whole joint call failing: every candidate comes back unjudged."""
+    """Every candidate's judging failing: all come back unjudged."""
 
     async def fake(candidates, context=""):
         return [None] * len(candidates)
@@ -117,9 +114,7 @@ class TestTheSelection:
         assert best == 0
 
     @pytest.mark.asyncio
-    async def test_a_missing_verdict_sorts_last_and_is_none(self, monkeypatch):
-        """One verdict absent from the joint answer leaves that candidate
-        unjudged; the ones that came back still rank."""
+    async def test_a_failed_judging_sorts_last_and_is_none(self, monkeypatch):
         monkeypatch.setattr(candidates, "judge_sketches", _verdicts_by_thesis({
             "a": None, "b": (0.5, 0.5)
         }))
@@ -128,43 +123,69 @@ class TestTheSelection:
         assert verdicts[0] is None and verdicts[1].floor == 0.5
 
     @pytest.mark.asyncio
-    async def test_when_the_judging_call_fails_the_first_draw_is_kept(self, monkeypatch):
+    async def test_when_every_judging_fails_the_first_draw_is_kept(self, monkeypatch):
         monkeypatch.setattr(candidates, "judge_sketches", _judging_fails())
         best, verdicts = await select_sketch([_tension(thesis="a"), _tension(thesis="b")])
         assert best == 0 and verdicts == [None, None]
 
     @pytest.mark.asyncio
-    async def test_the_whole_field_is_judged_in_one_call(self, monkeypatch):
-        """The cost lever of 2026-10-06: judging is ONE call for all the
-        candidates, not two per candidate."""
+    async def test_each_draft_is_judged_by_the_per_statement_judge(self, monkeypatch):
+        """The validated judge, one draft at a time: the same question
+        `ControlStatementsCheck.resolve` asks after persistence. Two cheaper
+        shapes (the whole field in one call; one call per draft) were measured
+        against it and rejected (`tests/e2e/probe_joint_judge_stability.py`)."""
         from dialectical_framework.concerns import control_statements_check as csc
 
-        calls: list[list] = []
+        calls: list[dict] = []
 
-        async def fake_many(self, tetrads, *, text=""):
-            calls.append(list(tetrads))
-            return [
-                csc.TetradCoherenceDto(
-                    tetrad=n,
-                    t_plus_without_a_plus_yields_t_minus=0.5 + n / 10,
-                    a_plus_without_t_plus_yields_a_minus=0.9,
-                    reasoning="why",
-                )
-                for n, _t in enumerate(tetrads, 1)
-            ]
+        async def fake_score_texts(self, *, t_plus, t_minus, a_plus, a_minus, text=""):
+            calls.append({"t_plus": t_plus, "text": text})
+            score = {"a": 0.6, "b": 0.7, "c": 0.8}[t_plus]
+            dto = csc.CoherenceEvaluationDto(
+                coherence_score=score, reasoning="why",
+                dialectical_validity=0.5, dv_reasoning="why",
+            )
+            return dto, csc.CoherenceEvaluationDto(
+                coherence_score=0.9, reasoning="why",
+                dialectical_validity=0.5, dv_reasoning="why",
+            )
 
-        async def no_singles(self, **kwargs):
-            raise AssertionError("judging must not fall back to per-statement calls")
-
-        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts_many", fake_many)
-        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", no_singles)
-
+        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", fake_score_texts)
         best, verdicts = await select_sketch(
-            [_tension(thesis="a"), _tension(thesis="b"), _tension(thesis="c")],
+            [_tension(t_plus="a"), _tension(t_plus="b"), _tension(t_plus="c")],
             context="the situation",
         )
-        assert len(calls) == 1 and len(calls[0]) == 3, "one call, every candidate in it"
-        assert best == 2 and [round(v.floor, 2) for v in verdicts] == [0.6, 0.7, 0.8]
+        assert len(calls) == 3, "one judging per draft, each on its own"
+        assert all(c["text"] == "the situation" for c in calls)
+        assert best == 2 and [v.floor for v in verdicts] == [0.6, 0.7, 0.8]
+
+    @pytest.mark.asyncio
+    async def test_one_draft_failing_to_judge_leaves_the_others_judged(self, monkeypatch):
+        from dialectical_framework.concerns import control_statements_check as csc
+
+        async def flaky(self, *, t_plus, t_minus, a_plus, a_minus, text=""):
+            if t_plus == "a":
+                raise RuntimeError("provider down")
+            dto = csc.CoherenceEvaluationDto(
+                coherence_score=0.8, reasoning="", dialectical_validity=0.5, dv_reasoning="",
+            )
+            return dto, dto
+
+        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", flaky)
+        best, verdicts = await select_sketch([_tension(t_plus="a"), _tension(t_plus="b")])
+        assert verdicts[0] is None and verdicts[1].floor == 0.8 and best == 1
+
+    @pytest.mark.asyncio
+    async def test_a_malformed_verdict_is_a_failed_judging_not_a_crash(self, monkeypatch):
+        """Reading the scores off the response is inside the fail-soft too."""
+        from dialectical_framework.concerns import control_statements_check as csc
+
+        async def wrong_shape(self, **kwargs):
+            return object(), object()
+
+        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", wrong_shape)
+        best, verdicts = await select_sketch([_tension(thesis="a"), _tension(thesis="b")])
+        assert best == 0 and verdicts == [None, None]
 
     @pytest.mark.asyncio
     async def test_the_judge_never_sees_the_thesis_or_the_antithesis(self, monkeypatch):
@@ -172,19 +193,17 @@ class TestTheSelection:
         verdict steered by the poles passes mirrors more readily than positions."""
         from dialectical_framework.concerns import control_statements_check as csc
 
-        seen: list = []
+        seen: list[str] = []
 
-        async def fake_many(self, tetrads, *, text=""):
-            seen.extend(tetrads)
-            return [None] * len(tetrads)
+        async def fake_score_texts(self, *, t_plus, t_minus, a_plus, a_minus, text=""):
+            seen.extend([t_plus, t_minus, a_plus, a_minus])
+            raise RuntimeError("only recording what was sent")
 
-        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts_many", fake_many)
+        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", fake_score_texts)
         await select_sketch([_tension(), _tension(thesis="other")])
-        sent = " ".join(t.t_plus + t.t_minus + t.a_plus + t.a_minus for t in seen)
+        sent = " ".join(seen)
+        assert seen, "the judge was asked"
         assert "Keep the Berlin office" not in sent and "Go fully remote" not in sent
-        assert {f.name for f in dataclasses.fields(csc.TetradTexts)} == {
-            "t_plus", "t_minus", "a_plus", "a_minus"
-        }
 
     @pytest.mark.asyncio
     async def test_one_candidate_is_never_judged(self, monkeypatch):
@@ -405,76 +424,18 @@ class TestTheStagedWriterSelectsToo:
         assert gen.verdict is None and "attempts" not in gen.report.artifacts
 
 
-class TestTheJointCallPlacesItsVerdicts:
-    """`ControlStatementsCheck.score_texts_many` reads the tetrad NUMBER the
-    model echoes rather than trusting the list's order: one verdict out of
-    place used to mean every later draft scored on another's words."""
+class TestTheRejectedJudgesStayOutOfTheLibrary:
+    """Two cheaper judges were measured against the per-statement one and
+    rejected (2026-10-06, `tests/e2e/probe_joint_judge_stability.py`): the whole
+    field in one call picked by position and ties, one call per draft measured
+    something else. They live in that probe, not in `src/`, so nobody wires a
+    measured-bad judge back in by finding it there."""
 
-    @staticmethod
-    def _texts(tag: str):
-        from dialectical_framework.concerns.control_statements_check import \
-            TetradTexts
-
-        return TetradTexts(t_plus=f"{tag}+", t_minus=f"{tag}-",
-                           a_plus=f"{tag}A+", a_minus=f"{tag}A-")
-
-    async def _answer(self, monkeypatch, verdicts):
-        from dialectical_framework.agents.conversation_facilitator import \
-            ConversationFacilitator
+    def test_no_joint_judge_in_the_concern(self):
         from dialectical_framework.concerns import control_statements_check as csc
 
-        async def fake_submit(self, response_model, user_content):
-            fake_submit.prompt = user_content
-            return csc.JointCoherenceEvaluationDto(verdicts=[
-                csc.TetradCoherenceDto(
-                    tetrad=n,
-                    t_plus_without_a_plus_yields_t_minus=a,
-                    a_plus_without_t_plus_yields_a_minus=b,
-                    reasoning="why",
-                )
-                for n, a, b in verdicts
-            ])
-
-        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
-        placed = await csc.ControlStatementsCheck().score_texts_many(
-            [self._texts("a"), self._texts("b"), self._texts("c")]
-        )
-        return placed, fake_submit.prompt
-
-    @pytest.mark.asyncio
-    async def test_verdicts_out_of_order_land_on_their_own_tetrad(self, monkeypatch):
-        placed, _ = await self._answer(monkeypatch, [(3, 0.3, 0.3), (1, 0.1, 0.1), (2, 0.2, 0.2)])
-        assert [round(v.t_plus_without_a_plus_yields_t_minus, 1) for v in placed] == [0.1, 0.2, 0.3]
-
-    @pytest.mark.asyncio
-    async def test_a_missing_or_impossible_number_leaves_that_one_unjudged(self, monkeypatch):
-        placed, _ = await self._answer(monkeypatch, [(1, 0.1, 0.1), (9, 0.9, 0.9), (1, 0.5, 0.5)])
-        assert placed[1] is None and placed[2] is None, "out of range, and a repeat"
-        assert round(placed[0].t_plus_without_a_plus_yields_t_minus, 1) == 0.1, (
-            "the first answer for a tetrad stands; a repeat does not overwrite it"
-        )
-
-    @pytest.mark.asyncio
-    async def test_the_request_forbids_comparing_the_drafts(self, monkeypatch):
-        """The standing rule: a judge that ranks the drafts turns selection into
-        optimisation against the judge, which converges on coherent mirrors."""
-        _placed, prompt = await self._answer(monkeypatch, [(1, 0.5, 0.5)])
-        assert "do not compare them with each other" in prompt
-        assert "do not rank them" in prompt
-        assert "Tetrad 1:" in prompt and "Tetrad 3:" in prompt
-
-    @pytest.mark.asyncio
-    async def test_no_tetrads_is_no_call(self, monkeypatch):
-        from dialectical_framework.agents.conversation_facilitator import \
-            ConversationFacilitator
-        from dialectical_framework.concerns.control_statements_check import \
-            ControlStatementsCheck
-
-        async def boom(self, response_model, user_content):
-            raise AssertionError("nothing to judge must cost no call")
-
-        monkeypatch.setattr(ConversationFacilitator, "submit", boom)
-        assert await ControlStatementsCheck().score_texts_many([]) == []
+        assert not hasattr(csc.ControlStatementsCheck, "score_texts_many")
+        assert not hasattr(csc, "JointCoherenceEvaluationDto")
 
 
 def test_ranking_orders_by_the_floor_then_the_mean_with_unjudged_last():
