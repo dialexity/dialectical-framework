@@ -31,13 +31,12 @@ holding a text or an object with `.statement` (`TetradDto`'s `AspectDto`).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
-from dialectical_framework.concerns.control_statements_check import \
-    ControlStatementsCheck
+from dialectical_framework.concerns.control_statements_check import (
+    ControlStatementsCheck, TetradTexts)
 from dialectical_framework.graph.nodes.estimation import \
     CONCEPTUAL_COHERENCE_THRESHOLD
 
@@ -106,49 +105,89 @@ def is_complete(candidate: Any) -> bool:
     )
 
 
-async def judge_sketch(tension: Any, context: str = "") -> SketchVerdict:
-    """The validator's two control statements, on the candidate's texts, graph-free.
+async def judge_sketches(
+    candidates: Sequence[Any], context: str = ""
+) -> list[Optional[SketchVerdict]]:
+    """The validator's two control statements for EVERY candidate, in ONE call.
 
-    Statement texts are built exactly as `ControlStatementsCheck.resolve`
-    builds them from committed Statements, so a verdict here and one taken
-    after persistence are the same question asked of the same words.
+    Statement texts are built by the same builder `ControlStatementsCheck.resolve`
+    uses, so a verdict here and one taken after persistence are the same
+    question asked of the same words. The judge still sees only the four
+    aspects of each draft — never the thesis or the antithesis — and the
+    prompt forbids comparing the drafts with each other, so selection stays
+    "among independent draws" (this module's docstring) and this call cannot
+    be turned into regeneration.
+
+    Why one call: judging used to be a call per control statement per
+    candidate — 6 of the 11 provider calls behind one best-of-3 card, and
+    ~3.3k of its ~5.1k output tokens, about a third of its cost (measured
+    2026-10-06 on the first app's real entry points with
+    `utils/call_census.py`). One call with a short note per tetrad replaces
+    six long ones.
+
+    Fail-soft twice over. A verdict the model omits is `None` for that
+    candidate, which sorts last; a failed call leaves EVERY candidate
+    unjudged, which keeps the first draw — exactly what `attempts=1` would
+    have done. The second shape is new with the joint call and is the cost of
+    it: per-statement calls could lose one candidate's verdict and keep the
+    rest.
+
+    OPEN, because this was a cost change and not a quality one. Judge
+    stability was 92% on re-judging the same text when each statement had its
+    own call (`docs/dev-notes/antithesis-selection.md`, "Best-of-N"); the
+    joint call's stability, and its position bias (a candidate winning for
+    being listed first), are unmeasured — measure both with the same probe,
+    and the card quality with the app's paired eval, before reading any
+    quality claim into this. If stability falls below ~85%, the rung down is
+    one call per candidate with both statements in one DTO, which is still
+    half the output of the per-statement shape.
     """
-    first, second = await ControlStatementsCheck().score_texts(
-        t_plus=aspect_text(tension.t_plus),
-        t_minus=aspect_text(tension.t_minus),
-        a_plus=aspect_text(tension.a_plus),
-        a_minus=aspect_text(tension.a_minus),
-        text=context,
-    )
-    return SketchVerdict(
-        t_plus_without_a_plus=first.coherence_score,
-        a_plus_without_t_plus=second.coherence_score,
-        reasoning=f"{first.reasoning} / {second.reasoning}".strip(" /"),
-    )
+    try:
+        verdicts = await ControlStatementsCheck().score_texts_many(
+            [
+                TetradTexts(
+                    t_plus=aspect_text(c.t_plus),
+                    t_minus=aspect_text(c.t_minus),
+                    a_plus=aspect_text(c.a_plus),
+                    a_minus=aspect_text(c.a_minus),
+                )
+                for c in candidates
+            ],
+            text=context,
+        )
+    except Exception as exc:  # noqa: BLE001 — degrade to "all unjudged"
+        logger.warning("Judging the sketches failed; the first draw is kept: %s", exc)
+        return [None] * len(candidates)
+    return [
+        None
+        if v is None
+        else SketchVerdict(
+            t_plus_without_a_plus=v.t_plus_without_a_plus_yields_t_minus,
+            a_plus_without_t_plus=v.a_plus_without_t_plus_yields_a_minus,
+            reasoning=v.reasoning,
+        )
+        for v in verdicts
+    ]
 
 
 async def select_sketch(
     candidates: Sequence[Any], context: str = ""
 ) -> tuple[int, list[Optional[SketchVerdict]]]:
-    """Judge every candidate (gathered) and return the index of the best plus
-    all verdicts (None where judging failed).
+    """Judge every candidate (one call) and return the index of the best plus
+    all verdicts (None where a verdict did not come back).
 
     Ranking: the weaker control statement first (the pass rule), then the
     mean, then the earlier draw — a deterministic tie-break, not a preference.
-    A candidate whose judging failed sorts last; if every judging failed the
-    first draw is kept, which is exactly what `attempts=1` would have done.
+    An unjudged candidate sorts last; if no verdict came back at all the first
+    draw is kept, which is exactly what `attempts=1` would have done.
+
+    ONE candidate is never judged: there is nothing to select among, so
+    `attempts=1` costs no extra call.
     """
     if len(candidates) == 1:
         return 0, [None]
 
-    async def one(tension: Any) -> Optional[SketchVerdict]:
-        try:
-            return await judge_sketch(tension, context)
-        except Exception as exc:  # noqa: BLE001 — degrade to "unjudged"
-            logger.warning("Judging a sketch failed; it sorts last: %s", exc)
-            return None
-
-    verdicts = list(await asyncio.gather(*(one(c) for c in candidates)))
+    verdicts = await judge_sketches(candidates, context)
     return ranking(verdicts)[0], verdicts
 
 

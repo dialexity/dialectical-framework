@@ -14,11 +14,14 @@ caches nothing, and nothing else in the tree would notice.
 
 from __future__ import annotations
 
+import pytest
+
 from dialectical_framework.agents.advisor.system_prompts import (
     DEFAULT_TOOL_NAMES, system_prompt)
 from dialectical_framework.utils.bedrock_provider import (
-    CACHE_SPLIT_SENTINEL, _MIN_CACHEABLE_HEAD_CHARS, _fix_cache_breakpoints,
-    _normalize_tool_breakpoints, split_system_for_cache)
+    CACHE_SPLIT_SENTINEL, _CACHE_TTL, _MIN_CACHEABLE_HEAD_CHARS,
+    _fix_cache_breakpoints, _lengthen_stable_ttl, _normalize_tool_breakpoints,
+    split_system_for_cache)
 
 
 def _block(text: str) -> list[dict]:
@@ -90,6 +93,8 @@ class TestTheSplit:
         full = system_prompt().replace("{dialectical_context}", "T+: something\n")
         head, tail = split_system_for_cache(_block(full))
 
+        # The breakpoint only: its lifetime is `_lengthen_stable_ttl`'s to set,
+        # on this block and on the one Mirascope emits unsplit alike.
         assert head["cache_control"] == {"type": "ephemeral"}
         # ABSENT, not None: the SDK serializes an explicit None as JSON `null`,
         # and "no breakpoint" should look like no key.
@@ -207,6 +212,101 @@ class TestTheLeakedToolBreakpoints:
         no_tools: dict = {"model": "m"}
         _normalize_tool_breakpoints(no_tools)
         assert "tools" not in no_tools
+
+
+class TestTheLongerTtlOnTheStableParts:
+    """Mirascope writes `{"type": "ephemeral"}` with no TTL, i.e. the provider's
+    five minutes — shorter than the gap between two sessions of a product with
+    few users, which made every first card of a session WRITE the ~12k-token
+    system head (three times over, once per best-of-N draw). `_CACHE_TTL` says
+    what the longer lifetime costs and where the break-even is."""
+
+    def test_the_system_breakpoint_gets_the_longer_ttl(self):
+        kwargs = {"system": _block("x" * 100)}
+        _lengthen_stable_ttl(kwargs)
+        assert kwargs["system"][0]["cache_control"] == {
+            "type": "ephemeral", "ttl": _CACHE_TTL
+        }
+
+    def test_the_tools_breakpoint_gets_it_too_so_the_order_stays_legal(self):
+        """The provider requires longer-TTL entries BEFORE shorter ones, and the
+        request order is tools, system, messages. A 5m tool breakpoint ahead of a
+        1h system one would be the illegal direction."""
+        kwargs = {"tools": [
+            {"name": "a"},
+            {"name": "b", "cache_control": {"type": "ephemeral"}},
+        ]}
+        _lengthen_stable_ttl(kwargs)
+        assert "cache_control" not in kwargs["tools"][0]
+        assert kwargs["tools"][1]["cache_control"]["ttl"] == _CACHE_TTL
+
+    def test_message_breakpoints_are_left_at_the_default(self):
+        """The last message moves every turn, so a 2x write there buys an entry
+        nothing reads twice."""
+        messages = [{"role": "user", "content": [
+            {"type": "text", "text": "hi", "cache_control": {"type": "ephemeral"}}
+        ]}]
+        kwargs = {"messages": messages, "system": _block("x" * 100)}
+        _fix_cache_breakpoints(kwargs)
+        assert messages[0]["content"][0]["cache_control"] == {"type": "ephemeral"}
+
+    def test_the_shared_tool_dict_is_not_mutated(self):
+        """Same trap as `_normalize_tool_breakpoints`: the tool params come from
+        an `@lru_cache`d converter and are aliased into every in-flight request
+        using that tool."""
+        shared = {"name": "b", "cache_control": {"type": "ephemeral"}}
+        kwargs = {"tools": [{"name": "a"}, shared]}
+        _lengthen_stable_ttl(kwargs)
+        assert shared["cache_control"] == {"type": "ephemeral"}
+        assert kwargs["tools"][1] is not shared
+
+    def test_it_adds_no_breakpoint_and_is_idempotent(self):
+        """A lengthened TTL must not become an extra breakpoint — the request
+        already spends its four."""
+        kwargs = {
+            "system": [{"type": "text", "text": "head", "cache_control": {"type": "ephemeral"}},
+                       {"type": "text", "text": "tail"}],
+            "tools": [{"name": "a"}],
+        }
+        _lengthen_stable_ttl(kwargs)
+        assert sum(1 for b in kwargs["system"] if b.get("cache_control")) == 1
+        assert "cache_control" not in kwargs["system"][1]
+        once = {"system": list(kwargs["system"]), "tools": list(kwargs["tools"])}
+        _lengthen_stable_ttl(kwargs)
+        assert kwargs == once
+
+    def test_shapes_it_leaves_alone(self):
+        for kwargs in ({"model": "m"}, {"system": "a plain string"}, {"tools": None}):
+            before = dict(kwargs)
+            _lengthen_stable_ttl(kwargs)
+            assert kwargs == before
+
+
+@pytest.mark.real_llm
+@pytest.mark.asyncio
+async def test_the_provider_accepts_the_ttl():
+    """`_CACHE_TTL` on a real request: the one thing a unit test cannot answer.
+
+    A provider that does not know the field rejects the whole request, so this
+    is a liveness check, not a cost one — one small structured call through the
+    normal path, with a system prompt long enough to carry a breakpoint. What
+    the longer lifetime BUYS is a cache hit after an idle gap, which belongs to
+    the app's paired eval; see `_CACHE_TTL`.
+    """
+    from pydantic import BaseModel
+
+    from dialectical_framework.agents.conversation_facilitator import \
+        ConversationFacilitator
+
+    class _Dto(BaseModel):
+        answer: str
+
+    conversation = ConversationFacilitator()
+    conversation.set_system_prompt(
+        system_prompt().replace("{dialectical_context}", "nothing yet\n")
+    )
+    result = await conversation.submit(response_model=_Dto, user_content="Say 'ok'.")
+    assert result.answer, "the request was accepted with the longer TTL"
 
 
 class TestTheProviderApplication:

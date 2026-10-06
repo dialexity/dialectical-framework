@@ -1199,3 +1199,47 @@ pluses halving (22 → 12) is the one secondary that moved in both sets.
 a blind sheet (15 pass / 15 fail near the line, scores hidden) — the sheet is a
 framework task (`tests/e2e/calibration_sheet.py` → `results/tetrad_quality/calibration_sheet.md`,
 key beside it, 30 tetrads whose weaker score sits in 0.60–0.75), the second rater is not.
+
+### The judge in one call (2026-10-06)
+
+Best-of-N made judging the most expensive thing about a card. The first app's own
+census (`utils/call_census.py` around its real entry points, Sonnet 5 via Bedrock,
+40-case eval at `--reps 2`) priced one first card at 11 provider calls and ~$0.10 at
+Anthropic list prices as a Bedrock proxy, of which:
+
+| call | n | prefill read | uncached | output |
+|---|---|---|---|---|
+| intake gate (app-side) | 1 | 0 | ~250 | ~90 |
+| view turn, best-of-3 | 3 | 11,874 each | ~1,520 each | ~370 each |
+| **coherence judge** | **6** | 1,165 each | ~680 each | **~550 each** |
+| pill (app-side) | 1 | 1,810 | ~400 | ~620 |
+
+Prompt caching was working (69–83% of all prefill served from cache). The money was
+in OUTPUT — ~5.1k tokens, $0.051 of the $0.10 — and two-thirds of the output was the
+judge, because `judge_sketch` spent a full reasoning call on each control statement
+of each draw: 2 x 3 = 6 calls to rank three drafts.
+
+`judge_sketches` asks once. One `JointCoherenceEvaluationDto` carries all three
+drafts' two statements and a one-sentence note each (~1k output expected against
+3.3k, one round trip against six). What is deliberately unchanged: the statements
+are built by the same builder `ControlStatementsCheck.resolve` uses, the judge still
+sees only the four aspects of each draft, and the prompt forbids comparing or
+ranking the drafts — the standing rule that selection happens among independent
+draws and never as regeneration from a verdict. CC only; DV was dropped from this
+path because it is an annotation `resolve` persists and no selection term reads it.
+
+Two things to hold against it. The fail-soft is coarser: a per-statement shape could
+lose one draft's verdict and keep the rest, while a failed joint call leaves every
+draft unjudged and keeps the first draw (which is what `attempts=1` would have
+done). And the placement is by the tetrad NUMBER the model echoes, not by list
+order, because a verdict out of place would score every later draft on another's
+words.
+
+**Open, and the reason to keep reading this as a cost change only.** Judge stability
+was 92% on re-judging the same text when each statement had its own call (above);
+the joint call's stability and its POSITION BIAS — a draft winning for being listed
+first — are unmeasured. Re-measure both with the same probe, and card quality with
+the app's paired eval (`v<N>` against the baseline, `--reps 2`, which reports
+`cost_usd`, `latency_s` and the cache numbers per case). If stability falls below
+~85%, the rung down is one call per candidate with both statements in one DTO —
+still half the output of the per-statement shape.

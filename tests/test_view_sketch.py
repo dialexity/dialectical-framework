@@ -39,7 +39,8 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from dialectical_framework.concerns.view_sketch import (
     VIEW_SKETCH_MAX_PERSPECTIVES, ViewSketchDto, ViewSketchPerspectiveDto,
-    history_text, perspective_from_sketch, view_sketch_prompt, exploration_view_from_sketch)
+    history_text, perspective_from_sketch, view_sketch_prompt,
+    view_sketch_instructions, exploration_view_from_sketch)
 from dialectical_framework.concerns.scoring_scales import ASPECT_DEFINITIONS
 from dialectical_framework.graph.nodes.perspective import Perspective
 from dialectical_framework.graph.views import ExplorationView
@@ -216,6 +217,18 @@ class TestTheRequestAndTheRecord:
             "one-shot build — without it the view turn drew mirrors for 6/40"
         )
 
+    def test_the_two_halves_compose_into_the_one_message_form(self):
+        """The Consultant sends the static instructions on its system prompt and
+        the focus as the turn; `view_sketch_prompt` is the same words in one
+        message, for a caller with no system prompt of its own (the probes)."""
+        from dialectical_framework.concerns.view_sketch import view_sketch_focus
+
+        instructions = view_sketch_instructions(7)
+        assert "What to show:" not in instructions, "the focus is the per-call half"
+        assert view_sketch_prompt("the office", 7) == (
+            f"{instructions}\n\n{view_sketch_focus('the office')}"
+        )
+
     def test_no_focus_asks_for_what_is_established(self):
         assert "worked out so far" in view_sketch_prompt(None, 7)
         assert "worked out so far" in view_sketch_prompt("   ", 7)
@@ -270,10 +283,21 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         # parallel and none may write into the record the others read; what
         # the view leaves behind is appended to the head's history once.
         assert sketch_turn._messages is not head._conversation._messages
-        assert sketch_turn._messages[: len(_HISTORY) + 1] == head._conversation._messages[: len(_HISTORY) + 1]
+        assert (sketch_turn._messages[1 : len(_HISTORY) + 1]
+                == head._conversation._messages[1 : len(_HISTORY) + 1])
         assert sketch_turn._format_mode == "json"
         assert call["model"] is ViewSketchDto
-        assert "What to show: a perspective for the office question" in call["prompt"]
+        # The request travels in two places: the static half on the SYSTEM
+        # prompt, where the provider's cache breakpoint sits, and only the
+        # focus as the turn (the cost lever of 2026-10-06). The head's own
+        # system prompt stays a PREFIX of it, so the chat turns' cached prefix
+        # is readable here.
+        assert call["prompt"] == "What to show: a perspective for the office question"
+        system = message_text(sketch_turn._messages[0])
+        head_system = message_text(head._conversation._messages[0])
+        assert system.startswith(head_system), "the head's own prompt leads, unchanged"
+        assert view_sketch_instructions(7) in system
+        assert ASPECT_DEFINITIONS in system and "What to show:" not in system
         assert message_text(head.messages[-2]) == "Show me: a perspective for the office question"
         # Both sides were in front of the model, and its own system prompt led.
         texts = [message_text(m) for m in sketch_turn._messages]

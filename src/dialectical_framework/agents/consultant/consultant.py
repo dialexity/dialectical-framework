@@ -324,7 +324,12 @@ class Consultant:
         if messages:
             self._conversation.load_messages(messages)
         parts = [p for p in (preamble, method_prompt(include_decision)) if p]
-        self._conversation.set_system_prompt("\n\n".join(parts))
+        # Kept because the view turn's system prompt is this text plus the
+        # static half of its request (`exploration_view`): appending keeps the
+        # head a PREFIX of it, so the chat turns' cached prefix is readable by
+        # the sketch turns instead of each paying for its own.
+        self._system_prompt = "\n\n".join(parts)
+        self._conversation.set_system_prompt(self._system_prompt)
 
     async def chat(self, user_message: str) -> str:
         result = await self._conversation.submit(ChatResponse, user_message)
@@ -362,7 +367,8 @@ class Consultant:
         view shows what has been ESTABLISHED, and where `focus` asks for
         structure not yet worked out ("a perspective for the thesis you
         named") the turn builds it by the method first
-        (`concerns/view_sketch.py::view_sketch_prompt`). What it built is
+        (`concerns/view_sketch.py`: the static instructions ride on the system
+        prompt, the focus is the turn). What it built is
         kept in `messages` as the consultant's own words, so the next turn can
         be asked about a corner it just drew.
 
@@ -380,7 +386,8 @@ class Consultant:
         """
         from dialectical_framework.concerns.view_sketch import (
             ViewSketchDto, exploration_view_from_sketch, history_ask,
-            history_text, perspective_from_sketch, view_sketch_prompt)
+            history_text, perspective_from_sketch, view_sketch_focus,
+            view_sketch_instructions)
 
         import asyncio
         import dataclasses
@@ -390,7 +397,19 @@ class Consultant:
 
         level = self._conversation._thinking_kwargs().get("thinking")
         history = self._conversation._messages
-        request = view_sketch_prompt(focus, self._conversation.settings.component_length)
+        # The request travels in two places, not one. Its static half
+        # (definitions, rules, the build procedure) goes on the SYSTEM prompt,
+        # after this head's own, because that is where the provider's cache
+        # breakpoint sits: as part of the user message it followed the history
+        # and was re-prefilled at full rate on every draw (~1.2k tokens x N a
+        # card, measured 2026-10-06). Only the focus — the person's own ask —
+        # is the turn. Same words, and the history record is untouched
+        # (`history_ask`, which is why the long request was never kept anyway).
+        system = (
+            f"{self._system_prompt}\n\n"
+            f"{view_sketch_instructions(self._conversation.settings.component_length)}"
+        )
+        ask = view_sketch_focus(focus)
 
         async def draw() -> ViewSketchDto:
             # Each draw works on a COPY of the history: the turns run in
@@ -398,9 +417,20 @@ class Consultant:
             # read. What the view leaves behind is appended once, below.
             sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
             sketch_turn._messages = list(history)
-            return await sketch_turn.submit(ViewSketchDto, request)
+            sketch_turn.set_system_prompt(system)
+            return await sketch_turn.submit(ViewSketchDto, ask)
 
         n = clamp_attempts(attempts)
+        # Fully parallel, deliberately. On a COLD cache all N draws write the
+        # ~12k system head instead of one writing and the rest reading (~$0.06
+        # a card at list prices, 2026-10-06), and the fix would be to await the
+        # first draw before firing the rest — but these turns do not stream, so
+        # nothing here can tell a cold cache from a warm one, and the stagger
+        # would spend a whole draw's latency (~6 s) on EVERY card to save money
+        # on the rare one. The 1h breakpoint TTL
+        # (`utils/bedrock_provider.py::_CACHE_TTL`) attacks the same cost
+        # without the latency, which is the trade taken. Revisit only with a
+        # measured cold-start rate.
         drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
         sketches = [d for d in drawn if not isinstance(d, BaseException)]
         if not sketches:

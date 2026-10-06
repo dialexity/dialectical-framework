@@ -186,8 +186,22 @@ For each pair:
 3. Re-read both aspects against step 1 for two distinct failures. (a) Wrong parent: if one is really the OTHER parent developed, rewrite it from its own parent. (b) {PLUS_RESTATEMENT_CHECK}"""
 
 
-def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
-    """The structured turn's request, over the consultant's own conversation.
+def view_sketch_focus(focus: Optional[str]) -> str:
+    """The one per-call line of the request: what this draw is to show.
+
+    Split from the instructions so the Consultant can send this alone as the
+    turn's user message and carry the static half on the system prompt, where
+    the provider's cache breakpoint already sits (`view_sketch_instructions`).
+    """
+    return (
+        f"What to show: {focus}"
+        if focus and focus.strip()
+        else "What to show: the tensions this conversation has worked out so far."
+    )
+
+
+def view_sketch_instructions(max_words: int) -> str:
+    """The STATIC half of the view turn's request — everything but the focus.
 
     Two instructions in one, because the ask is one or the other and the model
     knows which: render what is ESTABLISHED (a tension already named and taken
@@ -203,15 +217,20 @@ def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
     (docs/dev-notes/antithesis-selection.md, 2026-10-02). The thesis is asked
     for as a STANCE (`THESIS_IS_A_STANCE`): on 20 questions the turn echoed the
     question as T in 6 before the ask was here (the alsotrue app repo, docs/lab-notes-entry.md).
+
+    Static because every word of it is fixed per deployment (`max_words` comes
+    from settings), which is what lets the Consultant append it to its system
+    prompt: as a user message it sat after the history and was re-prefilled at
+    full rate on every draw — ~1.2k tokens x N per card, measured 2026-10-06.
+    On the system prompt it rides inside the cached prefix. This is a cache
+    placement, not a content change; the one thing it does move is WHERE the
+    focus line sits, from just under the opening paragraph to the end of the
+    turn (`tests/e2e/probe_view_turn_ask.py` is the instrument if that is ever
+    suspected of mattering).
     """
-    focus_line = (
-        f"What to show: {focus}\n\n"
-        if focus and focus.strip()
-        else "What to show: the tensions this conversation has worked out so far.\n\n"
-    )
     return f"""Draw the structure of this conversation as dialectical tetrads. Answer with ONE JSON object in the requested schema and nothing else — no prose. Earlier drawings in this conversation are recorded in prose; that is their record, not the format of this answer.
 
-{focus_line}{ASPECT_DEFINITIONS}
+{ASPECT_DEFINITIONS}
 
 Rules for what goes in the view:
 - Show what this conversation has ESTABLISHED: a tension you named and the person took up is drawn as you both have it, in their terms. Do not re-derive what is already on the table.
@@ -226,6 +245,17 @@ Rules for what goes in the view:
 {TETRAD_BUILD_PROCEDURE}
 
 Write every position in the person's own terms, {max_words} words or fewer each."""
+
+
+def view_sketch_prompt(focus: Optional[str], max_words: int) -> str:
+    """The whole request as ONE user message: the instructions and the focus.
+
+    The shape for a caller with no system prompt of its own to append to — the
+    probes and the harness. The Consultant sends the two halves apart
+    (`view_sketch_instructions` on the system prompt, `view_sketch_focus` as
+    the turn), which is the same words in a different place.
+    """
+    return f"{view_sketch_instructions(max_words)}\n\n{view_sketch_focus(focus)}"
 
 
 # --- The view shaping (pure) ----------------------------------------------

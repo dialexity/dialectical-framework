@@ -42,10 +42,15 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
   `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
   guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
-  Its one structured call is `Consultant.exploration_view(focus=)` → `concerns/view_sketch.py::view_sketch_prompt`:
+  Its one structured call is `Consultant.exploration_view(focus=)` → `concerns/view_sketch.py`:
   a structured TURN on the consultant's own conversation (its system prompt + full history, both sides), on a
   json-mode facilitator sharing that history so it THINKS at the session's level — the first caller of
-  `ConversationFacilitator(format_mode="json", thinking=)`. The request interpolates `ASPECT_DEFINITIONS`,
+  `ConversationFacilitator(format_mode="json", thinking=)`. **The request lands in TWO places** (since
+  2026-10-06, a cache placement): `view_sketch_instructions(max_words)` is static and is appended to this
+  head's own system prompt for the sketch turn — which keeps the head a PREFIX, so the chat turns' cached
+  entry is readable — while `view_sketch_focus(focus)` is the user message. `view_sketch_prompt` still
+  composes both into one message for callers with no system prompt of their own (the probes, the harness),
+  so a review must read the pair, not just the composition. The instructions interpolate `ASPECT_DEFINITIONS`,
   repeats `aspect_generation._tetrad_prompt`'s three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, and
   asks to render what is established / build what `focus` needs / leave unasked corners EMPTY. Output: a
   texts-only `ViewSketchDto` (flat, no numeric field by design) shaped into
@@ -1638,7 +1643,12 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    before reaching for emphasis — and note this is the same shape as §6's "a guard in a `probe_*.py` file is
    not in the net at all": stating a rule and checking a rule are different acts, in prompts and in tests
    alike.
-7. **CC control-statement wording stated 2×** — `control_statements_check.py` (aspect) vs.
+7. **CC control-statement wording stated 2×** — and within `control_statements_check.py` the statements
+   themselves are now built ONCE (`control_statements()`) and the CC/DV scales are module constants
+   (`_PATTERN`, `_CC_SCALE`, `_DV_SCALE`) shared by the per-statement prompt and the joint one
+   (`score_texts_many`, one call for a whole best-of-N field, 2026-10-06) — so a scale edited in one
+   prompt reaches both; what is NOT shared is the framing sentence of each prompt, and the joint one
+   additionally forbids comparing or ranking the drafts. `control_statements_check.py` (aspect) vs.
    `transformation_generation` (transition), independent phrasing + thresholds.
 
 ### Agent-prompt hand-typed scales (also drift-prone, currently untested for agreement)
@@ -1951,7 +1961,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `concerns/tetrad_candidates.py`: `TetradSketch.resolve(attempts=)` and the staged
    `AspectGeneration._generate_tetrad` (via `resolve(attempts=)` / `ExpandPolarity(attempts=)`) draw N identical
    requests in parallel (fresh facilitator each; the view turn on COPIES of its history) and `select_sketch` ranks them by the
-   framework's own control statements (`ControlStatementsCheck.score_texts` — the SAME two statements
+   framework's own control statements (`ControlStatementsCheck.score_texts_many`, one call for the whole field since 2026-10-06 — the SAME two statements
    `_validate_and_flag` scores after commit, built from the same words; a verdict here and one taken
    later are the same question). Review points: (a) the judge never sees T/A, so it passes a MIRROR
    antithesis more readily than a position — any change that feeds the verdict BACK into generation turns

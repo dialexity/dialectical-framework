@@ -78,6 +78,37 @@ CACHE_SPLIT_SENTINEL = "\n\n## Current Understanding\n\n"
 #: latency fix must not be able to make latency worse.
 _MIN_CACHEABLE_HEAD_CHARS = 20_480
 
+#: How long a cache entry on a STABLE part of the request lives.
+#:
+#: The provider's default is five minutes, which is shorter than the gap
+#: between two sessions of a product with few users: measured on the first app
+#: (2026-10-06), a card's three parallel draws each WROTE the ~12k-token system
+#: head on a cold cache — $0.089 of writes where a warm card pays $0.007 of
+#: reads — and for a single early user every session started cold. An hour of
+#: idle survives at 2x the write rate instead of 1.25x, so the break-even is
+#: three reads of the entry; a conversation reaches that in three turns, and a
+#: host serving more than one person an hour reaches it on the shared engine
+#: alone. The loss case is a one-turn session on a cold cache, which pays 0.75x
+#: of one prefill more than it would have.
+#:
+#: Applied to the system prompt and the tools only — the two parts that are
+#: identical across the turns of a session. A message-level breakpoint moves
+#: every turn, so a longer TTL there would buy a 2x write on an entry nothing
+#: reads twice. That split also keeps the provider's ordering rule satisfied:
+#: longer-TTL entries must come BEFORE shorter ones in the request, and the
+#: order is tools, then system, then messages.
+#:
+#: Bedrock accepts the field on Claude 4.x and later, and a model that did not
+#: would reject EVERY request rather than quietly fall back — so the risk is
+#: liveness, not a silent loss of caching, and it is checked against the live
+#: provider by `tests/test_prompt_cache_split.py::TestTheProviderAcceptsTheTtl`
+#: (`--real-llm`). The census cannot confirm the lifetime itself: Mirascope
+#: reports one `cache_write_tokens` number and not the provider's
+#: `cache_creation.ephemeral_1h_input_tokens` breakdown, so what the hour buys
+#: is read off a cache HIT after an idle gap longer than five minutes, which is
+#: the app's paired eval, not a unit test.
+_CACHE_TTL = "1h"
+
 
 def split_system_for_cache(system: Any) -> Any:
     """Move the system prompt's cache breakpoint off the mutable graph dump.
@@ -143,6 +174,9 @@ def split_system_for_cache(system: Any) -> Any:
         anthropic_types.TextBlockParam(
             type="text",
             text=head,
+            # No `ttl` here: this function decides WHERE the breakpoint goes,
+            # and `_lengthen_stable_ttl` decides how long it lives — for the
+            # system block it splits and the one Mirascope emits alike.
             cache_control=anthropic_types.CacheControlEphemeralParam(type="ephemeral"),
         ),
         anthropic_types.TextBlockParam(type="text", text=tail),
@@ -187,14 +221,54 @@ def _normalize_tool_breakpoints(kwargs: dict[str, Any]) -> None:
     ]
 
 
+def _lengthen_stable_ttl(kwargs: dict[str, Any]) -> None:
+    """Give the request's STABLE breakpoints the longer TTL (`_CACHE_TTL`).
+
+    Mirascope writes `{"type": "ephemeral"}` with no TTL, which is the
+    provider's five-minute default. The system prompt and the tool list are the
+    same bytes on every turn of a session, so five minutes is simply the wrong
+    lifetime for them — see `_CACHE_TTL` for what that cost and what the longer
+    one costs. Message breakpoints are left alone on purpose: they move every
+    turn, and the ordering rule (longer TTLs first) holds because tools and
+    system precede messages in the request.
+
+    Stamps a COPY of each block and of the tool, never the dict it was handed:
+    the tool params come from Mirascope's `@lru_cache`d converter and are
+    aliased into every in-flight request that uses the same tool, which is the
+    same trap `_normalize_tool_breakpoints` documents at length.
+
+    Runs after the split, so the system block it stamps is whichever one
+    carries the breakpoint — the head on a split prompt, the single block
+    otherwise. Idempotent, and a no-op wherever there is no breakpoint to
+    lengthen.
+    """
+
+    def stamped(block: Any) -> Any:
+        if not isinstance(block, dict):
+            return block
+        control = block.get("cache_control")
+        if not isinstance(control, dict) or control.get("ttl") == _CACHE_TTL:
+            return block
+        return {**block, "cache_control": {**control, "ttl": _CACHE_TTL}}
+
+    system = kwargs.get("system")
+    if isinstance(system, list):
+        kwargs["system"] = [stamped(block) for block in system]
+
+    tools = kwargs.get("tools")
+    if isinstance(tools, list):
+        kwargs["tools"] = [stamped(tool) for tool in tools]
+
+
 def _fix_cache_breakpoints(kwargs: dict[str, Any]) -> None:
     """Put the request's cache breakpoints where they were meant to go.
 
-    Two independent repairs, both on the encoded request rather than upstream,
-    because both defects live in the encoder: the system prompt's breakpoint sits
-    behind the Advisor's mutable dump, and stale tool breakpoints leak between
-    requests. Neither is specific to Bedrock; this is simply the only seam this
-    tree owns.
+    Three independent repairs, all on the encoded request rather than upstream,
+    because all three live in the encoder: the system prompt's breakpoint sits
+    behind the Advisor's mutable dump, stale tool breakpoints leak between
+    requests, and the breakpoints on the request's stable parts are written with
+    the five-minute default TTL. None is specific to Bedrock; this is simply the
+    only seam this tree owns.
 
     `system` is guarded on presence rather than read with `.get()`: a request with
     no system prompt must not acquire a `system=None` key it never had. Two of the
@@ -203,6 +277,7 @@ def _fix_cache_breakpoints(kwargs: dict[str, Any]) -> None:
     if "system" in kwargs:
         kwargs["system"] = split_system_for_cache(kwargs["system"])
     _normalize_tool_breakpoints(kwargs)
+    _lengthen_stable_ttl(kwargs)
 
 
 def _bedrock_model_name(model_id: str) -> str:
