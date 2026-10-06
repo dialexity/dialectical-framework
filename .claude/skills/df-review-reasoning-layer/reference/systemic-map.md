@@ -42,15 +42,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   head too, and a rewrite key that no longer matches silently DROPS the paragraph it was written for —
   `tests/e2e/test_e2e.py::TestMethodPrompt::test_rewrite_table_has_no_stale_keys` is the tripwire, and it
   guards the bench's A1 baseline and the product at once (same text). No `{dialectical_context}`, no tools.
-  Its one structured call is `Consultant.exploration_view(focus=)` → `concerns/view_sketch.py`:
+  Its one structured call is `Consultant.exploration_view(focus=)` → `concerns/view_sketch.py::view_sketch_prompt`:
   a structured TURN on the consultant's own conversation (its system prompt + full history, both sides), on a
   json-mode facilitator sharing that history so it THINKS at the session's level — the first caller of
-  `ConversationFacilitator(format_mode="json", thinking=)`. **The request lands in TWO places** (since
-  2026-10-06, a cache placement): `view_sketch_instructions(max_words)` is static and is appended to this
-  head's own system prompt for the sketch turn — which keeps the head a PREFIX, so the chat turns' cached
-  entry is readable — while `view_sketch_focus(focus)` is the user message. `view_sketch_prompt` still
-  composes both into one message for callers with no system prompt of their own (the probes, the harness),
-  so a review must read the pair, not just the composition. The instructions interpolate `ASPECT_DEFINITIONS`,
+  `ConversationFacilitator(format_mode="json", thinking=)`. **The whole request is the LAST user message, and
+  must stay there**: on 2026-10-06 its static half was moved onto the system prompt for the cache, and a retry
+  card (history already holding a drawing in prose) answered in prose — 4.75 calls instead of 3
+  (`tests/e2e/probe_view_turn_retry_calls.py`); reverted. The request interpolates `ASPECT_DEFINITIONS`,
   repeats `aspect_generation._tetrad_prompt`'s three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, and
   asks to render what is established / build what `focus` needs / leave unasked corners EMPTY. Output: a
   texts-only `ViewSketchDto` (flat, no numeric field by design) shaped into

@@ -153,6 +153,13 @@ class TransformationSketchDto(BaseModel):
     2026-10-06). A host may ignore the four scaffold fields; their job is done
     by the time the line is written.
 
+    The price to watch, OPEN: the ends rose and the makeup reads dipped
+    ("Re- is the reflection itself" 94% -> 88% here, within noise; the first
+    app's pill measured 98% -> 80% in its own voice). A line written to land
+    on A+ -> T- can stop reading as the reflection overdone. If a host's
+    makeup read keeps falling, that is a trade to measure on this probe, not
+    a reason to drop the fields by eye.
+
     Hosts SUBCLASS it to add their own person-facing fields after these, so
     the derivation and the words that rest on it stay one call: the first
     app's card writes its three sentences from this derivation in the same
