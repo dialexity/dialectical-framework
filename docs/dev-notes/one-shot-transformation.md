@@ -281,3 +281,41 @@ did. A host subclassing the DTO inherits the fields.
 **Open:** whether the staged generator lands the ends at all — never instrumented; its stored
 pathways carry no edge orientation, so judging them needs the wheel read back from the graph. That is
 also the first number the N = 2 one-shot-per-edge measurement needs.
+
+### The staged generator's ends: Ac- lands, Re- does not, and the one-shot's fix does not carry (2026-10-06)
+
+`tests/e2e/probe_staged_endpoints.py` answers the open question above. It reads the 17 one-tension
+wheels back from the graph (rebuilt with cleanup off), orients every Transformation by its Ac-
+transition's SOURCE statement (T+ means the edge runs T -> A; A+ means A -> T and the corners are
+swapped), and puts the same endpoint auditor to all 102 of them. Wiring 102/102 — the structure is
+right; the question is the text.
+
+| staged, 102 Transformations | Ac- ends | Re- ends | Ac- is the action | Re- is the reflection |
+|---|---|---|---|---|
+| all | **74%** | **34%** | 75% | 88% |
+| T -> A edges | 67% | 18% | 73% | 86% |
+| A -> T edges | 80% | 51% | 78% | 90% |
+
+So the production Ac- is fine — better than the one-shot even with its scaffold (60%), probably
+because its own call says "the path from T+ (strength) toward A- (problem)" concretely. Re- is
+the weak position: its failures LAND right (T-) and START wrong — from the reflection's own noticing
+or from T+, not from A+. A plausible cause in the prompt: `build_edge_context` renders the
+reflection block RELATIVE to the opposite edge (its T+ is the other side's strength, its A- your own
+trap), and the Re- instruction "the Reflection Perspective's positive regresses you toward your
+negative" names neither of the block's two positives.
+
+**The one-shot's fix did not carry.** `re_minus_from` / `re_minus_into` before the Re- lines, by the
+block's own labels: Re- 34% -> 40%, paired by (tetrad, edge, band) +6 (-6..+18), within noise; the
+unchanged Ac- (the control) -2. Reverted — a claimed fix with extra output tokens and no measured
+effect is not shipped. Not seen: whether the writer filled the two fields correctly (they were not
+persisted), which is the first thing to capture if this is picked up again.
+
+**Read the judge before acting on this.** It requires Re- to visibly START from A+. The staged
+prompt defines Re- by makeup ("what Re+ itself degenerates into when Ac+ is absent"), and Re+ starts
+from the block's T- side, so a line that starts from "the reflection" is following its own
+instruction. Whether "taking in their strength without acting, landing in your trap" must NAME the
+other side's strength to count is a reading of the theory, not a measurement. Open:
+- capture the Re- DTO (both scaffold fields) on a few wheels to see whether the scaffold was ignored
+  or wrong;
+- the prose fix: name the block's T+ as the start in the Re- instruction itself;
+- hand-read 10 Re- failures with the owner against the paper's Re- definition before either.

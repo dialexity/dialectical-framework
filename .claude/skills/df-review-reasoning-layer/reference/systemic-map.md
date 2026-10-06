@@ -1954,8 +1954,12 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    tetrad's "T+ without A+ yields T-" and pulls the line onto T's own trap. The DTO's `*_minus_from` /
    `*_minus_into` fields, written before each minus line, took it to 60%/58%. Review an edit here on
    `tests/e2e/probe_transformation_sketch.py` (third-trap + endpoint/makeup auditors + crossed S-,
-   paired against `current`), never by reading the prompt. Open: whether the staged generator lands the
-   ends — it was never instrumented (its stored pathways carry no edge orientation to judge against).
+   paired against `current`), never by reading the prompt. The STAGED generator, read back from the
+   graph with each edge oriented (`tests/e2e/probe_staged_endpoints.py`): Ac- 74% on its ends, Re- 34%
+   (landing right, start wrong). The Re- prompt's "the Reflection Perspective's positive" names neither of
+   the two positives in the reflection block, which `build_edge_context` renders relative to the
+   OPPOSITE edge (its T+ = the other side's strength, its A- = your own trap) — a drift hotspot. The
+   one-shot's scaffold-field fix did NOT carry there (+6, within noise; reverted).
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the

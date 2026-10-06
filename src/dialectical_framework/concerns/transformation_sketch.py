@@ -270,6 +270,13 @@ class TransformationSketch(ReasonableConcern[TransformationSketchDto], SettingsA
     class: it subclasses `TransformationSketchDto` and embeds
     `TRANSFORMATION_BUILD_PROCEDURE` in its own system prompt, so the theory
     is still the framework's and the voice is the host's.
+
+    A host that writes person-facing text from the result in a SECOND call
+    must tell that call the lines are meaning only, not wording to reuse:
+    otherwise it echoes them, and the lines are written to the theory's
+    shape, not to a person. Measured by the first app on its card text
+    (19–21 points lost until its writer said so; the record is in that app's
+    repo).
     """
 
     def __init__(self) -> None:

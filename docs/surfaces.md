@@ -212,7 +212,11 @@ Ac-/Re- end where the theory says; a host may ignore them), nothing persisted, n
 tension only (two or more tensions are the graph path). A host that writes its own
 person-facing text in the same call does not restate the theory: it embeds
 `TRANSFORMATION_BUILD_PROCEDURE` in its system prompt and subclasses `TransformationSketchDto`
-(the first app's card does), so it inherits the scaffold fields too. `attempts=` draws N and
+(the first app's card does), so it inherits the scaffold fields too. A host that instead writes
+person-facing text from the result in a SECOND call must tell that call the lines are meaning only,
+not wording: unprompted it echoes them, and they are written to the theory's shape, not to a
+person (the first app's card text lost 19–21 points until its writer said so; its record is in that
+app's repo). `attempts=` draws N and
 keeps the most coherent by the transition tetrad's control statements ("Ac+ without Re+ yields
 Ac-"); default ONE, unmeasured. An edit to the definition text or the DTO is gated by
 `tests/e2e/probe_transformation_sketch.py`.
