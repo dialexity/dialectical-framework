@@ -71,3 +71,8 @@ docs/r-n-d/
 # stopped ignoring anything, and a `git add tests/` swept 208k lines of
 # transcripts into the rename commit before the diffstat was read.
 tests/e2e/results/
+
+# Handoff notes are working messages between sessions, not records: once one is
+# implemented its content moves into the code and the dev notes, and the handoff
+# is deleted. Never committed, so a stale one cannot become a second source of truth.
+docs/dev-notes/handoff-*
