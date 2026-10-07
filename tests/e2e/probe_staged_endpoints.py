@@ -188,4 +188,4 @@ async def test_staged_endpoints(di_container) -> None:
     for cat in sorted({i.get("category") or "?" for i in judgeable}):
         subset = [i for i in judgeable if (i.get("category") or "?") == cat]
         print(f"  {cat:11} Ac- valid {rate('ac_valid', subset)} | Re- valid {rate('re_valid', subset)}")
-    print("  one-shot, same auditor (transition_rescore-20261006-175449): text alone 30% / 26%, with the from/into fields 56% / 62%")
+    print("  one-shot, same auditor (transition_rescore-20261006-175449): text alone 32% / 30%, with the from/into fields 62% / 64%")

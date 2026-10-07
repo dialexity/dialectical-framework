@@ -251,8 +251,8 @@ class ReSideCompletionDto(BaseModel):
     # Re- fields. The weak position of the staged generator, measured
     # 2026-10-06 (`tests/e2e/probe_staged_endpoints.py`, 102 Transformations on
     # 17 one-tension wheels, read with the theory-faithful `TransitionVerdict`):
-    # Re- valid 49% against Ac- 70%, and it is the LANDING that fails (59%
-    # land in T-; 27% valid on T->A edges). The prompt asked for "the
+    # Re- valid 42% against Ac- 71% (the corrected auditor, 2026-10-07), and it
+    # is the LANDING that fails (58% land in T-; 20% valid on T->A edges). The prompt asked for "the
     # reflection without the action", which the writer read as "keep watching,
     # do nothing" — and wherever A is the passive pole, doing nothing is A's
     # trap, not T's. Two `re_minus_from` / `re_minus_into` fields ahead of these

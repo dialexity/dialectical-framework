@@ -689,7 +689,7 @@ class TestDegenerationSubjectIsPreserved:
     def test_re_minus_names_where_it_lands(self):
         """Re- "transforms A+ into T-" [P0 pp.16-17]: the landing is the
         definition. Measured weak on exactly that (2026-10-06,
-        `probe_staged_endpoints.py`, `TransitionVerdict`): Re- valid 49%,
+        `probe_staged_endpoints.py`, `TransitionVerdict`): Re- valid 42-49%,
         landing in T- 59% — "the reflection without the action" was read as
         "keep watching, do nothing", which leaves the OTHER side's trap in
         place. The instruction names the landing by the reflection block's own

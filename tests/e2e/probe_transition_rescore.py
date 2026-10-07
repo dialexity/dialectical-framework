@@ -7,7 +7,7 @@ independent theory reviewers, blind, on 15 staged Re- lines
 stricter than the papers: half its failures (5/10) were valid, and the real
 failures LANDED wrong (in A-, not T-). `probe_transformation_sketch.TransitionVerdict`
 encodes what they agreed the theory requires: lands in the right trap, is the
-operation degenerated, does not start from the wrong side's plus.
+operation degenerated, the operation causing the landing (corrected 2026-10-07).
 
 Two tests, nothing generated:
 
@@ -71,44 +71,54 @@ async def _judge_all(pairs: list[tuple[dict[str, str], dict[str, str]]]) -> list
 @pytest.mark.real_llm
 @pytest.mark.asyncio
 async def test_the_auditor_agrees_with_the_theory_judges(di_container) -> None:
+    """Both panels' fixtures, two passes each. Each fixture is set beside the
+    auditor that preceded the current one on it: the app's strict auditor for
+    the first panel (start must be NAMED), the "starts from T+" check for the
+    second (2026-10-07)."""
     judge = E2EConfig.from_env().judge_model
-    cases = _read_jsonl(_HERE / "fixtures" / "re_minus_theory_cases.jsonl")
-    pairs = [_corners_from_case(c) for c in cases]
+    panels = (
+        ("first panel", "re_minus_theory_cases.jsonl", lambda c: bool(c["strict_auditor_re_ends"])),
+        ("second panel", "re_minus_tplus_theory_cases.jsonl", lambda c: not c["old_auditor_flagged_starts_from_t_plus"]),
+    )
     out = _RESULTS / f"transition_auditor_validation-{time.strftime('%Y%m%d-%H%M%S')}.json"
-    with using_model(di_container, judge):
-        runs = [await _judge_all(pairs) for _ in range(2)]
-
-    rows = []
-    for i, c in enumerate(cases):
-        row = {"case": c["case"], "consensus": c["consensus"], "judges_ends_in": c["judges_ends_in"],
-               "strict_auditor_pass": bool(c["strict_auditor_re_ends"])}
-        for k, run in enumerate(runs):
-            v = run[i]
-            row[f"run{k}"] = None if v is None else {**v.model_dump(), "re_valid": v.re_valid}
-        rows.append(row)
-    out.write_text(json.dumps(rows, indent=2, ensure_ascii=False))
-
-    clear = [r for r in rows if r["consensus"] in ("yes", "no")]
-
-    def agree(pred) -> str:
-        n = sum(1 for r in clear if pred(r) == (r["consensus"] == "yes"))
-        return f"{n}/{len(clear)}"
-
+    record: dict[str, Any] = {}
     print(f"\n--- {out.name} (judge {judge}) ---")
-    print(f"  old strict auditor vs judges' consensus : {agree(lambda r: r['strict_auditor_pass'])}")
-    for k in range(2):
-        print(f"  new auditor run {k} vs judges' consensus    : {agree(lambda r, k=k: bool(r[f'run{k}'] and r[f'run{k}']['re_valid']))}"
-              f"   landing agrees {sum(1 for r in rows if r[f'run{k}'] and r[f'run{k}']['re_minus_ends_in_t_minus'] == (r['judges_ends_in'] == 'T-'))}/{len(rows)}")
-    stable = sum(1 for r in rows if r["run0"] and r["run1"] and r["run0"]["re_valid"] == r["run1"]["re_valid"])
-    print(f"  new auditor self-agreement: {stable}/{len(rows)}")
-    for r in rows:
-        if r["consensus"] == "borderline":
-            print(f"  borderline case {r['case']}: new auditor says valid = {[r[f'run{k}']['re_valid'] if r[f'run{k}'] else None for k in range(2)]}")
-    for r in clear:
-        verdicts = [bool(r[f"run{k}"] and r[f"run{k}"]["re_valid"]) for k in range(2)]
-        if any(v != (r["consensus"] == "yes") for v in verdicts):
-            print(f"  disagreement case {r['case']}: consensus {r['consensus']}, new auditor {verdicts}: "
-                  f"{(r['run0'] or {}).get('reasoning', '')[:200]}")
+    for label, fixture, previous_pass in panels:
+        cases = _read_jsonl(_HERE / "fixtures" / fixture)
+        pairs = [_corners_from_case(c) for c in cases]
+        with using_model(di_container, judge):
+            runs = [await _judge_all(pairs) for _ in range(2)]
+        rows = []
+        for i, c in enumerate(cases):
+            row = {"case": c["case"], "consensus": c["consensus"], "judges_ends_in": c["judges_ends_in"],
+                   "previous_auditor_pass": previous_pass(c)}
+            for k, run in enumerate(runs):
+                v = run[i]
+                row[f"run{k}"] = None if v is None else {**v.model_dump(), "re_valid": v.re_valid}
+            rows.append(row)
+        record[label] = rows
+        clear = [r for r in rows if r["consensus"] in ("yes", "no")]
+
+        def agree(pred) -> str:
+            n = sum(1 for r in clear if pred(r) == (r["consensus"] == "yes"))
+            return f"{n}/{len(clear)}"
+
+        print(f"  {label} ({fixture}, {len(clear)} clear of {len(rows)}):")
+        print(f"    previous auditor vs consensus: {agree(lambda r: r['previous_auditor_pass'])}")
+        for k in range(2):
+            print(f"    current auditor pass {k} vs consensus: {agree(lambda r, k=k: bool(r[f'run{k}'] and r[f'run{k}']['re_valid']))}"
+                  f"   landing {sum(1 for r in rows if r[f'run{k}'] and r[f'run{k}']['re_minus_ends_in_t_minus'] == (r['judges_ends_in'] == 'T-'))}/{len(rows)}")
+        stable = sum(1 for r in rows if r["run0"] and r["run1"] and r["run0"]["re_valid"] == r["run1"]["re_valid"])
+        print(f"    self-agreement: {stable}/{len(rows)}")
+        for r in rows:
+            if r["consensus"] == "borderline":
+                print(f"    borderline case {r['case']}: current auditor valid = {[r[f'run{k}']['re_valid'] if r[f'run{k}'] else None for k in range(2)]}")
+        for r in clear:
+            verdicts = [bool(r[f"run{k}"] and r[f"run{k}"]["re_valid"]) for k in range(2)]
+            if any(v != (r["consensus"] == "yes") for v in verdicts):
+                print(f"    disagreement case {r['case']}: consensus {r['consensus']}, auditor {verdicts}: "
+                      f"{(r['run0'] or {}).get('reasoning', '')[:180]}")
+    out.write_text(json.dumps(record, indent=2, ensure_ascii=False))
 
 
 @pytest.mark.real_llm

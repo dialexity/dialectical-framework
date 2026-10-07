@@ -89,8 +89,8 @@ class TestTheShape:
 
     def test_each_minus_line_is_preceded_by_its_ends(self):
         """The measured fix (2026-10-06, `probe_transformation_sketch.py`): the
-        definition in text gave a valid Ac- / Re- in 30% / 26%; naming the start
-        and the landing BEFORE the line moved them to 56% / 62%. The order is the
+        definition in text gave a valid Ac- / Re- in 32% / 30%; naming the start
+        and the landing BEFORE the line moved them to 62% / 64%. The order is the
         mechanism — the model writes fields in order."""
         order = list(ts.TransformationSketchDto.model_fields)
         assert order.index("ac_minus_from") < order.index("ac_minus_into") < order.index("ac_minus")

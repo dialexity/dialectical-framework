@@ -1948,23 +1948,26 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    `as_control_tetrad` (Rule 5.2's control statements in the tetrad's corners); default ONE, unmeasured,
    and blind to S- shape and endpoint fidelity, the two defects this layer has shown.
    **A definition in prose is not an instruction the writer follows** (2026-10-06): the both-halves text
-   gave a valid Ac-/Re- in 30%/26% — the makeup half ("Ac+ without Re+") reads like the aspect tetrad's
+   gave a valid Ac-/Re- in 32%/30% — the makeup half ("Ac+ without Re+") reads like the aspect tetrad's
    "T+ without A+ yields T-" and pulls the line onto T's own trap. The DTO's `*_minus_from` /
-   `*_minus_into` fields, written before each minus line, took it to 56%/62%. Review an edit here on
+   `*_minus_into` fields, written before each minus line, took it to 62%/64%. Review an edit here on
    `tests/e2e/probe_transformation_sketch.py` (third-trap + `TransitionVerdict` + crossed S-, paired
    against `current`), never by reading the prompt. **What a valid minus transition is**, as three blind
-   theory reviewers settled it from the papers (`fixtures/re_minus_theory_cases.jsonl`): it LANDS in the
-   right trap (Re- in T-, Ac- in A-; the definition), is the operation degenerated, and does not start
-   from its own side's plus; it need NOT name where it starts (the paper's Re- is "Dogmatize"). An auditor
-   requiring the start to be named — the app's, used until 2026-10-06 — fails half the valid lines.
+   theory reviewers settled it from the papers (`fixtures/re_minus_theory_cases.jsonl`, and a second panel
+   on the start question, `fixtures/re_minus_tplus_theory_cases.jsonl`): it LANDS in the right trap (Re- in
+   T-, Ac- in A-; the definition), is the operation degenerated, and the operation itself CAUSES the
+   landing (not the trap set beside it with "while"/"yet"); it need NOT name where it starts (the paper's
+   Re- is "Dogmatize"), and a reflection dwelling on T-ward content is native to Re (Not-T space, "leaning
+   toward T", P1 pp.22-23). Two auditors were wrong before `TransitionVerdict` settled: one required the
+   start named (failed half the valid lines), the next disqualified "starts from T+" (failed 10 of 14).
    The STAGED generator, read back from the graph with each edge oriented (`probe_staged_endpoints.py`):
-   Ac- valid 70%, Re- 49%, and Re-'s failures LANDED in A- ("reflection without action" read as "keep
+   Ac- valid 71%, Re- 42%, and Re-'s failures LANDED in A- ("reflection without action" read as "keep
    watching", which is A's trap wherever A is the passive pole); 27% valid on T->A edges. The one-shot's
    scaffold-field fix did NOT carry there (within noise; reverted). What did: the Re- instruction in
    `_generate_re_side` now names the landing by the reflection block's OWN label — its A- line is your own
    trap (`build_edge_context` renders the block relative to the OPPOSITE edge, so its T+ is the other
    side's strength and its T- the other side's trap) — and names the miss ("keep watching and do nothing"
-   leaves THEIR trap in place). Lands 59% → 76% (+18, clears), valid 49% → 61% (+12, edge of noise), Ac-
+   leaves THEIR trap in place). Lands 59% → 76% (+18, clears), valid 42% → 61% (+12, edge of noise), Ac-
    control flat. A Re- edit is a block-label edit: keep the labels and the block's rendering in step.
    **The labels are RELATIVE, and at N >= 2 that misleads**: `build_edge_context` calls the target "A" even when it
    belongs to another tension, and the staged writer read it as T's own antithesis (a third of Ac+ stayed inside

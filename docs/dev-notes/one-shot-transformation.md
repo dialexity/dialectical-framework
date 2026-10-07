@@ -462,3 +462,26 @@ different builds of the same 10 pairs; shared-statement edges excluded as before
 Shipped: fidelity cleared, the collapse fell in both note generations (25%, 23% against 28%, 35%),
 nothing got worse beyond noise. Still OPEN: a quarter of staged Ac+ at N = 2 heading for their own
 tension (next idea and its measurement plan: issue #59), and the one-shot's refinement gap, which this does not touch.
+
+### The auditor's start check was wrong too (2026-10-07)
+
+`TransitionVerdict` disqualified a minus line that "starts from its own side's plus" (a Re- reading
+as T+ decaying into T-). On the staged run after the Re- landing fix, 14 Re- lines landed in T-, were
+reflection degenerated, and failed only that check. A second blind panel of three theory reviewers
+(20 lines: the 14 plus 6 the auditor passed, shuffled; `fixtures/re_minus_tplus_theory_cases.jsonl`)
+answered the question from the papers, unanimously: the start is NOT disqualifying. Re- is "Re+
+without Ac+" [P0 p.17] and Re+ ends at T+, and Re lives in Not-T space "leaning toward T while it is
+not yet affordable" [P1 pp.22-23], so a reflection dwelling on T-ward content is where Re- comes from.
+What decides is whether the reflection CAUSES the landing: a line that sets T- beside the reflection
+("admiring X while the words turn sharp", "notices X, yet keeps advising") is T decaying on its own.
+Verdicts: of the 14 flagged, 10 valid, 1 valid by majority, 3 borderline; 0 invalid.
+
+The check is now `*_causes_the_landing`. Validated on both panels (`probe_transition_rescore.py`,
+two passes each, `transition_auditor_validation-20261007-105624.json`): first panel 12 and 11 of 13
+clear cases, second 15 and 16 of 17 (the start check: 6 of 17); landing 35/35; self-agreement 33/35;
+every disagreement errs STRICT (the auditor fails a line the reviewers passed).
+
+Re-read with it (`transition_rescore-20261007-105833.json` and its staged twin): the one-shot's
+start/landing fields 32/30% -> 62/64% valid (+30/+34, clears); the staged generator before the Re-
+landing fix Ac- 71%, Re- 42% (20% on T->A edges), after it Ac- 69%, Re- 61%. Every conclusion above
+stands; the figures in the code and CLAUDE.md now quote this auditor.

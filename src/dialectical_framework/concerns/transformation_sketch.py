@@ -145,15 +145,15 @@ class TransformationSketchDto(BaseModel):
     `ac_minus_from` / `ac_minus_into` (and the Re- pair) come BEFORE their
     line on purpose, and they are the measured fix, not decoration. Stating the
     ends in the definition does not make the writer use them: with the text
-    alone a valid Ac- (lands in A-, is the action degenerated, does not start
-    from A+) came back in 30% of drafts and a valid Re- in 26%, because "the
+    alone a valid Ac- (lands in A-, is the action degenerated, the action
+    causing the landing) came back in 32% of drafts and a valid Re- in 30%, because "the
     action without the reflection" reads like the tetrad's own "T+ without A+
     yields T-" and the line lands on T's OWN trap. Making the writer name the
-    start and the landing first moved them to 56% / 62% (paired +26 / +36, both
+    start and the landing first moved them to 62% / 64% (paired +30 / +34, both
     clearing noise), S- unchanged within noise (`tests/e2e/probe_transformation_sketch.py`,
     25 tetrads x 2 reps, 2026-10-06, re-read by `probe_transition_rescore.py`
-    with the auditor three blind theory reviewers agreed with on 51/52 clear
-    cases; the app's stricter auditor had read 22/18% -> 60/58%). A host may
+    with the auditor two blind theory panels agree with on 54/60 clear cases;
+    the app's stricter auditor had read 22/18% -> 60/58%). A host may
     ignore the four scaffold fields; their job is done by the time the line is
     written.
 
