@@ -41,11 +41,12 @@ Citations below use `[P0 p.N]` / `[P1 p.N]`.
 After the 2026-07/08 gap-closure sweep (Greimas 5/5, equal-sign constraint, control statements
 incl. neutral-T + backfire, forcefulness→polarity-flip, DV with the Advisor SP∧DV floor, R3.2
 resolved via PDF verification, and two ledger corrections: transitions matrix and multi-antithesis
-were already implemented), the remaining 4 partial + 7 absent items are **deferred by decision** —
+were already implemented), the remaining partial + absent items are **deferred by decision** —
 the framework is considered useful with what is in it. Every deferred item carries its reason in
 its entry: either the paper itself cautions against it (unvalidated hypothesis, uncalibratable,
 authors' own "future work"), it sits on absent substrate, or it is a product feature awaiting a
-product decision (principles/ontologies layer, transition-tetrad diagonal check). Do not
+product decision (principles/ontologies layer). The transition-tetrad diagonals left this list on
+2026-10-07: measured as holding under the prompt that enforces them, no checker needed. Do not
 re-open these as fidelity debt; re-open them only when a concrete consumer or product need
 appears.
 
@@ -53,8 +54,8 @@ appears.
 
 | Status | Count | Highlights |
 |--------|-------|-----------|
-| implemented | 21 | tetrad rules, circular causality, control statements (aspect checks both paths + neutral-T variant + backfire constraint), Mode ladder (=thesis-lessness), insight/proactiveness scales, systemic+elemental taxonomies, diagonal wheel geometry, Ks formula, SP formula (as `area`), DV (annotation + Advisor SP∧DV context floor), Greimas criteria (5/5), equal-sign synthesis (explicit constraint), transitions matrix (as wheel-native decomposition; same-side cells deliberately unmediated), multi-antithesis per thesis (N candidates → N Polarities sharing the same T node), forcefulness→polarity-flip (subtlety constraint at both Ac/Re generation sites) |
-| partial | 4 | transition tetrad rules, Mode×Arousal semantics, feasibility scoring, apex coherence (data now available; also owns the "S+ without lower-layer support" control-statement extrapolation) |
+| implemented | 22 | tetrad rules, transition tetrad rules (prompt-enforced, measured 2026-10-07), circular causality, control statements (aspect checks both paths + neutral-T variant + backfire constraint), Mode ladder (=thesis-lessness), insight/proactiveness scales, systemic+elemental taxonomies, diagonal wheel geometry, Ks formula, SP formula (as `area`), DV (annotation + Advisor SP∧DV context floor), Greimas criteria (5/5), equal-sign synthesis (explicit constraint), transitions matrix (as wheel-native decomposition; same-side cells deliberately unmediated), multi-antithesis per thesis (N candidates → N Polarities sharing the same T node), forcefulness→polarity-flip (subtlety constraint at both Ac/Re generation sites) |
+| partial | 3 | Mode×Arousal semantics, feasibility scoring, apex coherence (data now available; also owns the "S+ without lower-layer support" control-statement extrapolation) |
 | absent | 7 | principles/ontologies layer, MMI/PSI/PC metrics, Sa/Sb/Sc subtypes, sub-aspects hierarchy, coupling dendrograms, reverse-order S− trigger, Abstraction scalar, Self-Reg metric |
 | diverges | 4 | rectangularity formula (code² vs paper-linear-and-rejected), acceptance gate (generation flags on CC+empirical vs paper SP/DV>0.5 — partial convergence: Advisor render path now prunes on the SP∧DV pair at conservative floors), naming: paper "SP" = code `area`, modality balance R3.2 (measurable as rectangularity=0 under the paper's own approximation; deliberately unenforced — the paper's tests found Ks-balance criteria "not useful" [P1 S1.6-3]) |
 

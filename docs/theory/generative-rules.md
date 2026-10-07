@@ -175,10 +175,15 @@ the transition tetrad, both halves of Ac−/Re−, read by the synthesis prompt 
 `as_control_tetrad` puts the degeneration rule through the tetrad's control-statement judge);
 `concerns/transformation_generation.py` (generates Ac+/Ac−/Re+/Re−; encodes the
 degeneration rule and CC on transitions).
-**Status:** partial
-**Notes:** Generation produces all four positions and the degeneration coherence, but the diagonal
-contradiction *within the transition tetrad* (Ac+⊥Re−, Ac−⊥Re+) is not checked the way
-`DiagonalOppositionsCheck` checks aspect tetrads. See transformations-synthesis.md.
+**Status:** implemented (prompt-enforced, measured)
+**Notes:** Enforced by the generation prompts ("Re+ must CONTRADICT Ac-", "Your Ac+ must CONTRADICT
+Re-"; `TRANSFORMATION_POSITIONS`), the same design as the aspect tetrad's diagonals (prompt-enforced,
+`DiagonalOppositionsCheck` only where a person bypasses the prompt — a transformation has no edit
+path). Measured 2026-10-07 with the aspect tetrad's own question on stored outputs
+(`tests/e2e/probe_transition_diagonals.py`): both diagonals hold (>= 0.7) on 98% of staged one-tension
+Transformations (102), 98% of the shipped `TransformationSketch` (50), 92% of staged two-tension ones
+(102); control pair Ac+ vs Re+ (should not contradict) 2-5%. Endpoint fidelity of the minus
+transitions is a separate question (transformations-synthesis.md, `TransitionVerdict`).
 
 ### Rules 6-7: Multi-thesis wheel geometry
 **Theory:** In circular ordering of {T1..Tn, A1..An}, each Ti/Ai diametrically opposite. Valid

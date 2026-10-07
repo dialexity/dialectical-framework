@@ -47,9 +47,11 @@ mapping in CLAUDE.md + prompts.
 directly contradicts Re+; degeneration "Ac+ without Re+ → Ac−, Re+ without Ac+ → Re−". [P0 pp.16-17]
 **Implementation:** `concerns/transformation_generation.py` (degeneration/CC rules in prompt; all
 four positions generated).
-**Status:** partial
-**Notes:** Degeneration encoded; the transition-level *diagonal contradiction check* has no
-equivalent of `DiagonalOppositionsCheck`. See generative-rules.md Rule 5.2.
+**Status:** implemented (prompt-enforced, measured)
+**Notes:** Degeneration encoded; the diagonals are enforced by the prompts and measured, not checked
+at runtime — 98% / 98% / 92% hold on staged one-tension, shipped one-shot and staged two-tension
+Transformations, control 2-5% (`tests/e2e/probe_transition_diagonals.py`). See generative-rules.md
+Rule 5.2.
 
 ### Full transitions matrix + principles/ontologies layer
 **Theory:** Rule 8: all negative poles × all positive poles (4n² transitions), Ac+/Re+ special
