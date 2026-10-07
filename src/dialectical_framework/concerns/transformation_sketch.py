@@ -150,19 +150,21 @@ class TransformationSketchDto(BaseModel):
     action without the reflection" reads like the tetrad's own "T+ without A+
     yields T-" and the line lands on T's OWN trap. Making the writer name the
     start and the landing first moved them to 62% / 64% (paired +30 / +34, both
-    clearing noise), S- unchanged within noise (`tests/e2e/probe_transformation_sketch.py`,
+    clearing noise), S- unchanged (third failure 75% / 75%; crossed pairwise 57-56 over 113 decided pairs) (`tests/e2e/probe_transformation_sketch.py`,
     25 tetrads x 2 reps, 2026-10-06, re-read by `probe_transition_rescore.py`
     with the auditor two blind theory panels agree with on 54/60 clear cases;
     the app's stricter auditor had read 22/18% -> 60/58%). A host may
     ignore the four scaffold fields; their job is done by the time the line is
     written.
 
-    The price to watch, OPEN: the ends rose and the makeup reads dipped
-    ("Re- is the reflection itself" 94% -> 88% here, within noise; the first
-    app's pill measured 98% -> 80% in its own voice). A line written to land
-    on A+ -> T- can stop reading as the reflection overdone. If a host's
-    makeup read keeps falling, that is a trade to measure on this probe, not
-    a reason to drop the fields by eye.
+    The price, measured: the ends rose and the makeup reads dip a little — a
+    line written to land on its trap can stop reading as the operation
+    overdone. "Re- is the reflection itself" 94% -> 88% (within noise) in the
+    first run, "Ac- is the action itself" 100% -> 93% (-7, clears) in the
+    second (2026-10-07, 100 pairs); the first app's pill saw Re- 98% -> 80% in
+    its own voice. Against +30 / +34 on validity it is a good trade; if a
+    host's makeup read keeps falling, measure it on this probe, do not drop the
+    fields by eye.
 
     Hosts SUBCLASS it to add their own person-facing fields after these, so
     the derivation and the words that rest on it stay one call: the first

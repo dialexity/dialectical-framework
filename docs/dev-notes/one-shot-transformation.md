@@ -485,3 +485,13 @@ Re-read with it (`transition_rescore-20261007-105833.json` and its staged twin):
 start/landing fields 32/30% -> 62/64% valid (+30/+34, clears); the staged generator before the Re-
 landing fix Ac- 71%, Re- 42% (20% on T->A edges), after it Ac- 69%, Re- 61%. Every conclusion above
 stands; the figures in the code and CLAUDE.md now quote this auditor.
+
+### The S- pairwise lean was noise (2026-10-07)
+
+The fields-vs-text S- pairwise of the first `probe_transformation_sketch.py` run read 17-23 with 10
+order-bound — a lean against the start/landing fields. Re-run on the same 25 tetrads at four reps,
+only those two arms (`transformation_sketch-20261007-132937.json`), and pooled with the first run:
+fields 57, text only 56, same 1, order-bound 36 — **50% of 113 decided pairs (95% CI 41-60)**; S- as a
+distinct third failure 75% / 75% (150 each). The fields do not move S-. The re-run replicated the
+fields' effect (valid Re- +39, Ac- +19, both clear) and measured their one price clear of noise:
+"Ac- is the action itself" 100% -> 93%. Recorded on `TransformationSketchDto`.
