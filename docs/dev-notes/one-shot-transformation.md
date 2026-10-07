@@ -461,4 +461,4 @@ different builds of the same 10 pairs; shared-statement edges excluded as before
 
 Shipped: fidelity cleared, the collapse fell in both note generations (25%, 23% against 28%, 35%),
 nothing got worse beyond noise. Still OPEN: a quarter of staged Ac+ at N = 2 heading for their own
-tension, and the one-shot's refinement gap, which this does not touch.
+tension (next idea and its measurement plan: issue #59), and the one-shot's refinement gap, which this does not touch.
