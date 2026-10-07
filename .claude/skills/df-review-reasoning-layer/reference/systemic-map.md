@@ -1966,6 +1966,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    side's strength and its T- the other side's trap) — and names the miss ("keep watching and do nothing"
    leaves THEIR trap in place). Lands 59% → 76% (+18, clears), valid 49% → 61% (+12, edge of noise), Ac-
    control flat. A Re- edit is a block-label edit: keep the labels and the block's rendering in step.
+   **The labels are RELATIVE, and at N >= 2 that misleads**: `build_edge_context` calls the target "A" even when it
+   belongs to another tension, and the staged writer read it as T's own antithesis (a third of Ac+ stayed inside
+   their source tension on two-tension wheels). It now appends `CROSS_TENSION_NOTE` on any crossing edge (by
+   statement hash): staged fidelity 63% → 72% (+10, clears), collapse 32% → 24%
+   (`tests/e2e/probe_n2_one_shot_edge.py`). An edit to the block's labels or the note is measured there.
    `AspectGeneration._scores_prompt` scores FIXED texts under `aspect_generation.SYSTEM_PROMPT` with the
    same apexes and scales as generation, so scored-given and generated tetrads are on one scale; the DTO
    carries no text. Parity to hold: a change to the aspect definitions, the plus check, or the

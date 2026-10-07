@@ -438,3 +438,27 @@ T's own antithesis. Untested.
 in both tool and JSON mode, while the model answered other schemas and Opus 5 answered this one; a
 schema with different field names and descriptions parses (`FidelityVerdict`'s docstring). Gen 1 was
 re-judged from its stored outputs (`test_rejudge_fidelity`), nothing rebuilt.
+
+### The staged collapse: a cross-tension note in the edge context (2026-10-07)
+
+The lead above, tested. `build_edge_context` renders an edge's two segments with RELATIVE labels (the
+target is "A"); at N >= 2 the target belongs to ANOTHER tension, and the staged writer read that "A"
+as T's own antithesis. It now appends `CROSS_TENSION_NOTE` — "T and A above come from TWO DIFFERENT
+tensions: do not read A as the other side of T's own tension" — whenever the target is not the
+source's own opposite (by statement hash; a one-tension edge, and two readings of one polarity, get
+nothing). It reaches every consumer of the block: Ac+ extraction, the tetrad calls, the apex.
+
+Measured with `probe_n2_one_shot_edge.py`'s staged arm, two fresh generations with the note against
+the two without (`-gen3-crossnote-20261007-064707`, `-gen4-crossnote-20261007-073017`; unpaired,
+different builds of the same 10 pairs; shared-statement edges excluded as before):
+
+| staged, two-tension wheels | without (gen 1+2, n=201) | with (gen 3+4, n=207) | difference |
+|---|---|---|---|
+| fidelity | 63% | **72%** | **+10 (+1..+19), clears** |
+| stays inside its own tension | 32% | 24% | -8 (-17..+0), edge of noise |
+| refines its parent | 89% | 85% | -4, within noise |
+| antipode | 97% | 97% | flat |
+
+Shipped: fidelity cleared, the collapse fell in both note generations (25%, 23% against 28%, 35%),
+nothing got worse beyond noise. Still OPEN: a quarter of staged Ac+ at N = 2 heading for their own
+tension, and the one-shot's refinement gap, which this does not touch.

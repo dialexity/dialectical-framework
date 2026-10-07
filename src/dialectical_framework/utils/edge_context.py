@@ -104,7 +104,40 @@ def build_edge_context(source_segment: WheelSegment, target_segment: WheelSegmen
     if target_t_minus:
         parts.append(f"A-: {target_t_minus[0].prompt_text}")
 
+    if _crosses_tensions(source_segment, target_segment):
+        parts.append(CROSS_TENSION_NOTE)
+
     return "\n".join(parts)
+
+
+#: Said whenever the two segments belong to DIFFERENT tensions — every edge of a
+#: wheel with two or more tensions. The labels above are relative ("A" is just the
+#: target), and at N >= 2 the writer read that "A" as T's own antithesis: on ten
+#: two-tension wheels a third of the staged Ac+ (28% / 35%, two generations) turned
+#: T's trap into T's OWN tension's strength instead of this target's, while a
+#: one-shot prompt carrying this sentence did so in 4% / 18%
+#: (`tests/e2e/probe_n2_one_shot_edge.py`, 2026-10-06). On a one-tension wheel the
+#: target IS the other side of T's tension, so nothing is said there.
+CROSS_TENSION_NOTE = (
+    "(T and A above come from TWO DIFFERENT tensions: do not read A as the other "
+    "side of T's own tension — a move that ends in T's own opposite has not "
+    "reached this A.)"
+)
+
+
+def _crosses_tensions(source_segment: WheelSegment, target_segment: WheelSegment) -> bool:
+    """True when the target is NOT the other side of the source's own tension.
+
+    By the statements, not the perspectives: two readings of one polarity are
+    different perspectives over the SAME tension, and their edge is not a
+    crossing. Unknown (a missing statement) reads as not crossing — the note is
+    an aid, and saying nothing is the old behaviour.
+    """
+    own_other = source_segment.opposite.t.get()
+    target_t = target_segment.t.get()
+    if not own_other or not target_t:
+        return False
+    return own_other[0].hash != target_t[0].hash
 
 
 def build_coarser_context(parents: list[CoarserTransformation]) -> Optional[str]:
