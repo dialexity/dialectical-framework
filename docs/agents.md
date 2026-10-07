@@ -170,10 +170,17 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    replicas behind a load balancer): the lease makes cross-process weaves
    safe; routing every turn of a `sid` to one process (sticky by `sid`) is
    still recommended, because a turn behind another process's weave cannot
-   ask it to yield and waits up to a full round. One DI container per process,
-   one `Settings` for all tenants — the container, the event buses and the
-   wiring are process singletons, and a second `setup()` silently re-points
-   every tenant.
+   ask it to yield and waits up to a full round. One DI container per process
+   — the container, the event buses and the wiring are process singletons, and
+   a second `setup()` silently re-points every tenant. **A per-person setting
+   (model, word limits, thinking level, floors) is a scope, not a container:**
+   wrap the request in `with using_settings(base.model_copy(update={...})):`
+   (`dialectical_framework.settings_context`), beside `scope(sid)`. Concurrent
+   requests each see their own; tasks the framework starts inside (best-of-N,
+   the off-turn weave) inherit it. `container.settings.override(...)` raises —
+   it would put every request in flight on one object. The graph connection,
+   the provider's connect timeout and the effect log are read once from the
+   base and cannot be scoped (`Settings` docstring).
 3. **Message persistence** — save/load `agent.messages` per conversation thread. Carrying
    the list forward inside one process needs nothing: hand it to the next
    `Advisor(messages=saved)` and you are done.

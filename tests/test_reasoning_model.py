@@ -31,17 +31,13 @@ def cleanup_test_graph_data():
     yield
 
 
-def _with_models(container, conversation: str, reasoning: str | None):
-    previous = container.settings()
-    container.settings.override(
-        previous.model_copy(update={"ai_model": conversation, "reasoning_model": reasoning})
+def _models(container, conversation: str, reasoning: str | None):
+    """Both models for the calls inside, restored on exit."""
+    from dialectical_framework.settings_context import using_settings
+
+    return using_settings(
+        container.settings().model_copy(update={"ai_model": conversation, "reasoning_model": reasoning})
     )
-    return previous
-
-
-def _restore(container, previous) -> None:
-    container.settings.reset_override()
-    container.settings.override(previous)
 
 
 class TestTheSettingReadsFromTheEnvironment:
@@ -57,20 +53,14 @@ class TestTheSettingReadsFromTheEnvironment:
 
 class TestTheSeamRoutesByCallShape:
     def test_unset_means_one_model_for_everything(self, di_container):
-        previous = _with_models(di_container, "bedrock/chat", None)
-        try:
+        with _models(di_container, "bedrock/chat", None):
             assert ub._get_ai_model() == "bedrock/chat"
             assert ub._get_reasoning_model() == "bedrock/chat"
-        finally:
-            _restore(di_container, previous)
 
     def test_set_means_structured_calls_take_it(self, di_container):
-        previous = _with_models(di_container, "bedrock/chat", "bedrock/reason")
-        try:
+        with _models(di_container, "bedrock/chat", "bedrock/reason"):
             assert ub._get_ai_model() == "bedrock/chat"
             assert ub._get_reasoning_model() == "bedrock/reason"
-        finally:
-            _restore(di_container, previous)
 
     def test_use_brain_picks_by_format(self):
         """The one line that decides: a `format=` call resolves through the
@@ -93,14 +83,11 @@ class TestTheBenchHoldsBothModelsToTheTier:
         two models without the archive saying so."""
         from e2e.modelctx import using_model
 
-        previous = _with_models(di_container, "bedrock/chat", "bedrock/reason")
-        try:
+        with _models(di_container, "bedrock/chat", "bedrock/reason"):
             with using_model(di_container, "bedrock/tier"):
                 assert di_container.settings().ai_model == "bedrock/tier"
                 assert di_container.settings().reasoning_model is None
                 assert ub._get_reasoning_model() == "bedrock/tier"
-        finally:
-            _restore(di_container, previous)
 
     def test_the_bench_splits_only_through_its_own_knob(self, di_container, monkeypatch):
         """`DIALEXITY_E2E_REASONING_MODEL` is the one way to run a two-model
@@ -109,12 +96,9 @@ class TestTheBenchHoldsBothModelsToTheTier:
 
         monkeypatch.setenv("DIALEXITY_E2E_REASONING_MODEL", "bedrock/reason-tier")
         assert bench_reasoning_model() == "bedrock/reason-tier"
-        previous = _with_models(di_container, "bedrock/chat", None)
-        try:
+        with _models(di_container, "bedrock/chat", None):
             with using_model(di_container, "bedrock/tier"):
                 assert di_container.settings().ai_model == "bedrock/tier"
                 assert ub._get_reasoning_model() == "bedrock/reason-tier"
-        finally:
-            _restore(di_container, previous)
         monkeypatch.setenv("DIALEXITY_E2E_REASONING_MODEL", "")
         assert bench_reasoning_model() is None

@@ -13,7 +13,28 @@ from dialectical_framework.graph.composite_input_resolver import CompositeInputR
 from dialectical_framework.agents.execution_report import ExecutionReport
 from dialectical_framework.events.graph_event_bus import GraphEventBus
 from dialectical_framework.graph.scope_context import get_current_sid
+from dialectical_framework.settings_context import (get_base_settings,
+                                                    get_current_settings,
+                                                    set_base_settings)
 from dialectical_framework.utils import progress
+
+
+class _PerRequestSettings(providers.Callable):
+    """`settings` resolved per request (`settings_context`), and NOT overridable.
+
+    An override would replace this provider with one fixed object and silently
+    put the whole process back on a single settings slot — every concurrent
+    request answering on whichever settings were set last. That was the only
+    per-user mechanism before 2026-10-07 and is the defect this exists to end,
+    so it fails loudly and names the replacement.
+    """
+
+    def override(self, provider):  # noqa: D102 - see the class docstring
+        raise RuntimeError(
+            "container.settings cannot be overridden: it is resolved per request. "
+            "Wrap the calls in `with using_settings(settings):` "
+            "(dialectical_framework.settings_context) instead."
+        )
 
 
 class DialecticalReasoning(containers.DeclarativeContainer):
@@ -29,9 +50,16 @@ class DialecticalReasoning(containers.DeclarativeContainer):
 
     @classmethod
     def setup(cls, settings: Settings) -> 'DialecticalReasoning':
-        """Create a new container instance with user-specific settings."""
+        """Create the container with the process's BASE settings.
+
+        The base is what every read sees outside a `using_settings(...)` scope,
+        and the only source of the read-once fields (graph connection, provider
+        timeout, effect log). Per-person settings in a server are
+        `using_settings` around each request, never another `setup()` and never
+        an override (`settings_context`).
+        """
         container = cls()
-        container.settings.override(settings)
+        set_base_settings(settings)
         ExecutionReport.set_event_bus(container.event_bus())
         # Same bus object, different channel (`sid:progress`). Wired separately
         # because progress is not a graph mutation — see `utils/progress.py`.
@@ -41,8 +69,10 @@ class DialecticalReasoning(containers.DeclarativeContainer):
             ExecutionReport.set_effect_logger(EffectLogger(settings.effect_log_dir))
         return container
 
-    # It will be the same settings for all services in the container
-    settings = providers.Dependency(instance_of=Settings)
+    # Per request: the innermost `using_settings(...)`, else the base (`settings_context`).
+    settings = _PerRequestSettings(get_current_settings)
+    # The base alone, for what is built ONCE per process (the graph connection).
+    base_settings = providers.Callable(get_base_settings)
 
     @staticmethod
     def _create_graph_db(settings: Settings) -> Union[Memgraph, Neo4j]:
@@ -228,9 +258,12 @@ class DialecticalReasoning(containers.DeclarativeContainer):
                 )
 
     # Graph database (Memgraph or Neo4j) for graph-native dialectical structures
+    # Built from the BASE, never the per-request settings: the connection is one
+    # Singleton per process, so whichever request first resolved it would
+    # otherwise decide the database for everyone.
     graph_db: providers.Singleton[Union[Memgraph, Neo4j]] = providers.Singleton(
         _create_graph_db,
-        settings=settings
+        settings=base_settings
     )
 
     # -- Content Resolution --

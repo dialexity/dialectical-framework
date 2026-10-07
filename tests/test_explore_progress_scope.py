@@ -344,13 +344,11 @@ class TestOneExploreIsOneProgressStream:
         from dialectical_framework.agents.advisor.tools.explore import \
             run_exploration_detailed
 
-        current = di_container.settings()
-        di_container.settings.override(
-            current.model_copy(update={
-                "advisor_max_perspectives_per_exploration": 1
-            })
-        )
-        try:
+        from dialectical_framework.settings_context import using_settings
+
+        with using_settings(di_container.settings().model_copy(update={
+            "advisor_max_perspectives_per_exploration": 1
+        })):
             case = Case()
             case.commit()
             events = await _collect(
@@ -362,9 +360,6 @@ class TestOneExploreIsOneProgressStream:
                     nexus_hash=None,
                 ),
             )
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(current)
 
         assert {e.key for e in events} == {"aaaaaaa"}, (
             f"key is {sorted({e.key for e in events})} — it names a tension this call"

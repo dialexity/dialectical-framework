@@ -60,7 +60,7 @@ from e2e.read_turn_timing import _NOT_RECORDED, _arms, _stats, _with_arm
 
 
 class _FakeSettings:
-    """Enough of `Settings` for `using_model`'s copy-and-restore dance."""
+    """Enough of `Settings` for `using_model`'s copy into `using_settings`."""
 
     ai_model = "stub"
 
@@ -71,12 +71,6 @@ class _FakeSettings:
 class _FakeProvider:
     def __call__(self) -> _FakeSettings:
         return _FakeSettings()
-
-    def override(self, _value) -> None:
-        pass
-
-    def reset_override(self) -> None:
-        pass
 
 
 class _FakeContainer:

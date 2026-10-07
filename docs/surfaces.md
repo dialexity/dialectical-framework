@@ -239,6 +239,9 @@ is a decision, not an omission — an LLM-elected `show` tool would be unreliabl
 - **The close.** `async with aclosing(advisor.chat_stream(msg))` on any mid-stream exit.
 - **The person's flags.** `advanced`, `persona`, `thinking`: one value per session, the
   same on every head they see.
+- **The person's settings, on a shared process.** A per-person model or limit goes in
+  `with using_settings(base.model_copy(update={...})):` around the request, beside
+  `scope(sid)` — never `container.settings.override`, which raises.
 
 ## What could be simpler (not done)
 

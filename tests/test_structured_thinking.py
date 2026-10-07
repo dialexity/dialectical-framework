@@ -124,37 +124,25 @@ class TestConversationThinkingIsPerSession:
     OFF — distinct from not saying, which defers to settings."""
 
     def _settings(self, di_container, level):
-        previous = di_container.settings()
-        di_container.settings.override(
-            previous.model_copy(update={"conversation_thinking_level": level})
+        from dialectical_framework.settings_context import using_settings
+
+        return using_settings(
+            di_container.settings().model_copy(update={"conversation_thinking_level": level})
         )
-        return previous
 
     def test_not_given_defers_to_settings(self, di_container):
-        previous = self._settings(di_container, "medium")
-        try:
+        with self._settings(di_container, "medium"):
             assert ConversationFacilitator()._thinking_kwargs() == {"thinking": "medium"}
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(previous)
 
     def test_none_is_off_whatever_settings_say(self, di_container):
-        previous = self._settings(di_container, "medium")
-        try:
+        with self._settings(di_container, "medium"):
             assert ConversationFacilitator(conversation_thinking=None)._thinking_kwargs() == {}
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(previous)
 
     def test_a_level_wins_over_settings(self, di_container):
-        previous = self._settings(di_container, None)
-        try:
+        with self._settings(di_container, None):
             assert ConversationFacilitator(conversation_thinking="low")._thinking_kwargs() == {
                 "thinking": "low"
             }
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(previous)
 
     def test_the_toggle_travels_through_isolate(self):
         child = ConversationFacilitator(conversation_thinking="low").isolate(keep_history=False)
@@ -273,13 +261,10 @@ class TestTheConversationalDefaultIsMedium:
         """A level that reached settings as the string "none" (e.g. an override
         set by a host) must not go to the provider as a level — it would be
         adaptive thinking with no effort, i.e. ON."""
-        previous = di_container.settings()
-        di_container.settings.override(previous.model_copy(update={"conversation_thinking_level": "none"}))
-        try:
+        from dialectical_framework.settings_context import using_settings
+
+        with using_settings(di_container.settings().model_copy(update={"conversation_thinking_level": "none"})):
             assert ConversationFacilitator()._thinking_kwargs() == {}
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(previous)
 
     def test_the_env_example_documents_the_default(self):
         from pathlib import Path

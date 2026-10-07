@@ -718,21 +718,16 @@ def _trimmed(candidates: list[str], keep: int, seed: str) -> list[str]:
 def _carrying_source(container, carries: bool) -> Iterator[None]:
     """Point DI settings at one arm's value of the knob under test.
 
-    Same shape as `using_model` and for the same reason: `settings` is a DI
-    singleton read at call time, so the only honest way to run two arms in one
-    process is to flip it around each call. `using_model` nests INSIDE this, and
-    must — it copies whatever instance is current, so the inner override carries
-    this flag along with the model.
+    Same shape as `using_model`: a `using_settings` scope around the calls.
+    `using_model` nests INSIDE this, and must — it copies the current settings,
+    so the inner scope carries this flag along with the model.
     """
-    previous = container.settings()
-    container.settings.override(
-        previous.model_copy(update={"extraction_step2_carries_source": carries})
-    )
-    try:
+    from dialectical_framework.settings_context import using_settings
+
+    with using_settings(
+        container.settings().model_copy(update={"extraction_step2_carries_source": carries})
+    ):
         yield
-    finally:
-        container.settings.reset_override()
-        container.settings.override(previous)
 
 
 async def _gate_calls(

@@ -3,14 +3,16 @@ Model switching for the bench.
 
 Three models coexist in a run — the ARM's tier model, the USER SIMULATOR's
 fixed model, and the JUDGE's model — and all three reach the provider through
-the same DI singleton (`settings.ai_model`), which `use_brain` reads at call
-time. So the only honest way to keep them apart is to flip the setting around
-each call.
+`settings.ai_model`, which `use_brain` reads at call time. `using_model` scopes
+the choice with `using_settings` (`dialectical_framework.settings_context`), so
+it holds for the calls inside the `with` and the tasks they start, and for
+nothing else.
 
-Consequence, and it is a correctness requirement rather than a performance
-note: **bench work must not run concurrently.** The container is
-process-global; two interleaved cells would silently answer on each other's
-model.
+Until 2026-10-07 it overrode the container's one global settings slot, which
+made "bench work must not run concurrently" a correctness rule: two interleaved
+cells answered on each other's model. Settings are per-context now, so that
+rule is gone; the bench still runs its cells sequentially for its own reasons
+(Memgraph, provider throttling), not for this one.
 """
 
 from __future__ import annotations
@@ -32,26 +34,23 @@ def bench_reasoning_model() -> str | None:
 
 @contextmanager
 def using_model(container, model: str) -> Iterator[None]:
-    """Temporarily point DI settings at `model`.
+    """Run the calls inside on `model` (and the tasks they start).
 
-    `settings` is a `Dependency` provider that must stay satisfied, so the
-    restore path re-overrides with the previous instance instead of leaving it
-    unset (a bare reset would break every later injection).
+    Built from the CURRENT settings, so an enclosing `using_settings` (or
+    another `using_model`) keeps its other values; the outer choice is
+    restored on exit.
     """
-    previous = container.settings()
+    from dialectical_framework.settings_context import using_settings
+
     # Both models: a bench tier means "this model runs everything", so a
     # `DIALEXITY_REASONING_MODEL` in the local .env must not leak into a cell.
     # The bench's OWN knob, `DIALEXITY_E2E_REASONING_MODEL`, is the one way to
     # split them on purpose — explicit, printed in the run header and recorded
     # on every cell (`RunRecord.reasoning_model`), so an archive never holds a
     # two-model arm that reads as a one-model one.
-    container.settings.override(
-        previous.model_copy(
+    with using_settings(
+        container.settings().model_copy(
             update={"ai_model": model, "reasoning_model": bench_reasoning_model()}
         )
-    )
-    try:
+    ):
         yield
-    finally:
-        container.settings.reset_override()
-        container.settings.override(previous)

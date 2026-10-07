@@ -30,6 +30,21 @@ def _env_thinking_level() -> dict[str, Optional[str]]:
 
 
 class Settings(BaseModel):
+    """Framework configuration, in TWO TIERS by when a field is read.
+
+    Per request (read at call time, so `with using_settings(...)` from
+    `dialectical_framework.settings_context` scopes them to one asyncio context):
+    `ai_model`, `reasoning_model`, and everything read through
+    `SettingsAware.settings` — word limits, the thinking level, the Advisor's
+    floors and caps, the audit switches.
+
+    Per process (read once, from the base `DialecticalReasoning.setup()` installs;
+    a value inside `using_settings` has no effect): `graph_db_*` (the connection is
+    a Singleton), `llm_connect_timeout_s` (the provider is registered once),
+    `effect_log_dir` (installed in `setup`). `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`
+    is not a field at all: an env var behind one process-wide semaphore.
+    """
+
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
     )

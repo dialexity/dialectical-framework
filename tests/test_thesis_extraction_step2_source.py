@@ -49,17 +49,13 @@ from dialectical_framework.concerns import thesis_extraction as module
 from dialectical_framework.concerns.thesis_extraction import (ContentItemDto,
                                                               ThesisExtraction)
 from dialectical_framework.settings import Settings
+from dialectical_framework.settings_context import using_settings
 
 
 @contextmanager
 def _settings(di_container, **overrides):
-    current = di_container.settings()
-    di_container.settings.override(current.model_copy(update=overrides))
-    try:
+    with using_settings(di_container.settings().model_copy(update=overrides)):
         yield
-    finally:
-        di_container.settings.reset_override()
-        di_container.settings.override(current)
 
 
 @pytest.fixture(autouse=True)

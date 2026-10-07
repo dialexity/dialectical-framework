@@ -29,6 +29,7 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
+from dialectical_framework.settings_context import using_settings
 from test_dialectical_context import _create_perspective_with_aspects
 
 
@@ -42,13 +43,8 @@ def _new_sid() -> str:
 @contextmanager
 def _settings(di_container, **overrides):
     """Temporarily override settings fields on the DI container."""
-    current = di_container.settings()
-    di_container.settings.override(current.model_copy(update=overrides))
-    try:
+    with using_settings(di_container.settings().model_copy(update=overrides)):
         yield
-    finally:
-        di_container.settings.reset_override()
-        di_container.settings.override(current)
 
 
 def _perspective_with_hs(a_hs: float, tag: str) -> Perspective:

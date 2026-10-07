@@ -1738,13 +1738,10 @@ class TestAdvisorNexusSizeCapDerived:
         from dialectical_framework.agents.advisor.system_prompts import \
             system_prompt
 
-        current = di_container.settings()
-        di_container.settings.override(current.model_copy(update={"max_wheel_layer": 3}))
-        try:
+        from dialectical_framework.settings_context import using_settings
+
+        with using_settings(di_container.settings().model_copy(update={"max_wheel_layer": 3})):
             joined = " ".join(system_prompt().split())
-        finally:
-            di_container.settings.reset_override()
-            di_container.settings.override(current)
 
         assert ">3: combinatorial explosion" in joined
         assert ">4:" not in joined

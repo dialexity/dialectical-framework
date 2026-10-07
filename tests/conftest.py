@@ -257,7 +257,7 @@ def di_container():
     container.graph_db.override(
         providers.Singleton(
             _create_test_graph_db,
-            settings=container.settings
+            settings=container.base_settings
         )
     )
 
