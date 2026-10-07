@@ -388,3 +388,53 @@ Shipped: the targeted defect moved and cleared, the makeup read moved WITH it ra
 against it, and the control held. Not resolved: validity overall (the CI touches zero), and the A->T
 dip, unpaired. What is left (40 failures): 22 still do not land (the "keep watching" shape, less of
 it), 14 land but start from T+ — the shape two of the three theory reviewers called borderline.
+
+## The N = 2 measurement, run (2026-10-06)
+
+The pre-registered experiment above, as `tests/e2e/probe_n2_one_shot_edge.py`.
+
+**Setup.** Ten two-tension wheels, each two genuinely different tensions from ONE situation
+(`fixtures/n2_tetrad_pairs.jsonl`: a frozen tetrad plus a second tension the Consultant's view
+turn drew over the same conversation, best-of-3, kept only when thesis and antithesis both differ —
+stored drafts of the same utterance were mostly the same tension reworded). A two-rung climb:
+`ExplorationPipeline(max_deep_wheels=None, refine_from_coarser=True)` deepens both one-tension
+wheels, then the two-tension wheels with them as parents. On the top two-tension wheel, `staged` =
+what the build wrote; `one_shot` = one call per edge with what the staged generator is handed (both
+perspectives' blocks, the coarser hierarchy with a refinement line per position), all three insight
+bands and the start/landing fields in the one call. Two generations, each a fresh build. Reads on
+the bench judge (Fable 5), paired by (edge, band): fidelity (Ac+ turns THIS source trap into THIS
+target's strength), inside (it heads for its own tension's other strength — the N = 1 collapse),
+refines (a more concrete sub-step of a parent Action line), antipode (Re+ and the opposite edge's
+same-band Ac+ describe one move).
+
+**Results** (`n2_one_shot_edge-gen1-20261006-211407.json`, `-gen2-20261006-223221.json`; edges whose
+target strength is the SAME statement as the source tension's own — two tetrads sharing an aspect
+text, deduplicated by the graph — excluded, 7 / 6 of 40 edges, decided after seeing gen 1):
+
+| | gen 1 staged / one-shot | gen 2 staged / one-shot |
+|---|---|---|
+| fidelity | 67% / 79% (+12, -0..+24) | 59% / 57% (-2, -15..+11) |
+| inside | 28% / 4% (-24, clears) | 35% / 18% (-18, clears) |
+| refines the parent | 85% / 73% (-12, clears) | 93% / 70% (-24, clears) |
+| antipode | 96% / 89% (noise) | 97% / 94% (noise) |
+| cost | ~200 calls a pair (all four wheels + synthesis), ~165 s | 1 call an edge, ~12 s |
+
+**Verdict by the pre-registered rule: REJECTED** — generation 2 has 18% of the one-shot's Ac+
+inside their source tension, over the 10% bar. The staged generator stays.
+
+**What the rule did not foresee.** It treated the collapse as a one-shot risk; the staged generator
+collapses MORE, in both generations (28%, 35% — read by hand on samples: "insisting on solo
+control" → "book a call with an outside expert" heads for the source tension's own "partners add
+skills", not the target's "employment funds and de-risks"). Fidelity is a tie. The one-shot's
+consistent cost is the RECURSION: it refines the coarser layer worse (-12, -24), which is what the
+staged path's per-position refinement exists for.
+
+**A cheap lead for the staged collapse.** The one-shot prompt says the two perspectives "come from
+TWO DIFFERENT tensions — do not read A as the other side of T's own tension". The staged generator's
+`build_edge_context` labels the target segment "A" with no such warning, which reads, at N >= 2, as
+T's own antithesis. Untested.
+
+**Measurement notes.** The first fidelity judge returned an EMPTY response on every row from Fable 5
+in both tool and JSON mode, while the model answered other schemas and Opus 5 answered this one; a
+schema with different field names and descriptions parses (`FidelityVerdict`'s docstring). Gen 1 was
+re-judged from its stored outputs (`test_rejudge_fidelity`), nothing rebuilt.
