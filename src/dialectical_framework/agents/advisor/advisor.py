@@ -42,6 +42,7 @@ from dialectical_framework.agents.stream_events import (ResponseComplete,
                                                         StreamEvent, TextDelta,
                                                         ToolResult, ToolStart)
 from dialectical_framework.agents.toolsets import merge_app_tools
+from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.agents.turn_timing import (ClosingOutcome,
                                                        DeferralOutcome,
                                                        TurnTiming)
@@ -850,7 +851,13 @@ class Advisor(SettingsAware):
             # Around the provider round ONLY — the closing seam and the
             # off-turn scheduling below run outside it on purpose.
             with speaking(user_message):
-                result = await self._conversation.submit(ChatResponse, user_message)
+                try:
+                    result = await self._conversation.submit(
+                        ChatResponse, user_message
+                    )
+                except ModelRefusal:
+                    await self._settle_refused_turn(user_message)
+                    raise
             reply_path_s = (
                 deferred_wait_s
                 + context_render_s
@@ -966,33 +973,37 @@ class Advisor(SettingsAware):
             # Entered here, before the stream is opened, because the tool runs
             # inside the generator while it is being iterated.
             with speaking(user_message):
-                async with aclosing(
-                    self._conversation.submit_stream(ChatResponse, user_message)
-                ) as rounds:
-                    async for event in rounds:
-                        if isinstance(event, ResponseComplete):
-                            final_event = event
-                            reply = event.message
-                            # `continue`, so `submit_stream` is asked for one more
-                            # event and runs to its own end instead of being closed
-                            # while suspended at its yield. The seconds read below are
-                            # safe either way — it stamps them as this event passes
-                            # through it, not on exit — but running out is still the
-                            # cleaner exit: the provider's connection is let go of by
-                            # exhaustion rather than by a close unwinding a live frame.
-                            continue
-                        if hygiene is not None:
-                            if isinstance(event, TextDelta):
-                                clean = hygiene.feed(event.text)
-                                if clean:
-                                    yield TextDelta(text=clean)
+                try:
+                    async with aclosing(
+                        self._conversation.submit_stream(ChatResponse, user_message)
+                    ) as rounds:
+                        async for event in rounds:
+                            if isinstance(event, ResponseComplete):
+                                final_event = event
+                                reply = event.message
+                                # `continue`, so `submit_stream` is asked for one more
+                                # event and runs to its own end instead of being closed
+                                # while suspended at its yield. The seconds read below are
+                                # safe either way — it stamps them as this event passes
+                                # through it, not on exit — but running out is still the
+                                # cleaner exit: the provider's connection is let go of by
+                                # exhaustion rather than by a close unwinding a live frame.
                                 continue
-                            if isinstance(event, (ToolStart, ToolResult)):
-                                tail = hygiene.flush()
-                                if tail:
-                                    yield TextDelta(text=tail)
-                                hygiene = HashCitationFilter()
-                        yield event
+                            if hygiene is not None:
+                                if isinstance(event, TextDelta):
+                                    clean = hygiene.feed(event.text)
+                                    if clean:
+                                        yield TextDelta(text=clean)
+                                    continue
+                                if isinstance(event, (ToolStart, ToolResult)):
+                                    tail = hygiene.flush()
+                                    if tail:
+                                        yield TextDelta(text=tail)
+                                    hygiene = HashCitationFilter()
+                            yield event
+                except ModelRefusal:
+                    await self._settle_refused_turn(user_message)
+                    raise
             if hygiene is not None:
                 tail = hygiene.flush()
                 if tail:
@@ -2828,6 +2839,27 @@ class Advisor(SettingsAware):
         except Exception:
             logger.exception("Accepted-cost ground resolution failed (fail-soft)")
         return None
+
+    async def _settle_refused_turn(self, user_message: str) -> None:
+        """The closing work a refused turn still owes, before the refusal goes on.
+
+        A refusal can arrive AFTER tool rounds: the resume round is the one
+        declined, so `record_decision` may already have written a Decision and
+        `note` may already have kept a Note. The facilitator drops the turn
+        from history, but the graph keeps what the tools wrote — and without
+        this the recorded decision never gets its pathway weave (the seam's
+        MODEL_RECORDED branch is what schedules it) and the noted tensions wait
+        for the next turn to be offered. Only the work the tools already did is
+        followed up: the classifier is not asked about a turn that was refused,
+        so no decision is written here that the model did not write.
+        Fail-soft: the refusal is what the host must see.
+        """
+        try:
+            if self._recorded_decision_this_turn():
+                await self._repair_unrecorded_decision(user_message, "")
+            self._schedule_noted_tensions()
+        except Exception:
+            logger.exception("Closing work after a refused turn failed (fail-soft)")
 
     def _recorded_decision_this_turn(self) -> bool:
         """Did `record_decision` already run, successfully, on this turn?

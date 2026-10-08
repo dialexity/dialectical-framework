@@ -128,9 +128,9 @@ async def test_probe_tool_path_hidden_output(di_container):
 async def test_probe_where_thinking_lands_now(di_container, monkeypatch):
     """After the scoped policy (2026-09-24): a conversational round sends
     "disabled" when unset; a structured concern call is left at the provider
-    default. Prints the raw provider usage of each, captured at the provider
-    seam, so both halves of "think where you build, read where you consult"
-    are visible as thinking_tokens."""
+    default (which, under forced tool choice, is no thinking). Prints the raw
+    provider usage of each, captured at the provider seam, so both are visible
+    as thinking_tokens."""
     import dialectical_framework.utils.bedrock_provider as bp
     from dialectical_framework.concerns.decision_confirmation_check import \
         DecisionConfirmationCheck

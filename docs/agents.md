@@ -142,7 +142,7 @@ on `AppSpec` and nothing ever passed it, so no app using `app=` could reach it a
 `agents/apps.py`): `app_preamble` replaces the AppSpec-derived composition entirely,
 `app_tools` are `@llm.tool` functions appended to the built-in set
 (`agents/toolsets.py`; shadowing a built-in name raises). Mixing `app=` with either
-manual param raises. `messages` resumes a saved conversation. The **host application** owns five things the framework does not:
+manual param raises. `messages` resumes a saved conversation. The **host application** owns six things the framework does not:
 
 1. **DI setup** — `DialecticalReasoning.setup(Settings.from_env())` once at startup.
 2. **Scope** — wrap every `chat()` in `with scope(sid):` (all graph writes are `sid`-scoped).
@@ -275,6 +275,25 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    would trade duplicate nodes for latency. It is normally zero anyway — the
    person's think-time absorbs it — and when it is not, it is recorded as
    `TurnTiming.deferred_wait_s` rather than hidden inside `generation_s`.
+
+6. **Refusals** — a turn the model declines (`stop_reason: "refusal"`, the
+   provider's policy classifiers) raises
+   `dialectical_framework.exceptions.provider_errors.ModelRefusal` out of
+   `chat()`/`chat_stream()`, with the provider's `category` (`"cyber"`, `"bio"`,
+   or None — an open set) and `explanation` when the provider sent them: a refused
+   streamed ROUND carries neither, a refused awaited call on `bedrock/` carries
+   both, and on other providers only the model is known. Nothing retries it, on
+   any ladder. The refused turn is already gone from `agent.messages` — the
+   person's words included, so the next turn is not asked inside the context
+   that was refused — and the host still holds the words to offer back for
+   rephrasing. On `chat_stream()` the partial text before the refusal has
+   already been yielded: replace it, don't keep it. If the refusal arrives after
+   tool rounds, what those tools wrote stays in the graph, and the Advisor still
+   follows it up before re-raising: a Decision `record_decision` wrote gets its
+   pathway weave, and kept notes are offered for planting. The Consultant's
+   `exploration_view(attempts=N)` draws in parallel and keeps the draws that
+   answered; it raises only when every draw was refused.
+   (`tests/test_model_refusal.py`)
 
 ```python
 from dialectical_framework.dialectical_reasoning import DialecticalReasoning

@@ -15,7 +15,11 @@ import pytest
 from dialectical_framework.utils.thinking_compat import (
     ADAPTIVE,
     BUDGETED,
+    OFF_BETWEEN_TOOLS,
+    OFF_DISABLED,
+    OFF_LOW_EFFORT,
     learn_thinking_shape_from_error,
+    off_shape,
     reset_learned_thinking_shapes,
     thinking_shape,
     with_thinking_compat,
@@ -96,7 +100,8 @@ class TestTranslation:
         assert BUDGETED_KWARGS["thinking"] == before
 
     def test_disabled_passes_through_untouched(self):
-        """Both shapes accept "disabled" — translating it would be noise."""
+        """Claude 5 accepts "disabled" as sent — translating it would be noise.
+        (5.5 and the Fable line do not; see `TestOffIsPerModel`.)"""
         kwargs = {"model": "global.anthropic.claude-sonnet-5", "thinking": {"type": "disabled"}}
         assert with_thinking_compat(kwargs["model"], kwargs, {})["thinking"] == {
             "type": "disabled"
@@ -119,10 +124,10 @@ class TestTranslation:
         assert "thinking" not in kwargs, "input must not be mutated"
 
     def test_no_thinking_keeps_the_provider_default_outside_a_conversational_round(self):
-        """The structured concern calls BUILD the structure — tetrads,
-        extraction, transformations, the checks — and the provider's default
-        thinking there is the sub-technique doing its job (think where you
-        build, read where you consult). Outside the scope nothing is sent."""
+        """Outside a conversational round this layer sends nothing for an
+        unset level. Concerns still do not think: forced tool choice suppresses
+        the provider default, and on 5.5 a call moved to JSON is sent the
+        model's off by the provider's `_encode` (`test_format_compat.py`)."""
         kwargs = {"model": "global.anthropic.claude-sonnet-5", "max_tokens": 1024}
         assert "thinking" not in with_thinking_compat(kwargs["model"], kwargs, {})
 
@@ -211,3 +216,266 @@ class TestLearningFromErrors:
         assert not learn_thinking_shape_from_error(
             model, ValueError(self.ENABLED_REJECTED)
         )
+
+
+class TestOffIsPerModel:
+    """How "thinking off" is said differs by model, and the wrong word is a 400
+    on every conversational round (probed 2026-10-08,
+    `tests/e2e/probe_claude_5_5_compat.py`): Claude 5 takes "disabled", Sonnet
+    5.5 only "between_tools", Opus 5.5 has no off and takes low effort."""
+
+    SONNET_5_5_REJECTS_DISABLED = (
+        'To turn thinking off on this model, send "thinking": {"type": '
+        '"between_tools"} instead of {"type": "disabled"}. The model does not '
+        "think before responding."
+    )
+    OPUS_5_5_REJECTS_DISABLED = (
+        '"thinking.type.disabled" is not supported for this model. Use '
+        '"thinking.type.adaptive" and "output_config.effort" to control thinking behavior.'
+    )
+    REJECTS_BETWEEN_TOOLS = '"thinking.type.between_tools" is not supported for this model.'
+
+    @pytest.mark.parametrize(
+        ("model", "expected"),
+        [
+            ("global.anthropic.claude-sonnet-5", OFF_DISABLED),
+            ("global.anthropic.claude-opus-5", OFF_DISABLED),
+            ("global.anthropic.claude-sonnet-5-5", OFF_BETWEEN_TOOLS),
+            ("global.anthropic.claude-opus-5-5", OFF_LOW_EFFORT),
+            ("global.anthropic.claude-fable-5-5", OFF_LOW_EFFORT),
+        ],
+    )
+    def test_off_shape_by_name(self, model: str, expected: str):
+        assert off_shape(model) == expected
+
+    @pytest.mark.parametrize(
+        ("model", "thinking", "output_config"),
+        [
+            ("global.anthropic.claude-sonnet-5", {"type": "disabled"}, None),
+            ("global.anthropic.claude-sonnet-5-5", {"type": "between_tools"}, None),
+            ("global.anthropic.claude-opus-5-5", {"type": "adaptive"}, {"effort": "low"}),
+        ],
+    )
+    def test_an_unset_level_in_a_conversational_round_is_that_models_off(
+        self, model, thinking, output_config
+    ):
+        from dialectical_framework.utils.thinking_compat import conversational_round
+
+        kwargs = {"model": model, "max_tokens": 1024}
+        with conversational_round():
+            out = with_thinking_compat(model, kwargs, {})
+        assert out["thinking"] == thinking
+        assert out.get("output_config") == output_config
+
+    def test_an_explicit_disabled_is_translated_too(self):
+        model = "global.anthropic.claude-sonnet-5-5"
+        out = with_thinking_compat(model, {"model": model, "thinking": {"type": "disabled"}}, {})
+        assert out["thinking"] == {"type": "between_tools"}
+
+    def test_outside_a_round_nothing_is_sent_on_5_5_either(self):
+        model = "global.anthropic.claude-opus-5-5"
+        assert "thinking" not in with_thinking_compat(model, {"model": model}, {})
+
+    def test_a_set_level_on_5_5_is_the_adaptive_shape(self):
+        model = "global.anthropic.claude-sonnet-5-5"
+        kwargs = {"model": model, "thinking": {"type": "enabled", "budget_tokens": 1638}}
+        out = with_thinking_compat(model, kwargs, MEDIUM)
+        assert out["thinking"] == {"type": "adaptive"}
+        assert out["output_config"] == {"effort": "medium"}
+
+    @pytest.mark.parametrize(
+        ("message", "learned"),
+        [
+            (SONNET_5_5_REJECTS_DISABLED, OFF_BETWEEN_TOOLS),
+            (OPUS_5_5_REJECTS_DISABLED, OFF_LOW_EFFORT),
+            (REJECTS_BETWEEN_TOOLS, OFF_LOW_EFFORT),
+        ],
+    )
+    def test_learns_the_off_from_the_providers_own_400(self, message, learned):
+        model = "global.anthropic.claude-madeup-5"
+        assert off_shape(model) == OFF_DISABLED
+        assert learn_thinking_shape_from_error(model, ValueError(message))
+        assert off_shape(model) == learned
+        # The shape it was already sending failing again is not a shape problem.
+        assert not learn_thinking_shape_from_error(model, ValueError(message))
+
+    def test_the_off_messages_do_not_flip_the_thinking_shape(self):
+        """Opus 5.5's refusal names `thinking.type.adaptive` and
+        `output_config.effort`; it must not read as either shape mismatch."""
+        model = "global.anthropic.claude-opus-5-5"
+        learn_thinking_shape_from_error(model, ValueError(self.OPUS_5_5_REJECTS_DISABLED))
+        assert thinking_shape(model) == ADAPTIVE
+
+
+class TestEarlierTurnThinkingIsDroppedOnBindingModels:
+    """5.5 binds a thinking block to the prefix that produced it, and the
+    Advisor rebuilds its system prompt every turn — so a replayed earlier-turn
+    block is a 400 on new accounts ("The block is bound to a different
+    conversation … The system prompt differs", Opus 5.5 under enforcement,
+    `probe_claude_5_5_compat.py`). A leading run of blocks may be removed."""
+
+    THOUGHT = {"type": "thinking", "thinking": "", "signature": "s"}
+
+    def _history(self):
+        return [
+            {"role": "user", "content": [{"type": "text", "text": "turn 1"}]},
+            {"role": "assistant", "content": [dict(self.THOUGHT), {"type": "tool_use", "id": "a", "name": "t", "input": {}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "a", "content": "x"}]},
+            {"role": "assistant", "content": [dict(self.THOUGHT), {"type": "text", "text": "reply 1"}]},
+            {"role": "user", "content": [{"type": "text", "text": "turn 2"}]},
+            {"role": "assistant", "content": [dict(self.THOUGHT), {"type": "tool_use", "id": "b", "name": "t", "input": {}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "b", "content": "y"}]},
+        ]
+
+    @staticmethod
+    def _thoughts(messages):
+        return [
+            i
+            for i, m in enumerate(messages)
+            for b in (m["content"] if isinstance(m["content"], list) else [])
+            if b.get("type") == "thinking"
+        ]
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "global.anthropic.claude-sonnet-5-5",
+            "global.anthropic.claude-opus-5-5",
+            "global.anthropic.claude-fable-5-1",
+        ],
+    )
+    def test_earlier_turns_lose_their_blocks_and_this_turn_keeps_its_own(self, model):
+        from dialectical_framework.utils.thinking_compat import without_earlier_turn_thinking
+
+        history = self._history()
+        out = without_earlier_turn_thinking(model, history)
+        assert self._thoughts(out) == [5], "only the current turn's tool round keeps its block"
+        assert out[1]["content"][0]["type"] == "tool_use"
+        assert self._thoughts(history) == [1, 3, 5], "the history of record is not mutated"
+
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "global.anthropic.claude-sonnet-5",
+            "global.anthropic.claude-opus-5",
+            "global.anthropic.claude-fable-5",
+            "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+        ],
+    )
+    def test_models_that_do_not_bind_are_untouched(self, model):
+        from dialectical_framework.utils.thinking_compat import without_earlier_turn_thinking
+
+        history = self._history()
+        assert without_earlier_turn_thinking(model, history) is history
+
+    def test_the_provider_encodes_through_it(self):
+        """`_encode` sends the stripped copy; the cross-turn probe is the
+        live evidence that the check then passes."""
+        import inspect
+
+        from dialectical_framework.utils import bedrock_provider
+
+        src = inspect.getsource(bedrock_provider.BedrockAnthropicProvider._encode)
+        assert "without_earlier_turn_thinking(" in src
+
+
+class TestReviewFindings:
+    """Second-pass fixes (2026-10-08 review)."""
+
+    THOUGHT = {"type": "thinking", "thinking": "", "signature": "s"}
+
+    def test_a_structured_call_drops_this_turns_blocks_too(self):
+        """Budget exhausted: history ends on a tool result, so no new person
+        turn marks the boundary — and the structured call has no tools and,
+        in JSON mode, extra system text, so the turn's own blocks are bound to
+        a prefix the request no longer has."""
+        from dialectical_framework.utils.thinking_compat import without_earlier_turn_thinking
+
+        history = [
+            {"role": "user", "content": [{"type": "text", "text": "turn"}]},
+            {"role": "assistant", "content": [dict(self.THOUGHT), {"type": "tool_use", "id": "a", "name": "t", "input": {}}]},
+            {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "a", "content": "x"}]},
+        ]
+        model = "global.anthropic.claude-opus-5-5"
+        kept = without_earlier_turn_thinking(model, history)
+        assert kept[1]["content"][0]["type"] == "thinking", "a tool round keeps its own"
+        out = without_earlier_turn_thinking(model, history, every_turn=True)
+        assert [b["type"] for b in out[1]["content"]] == ["tool_use"]
+
+    def test_the_provider_strips_every_turn_on_a_structured_call(self):
+        import inspect
+
+        from dialectical_framework.utils import bedrock_provider
+
+        src = inspect.getsource(bedrock_provider.BedrockAnthropicProvider._encode)
+        assert "every_turn=format is not None" in src
+
+    def test_a_thinking_only_message_before_the_turn_is_dropped_whole(self):
+        """Kept, its block would sit behind a removed run (not allowed); emptied,
+        the encoder refuses it."""
+        from dialectical_framework.utils.thinking_compat import without_earlier_turn_thinking
+
+        history = [
+            {"role": "user", "content": [{"type": "text", "text": "one"}]},
+            {"role": "assistant", "content": [dict(self.THOUGHT)]},
+            {"role": "user", "content": [{"type": "text", "text": "two"}]},
+        ]
+        out = without_earlier_turn_thinking("claude-sonnet-5-5", history)
+        assert [m["role"] for m in out] == ["user", "user"]
+
+    def test_an_off_refusal_on_an_unreadable_name_settles_the_shape(self):
+        """An inference-profile ARN reads as budgeted; an off-shape 400 proves
+        it is adaptive, or `_apply_off` never runs and the retry repeats."""
+        model = "arn:aws:bedrock:eu-west-1:123:application-inference-profile/abc"
+        assert thinking_shape(model) == BUDGETED
+        assert learn_thinking_shape_from_error(
+            model, ValueError(TestOffIsPerModel.OPUS_5_5_REJECTS_DISABLED)
+        )
+        assert thinking_shape(model) == ADAPTIVE
+        out = with_thinking_compat(model, {"model": model, "thinking": {"type": "disabled"}}, {})
+        assert out["thinking"] == {"type": "adaptive"}
+        assert out["output_config"] == {"effort": "low"}
+
+    @pytest.mark.parametrize("model", ["global.anthropic.claude-fable-5", "global.anthropic.claude-fable-5-1"])
+    def test_the_fable_line_has_no_off(self, model):
+        """Probed 2026-10-08: both refuse "disabled" and "between_tools"."""
+        assert off_shape(model) == OFF_LOW_EFFORT
+
+
+class TestTheStreamedRoundLearns:
+    """The request is made when the stream manager is ENTERED, before any
+    chunk — so a rejected shape can be re-sent without replaying a token."""
+
+    @pytest.mark.asyncio
+    async def test_reopens_once_with_the_learned_off(self):
+        from dialectical_framework.utils.bedrock_provider import _LearningStreamManager
+        from dialectical_framework.utils.thinking_compat import conversational_round
+
+        sent = []
+
+        class _Manager:
+            def __init__(self, kwargs):
+                self.kwargs = kwargs
+
+            async def __aenter__(self):
+                if self.kwargs.get("thinking") == {"type": "disabled"}:
+                    raise ValueError(TestOffIsPerModel.OPUS_5_5_REJECTS_DISABLED)
+                return "stream"
+
+            async def __aexit__(self, *exc):
+                return None
+
+        class _Client:
+            class messages:
+                @staticmethod
+                def stream(**kwargs):
+                    sent.append(kwargs)
+                    return _Manager(kwargs)
+
+        model = "global.anthropic.claude-madeup-5"
+        with conversational_round():
+            manager = _LearningStreamManager(_Client, {"model": model, "max_tokens": 64}, {})
+            async with manager as stream:
+                assert stream == "stream"
+        assert [k["thinking"]["type"] for k in sent] == ["disabled", "adaptive"]
+        assert sent[1]["output_config"] == {"effort": "low"}

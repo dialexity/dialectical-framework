@@ -29,6 +29,7 @@ from dialectical_framework.agents.stream_events import (
     ToolStart,
 )
 from dialectical_framework.agents.turn_timing import ToolRound
+from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.protocols.has_config import SettingsAware
 from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.thinking_compat import conversational_round
@@ -37,7 +38,7 @@ from dialectical_framework.utils.retry_accounting import (RetryAccount,
 from dialectical_framework.utils.use_brain import (prefill_token_kwargs,
                                                   retry_transient, use_brain)
 
-from mirascope.llm import TextChunk, ThoughtChunk, ToolOutput
+from mirascope.llm import FinishReason, TextChunk, ThoughtChunk, ToolOutput
 
 if TYPE_CHECKING:
     from mirascope.llm import UserContent
@@ -513,6 +514,7 @@ class ConversationFacilitator(SettingsAware):
         Returns:
             Structured response matching response_model
         """
+        history_before = len(self._messages)
         self._messages.append(llm.messages.user(user_content))
         self.last_tool_calls = []
         self.last_tool_results = []
@@ -567,6 +569,10 @@ class ConversationFacilitator(SettingsAware):
                     # Mirascope's own request, so nothing in `use_brain` marks it).
                     with conversational_round():
                         response = await response.resume(tool_outputs)
+                    # Mirascope's own request, below `use_brain`: a provider that
+                    # does not raise on a refusal itself only says so here.
+                    if getattr(response, "finish_reason", None) == FinishReason.REFUSAL:
+                        raise ModelRefusal(getattr(response, "model_id", "unknown"))
 
                 # Sync full conversation history from the response chain
                 self._messages = list(response.messages)
@@ -580,6 +586,9 @@ class ConversationFacilitator(SettingsAware):
 
                 # Extract structured response
                 return await self._call_with_response_model(response_model)
+        except ModelRefusal:
+            self._forget_refused_turn(history_before)
+            raise
         finally:
             if epoch == self._turn_epoch:
                 self.last_submit_seconds = time.monotonic() - started
@@ -631,6 +640,7 @@ class ConversationFacilitator(SettingsAware):
         #: with a later reading, or every ordinary turn would silently absorb
         #: however long the consumer took to come back for the last event.
         recorded = False
+        history_before = len(self._messages)
         # Held in a name so it can be closed; see the docstring.
         rounds = self._stream_turn(
             response_model,
@@ -644,6 +654,9 @@ class ConversationFacilitator(SettingsAware):
                     self.last_submit_seconds = time.monotonic() - started
                     recorded = True
                 yield event
+        except ModelRefusal:
+            self._forget_refused_turn(history_before)
+            raise
         finally:
             # Before the close, which can raise: the figure is the point.
             if not recorded and epoch == self._turn_epoch:
@@ -802,6 +815,13 @@ class ConversationFacilitator(SettingsAware):
                 first_chunk_at=first_chunk_at,
                 yielded_s=yielded_s,
             )
+            if getattr(stream, "finish_reason", None) == FinishReason.REFUSAL:
+                # The awaited path raises at the provider; a stream only says so
+                # in its last chunk, after any text has been yielded. The host
+                # has shown a partial reply and should replace it — the
+                # exception is the signal. No `stop_details` on this path.
+                raise ModelRefusal(getattr(stream, "model_id", "unknown"))
+
             if self.last_submit_first_delta_s is None and first_delta_at is not None:
                 # From the TURN's start, not this round's: the person has been
                 # waiting since they hit send, through the context re-render's
@@ -899,6 +919,17 @@ class ConversationFacilitator(SettingsAware):
         yield ResponseComplete(result=result, streamed=streamed)
 
     # --- Internal helpers ---
+
+    def _forget_refused_turn(self, history_before: int) -> None:
+        """Drop the refused turn from history, user message included.
+
+        A refused exchange left in history is the context the next request is
+        refused in again; the provider's guidance on a refusal is to change or
+        drop the turn that triggered it. The turn did not happen, so history
+        returns to where it stood before it — the host still has the person's
+        words and can offer them back for rephrasing.
+        """
+        del self._messages[history_before:]
 
     #: Answer written into the synthetic tool_result when the tool loop is cut
     #: short. Addressed to the model, because the model reads it: it must

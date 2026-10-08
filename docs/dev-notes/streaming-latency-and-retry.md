@@ -72,3 +72,108 @@ policy is therefore scoped: `conversational_round()` wraps the four provider cal
 waits on (tool-path call, awaited resume, streamed open, streamed resume) and nothing else;
 the builders' calls are untouched and were never thinking. The prompt arms answer through the
 format path, so every bench row pitted a thinking machinery arm against non-thinking prompts.
+
+## Claude 5.5: forced tool use and "off" are per model (2026-10-08)
+
+A host app's handoff reported two 400s on Sonnet 5.5 and Opus 5.5 over Bedrock;
+`tests/e2e/probe_claude_5_5_compat.py` sent each shape raw and recorded the provider's own texts.
+**Forced tool use** (`tool_choice` `tool`/`any`, Mirascope's default structured mode and every
+concern's): both 5.5 models answer `tool_choice: type "tool" and "any" are not supported for this
+model`. **Thinking off**: Sonnet 5 takes `disabled`; Sonnet 5.5 rejects it with "send
+{"type": "between_tools"} instead … The model does not think before responding. The short updates
+it writes between tool calls come back as thinking blocks"; Opus 5.5 rejects both `disabled` and
+`between_tools` and has no off (adaptive + `output_config.effort: low` is accepted by all three).
+
+The fix mirrors the thinking shape: by model name, learned from the 400 on a miss.
+`format_compat.with_format_compat` sends a forced-tool request in JSON mode to a 5.5 model
+(`BedrockAnthropicProvider._encode`, one retry on the learned 400); `thinking_compat.off_shape` says
+off as `disabled` / `between_tools` / low effort. One consequence had to be closed explicitly:
+forced tool choice was the thing that kept structured calls from thinking (0 thinking tokens with
+nothing sent, 2026-09-24), and JSON mode with nothing sent is thinking ON, so a call moved to JSON
+also carries the model's off unless it asked to think. Measured after: a one-word DTO comes back in
+12 output tokens on both 5.5 models (32 on Sonnet 5 through forced tool use), and the tool loop
+with its resume passes awaited and streamed at off / low / medium on all three models, so the
+preserved-thinking replay through Mirascope holds. On Opus 5.5 "off" is low-effort thinking, so a
+conversational round there is never thinking-free.
+
+Not decided: JSON mode as the default for models that take both. It parses as reliably and
+halves a small DTO's prefill (971 → 472 tokens on Sonnet 5, the forced-tool schema is the
+difference; `probe_5_5_effort_baseline.py`), but every judged figure was taken on forced tool
+use, so switching Claude 5 / Haiku is a measured change on the CC and antithesis probes, not a
+cleanup.
+
+**Per-level price, 2026-10-08** (`tests/e2e/probe_5_5_effort_baseline.py`, n=3 medians, one
+bench utterance over the Consultant's method prompt, ~10.6k prefill, first call only, list
+price; no judged quality):
+
+| model | conversation off | low | medium | high | structured (concern path) |
+|---|---|---|---|---|---|
+| Sonnet 5 | 14.0s · 770 out · $0.029 | 9.7s · 618 · $0.028 | 11.6s · 696 · $0.028 | 28.0s · 2113 · $0.043 | 3.5s · 230 out · 971 in |
+| Sonnet 5.5 | 8.3s · 695 · $0.028 | 14.6s · 1084 · $0.032 | 13.8s · 1258 · $0.034 | 13.1s · 1166 · $0.033 | 1.9s · 130 · 473 |
+| Opus 5.5 | 18.3s · 891 · $0.060 | 19.8s · 910 · $0.061 | 30.9s · 1589 · $0.074 | 37.9s · 2077 · $0.084 | 3.6s · 123 · 474 |
+
+Read with n=3 in mind (Sonnet 5's off-slower-than-low is noise). Three things hold up: Sonnet
+5.5's `between_tools` off is the cheapest conversational round measured, and its on-levels
+barely differ from each other (the levels were recalibrated); Opus 5.5's off is its `low`
+(same row twice, by construction) and its `medium` — the deployment default — costs ~1.7x
+the time of off; and a structured call on 5.5 in JSON with the model's off emits no hidden
+thinking (130 / 123 output tokens for a five-field DTO). Which level is worth it is a judged
+question this does not answer.
+
+### Same day: preserved thinking, and refusals
+
+**Thinking blocks are bound to the prefix that produced them on 5.5** (the `system` prompt,
+the tools, every earlier message). The Advisor rebuilds its `system` every turn — the graph
+dump sits after `CACHE_SPLIT_SENTINEL` — so a block from turn 1 replayed on turn 2 fails the
+check. Reproduced through the facilitator with enforcement opted in
+(`thinking.block_binding.prefix_mismatch_behavior: "error"`, beta
+`thinking-binding-controls-2026-08-01` in the Bedrock body): Opus 5.5 answered turn 2 with
+"Invalid signature in thinking block. The block is bound to a different conversation … The
+system prompt differs". For accounts created on or after 2026-08-31 that is the default, so
+every Advisor conversation on a 5.5 model would have 400'd from its second turn. Freezing
+the system prompt and appending the dump as mid-conversation system messages would keep the
+blocks, but it inverts the cache design and grows history with a full dump per turn; the
+check allows removing a LEADING run of blocks, and everything before the current person turn
+is one. `without_earlier_turn_thinking` does that on the encoded copy at the provider, for
+binding models only. After: both 5.5 models pass turn 2 under enforcement, including a turn
+whose thinking sits before a tool call and is replayed on that turn's resume after
+`_strip_caller_from_messages` edited the message (awaited and streamed). What it costs: the
+model no longer sees its own earlier-turn reasoning — which pre-5.5 models also dropped from
+context.
+
+**Refusals were parse failures.** Nothing read `stop_reason`; a refused structured call came
+back without its DTO and was re-asked ten times at 2s, and a refused conversational turn had
+no text, so the reply reuse declined and a second structured call was refused again.
+`ModelRefusal` is raised at the provider (awaited) and after the round's chunks (streamed),
+`use_brain` re-raises unknown exceptions without retrying, and the facilitator drops the
+refused turn so the next one is not asked in the refused context. Categories are an open set
+(`cyber`, `bio`, `frontier_llm`, `reasoning_extraction`, `general_harms` on Sonnet 5.5), so
+`category` is a string, never a Literal. Not built: refusal fallbacks to another model — the
+server-side `fallbacks` parameter is not on Bedrock and the SDK's client-side middleware
+would pick a model for the host; that is a deployment decision.
+
+### Same day: two reviewers' findings, fixed
+
+- **A refusal could still ride the throttle ladder**: `ModelRefusal`'s message carries the
+  provider's explanation, and `_is_rate_limit_error` matches "rate" + "limit" anywhere —
+  "Requests to generate malware fall outside the limits…" classified as `rate_limit`. Both
+  ladders now exit on the type before classifying.
+- **The awaited raise was Bedrock-only**; `use_brain` and the awaited resume now also raise on
+  `finish_reason == REFUSAL`, so `anthropic/` and others behave like the streamed path.
+- **A refusal after `record_decision` skipped the seam**, so the Decision never got its
+  pathway weave; `Advisor._settle_refused_turn` follows up what the tools wrote (no classifier
+  on a refused turn).
+- **The structured fallback replayed the turn's own blocks under a changed prefix** (no tools,
+  JSON system text; budget-exhausted history ends on a tool result, so no new person turn marked
+  a boundary) — a 400 on 5.5. A structured call now drops every block. A thinking-only message
+  before the turn is dropped whole instead of leaving a block behind a removed run.
+- **The streamed round could not learn the thinking shape**; the request is made when the
+  stream manager is entered, before any chunk, so `_LearningStreamManager` re-sends once. An
+  off-shape 400 now also settles the shape as adaptive (an inference-profile ARN reads as
+  budgeted, and the learned off was never applied).
+- **The Fable line** (probed): Fable 5 and 5.1 both refuse `disabled` and `between_tools`, so
+  their off is low effort — Fable 5 was being sent `disabled` before today, which only the
+  awaited path's learned retry rescued. Fable 5.1 refuses forced tool use; Fable 5 accepts it.
+- Smaller: `list[str]` formats are re-asked as JSON too; the format learn matches the forced
+  types only and never retries a model already sent as JSON.
+- Left as is: a moved call that asked for `level="default"` is sent as off — no caller does.

@@ -22,15 +22,26 @@ never be silent.
 Mode selection is by model name, with a learned fallback: if the heuristic is
 wrong for some future model, the first 400 teaches us and every later call in
 the process uses the other shape.
+
+**"Off" is a third per-model shape** (probed 2026-10-08,
+`tests/e2e/probe_claude_5_5_compat.py`). Claude 5 takes
+``{"type": "disabled"}``. Sonnet 5.5 rejects it and names its own off,
+``{"type": "between_tools"}`` ("The model does not think before responding. The
+short updates it writes between tool calls come back as thinking blocks"),
+which Sonnet 5 and Opus 5.5 reject in turn. Opus 5.5 — and Fable 5 / 5.1 — cannot turn thinking off
+at all ("Use thinking.type.adaptive and output_config.effort"), so its off is
+the least thinking it takes: adaptive at effort ``low``. Hence `off_shape`,
+chosen by name with the same learned fallback.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator, Mapping, Optional
+
+from dialectical_framework.utils.format_compat import claude_family, claude_version
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +62,16 @@ _LEVEL_TO_EFFORT = {
     "max": "max",
 }
 
+#: How "thinking off" is said, per model (adaptive-shape models only; a
+#: budgeted model is off when nothing is sent).
+OFF_DISABLED = "disabled"
+OFF_BETWEEN_TOOLS = "between_tools"
+OFF_LOW_EFFORT = "low_effort"
+
 #: Model name -> shape, learned from a 400. Overrides the name heuristic.
 _LEARNED: dict[str, str] = {}
+#: Model name -> off shape, learned from a 400. Overrides the name heuristic.
+_LEARNED_OFF: dict[str, str] = {}
 
 #: True while a CONVERSATIONAL provider round is being opened — the facilitator's
 #: tool-path call and its resumes — and nowhere else. Read by
@@ -84,23 +103,155 @@ def conversational_round() -> Iterator[None]:
     finally:
         _CONVERSATIONAL_ROUND.reset(token)
 
-#: Claude 5+ naming puts the family before the version (``claude-sonnet-5``);
-#: 3.x/4.x put it after or hyphenate the minor (``claude-3-5-sonnet``,
-#: ``claude-haiku-4-5-...``). Matching ``claude-<family>-<major>`` therefore
-#: reads 5 for ``claude-sonnet-5`` and 4 for ``claude-haiku-4-5``, and does not
-#: match ``claude-3-5-sonnet`` at all.
-_FAMILY_VERSION = re.compile(r"claude-([a-z]+)-(\d+)")
-
-
 def thinking_shape(model_name: str) -> str:
     """Which thinking request shape this model accepts."""
     learned = _LEARNED.get(model_name)
     if learned:
         return learned
-    match = _FAMILY_VERSION.search(model_name)
-    if match and int(match.group(2)) >= 5:
+    version = claude_version(model_name)
+    if version and version[0] >= 5:
         return ADAPTIVE
     return BUDGETED
+
+
+def off_shape(model_name: str) -> str:
+    """How to send "thinking off" to an adaptive-shape model.
+
+    By name: Fable/Mythos (any version), adaptive at low effort; otherwise
+    below 5.5, ``disabled``; Sonnet 5.5+, ``between_tools``; any other 5.5+
+    family, adaptive at low effort — the one off every adaptive model
+    measured accepts, so an unknown family degrades to a little thinking rather
+    than to a 400.
+    """
+    learned = _LEARNED_OFF.get(model_name)
+    if learned:
+        return learned
+    if claude_family(model_name) in ("fable", "mythos"):
+        # Thinking is always on in the Fable line (5 and 5.1 both refuse
+        # "disabled" and "between_tools", probed 2026-10-08).
+        return OFF_LOW_EFFORT
+    version = claude_version(model_name)
+    if version is None or version < (5, 5):
+        return OFF_DISABLED
+    if claude_family(model_name) == "sonnet":
+        return OFF_BETWEEN_TOOLS
+    return OFF_LOW_EFFORT
+
+
+def binds_thinking_to_prefix(model_name: str) -> bool:
+    """True when this model's thinking blocks are bound to the prefix that
+    produced them (preserved thinking: Opus/Sonnet 5.5+, Fable/Mythos 5.1+).
+
+    Such a block replayed under a different ``system`` prompt, tool set or
+    earlier message fails the provider's prefix check — a 400 for accounts
+    created on or after 2026-08-31, on every platform.
+    """
+    version = claude_version(model_name)
+    if version is None:
+        return False
+    if claude_family(model_name) in ("fable", "mythos"):
+        return version >= (5, 1)
+    return version >= (5, 5)
+
+
+_THINKING_BLOCK_TYPES = ("thinking", "redacted_thinking")
+
+
+def _is_person_turn(message: Mapping[str, Any]) -> bool:
+    """A user message that is not only tool results — a turn's opening."""
+    if message.get("role") != "user":
+        return False
+    content = message.get("content")
+    if not isinstance(content, list):
+        return True
+    return not content or any(
+        not (isinstance(b, Mapping) and b.get("type") == "tool_result") for b in content
+    )
+
+
+def without_earlier_turn_thinking(
+    model_name: str, messages: list[Any], *, every_turn: bool = False
+) -> list[Any]:
+    """Encoded messages with every thinking block before the current turn removed.
+
+    Why (probed 2026-10-08, `probe_claude_5_5_compat.py`): the Advisor rebuilds
+    its ``system`` prompt every turn — the graph dump lives there, after
+    ``CACHE_SPLIT_SENTINEL`` — so on a binding model the previous turn's
+    replayed blocks fail the prefix check on the next turn: "Invalid signature
+    in thinking block. The block is bound to a different conversation … The
+    system prompt differs" (Opus 5.5, enforcement on). Removing a LEADING run of
+    thinking blocks is the one history change the check allows, and every block
+    before the last person turn is exactly such a run. The current turn's tool
+    loop keeps its blocks: they were produced under this turn's prefix, which
+    this function leaves the same on every round of the turn.
+
+    ``every_turn`` drops the current turn's blocks too — for a request whose
+    prefix is NOT the tool loop's: the structured fallback after a tool loop
+    sends no tools and, in JSON mode, extra system instructions, so the turn's
+    own blocks are bound to a prefix it no longer has (and when the budget ran
+    out the history ends on a tool result, so no new person turn marks the
+    boundary). All of them is the longest leading run there is.
+
+    An assistant message that would be left with nothing — thinking only, e.g.
+    cut off at max_tokens — is dropped whole: keeping its block would leave a
+    block behind a removed run, which the check does not allow, and an empty
+    message is refused by the encoder. Consecutive user messages it leaves
+    behind are joined by the API into one turn.
+
+    Pure: returns a new list, never mutates the history it was given (the
+    facilitator's `raw_message` dicts are the conversation of record). A model
+    that does not bind is returned unchanged — the earlier-turn blocks are what
+    every pre-5.5 measurement was taken with.
+    """
+    if not binds_thinking_to_prefix(model_name):
+        return messages
+    if every_turn:
+        boundary = len(messages)
+    else:
+        boundary = max(
+            (
+                i
+                for i, m in enumerate(messages)
+                if isinstance(m, Mapping) and _is_person_turn(m)
+            ),
+            default=-1,
+        )
+    if boundary <= 0:
+        return messages
+    out: list[Any] = []
+    for i, message in enumerate(messages):
+        if (
+            i >= boundary
+            or not isinstance(message, Mapping)
+            or message.get("role") != "assistant"
+            or not isinstance(message.get("content"), list)
+        ):
+            out.append(message)
+            continue
+        content = message["content"]
+        kept = [
+            b
+            for b in content
+            if not (isinstance(b, Mapping) and b.get("type") in _THINKING_BLOCK_TYPES)
+        ]
+        if not kept:
+            continue
+        out.append(message if len(kept) == len(content) else {**message, "content": kept})
+    return out
+
+
+def _apply_off(model_name: str, out: dict[str, Any]) -> dict[str, Any]:
+    off = off_shape(model_name)
+    if off == OFF_BETWEEN_TOOLS:
+        out["thinking"] = {"type": "between_tools"}
+    elif off == OFF_LOW_EFFORT:
+        out["thinking"] = {"type": "adaptive"}
+        output_config = dict(out.get("output_config") or {})
+        output_config["effort"] = "low"
+        out["output_config"] = output_config
+    else:
+        out["thinking"] = {"type": "disabled"}
+    return out
 
 
 def with_thinking_compat(
@@ -133,16 +284,28 @@ def with_thinking_compat(
     # nothing else). There the hidden tokens are double work — the model
     # deliberating over tools about structure the graph already holds. The
     # structured calls that BUILD that structure (tetrads, extraction,
-    # transformations, the checks) are the reasoning steps, and the provider's
-    # default thinking there is the sub-technique doing its job; they are left
-    # at the default. Think where you build, read where you consult. Budgeted-
-    # shape models do not think unless asked and are left alone either way.
+    # transformations, the checks) are not touched HERE — but they do not think
+    # either: forced tool choice suppresses the provider default (0 thinking
+    # tokens, 2026-09-24), and a call moved to JSON on 5.5 is sent the model's
+    # off by `BedrockAnthropicProvider._encode`. Only the callers that ask for a
+    # level (`TetradSketch`, the Consultant's view turn) think. That concerns do
+    # not is what every measured figure was taken under, not a tested principle
+    # (thinking was A/B'd on the extraction concern only, and bought nothing).
+    # Budgeted-shape models do not think unless asked and are left alone either
+    # way.
+    #
+    # "Off" itself is per model (`off_shape`): Claude 5 takes "disabled",
+    # Sonnet 5.5 only "between_tools", Opus 5.5 no off at all (low effort).
     if thinking is None:
         if _CONVERSATIONAL_ROUND.get() and thinking_shape(model_name) == ADAPTIVE:
-            out["thinking"] = {"type": "disabled"}
+            return _apply_off(model_name, out)
         return out
-    # "disabled" is accepted by both shapes, and a request without thinking has
-    # nothing to translate.
+    if isinstance(thinking, dict) and thinking.get("type") == "disabled":
+        # Budgeted models accept "disabled" as sent; an adaptive model gets its
+        # own way of saying it.
+        if thinking_shape(model_name) == ADAPTIVE:
+            return _apply_off(model_name, out)
+        return out
     if not isinstance(thinking, dict) or thinking.get("type") != "enabled":
         return out
     if thinking_shape(model_name) != ADAPTIVE:
@@ -163,6 +326,22 @@ def learn_thinking_shape_from_error(model_name: str, error: BaseException) -> bo
     Returns False for every other error, so an unrelated 400 still surfaces.
     """
     message = str(error)
+    off = _off_from_error(message)
+    if off is not None:
+        if _LEARNED_OFF.get(model_name) == off and _LEARNED.get(model_name) == ADAPTIVE:
+            return False
+        _LEARNED_OFF[model_name] = off
+        # Only an adaptive-shape model has an "off" to get wrong, so this also
+        # settles the shape — a name the heuristic cannot read (an inference
+        # profile ARN) is BUDGETED by default, and `_apply_off` would never run.
+        _LEARNED[model_name] = ADAPTIVE
+        logger.warning(
+            "Model %s rejected the way thinking was turned off; using %s for the "
+            "rest of this process. Adjust thinking_compat if this is a naming gap.",
+            model_name,
+            off,
+        )
+        return True
     if "thinking.type.enabled" in message and "not supported" in message:
         wanted = ADAPTIVE
     elif "adaptive thinking is not supported" in message or (
@@ -185,6 +364,24 @@ def learn_thinking_shape_from_error(model_name: str, error: BaseException) -> bo
     return True
 
 
+def _off_from_error(message: str) -> Optional[str]:
+    """The off shape a 400 asks for, or None when it is not about "off".
+
+    The texts are the provider's own (`probe_claude_5_5_compat.py`):
+    Sonnet 5.5 names ``between_tools`` as the replacement for ``disabled``;
+    Opus 5.5 says ``thinking.type.disabled`` is not supported; a model that
+    refuses ``between_tools`` says so the same way. Low effort is the off
+    every adaptive model takes, so it is the landing for both refusals.
+    """
+    if '"between_tools"' in message and "instead of" in message:
+        return OFF_BETWEEN_TOOLS
+    if (
+        "thinking.type.disabled" in message or "thinking.type.between_tools" in message
+    ) and "not supported" in message:
+        return OFF_LOW_EFFORT
+    return None
+
+
 def _effort_from_params(params: Mapping[str, Any]) -> Optional[str]:
     thinking = params.get("thinking")
     if isinstance(thinking, str):
@@ -199,5 +396,6 @@ def _effort_from_params(params: Mapping[str, Any]) -> Optional[str]:
 
 
 def reset_learned_thinking_shapes() -> None:
-    """Test seam — the learned map is process-global by design."""
+    """Test seam — the learned maps are process-global by design."""
     _LEARNED.clear()
+    _LEARNED_OFF.clear()

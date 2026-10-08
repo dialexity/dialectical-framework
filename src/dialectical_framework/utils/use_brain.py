@@ -12,11 +12,13 @@ from typing import (TYPE_CHECKING, Any, Awaitable, Callable, Iterator, Literal,
 from dependency_injector.wiring import Provide, inject
 from langfuse import get_client, observe
 from mirascope import llm
+from mirascope.llm import FinishReason
 from mirascope.llm.exceptions import ParseError
 from mirascope.llm.responses import _utils
 from pydantic import ValidationError as PydanticValidationError
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
 from dialectical_framework.utils.call_census import record_call
@@ -233,6 +235,12 @@ def use_brain(
                                 None,
                             ),
                         )
+                    # Every provider, not only the one that raises it itself
+                    # (`bedrock_provider.raise_on_refusal`, which also has the
+                    # provider's `stop_details`): a refused response has no DTO,
+                    # and parsing it would be a ParseError re-asked ten times.
+                    if getattr(response, "finish_reason", None) == FinishReason.REFUSAL:
+                        raise ModelRefusal(resolved)
                     _trace_generation(
                         response=response,
                         model=resolved,
@@ -269,6 +277,11 @@ def use_brain(
                                 _log_unsalvageable(response, format_name)
                             raise
                     return response
+                except ModelRefusal:
+                    # Never retried, and never classified: its explanation is
+                    # provider free text, and the throttle predicate below
+                    # matches "rate" + "limit" anywhere in a message.
+                    raise
                 except ParseError as e:
                     last_error = e
                     if attempt < attempts - 1:
@@ -879,6 +892,10 @@ def _transient_kind(e: Exception) -> Optional[str]:
     worth more than winning that coin flip, because the whole point of this function
     is that the two paths cannot disagree about what a failure IS.
     """
+    if isinstance(e, ModelRefusal):
+        # The provider's answer, not a fault — and its free-text explanation
+        # can trip the loose rate-limit match ("generate … limits").
+        return None
     if _is_rate_limit_error(e):
         return "rate_limit"
     if _is_connection_error(e):

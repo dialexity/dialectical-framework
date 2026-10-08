@@ -16,10 +16,16 @@ from mirascope.llm.responses import AsyncResponse, AsyncStreamResponse, Response
 from typing_extensions import Unpack
 
 from dialectical_framework.enums.di import DI
+from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
+from dialectical_framework.utils.format_compat import (
+    learn_format_mode_from_error,
+    with_format_compat,
+)
 from dialectical_framework.utils.thinking_compat import (
     learn_thinking_shape_from_error,
     with_thinking_compat,
+    without_earlier_turn_thinking,
 )
 
 if TYPE_CHECKING:
@@ -288,6 +294,62 @@ def _bedrock_model_name(model_id: str) -> str:
     return model_id.removeprefix("bedrock/").removeprefix("anthropic/")
 
 
+class _LearningStreamManager:
+    """`messages.stream(...)` that learns the thinking shape from a 400, once.
+
+    The request is made when the manager is ENTERED (Mirascope's decoder does
+    `async with` on the first chunk), before anything has been yielded, so a
+    rejected shape can be re-sent without replaying a token — and the streamed
+    conversational round is exactly where an unset level goes out as "off",
+    so without this a wrong name heuristic would fail every streamed turn until
+    some awaited call taught the process. Thinking only: a learned FORMAT mode
+    would change the response's parser, which the caller already holds.
+    """
+
+    def __init__(
+        self, client: Any, kwargs: dict[str, Any], params: Mapping[str, Any]
+    ) -> None:
+        self._client = client
+        self._kwargs = kwargs
+        self._params = params
+        self._manager: Any = None
+
+    def _open(self) -> Any:
+        return self._client.messages.stream(
+            **with_thinking_compat(self._kwargs["model"], self._kwargs, self._params)
+        )
+
+    async def __aenter__(self) -> Any:
+        self._manager = self._open()
+        try:
+            return await self._manager.__aenter__()
+        except Exception as e:
+            if not learn_thinking_shape_from_error(self._kwargs["model"], e):
+                raise
+            self._manager = self._open()
+            return await self._manager.__aenter__()
+
+    async def __aexit__(self, *exc: Any) -> Any:
+        return await self._manager.__aexit__(*exc)
+
+
+def raise_on_refusal(response: Any, model_name: str) -> None:
+    """Raise `ModelRefusal` when the provider stopped on a refusal.
+
+    Raised at the provider, below `use_brain`, so no retry ladder ever re-asks
+    it (an unknown exception re-raises there) and the tool loop's resumes —
+    Mirascope's own requests, which reach this provider too — are covered.
+    """
+    if getattr(response, "stop_reason", None) != "refusal":
+        return
+    details = getattr(response, "stop_details", None)
+    raise ModelRefusal(
+        model_name,
+        category=getattr(details, "category", None),
+        explanation=getattr(details, "explanation", None),
+    )
+
+
 class BedrockAnthropicProvider(AnthropicProvider):
     """Mirascope v2 provider that routes through AnthropicBedrock client (async-native).
 
@@ -304,6 +366,53 @@ class BedrockAnthropicProvider(AnthropicProvider):
         self.client = AnthropicBedrock(timeout=timeout)
         self.async_client = AsyncAnthropicBedrock(timeout=timeout)
         self._beta_provider = None
+
+    @staticmethod
+    def _encode(
+        model_id: str,
+        messages: Sequence[Message],
+        toolkit: AsyncToolkit | Toolkit,
+        format: FormatSpec[FormattableT] | None,
+        params: Mapping[str, Any],
+    ) -> tuple[Any, Any, dict[str, Any]]:
+        """Encode a request in the formatting mode this model can take.
+
+        Forced tool use is re-asked as JSON for a model that refuses it (Claude
+        5.5); see format_compat. Encoding happens here, BEFORE the request is
+        built, because the mode decides the request's shape — tools and
+        tool_choice for one, system instructions for the other — and the
+        decoded response's parser follows the resolved format. Earlier turns'
+        thinking blocks are dropped here too, for a model that binds them to
+        their prefix (see `without_earlier_turn_thinking`).
+
+        A call moved OFF forced tool use is also sent with thinking off unless
+        it asked for thinking: forced tool choice is what kept every structured
+        call from thinking by default (0 thinking tokens with no parameter,
+        2026-09-24), and JSON mode with nothing sent is the provider's default,
+        thinking on. Without this every concern on a 5.5 model would think —
+        a cost, latency and behaviour change no figure was taken under.
+        `with_thinking_compat` turns "disabled" into the model's own off.
+        """
+        model_name = _bedrock_model_name(model_id)
+        compatible = with_format_compat(model_name, format)
+        input_messages, resolved_format, kwargs = _utils.encode_request(
+            model_id=model_id,
+            messages=messages,
+            tools=toolkit,
+            format=compatible,
+            params=params,
+        )
+        kwargs["model"] = model_name
+        # A structured call is never a round of the tool loop: no tools, and in
+        # JSON mode extra system text, so even THIS turn's blocks are bound to a
+        # prefix the request no longer has. Drop them all there.
+        kwargs["messages"] = without_earlier_turn_thinking(
+            model_name, kwargs["messages"], every_turn=format is not None
+        )
+        if compatible is not format and "thinking" not in kwargs:
+            kwargs["thinking"] = {"type": "disabled"}
+        _fix_cache_breakpoints(kwargs)
+        return input_messages, resolved_format, kwargs
 
     async def _create_async(
         self, kwargs: dict[str, Any], params: Mapping[str, Any]
@@ -353,18 +462,23 @@ class BedrockAnthropicProvider(AnthropicProvider):
         **params: Unpack[Params],
     ) -> AsyncResponse | AsyncResponse[FormattableT]:
         """Always use standard path — bedrock doesn't support beta structured outputs."""
-        input_messages, resolved_format, kwargs = _utils.encode_request(
-            model_id=model_id,
-            messages=messages,
-            tools=toolkit,
-            format=format,
-            params=params,
+        input_messages, resolved_format, kwargs = self._encode(
+            model_id, messages, toolkit, format, params
         )
-        kwargs["model"] = _bedrock_model_name(model_id)
-        _fix_cache_breakpoints(kwargs)
-        anthropic_response = cast(
-            AnthropicMessage, await self._create_async(kwargs, params)
-        )
+        try:
+            anthropic_response = cast(
+                AnthropicMessage, await self._create_async(kwargs, params)
+            )
+        except Exception as e:
+            if not learn_format_mode_from_error(kwargs["model"], format, e):
+                raise
+            input_messages, resolved_format, kwargs = self._encode(
+                model_id, messages, toolkit, format, params
+            )
+            anthropic_response = cast(
+                AnthropicMessage, await self._create_async(kwargs, params)
+            )
+        raise_on_refusal(anthropic_response, kwargs["model"])
         include_thoughts = _utils.get_include_thoughts(params)
         assistant_message, finish_reason, usage = _utils.decode_response(
             anthropic_response, model_id, include_thoughts=include_thoughts
@@ -393,21 +507,10 @@ class BedrockAnthropicProvider(AnthropicProvider):
         **params: Unpack[Params],
     ) -> AsyncStreamResponse | AsyncStreamResponse[FormattableT]:
         """Stream responses from Bedrock Anthropic."""
-        input_messages, resolved_format, kwargs = _utils.encode_request(
-            model_id=model_id,
-            messages=messages,
-            tools=toolkit,
-            format=format,
-            params=params,
+        input_messages, resolved_format, kwargs = self._encode(
+            model_id, messages, toolkit, format, params
         )
-        kwargs["model"] = _bedrock_model_name(model_id)
-        _fix_cache_breakpoints(kwargs)
-        # Streaming cannot learn from a 400: the error surfaces when the caller
-        # consumes the iterator, by which point retrying would replay tokens
-        # already yielded. The name heuristic is applied, and a genuine mismatch
-        # raises to the caller.
-        kwargs = with_thinking_compat(kwargs["model"], kwargs, params)
-        anthropic_stream = self.async_client.messages.stream(**kwargs)
+        anthropic_stream = _LearningStreamManager(self.async_client, kwargs, params)
         include_thoughts = _utils.get_include_thoughts(params)
         chunk_iterator = _utils.decode_async_stream(
             anthropic_stream, include_thoughts=include_thoughts
@@ -433,16 +536,23 @@ class BedrockAnthropicProvider(AnthropicProvider):
         **params: Unpack[Params],
     ) -> Response | Response[FormattableT]:
         """Always use standard path — bedrock doesn't support beta structured outputs."""
-        input_messages, resolved_format, kwargs = _utils.encode_request(
-            model_id=model_id,
-            messages=messages,
-            tools=toolkit,
-            format=format,
-            params=params,
+        input_messages, resolved_format, kwargs = self._encode(
+            model_id, messages, toolkit, format, params
         )
-        kwargs["model"] = _bedrock_model_name(model_id)
-        _fix_cache_breakpoints(kwargs)
-        anthropic_response = cast(AnthropicMessage, self._create_sync(kwargs, params))
+        try:
+            anthropic_response = cast(
+                AnthropicMessage, self._create_sync(kwargs, params)
+            )
+        except Exception as e:
+            if not learn_format_mode_from_error(kwargs["model"], format, e):
+                raise
+            input_messages, resolved_format, kwargs = self._encode(
+                model_id, messages, toolkit, format, params
+            )
+            anthropic_response = cast(
+                AnthropicMessage, self._create_sync(kwargs, params)
+            )
+        raise_on_refusal(anthropic_response, kwargs["model"])
         include_thoughts = _utils.get_include_thoughts(params)
         assistant_message, finish_reason, usage = _utils.decode_response(
             anthropic_response, model_id, include_thoughts=include_thoughts
