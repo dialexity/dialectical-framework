@@ -202,6 +202,8 @@ poetry run autoflake --in-place --remove-all-unused-imports --recursive src/ tes
 
 **The full suite takes ~40 minutes — background it** (~2,600 tests, mocked). Run ONE graph-touching pytest at a time: concurrent runs against the single Memgraph deadlock, and a killed run leaves it wedged so the next one needs `docker compose -f docker-compose.test.yml restart`. A backgrounded pytest redirected to a file leaves that file EMPTY until it exits, so poll `pgrep -f "bin/pytest"` rather than tailing the log. Scope to a path or `-k` while iterating; the 40 minutes is for the pre-commit run.
 
+**NEVER do releases.** No version bumps in `pyproject.toml`, no tags, no `release.sh`, no publishing — the owner runs `release.sh` manually. Commit the change and stop there; a "Bump version to X" commit is never yours to make, even when asked to "ship" something.
+
 **black/isort are NOT enforced** (no pre-commit/CI); most of the tree is non-conforming. Don't run `black <file>` after a small edit — it reformats the whole file and bloats the diff. Hand-format only your own lines.
 
 **Concurrent sessions share this working tree.** Before committing: check `git diff --cached --stat` for foreign staged files and `git status` for unexpected dirty ones; stage explicit paths, never `git add -A`. If edits from two sessions land in ONE file, split by hunk (`git diff <file> > /tmp/f.patch`, drop foreign hunks, `git apply --cached /tmp/f.patch`).
