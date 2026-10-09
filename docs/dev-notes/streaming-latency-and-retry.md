@@ -37,7 +37,7 @@ probe before quoting one. The rules distilled from these notes live in CLAUDE.md
 
 Rate-limit retry (429/ThrottlingException) in `use_brain`: 10s base, 2× up to 60s cap, max 10 attempts. **ParseError is FLAT at 2s (`_PARSE_RETRY_DELAY_S`) — the one non-exponential curve, on purpose:** backoff works against congestion, and a wrong response *shape* does not heal while you wait (measured — the old 10s→120s curve slept 750s around 41s of `anchor` work and changed nothing). Nonzero only as back-pressure, since a fan-out stage fails many children at once. Wrong-envelope responses are unwrapped before retrying at all (`_salvage_envelope`); its invariant is that candidate field names come from the model's bytes, never the schema. **Hand-rolled by design — do NOT replace with Mirascope's `llm.retry`/`RetryConfig`** (can't express separate retry curves, per-attempt slot re-acquisition/tracing, or string-based Bedrock throttle detection).
 
-**There is a retry layer BELOW the ladder, and nothing here sees it.** `bedrock_provider._connect_timeout` builds the client from the Anthropic SDK's `DEFAULT_TIMEOUT` with only the connect phase widened, so the read phase is the SDK's 600s, and `AnthropicBedrock` keeps the SDK's default `max_retries`. A provider stall therefore runs to 600s, is retried by the SDK, and answers on the second attempt — all inside one `use_brain` call, so `retry_accounting` records zero sleep, `CallRecord` records one call, and the bench's `TurnRecord` shows `retry_count 0` over a ten-minute turn. Measured 2026-09-22 (`prompt-vs-machinery`, equity r1 wobble_a A0 turn 1): `duration_s` 610.3, `reply_path_s` 610.3, `retry_count` 0, `retry_seconds` 0.0, no error, a normal 1,600-character reply. The bare-persona arm has no tools and no structured call, so nothing in this document was involved; the 610s is the SDK's timeout plus ~10s of real work. Rule (CLAUDE.md, observability): a clean retry account is not proof of a clean turn. If the stall matters to a person-facing path, the lever is the client's read timeout, not the ladder.
+**There WAS a retry layer BELOW the ladder, and nothing here saw it** (closed 2026-10-09, "The read timeout" below). `bedrock_provider._connect_timeout` built the client from the Anthropic SDK's `DEFAULT_TIMEOUT` with only the connect phase widened, so the read phase was the SDK's 600s, and `AnthropicBedrock` kept the SDK's default `max_retries`. A provider stall therefore runs to 600s, is retried by the SDK, and answers on the second attempt — all inside one `use_brain` call, so `retry_accounting` records zero sleep, `CallRecord` records one call, and the bench's `TurnRecord` shows `retry_count 0` over a ten-minute turn. Measured 2026-09-22 (`prompt-vs-machinery`, equity r1 wobble_a A0 turn 1): `duration_s` 610.3, `reply_path_s` 610.3, `retry_count` 0, `retry_seconds` 0.0, no error, a normal 1,600-character reply. The bare-persona arm has no tools and no structured call, so nothing in this document was involved; the 610s is the SDK's timeout plus ~10s of real work. Rule (CLAUDE.md, observability): a clean retry account is not proof of a clean turn. If the stall matters to a person-facing path, the lever is the client's read timeout, not the ladder.
 
 **A streamed round is retried around the open PLUS its first chunk, and that pairing is the whole mechanism.** `await call.stream()` issues no HTTP request (see the streaming bullet above), so the facilitator's old `_open_stream_with_retry` retried local encoding while its docstring claimed to retry connections: a 429 or 503 surfaced inside the chunk loop and killed the turn, on the one path where a person was watching, while `submit()` retried the identical error up to ten times. `_start_stream_round` now pulls the first chunk as part of starting the round and hands it back for the loop to replay (`_replay_first_chunk`), so the failure is caught where it actually arrives. **The throttle budget here is 3 attempts (~30s), not the ladder's ten (~430s)** — see `_RATE_LIMIT_RETRY_MAX`: a person is watching this one, and the consequence, accepted deliberately, is that a sustained throttle fails a streamed turn earlier than an awaited one. `connection` and `server` budgets do match. Retry is on a NEW stream every time — mirascope's `chunk_stream()` caches consumed chunks and drives one underlying iterator, which is spent once it has raised — and re-asking is safe on both entry points (`_get_tools_call` re-renders from `self._messages`; `resume_stream_async` is `response.messages + [user(content)]` with no mutation). **Nothing past the first chunk is retryable**: re-asking would duplicate text already on screen, so a mid-stream failure propagates out of `submit_stream`. Only transient kinds are retried — the old ladder caught bare `Exception` and slept 15s on a malformed request, buying exactly what the flat parse curve buys. **Consequence to keep in mind when touching that loop: opening a round now COSTS a provider round-trip.** It used to be free, which let `submit_stream` end with an unconsumed resume dangling and cost nothing; the same shape now pays for an answer nobody reads, and a throttle on it would raise out of the generator after the reply had already been streamed. So the loop runs `max_tool_rounds + 1` consumptions and refuses to execute tools on the last one, matching `submit`'s "one call plus up to N resumes". **That also fixed three bugs the old shape hid, and they are worth knowing because the same trap is one edit away.** Everything below the loop used to run against the UNCONSUMED dangling round, and an unconsumed mirascope stream reports no tool calls and empty content — so on an overrun streamed turn (a) `_reuse_written_reply`'s pending-tool-calls guard could not fire and the previous round's mid-work narration was returned as the reply with `streamed=True`, (b) `_close_dangling_tool_calls` returned immediately, meaning it had **never fired on the streamed path at all**, and (c) `self._messages` ended on an assistant message whose `content` is a live alias of the stream's empty content list, which the next request 400s on. The exit now costs one extra call (the extraction the reuse guard correctly declines to skip), and an overrun turn streams `TextDelta`s that are deliberately NOT part of `message` — unavoidable, since nothing reveals the overrun until after that text has streamed. Pinned by `tests/test_stream_retry.py`, including the budget ceiling, the resume leg, and the overrun.
 
@@ -275,3 +275,64 @@ budget to spend: the host picks the view level (4 s, free to pass today), and th
 after the stability probe (5 s, a framework change). What does NOT help: structured outputs
 (0 re-asks on Opus either way, no time moved), more parallelism (the three phases are serial
 by data; ~2 s between the slowest draw and the view wall).
+
+## The read timeout, the stall curve, and the SDK's retry turned off (2026-10-09)
+
+The app's promise run (Sonnet 5.5, 2.0.8) hung one first card for 300 s — the harness ceiling —
+where the same case took 20-31 s in four other runs. The view turn is best-of-3 and gathers
+its draws, so one draw that the provider accepted and never answered held the two that had
+finished. Nothing in the framework could end it: the Bedrock client set only the connect
+phase (`llm_connect_timeout_s`) and kept the SDK's 600 s read timeout, and the SDK retried a
+timeout twice on its own before the ladder saw a failure (the 610 s A0 turn above was the
+same shape on the conversational path). The handoff asked for a read timeout as a setting, a
+timed-out draw surviving as a `FailedDrawView`, and the retries bounded so one call cannot
+run long past the timeout. Three changes, in the order they depend on each other:
+
+**1. `Settings.llm_read_timeout_s` (env `DIALEXITY_LLM_READ_TIMEOUT_S`), default 120 s**, read
+once with the connect timeout when the provider registers (`_client_timeout`, the renamed
+`_connect_timeout`; write and pool keep the SDK defaults, nothing has stalled on either). On a
+non-streamed call the body arrives whole, so the read phase is a ceiling on one generation; on
+a streamed round it is the gap between two chunks, and a thinking turn streams its deltas
+(`include_thoughts`), so the long silence is the non-streamed case. The default is a judgement,
+not a measurement: it clears every unstalled generation in the archive (the longest
+conversational rounds sit under a minute on Sonnet 5 with thinking; a digest of a 40 k-character
+part and an Opus round over a large dump are the long structured calls) while cutting a stall
+from 600 s to two minutes. The first app's calls are short (draws ~15 s, texts ~8 s, structured
+~3 s on Sonnet 5.5) and it runs at 30 s. Set too low, a legitimately long generation is cut and
+re-asked, and the re-ask does not help a call that needed the time — so the figure is per
+deployment, which is why it is a setting and the retry budget is not.
+
+**2. A stall is its own retry kind, re-asked ONCE** (`use_brain._is_stall_error`,
+`_STALL_RETRY_MAX = 2`, flat 2 s; `retry_transient` carries the same budget for the streamed
+path). Before, a read timeout was a connection error by class (`APITimeoutError`, Mirascope's
+`TimeoutError`) and got that curve's three attempts — fine for a connect failure that fails in
+milliseconds, three whole read timeouts for a stall. The phase is decided from the httpx class
+in the cause chain (`ReadTimeout` → stall; `ConnectTimeout`/`WriteTimeout`/`PoolTimeout` →
+connection; a bare timeout with no phase → stall, the shorter budget as the safe guess), two
+links down: Mirascope raises its `TimeoutError from` the SDK's `APITimeoutError from` httpx's
+phase class. `_is_connection_error` is exclusive with it by construction. One re-ask because a
+stall is usually one bad backend instance and a fresh request lands elsewhere; a second stall in
+a row is the ceiling. **Bound on one call: 2 × read timeout + 2 s** — 242 s at the default, 62 s
+at the app's 30 s. The handoff's "~45 s" is not met at 30 s with a re-ask kept; a host that
+needs it sets 20 s (42 s) and accepts that a legitimate 20 s+ draw is then cut.
+
+**3. The SDK's own retry is off** (`_SDK_MAX_RETRIES = 0` on both Bedrock clients). Without this
+the bound above is false by a factor of three: the SDK retried a timeout, a connection error
+and a 408/409/429/5xx twice, below the ladder, with its own backoff, and `retry_accounting` /
+`call_census` recorded none of it. Turning it off made one provider request bare — the awaited
+tool loop's `resume()` (`submit`), which `use_brain` never saw and the SDK alone had covered —
+so that resume now runs under `retry_transient` like the streamed one (`_start_stream_round`):
+safe because `resume_async` is `response.messages + [user(outputs)]` with no mutation, and the
+tools have already run, so a retry re-sends their outputs and never re-executes them. Every
+provider request the framework makes now passes exactly one framework retry layer.
+
+**The view's side needed no new code**: `exploration_view` already gathers with
+`return_exceptions=True` and records a failed draw by type (section above). What changed is
+the NAME: `_failed_draw` unwraps a Mirascope `ProviderError` to its `original_exception`, so a
+stalled draw is `APITimeoutError` (the SDK's class) rather than `TimeoutError` (Mirascope's
+wrapper, also the builtin's name, which says nothing to a host counting kinds). `ParseError` is
+not a `ProviderError` and keeps its name. Tests: `tests/test_llm_transport_resilience.py`
+(`TestClientTimeout`, `TestStallDetection`, `TestStallRetryLoop`,
+`TestTheAwaitedResumeIsRetriedToo`), `tests/test_view_sketch.py::TestAFailedDrawIsOnRecord`.
+Unmeasured: the stall rate itself (the app saw one in five runs), and whether the one re-ask
+lands — the retry account now records both (`kinds["stall"]`), so the next promise run can say.

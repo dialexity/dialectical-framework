@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterator
 
+import httpx
 import pytest
 from mirascope import llm
 
@@ -457,6 +458,28 @@ class TestAFailedDrawIsOnRecord:
         assert view.runners_up == []
         assert sorted(f.kind for f in view.failed_draws) == ["ParseError", "RuntimeError"]
         assert all(f.category is None for f in view.failed_draws)
+
+    @pytest.mark.asyncio
+    async def test_a_stalled_draw_is_named_by_the_provider_error(self, monkeypatch):
+        """The read timeout's whole purpose on this surface: a hung draw raises
+        after its one re-ask instead of holding the two that finished, and the
+        host counts it as `APITimeoutError` — the SDK's class, not Mirascope's
+        `TimeoutError` wrapper (the builtin's name, which says nothing)."""
+        from anthropic import APITimeoutError
+        from mirascope.llm.exceptions import TimeoutError as MirascopeTimeoutError
+
+        sdk = APITimeoutError(request=httpx.Request("POST", "https://x"))
+        stalled = MirascopeTimeoutError("Request timed out.", "bedrock", original_exception=sdk)
+        self._submits(monkeypatch, [
+            ViewSketchDto(tensions=[_tension(thesis="Draw one")]),
+            stalled,
+            ViewSketchDto(tensions=[_tension(thesis="Draw three")]),
+        ])
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        view = await head.exploration_view(focus="a perspective", attempts=3)
+        assert len(view.perspectives) == 1 and len(view.runners_up) == 1
+        assert [f.kind for f in view.failed_draws] == ["APITimeoutError"]
+        assert view.failed_draws[0].category is None
 
     @pytest.mark.asyncio
     async def test_every_draw_failing_still_raises_the_first(self, monkeypatch):

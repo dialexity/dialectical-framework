@@ -31,8 +31,8 @@ TWO TIERS, as the code already treats them (see `Settings`):
   through `SettingsAware.settings` (word limits, thinking level, the Advisor's
   floors and caps, the audit switches);
 - read ONCE per process, from the base only: `graph_db_*` (the connection is a
-  Singleton), `llm_connect_timeout_s` (the provider is registered once),
-  `effect_log_dir` (installed in `setup`). A value for these inside
+  Singleton), `llm_connect_timeout_s` and `llm_read_timeout_s` (the provider is
+  registered once), `effect_log_dir` (installed in `setup`). A value for these inside
   `using_settings` has no effect, by construction, not by accident.
 
 `container.settings.override(...)` RAISES: it would replace this provider with one

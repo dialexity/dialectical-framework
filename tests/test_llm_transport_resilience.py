@@ -1,5 +1,6 @@
 """
-Transport-level resilience of LLM calls: connect timeout and connection retry.
+Transport-level resilience of LLM calls: connect and read timeouts, the retry
+curves, and the SDK's own retry being off.
 
 Both guards here exist because of the same real failure, and because it is
 mislabelled by default. The framework's parallel stages (ExplorationPipeline,
@@ -11,6 +12,13 @@ misdiagnosis the extended-thinking bug produced (see test_thinking_compat).
 
 The measured case: 7.7s cold handshake on a tethered link. A1 (sequential, one
 reused socket) passed; A2 (parallel, cold sockets) failed all six turns.
+
+The read timeout is the other half (2026-10-09): the client kept the SDK's 600s,
+so a provider call that stopped sending held its caller for ten minutes with no
+error — a 610s turn recorded as clean, and one hung draw holding a best-of-3
+card for 300s where the same case took 20-31s. `Settings.llm_read_timeout_s`
+bounds it, a stall is re-asked ONCE (`_STALL_RETRY_MAX`), and the SDK's own two
+retries are off so that bound is the whole bound.
 """
 
 from __future__ import annotations
@@ -22,8 +30,9 @@ import pytest
 
 from dialectical_framework.utils import use_brain as use_brain_module
 from dialectical_framework.utils.bedrock_provider import (
+    _SDK_MAX_RETRIES,
     BedrockAnthropicProvider,
-    _connect_timeout,
+    _client_timeout,
 )
 
 pytestmark = []
@@ -39,33 +48,131 @@ def cleanup_test_graph_data():
     yield
 
 
-class TestConnectTimeout:
+class TestClientTimeout:
     def test_connect_phase_is_widened(self):
         """The SDK's 5s default is the whole bug — it must not survive."""
-        assert _connect_timeout(30.0).connect == 30.0
+        assert _client_timeout(30.0).connect == 30.0
 
-    def test_read_and_write_keep_sdk_defaults(self):
-        """Only the connect phase is the framework's business.
+    def test_read_phase_is_the_setting(self):
+        """A stall is bounded by the read phase, which was the SDK's 600s."""
+        from anthropic._constants import DEFAULT_TIMEOUT
 
-        Widening read/write too would mask genuine hangs: a slow generation and
-        an unreachable endpoint are different faults and must stay
-        distinguishable.
+        timeout = _client_timeout(30.0, 45.0)
+        assert timeout.read == 45.0
+        assert timeout.read != DEFAULT_TIMEOUT.read
+
+    def test_write_and_pool_keep_sdk_defaults(self):
+        """Only the connect and read phases are the framework's business.
+
+        Nothing has stalled on a write or on the pool; widening or cutting
+        them would be a guess with no failure behind it.
         """
         from anthropic._constants import DEFAULT_TIMEOUT
 
-        timeout = _connect_timeout(30.0)
-        assert timeout.read == DEFAULT_TIMEOUT.read
+        timeout = _client_timeout(30.0, 45.0)
         assert timeout.write == DEFAULT_TIMEOUT.write
+        assert timeout.pool == DEFAULT_TIMEOUT.pool
 
-    def test_none_falls_back_to_a_generous_default(self):
-        """Provider construction without DI (Mirascope's path) must still be safe."""
-        assert _connect_timeout(None).connect > 5.0
+    def test_none_falls_back_to_generous_defaults(self):
+        """Provider construction without DI (Mirascope's path) must still be safe
+        — and still bounded: the fallback read phase is NOT the SDK's 600s."""
+        timeout = _client_timeout(None)
+        assert timeout.connect > 5.0
+        assert timeout.read < 600.0
 
-    def test_both_clients_get_the_timeout(self):
+    def test_both_clients_get_the_timeouts(self):
         """The sync client is used by non-async callers — same link, same fix."""
-        provider = BedrockAnthropicProvider(connect_timeout_s=17.0)
-        assert provider.async_client.timeout.connect == 17.0
-        assert provider.client.timeout.connect == 17.0
+        provider = BedrockAnthropicProvider(connect_timeout_s=17.0, read_timeout_s=23.0)
+        for client in (provider.async_client, provider.client):
+            assert client.timeout.connect == 17.0
+            assert client.timeout.read == 23.0
+
+    def test_the_sdk_does_not_retry_on_its_own(self):
+        """Every retry is the framework's, so the account sees it and the
+        read-timeout bound holds: with the SDK's default two retries one stall
+        cost three read timeouts before the ladder saw a single failure."""
+        assert _SDK_MAX_RETRIES == 0
+        provider = BedrockAnthropicProvider(connect_timeout_s=17.0, read_timeout_s=23.0)
+        assert provider.async_client.max_retries == 0
+        assert provider.client.max_retries == 0
+
+    def test_the_settings_carry_both_phases_from_the_env(self, monkeypatch):
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_DEFAULT_MODEL", "anthropic/test-model")
+        monkeypatch.setenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", "11")
+        monkeypatch.setenv("DIALEXITY_LLM_READ_TIMEOUT_S", "31")
+        settings = Settings.from_env()
+        assert settings.llm_connect_timeout_s == 11.0
+        assert settings.llm_read_timeout_s == 31.0
+
+    def test_the_default_read_timeout_is_bounded_and_generous(self, monkeypatch):
+        """Below the SDK's 600s stall, above every unstalled generation measured
+        so far (the archive's longest conversational rounds sit under a minute)."""
+        from dialectical_framework.settings import Settings
+
+        monkeypatch.setenv("DIALEXITY_DEFAULT_MODEL", "anthropic/test-model")
+        monkeypatch.delenv("DIALEXITY_LLM_READ_TIMEOUT_S", raising=False)
+        assert 60.0 <= Settings.from_env().llm_read_timeout_s < 600.0
+
+
+def _stalled(inner: Exception) -> Exception:
+    """The shape a read timeout actually arrives in at the ladder: Mirascope's
+    `TimeoutError` raised from the SDK's `APITimeoutError` raised from the httpx
+    phase class — the phase is two links down the chain."""
+    from anthropic import APITimeoutError
+    from mirascope.llm.exceptions import TimeoutError as MirascopeTimeoutError
+
+    request = httpx.Request("POST", "https://x")
+    try:
+        try:
+            raise inner
+        except Exception as phase:
+            raise APITimeoutError(request=request) from phase
+    except Exception as sdk:
+        try:
+            raise MirascopeTimeoutError("Request timed out.", "bedrock", original_exception=sdk) from sdk
+        except Exception as wrapped:
+            return wrapped
+    raise AssertionError("unreachable")
+
+
+class TestStallDetection:
+    """A read timeout is a timeout by class and a stall by cost: every attempt
+    has already waited the whole read timeout. It gets its own, shorter budget,
+    and `_is_connection_error` must not ALSO claim it."""
+
+    def test_a_read_timeout_is_a_stall_however_wrapped(self):
+        for exc in (httpx.ReadTimeout("quiet"), _stalled(httpx.ReadTimeout("quiet"))):
+            assert use_brain_module._is_stall_error(exc) is True
+            assert use_brain_module._is_connection_error(exc) is False
+            assert use_brain_module._transient_kind(exc) == "stall"
+
+    def test_a_connect_timeout_stays_on_the_connection_curve(self):
+        """Same SDK class, different phase: the link, not the generation."""
+        for exc in (httpx.ConnectTimeout("cold"), _stalled(httpx.ConnectTimeout("cold"))):
+            assert use_brain_module._is_stall_error(exc) is False
+            assert use_brain_module._transient_kind(exc) == "connection"
+
+    def test_a_bare_timeout_with_no_phase_is_read_as_a_stall(self):
+        """The shorter budget is the safe guess when the chain says nothing."""
+        from anthropic import APITimeoutError
+
+        exc = APITimeoutError(request=httpx.Request("POST", "https://x"))
+        assert use_brain_module._transient_kind(exc) == "stall"
+
+    def test_the_other_kinds_are_untouched(self):
+        from mirascope.llm.exceptions import ConnectionError as MirascopeConnectionError
+
+        assert use_brain_module._transient_kind(httpx.ConnectError("refused")) == "connection"
+        assert use_brain_module._transient_kind(MirascopeConnectionError("Connection error.", "bedrock")) == "connection"
+        assert use_brain_module._transient_kind(ValueError("bug")) is None
+
+    def test_the_budget_is_one_re_ask(self):
+        """Bound on one call = `_STALL_RETRY_MAX` × read timeout + the flat delay;
+        the view turn's card (and its host's deadline) are sized on it."""
+        assert use_brain_module._STALL_RETRY_MAX == 2
+        assert use_brain_module._STALL_RETRY_MAX < use_brain_module._CONNECT_RETRY_MAX
 
 
 class TestConnectionErrorDetection:
@@ -78,10 +185,10 @@ class TestConnectionErrorDetection:
         [
             httpx.ConnectTimeout("timed out"),
             httpx.ConnectError("refused"),
-            httpx.ReadTimeout("slow"),
         ],
     )
     def test_httpx_transport_failures_are_retryable(self, exc):
+        """`ReadTimeout` is deliberately absent: it is a stall (`TestStallDetection`)."""
         assert use_brain_module._is_connection_error(exc) is True
 
     def test_mirascope_wrapped_connection_error_is_retryable(self):
@@ -319,3 +426,147 @@ class TestServerErrorRetryLoop(TestConnectionRetryLoop):
         with pytest.raises(_FakeProviderError):
             await method()
         assert len(calls) == 1
+
+
+class TestStallRetryLoop(TestConnectionRetryLoop):
+    """The stall curve through the decorator's own loop."""
+
+    @pytest.mark.asyncio
+    async def test_one_stall_is_re_asked(self, monkeypatch):
+        """A stall is usually one bad backend instance; the fresh request lands."""
+        method, calls = self._decorated(
+            [_stalled(httpx.ReadTimeout("quiet")), "recovered"], monkeypatch
+        )
+        assert await method() == "recovered"
+        assert len(calls) == 2
+
+    @pytest.mark.asyncio
+    async def test_a_second_stall_surfaces_as_the_provider_error(self, monkeypatch):
+        """Not the connection curve's three: each attempt already cost a whole
+        read timeout, and the gathered callers are waiting on it. The exception
+        that surfaces is the wrapped one, so a failed draw can name its type."""
+        from mirascope.llm.exceptions import TimeoutError as MirascopeTimeoutError
+
+        method, calls = self._decorated(
+            [
+                _stalled(httpx.ReadTimeout("quiet")),
+                _stalled(httpx.ReadTimeout("quiet")),
+                "never reached",
+            ],
+            monkeypatch,
+        )
+        with pytest.raises(MirascopeTimeoutError):
+            await method()
+        assert len(calls) == use_brain_module._STALL_RETRY_MAX == 2
+
+    @pytest.mark.asyncio
+    async def test_the_stall_is_on_the_retry_account(self, monkeypatch):
+        """The whole point of taking the SDK's retry away: the account sees it."""
+        from dialectical_framework.utils.retry_accounting import retry_account
+
+        method, _calls = self._decorated(
+            [_stalled(httpx.ReadTimeout("quiet")), "recovered"], monkeypatch
+        )
+        with retry_account() as account:
+            await method()
+        assert account.kinds == {"stall": 1}
+
+
+class TestTheAwaitedResumeIsRetriedToo:
+    """`submit`'s continuation rounds are Mirascope's own requests, below
+    `use_brain`. Until the SDK's retry went to 0 they had its two retries; now
+    they have `retry_transient`, like the streamed resume — the same failure,
+    treated the same way on both paths."""
+
+    @pytest.fixture(autouse=True)
+    def mock_llm(self):
+        yield
+
+    @pytest.fixture
+    def no_backoff_sleep(self, monkeypatch):
+        async def _fake_sleep(_seconds: float) -> None:
+            return None
+
+        monkeypatch.setattr(use_brain_module.asyncio, "sleep", _fake_sleep)
+
+    @staticmethod
+    def _submit_with_a_failing_resume(monkeypatch, failures: list[Exception]):
+        from pydantic import BaseModel
+
+        from dialectical_framework.agents.conversation_facilitator import (
+            ConversationFacilitator,
+        )
+
+        class _Chat(BaseModel):
+            message: str
+
+        class _Final:
+            tool_calls: list = []
+            messages: list = []
+            finish_reason = None
+
+            def text(self):
+                return "done"
+
+        class _ToolRound:
+            def __init__(self) -> None:
+                self.tool_calls = [type("TC", (), {"name": "explore", "args": "{}", "id": "tc-1"})()]
+                self.messages: list = []
+                self.execute_calls = 0
+                self.resume_calls = 0
+
+            async def execute_tools(self):
+                self.execute_calls += 1
+                return []
+
+            async def resume(self, _outputs):
+                self.resume_calls += 1
+                if failures:
+                    raise failures.pop(0)
+                return _Final()
+
+        first = _ToolRound()
+
+        async def _fake_call_with_tools(self):
+            return first
+
+        monkeypatch.setattr(ConversationFacilitator, "_call_with_tools", _fake_call_with_tools)
+        monkeypatch.setattr(ConversationFacilitator, "_record_tool_results", lambda self, *a: [])
+        monkeypatch.setattr(ConversationFacilitator, "_strip_caller_from_messages", lambda self, *a: None)
+        monkeypatch.setattr(ConversationFacilitator, "_close_dangling_tool_calls", lambda self, *a: None)
+        monkeypatch.setattr(ConversationFacilitator, "_strip_unsupported_input_fields", lambda self: None)
+        monkeypatch.setattr(
+            ConversationFacilitator, "_reuse_written_reply", lambda self, *a: _Chat(message="done")
+        )
+        return ConversationFacilitator(tools=[lambda: None]), first, _Chat
+
+    @pytest.mark.asyncio
+    async def test_a_stall_between_tool_rounds_is_re_asked_once(self, monkeypatch, no_backoff_sleep):
+        facilitator, first, chat = self._submit_with_a_failing_resume(
+            monkeypatch, [_stalled(httpx.ReadTimeout("quiet"))]
+        )
+        reply = await facilitator.submit(chat, "hello")
+        assert reply.message == "done"
+        assert first.resume_calls == 2, "the same round re-asked"
+        assert first.execute_calls == 1, "the tools ran once — outputs are re-sent, never re-run"
+        assert facilitator.last_submit_retries.kinds == {"stall": 1}
+
+    @pytest.mark.asyncio
+    async def test_a_persistent_stall_surfaces(self, monkeypatch, no_backoff_sleep):
+        from mirascope.llm.exceptions import TimeoutError as MirascopeTimeoutError
+
+        facilitator, first, chat = self._submit_with_a_failing_resume(
+            monkeypatch, [_stalled(httpx.ReadTimeout("q")), _stalled(httpx.ReadTimeout("q"))]
+        )
+        with pytest.raises(MirascopeTimeoutError):
+            await facilitator.submit(chat, "hello")
+        assert first.resume_calls == 2
+
+    @pytest.mark.asyncio
+    async def test_a_defect_of_ours_is_not_retried(self, monkeypatch, no_backoff_sleep):
+        facilitator, first, chat = self._submit_with_a_failing_resume(
+            monkeypatch, [ValueError("our bug")]
+        )
+        with pytest.raises(ValueError):
+            await facilitator.submit(chat, "hello")
+        assert first.resume_calls == 1

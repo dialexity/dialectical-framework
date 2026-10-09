@@ -86,7 +86,8 @@ def use_brain(
     Retries on ParseError (validation failures) with a FLAT delay — waiting does
     not fix a wrong shape, see `_PARSE_RETRY_DELAY_S` — and on rate limits /
     throttling, transient connection failures and transient 5xx with exponential
-    backoff (each with its own curve — see `_is_connection_error`).
+    backoff (each with its own curve — see `_is_connection_error`); a provider
+    STALL (read timeout) is re-asked once (`_STALL_RETRY_MAX`).
     Automatically traces all LLM calls via Langfuse when configured.
 
     When ``format`` is provided, returns the parsed model instance.
@@ -192,6 +193,7 @@ def use_brain(
             rate_delay = _RATE_LIMIT_BASE_S
             connect_delay = _CONNECT_RETRY_BASE_S
             connect_attempts = 0
+            stall_attempts = 0
             server_delay = _SERVER_RETRY_BASE_S
             server_attempts = 0
             last_error: Exception | None = None
@@ -325,6 +327,33 @@ def use_brain(
                             )
                             await asyncio.sleep(rate_delay)
                             rate_delay = min(rate_delay * 2.0, _RATE_LIMIT_CAP_S)
+                    elif _is_stall_error(e):
+                        # Checked BEFORE the connection branch: a read timeout is
+                        # a connection error by class, and it must not get that
+                        # curve's three attempts. Every stalled attempt has
+                        # already cost the whole read timeout, so the bound on
+                        # one call is `_STALL_RETRY_MAX` × that timeout plus one
+                        # flat delay — the figure `Settings.llm_read_timeout_s`
+                        # promises.
+                        stall_attempts += 1
+                        if stall_attempts >= _STALL_RETRY_MAX:
+                            raise
+                        last_error = e
+                        logging.getLogger(__name__).warning(
+                            "Provider stalled on %s (attempt %d/%d, %.0fs waited), "
+                            "re-asking in %.0fs: %s",
+                            format_name or method.__qualname__,
+                            stall_attempts, _STALL_RETRY_MAX,
+                            time.monotonic() - attempt_started, _STALL_RETRY_BASE_S, e,
+                        )
+                        if attempt < attempts - 1:
+                            slept_s += _STALL_RETRY_BASE_S
+                            record_retry(
+                                "stall",
+                                sleep_s=_STALL_RETRY_BASE_S,
+                                attempt_s=time.monotonic() - attempt_started,
+                            )
+                            await asyncio.sleep(_STALL_RETRY_BASE_S)
                     elif _is_connection_error(e):
                         # Bounded separately from `attempts`: a down endpoint must
                         # surface as an error, not consume the whole retry budget.
@@ -783,8 +812,61 @@ _CONNECT_RETRY_MAX = 3
 _CONNECT_RETRY_BASE_S = 2.0
 
 
+#: A STALL — the provider accepted the request and then stopped sending — is
+#: retried once, not on the connection curve. The two look alike by class (both
+#: arrive as the SDK's `APITimeoutError`, Mirascope's `TimeoutError`) and differ
+#: in what an attempt costs: a connect failure fails in milliseconds, a stall
+#: fails after the WHOLE read timeout (`Settings.llm_read_timeout_s`). Three
+#: attempts of that is three read timeouts before the caller hears anything,
+#: and where callers are gathered (the view turn's best-of-3) every finished
+#: draw waits for it. One re-ask is worth it — a stall is usually one bad
+#: backend instance and a fresh request lands elsewhere — and a second stall in
+#: a row is the ceiling. The delay is flat: waiting does not un-stall a server.
+#: Bound on one call, in full: `_STALL_RETRY_MAX` × read timeout + the delay.
+_STALL_RETRY_MAX = 2
+_STALL_RETRY_BASE_S = 2.0
+
+
+def _exception_chain(e: BaseException) -> Iterator[BaseException]:
+    """The exception and what it wraps: Mirascope's `original_exception`, then
+    `__cause__`/`__context__`. The SDK raises `APITimeoutError from
+    httpx.ReadTimeout` and Mirascope raises its `TimeoutError from` that, so the
+    phase that timed out is two links down."""
+    seen: set[int] = set()
+    pending: list[BaseException | None] = [e]
+    while pending:
+        current = pending.pop(0)
+        if current is None or id(current) in seen or len(seen) >= 10:
+            continue
+        seen.add(id(current))
+        yield current
+        pending.append(getattr(current, "original_exception", None))
+        pending.append(current.__cause__)
+        pending.append(current.__context__)
+
+
+def _is_stall_error(e: Exception) -> bool:
+    """Detect a READ timeout: the request was sent and the provider went quiet.
+
+    Decided by the httpx phase class in the chain. `ReadTimeout` is a stall;
+    `ConnectTimeout`/`WriteTimeout`/`PoolTimeout` are the link, left to
+    `_is_connection_error`. A timeout class with no phase in its chain (the
+    SDK's `APITimeoutError` or Mirascope's `TimeoutError` raised bare) is read
+    as a stall too — the shorter budget is the safe guess.
+    """
+    names = [type(x).__name__ for x in _exception_chain(e)]
+    if any(name.endswith("ReadTimeout") for name in names):
+        return True
+    if any(
+        name.endswith(("ConnectTimeout", "WriteTimeout", "PoolTimeout"))
+        for name in names
+    ):
+        return False
+    return any(name in ("APITimeoutError", "TimeoutError") for name in names)
+
+
 def _is_connection_error(e: Exception) -> bool:
-    """Detect transient network failures worth retrying.
+    """Detect transient network failures worth retrying — a stall excluded.
 
     Real failure this catches: the framework's parallel stages
     (ExplorationPipeline, ExploreTransformations) open many connections at once,
@@ -795,13 +877,18 @@ def _is_connection_error(e: Exception) -> bool:
     Matched by class name, not by import: Mirascope re-raises provider
     exceptions as its own `mirascope.llm.exceptions.ConnectionError`/`TimeoutError`,
     and importing those shadows the builtins in this module.
+
+    Exclusive with `_is_stall_error`, by construction: a read timeout is a
+    timeout by class but gets the stall budget, not this curve's three.
     """
+    if _is_stall_error(e):
+        return False
     name = type(e).__name__
     if name in ("ConnectionError", "TimeoutError", "APIConnectionError", "APITimeoutError"):
         return True
     # httpx raises distinct classes per phase (ConnectTimeout, ReadTimeout,
     # ConnectError, RemoteProtocolError); the shared suffix is the reliable tell.
-    return name.endswith(("ConnectError", "ConnectTimeout", "ReadTimeout"))
+    return name.endswith(("ConnectError", "ConnectTimeout"))
 
 
 #: Provider-side transient failures: the request was well-formed and the service
@@ -898,6 +985,8 @@ def _transient_kind(e: Exception) -> Optional[str]:
         return None
     if _is_rate_limit_error(e):
         return "rate_limit"
+    if _is_stall_error(e):
+        return "stall"
     if _is_connection_error(e):
         return "connection"
     if _is_transient_server_error(e):
@@ -930,9 +1019,10 @@ async def retry_transient(
     deterministic answer.
 
     Bounded per kind, with no overall ceiling, so the worst case is not any single
-    curve: a failure sequence that keeps CHANGING kind gets each budget in full, 7
-    attempts and ~51s of sleep before it surfaces. Bounded is what matters here, but
-    "30s" is the throttle-only figure and not the promise.
+    curve: a failure sequence that keeps CHANGING kind gets each budget in full, 8
+    attempts and ~53s of sleep before it surfaces (plus a read timeout for the one
+    stalled attempt). Bounded is what matters here, but "30s" is the throttle-only
+    figure and not the promise.
 
     `operation` must be safe to call again. That is a real precondition and not a
     formality: the caller re-sends a whole prompt, so it must have no side effects
@@ -946,6 +1036,7 @@ async def retry_transient(
     """
     delay = {
         "rate_limit": _RATE_LIMIT_BASE_S,
+        "stall": _STALL_RETRY_BASE_S,
         "connection": _CONNECT_RETRY_BASE_S,
         "server": _SERVER_RETRY_BASE_S,
     }
@@ -960,6 +1051,7 @@ async def retry_transient(
     #: surface as an error instead of spending a throttle-sized budget on it.
     budget = {
         "rate_limit": _RATE_LIMIT_RETRY_MAX,
+        "stall": _STALL_RETRY_MAX,
         "connection": _CONNECT_RETRY_MAX,
         "server": _SERVER_RETRY_MAX,
     }

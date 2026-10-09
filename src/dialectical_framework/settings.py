@@ -40,8 +40,8 @@ class Settings(BaseModel):
 
     Per process (read once, from the base `DialecticalReasoning.setup()` installs;
     a value inside `using_settings` has no effect): `graph_db_*` (the connection is
-    a Singleton), `llm_connect_timeout_s` (the provider is registered once),
-    `effect_log_dir` (installed in `setup`). `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`
+    a Singleton), `llm_connect_timeout_s` and `llm_read_timeout_s` (the provider
+    is registered once), `effect_log_dir` (installed in `setup`). `DIALEXITY_MAX_CONCURRENT_LLM_CALLS`
     is not a field at all: an env var behind one process-wide semaphore.
     """
 
@@ -276,6 +276,29 @@ class Settings(BaseModel):
     # slow generation is not the problem being solved here.
     llm_connect_timeout_s: float = Field(default=30.0, description="TCP/TLS connect timeout for LLM calls, in seconds. Raise on slow or high-latency links.")
 
+    # Read timeout for the Bedrock client, in seconds: how long one provider
+    # call may go without a byte arriving before it raises (`APITimeoutError`,
+    # which the ladder retries ONCE — `use_brain._STALL_RETRY_MAX`).
+    #
+    # The SDK's default is 600s, and the client used to keep it, so a stalled
+    # call held whatever was waiting on it for ten minutes with no error and no
+    # retry on record (a 610s turn, `prompt-vs-machinery`; the handoff that set
+    # this field: one of three gathered draws hung a 20-31s card for 300s,
+    # 2026-10-09, Sonnet 5.5). On a NON-streamed call the body arrives whole,
+    # so this is a ceiling on one generation; on a streamed round it is the gap
+    # between two chunks, and a thinking turn streams its deltas (the
+    # facilitator asks for `include_thoughts`), so the long silence is the
+    # non-streamed case only. 120s clears every unstalled generation in the
+    # archive (the longest measured conversational rounds sit under a minute on
+    # Sonnet 5 with thinking) while cutting a stall from 600s to two minutes. A
+    # host whose calls are short sets it lower: the first app's draws run ~15s,
+    # texts ~8s, structured calls ~3s on Sonnet 5.5, and it runs at 30s. Too
+    # low, and a legitimately long generation (a digest of a 40k-character
+    # part, an Opus round with a large dump) is cut and re-asked — the retry
+    # does not help a call that needed the time. Read once, with the connect
+    # timeout, when the provider registers.
+    llm_read_timeout_s: float = Field(default=120.0, description="Read timeout for LLM calls, in seconds: the longest one call may wait for the provider's next byte. Lower where every call is short; a stall then surfaces as a timeout instead of holding the caller.")
+
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
         """
@@ -353,5 +376,6 @@ class Settings(BaseModel):
             # something. `**` on an empty dict sends nothing.
             **_env_thinking_level(),
             llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
+            llm_read_timeout_s=float(os.getenv("DIALEXITY_LLM_READ_TIMEOUT_S", 120.0)),
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

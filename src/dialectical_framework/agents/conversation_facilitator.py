@@ -567,8 +567,19 @@ class ConversationFacilitator(SettingsAware):
                     self._strip_caller_from_messages(response.messages)
                     # The continuation is a conversational round too (and it is
                     # Mirascope's own request, so nothing in `use_brain` marks it).
+                    # Retried like the streamed resume (`_start_stream_round`):
+                    # since the Bedrock client's own retry went to 0
+                    # (`bedrock_provider._SDK_MAX_RETRIES`) this is the one
+                    # provider request with no other retry layer. Safe to re-ask
+                    # — `resume_async` is `response.messages + [user(outputs)]`
+                    # with no mutation of the response — and the tools have
+                    # already run, so a retry re-sends their outputs, never
+                    # re-executes them.
                     with conversational_round():
-                        response = await response.resume(tool_outputs)
+                        resuming = response
+                        response = await retry_transient(
+                            lambda: resuming.resume(tool_outputs), what="Resume"
+                        )
                     # Mirascope's own request, below `use_brain`: a provider that
                     # does not raise on a refusal itself only says so here.
                     if getattr(response, "finish_reason", None) == FinishReason.REFUSAL:

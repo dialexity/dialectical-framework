@@ -179,8 +179,8 @@ manual param raises. `messages` resumes a saved conversation. The **host applica
    requests each see their own; tasks the framework starts inside (best-of-N,
    the off-turn weave) inherit it. `container.settings.override(...)` raises —
    it would put every request in flight on one object. The graph connection,
-   the provider's connect timeout and the effect log are read once from the
-   base and cannot be scoped (`Settings` docstring).
+   the provider's connect and read timeouts and the effect log are read once
+   from the base and cannot be scoped (`Settings` docstring).
 3. **Message persistence** — save/load `agent.messages` per conversation thread. Carrying
    the list forward inside one process needs nothing: hand it to the next
    `Advisor(messages=saved)` and you are done.

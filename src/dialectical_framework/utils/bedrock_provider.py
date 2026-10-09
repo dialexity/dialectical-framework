@@ -36,25 +36,49 @@ if TYPE_CHECKING:
     from mirascope.llm.tools import AsyncToolkit, Toolkit
 
 
-def _connect_timeout(connect_timeout_s: float | None) -> httpx.Timeout:
-    """SDK default timeouts with a widened CONNECT phase only.
+def _client_timeout(
+    connect_timeout_s: float | None, read_timeout_s: float | None = None
+) -> httpx.Timeout:
+    """SDK default timeouts with the CONNECT and READ phases set by the framework.
 
-    The SDK's 5s connect timeout assumes a warm datacenter link. A cold TLS
-    handshake over a tethered/VPN/mobile connection measured 7.7s, so the first
-    call on every fresh connection failed — and the parallel stages failed
-    hardest, since each concurrent call opens its own cold connection while a
-    sequential one reuses a handshaked socket. Read/write keep the SDK defaults:
-    a slow-to-connect link is a different problem from a slow generation, and
-    conflating them would mask real hangs.
+    Connect: the SDK's 5s assumes a warm datacenter link. A cold TLS handshake
+    over a tethered/VPN/mobile connection measured 7.7s, so the first call on
+    every fresh connection failed — and the parallel stages failed hardest,
+    since each concurrent call opens its own cold connection while a sequential
+    one reuses a handshaked socket.
+
+    Read: the SDK's 600s is the length of a stall nobody asked for. A provider
+    call that stops sending holds its caller for ten minutes with no error, and
+    where callers are gathered (the view turn's best-of-3) one stalled draw
+    holds the two that finished (a 300s card where the same case took 20-31s,
+    2026-10-09). `Settings.llm_read_timeout_s` sets it; a timeout raises
+    `APITimeoutError`, which the ladder classifies as a stall and re-asks once.
+    Write and pool keep the SDK defaults: nothing has stalled on either.
     """
-    seconds = connect_timeout_s if connect_timeout_s is not None else 30.0
+    connect = connect_timeout_s if connect_timeout_s is not None else 30.0
+    read = read_timeout_s if read_timeout_s is not None else 120.0
     default = DEFAULT_TIMEOUT
     return httpx.Timeout(
-        connect=seconds,
-        read=default.read,
+        connect=connect,
+        read=read,
         write=default.write,
         pool=default.pool,
     )
+
+
+#: The Anthropic SDK's own retry is OFF: every retry the framework makes is one
+#: it can see. The SDK defaults to two retries of a timeout, a connection error
+#: or a 408/409/429/5xx with its own backoff, BELOW `use_brain`'s ladder and
+#: `retry_transient` — so a stalled call cost three read timeouts before the
+#: ladder saw one failure, and `retry_accounting`/`call_census` recorded none of
+#: it (a 610s turn with `retry_count` 0, `prompt-vs-machinery`). With this at 0
+#: the bound on one call is the ladder's: a stall is (`_STALL_RETRY_MAX`) × the
+#: read timeout plus its flat delay, and the retry is on the account. Every
+#: provider request the framework makes passes a retry layer of its own — the
+#: ladder (`use_brain`), the streamed open and resume (`retry_transient` in
+#: `_start_stream_round`) and, since this went to 0, the awaited resume too
+#: (`ConversationFacilitator.submit`), which until then had only the SDK's.
+_SDK_MAX_RETRIES = 0
 
 
 #: Start of the Advisor's mutable graph dump inside its system prompt.
@@ -361,11 +385,19 @@ class BedrockAnthropicProvider(AnthropicProvider):
     id = "bedrock"
     default_scope = "bedrock/"
 
-    def __init__(self, *, connect_timeout_s: float | None = None, **kwargs) -> None:  # noqa: ARG002
+    def __init__(
+        self,
+        *,
+        connect_timeout_s: float | None = None,
+        read_timeout_s: float | None = None,
+        **kwargs,  # noqa: ARG002
+    ) -> None:
         # Skip super().__init__() — parent creates Anthropic/AsyncAnthropic clients we don't need
-        timeout = _connect_timeout(connect_timeout_s)
-        self.client = AnthropicBedrock(timeout=timeout)
-        self.async_client = AsyncAnthropicBedrock(timeout=timeout)
+        timeout = _client_timeout(connect_timeout_s, read_timeout_s)
+        self.client = AnthropicBedrock(timeout=timeout, max_retries=_SDK_MAX_RETRIES)
+        self.async_client = AsyncAnthropicBedrock(
+            timeout=timeout, max_retries=_SDK_MAX_RETRIES
+        )
         self._beta_provider = None
 
     @staticmethod
@@ -594,17 +626,19 @@ def ensure_bedrock_provider(
 ) -> None:
     """Register the bedrock provider if not already registered. Idempotent.
 
-    Registration happens on the first call, so `llm_connect_timeout_s` is read
-    from DI here rather than in `__init__` (Mirascope constructs providers with
-    no arguments). Consequence of the idempotence: changing the setting after
-    the first LLM call of the process has no effect.
+    Registration happens on the first call, so `llm_connect_timeout_s` and
+    `llm_read_timeout_s` are read from DI here rather than in `__init__`
+    (Mirascope constructs providers with no arguments). Consequence of the
+    idempotence: changing either setting after the first LLM call of the
+    process has no effect.
     """
     global _registered
     if _registered:
         return
     llm.register_provider(
         BedrockAnthropicProvider(
-            connect_timeout_s=getattr(settings, "llm_connect_timeout_s", None)
+            connect_timeout_s=getattr(settings, "llm_connect_timeout_s", None),
+            read_timeout_s=getattr(settings, "llm_read_timeout_s", None),
         ),
         scope="bedrock/",
     )

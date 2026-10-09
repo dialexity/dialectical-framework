@@ -42,6 +42,7 @@ from contextlib import aclosing
 from typing import Any, AsyncGenerator, Optional
 
 from mirascope import llm
+from mirascope.llm.exceptions import ProviderError
 
 from dialectical_framework.agents.advisor.advisor import ChatResponse
 from dialectical_framework.agents.advisor.system_prompts import (
@@ -145,9 +146,21 @@ _TOOL_TOKENS = (
 
 def _failed_draw(error: BaseException) -> FailedDrawView:
     """A failed draw's record: the exception's type, the provider's refusal
-    category when it is a `ModelRefusal` that carries one, and its text."""
+    category when it is a `ModelRefusal` that carries one, and its text.
+
+    The type is the PROVIDER's where Mirascope wrapped one: its `ProviderError`
+    subclasses carry the SDK exception as `original_exception`, and that is
+    the name a host counts by (`APITimeoutError` for a stalled draw, where the
+    wrapper says only `TimeoutError` — the builtin's name too). `ParseError`
+    is not a `ProviderError` and keeps its own name.
+    """
+    original = (
+        getattr(error, "original_exception", None)
+        if isinstance(error, ProviderError)
+        else None
+    )
     return FailedDrawView(
-        kind=type(error).__name__,
+        kind=type(original if isinstance(original, BaseException) else error).__name__,
         category=getattr(error, "category", None) if isinstance(error, ModelRefusal) else None,
         message=str(error) or None,
     )

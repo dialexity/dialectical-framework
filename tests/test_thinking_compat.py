@@ -164,7 +164,16 @@ class TestTheFacilitatorOpensItsRoundsInScope:
         src = inspect.getsource(cf.ConversationFacilitator)
         assert src.count("conversational_round()") == 4
         assert "with conversational_round():\n            return await _llm_call()" in src
-        assert "with conversational_round():\n                        response = await response.resume(tool_outputs)" in src
+        # The awaited resume runs under `retry_transient` inside the scope (the
+        # round is re-asked on a transient failure, and the re-ask is a
+        # conversational round too).
+        assert (
+            "with conversational_round():\n"
+            "                        resuming = response\n"
+            "                        response = await retry_transient(\n"
+            "                            lambda: resuming.resume(tool_outputs), what=\"Resume\"\n"
+            "                        )"
+        ) in src
         assert src.count("with retry_account(turn), conversational_round():") == 2
         # Never around the tools.
         assert "conversational_round():\n                        tool_outputs = await response.execute_tools()" not in src
