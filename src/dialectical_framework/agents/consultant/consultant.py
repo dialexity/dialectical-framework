@@ -36,6 +36,7 @@ dropped from BOTH the product and the baseline.
 
 from __future__ import annotations
 
+import logging
 import re
 from contextlib import aclosing
 from typing import Any, AsyncGenerator, Optional
@@ -51,7 +52,14 @@ from dialectical_framework.agents.conversation_facilitator import (
     FROM_SETTINGS, ConversationFacilitator)
 from dialectical_framework.agents.stream_events import StreamEvent
 from dialectical_framework.agents.turn_timing import TurnTiming
-from dialectical_framework.graph.views import ExplorationView, PerspectiveView
+from dialectical_framework.exceptions.provider_errors import ModelRefusal
+from dialectical_framework.graph.views import (
+    ExplorationView,
+    FailedDrawView,
+    PerspectiveView,
+)
+
+logger = logging.getLogger(__name__)
 
 #: Tool verbs → mental acts. These are REWRITES, not drops: dropping every
 #: paragraph that mentions a tool name would also delete the discrimination test
@@ -133,6 +141,16 @@ _TOOL_TOKENS = (
     "the machinery",
     "[[",
 )
+
+
+def _failed_draw(error: BaseException) -> FailedDrawView:
+    """A failed draw's record: the exception's type, the provider's refusal
+    category when it is a `ModelRefusal` that carries one, and its text."""
+    return FailedDrawView(
+        kind=type(error).__name__,
+        category=getattr(error, "category", None) if isinstance(error, ModelRefusal) else None,
+        message=str(error) or None,
+    )
 
 
 def _apply_rewrites(section: str) -> tuple[str, list[str]]:
@@ -425,8 +443,22 @@ class Consultant:
         # measured cold-start rate.
         drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
         sketches = [d for d in drawn if not isinstance(d, BaseException)]
+        failures = [d for d in drawn if isinstance(d, BaseException)]
+        # A failed draw is a finding, not noise: it costs the card a candidate
+        # (or its whole comparison, when two fail) and it costs time before it
+        # fails. Said once per failure, by type — the host that counted 8 lost
+        # draws in 240 on Opus 5.5 had no cause on record because this branch
+        # was silent — and carried on the view as `failed_draws`.
+        failed_draws = [_failed_draw(e) for e in failures]
+        for failed in failed_draws:
+            logger.warning(
+                "A view-turn draw failed (%d of %d drawn): %s%s: %s",
+                len(sketches), n, failed.kind,
+                f" ({failed.category})" if failed.category else "",
+                failed.message,
+            )
         if not sketches:
-            raise next(d for d in drawn if isinstance(d, BaseException))
+            raise failures[0]
         # With several draws the framework's own coherence check picks the one
         # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
         # draw with no complete first tension sorts last. The card a blindspot
@@ -447,7 +479,11 @@ class Consultant:
                 sketch = sketches[judgeable[0]] if judgeable else sketches[0]
         else:
             sketch = sketches[0]
-        view = dataclasses.replace(exploration_view_from_sketch(sketch), runners_up=runners_up)
+        view = dataclasses.replace(
+            exploration_view_from_sketch(sketch),
+            runners_up=runners_up,
+            failed_draws=failed_draws,
+        )
         # What the turn leaves behind is NOT what it sent: the long request and
         # the DTO come off, and the person's ask plus the drawing in words go
         # on. Kept as a request→prose pair, the long request taught the next

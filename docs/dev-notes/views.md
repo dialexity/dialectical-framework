@@ -101,3 +101,16 @@ Two lessons worth the rule they became: **a history record must not carry the
 labels the prose must not** (the model echoes its own memory), and **a long
 structured request left in history next to a prose answer teaches the next
 structured turn to answer in prose** — keep the person's ask, not the request.
+
+## A failed draw is on the view (2026-10-09)
+
+`Consultant.exploration_view(attempts=3)` gathered its draws with
+`return_exceptions=True` and kept the survivors; a draw that raised was gone — no log, no
+field, and (when it raised inside the provider call) no census record. The first app found the
+hole by subtraction: 233 `ViewSketchDto` calls where 240 draws were made on Opus 5.5, six cards
+chosen among two and one served as the only draw left. `FailedDrawView` (kind, refusal
+category, message) now rides `ExplorationView.failed_draws`, logged once per failure; the
+screen projection keeps kind and category and drops the message (a parse error names DTO
+fields). The call still raises only when every draw failed. The replay that looked for the
+cause (`tests/e2e/probe_card_replay.py`, 144 Opus 5.5 draws) found none, so the field is also
+the instrument: `docs/dev-notes/streaming-latency-and-retry.md`, "The 5.5 handoff".

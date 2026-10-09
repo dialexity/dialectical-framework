@@ -221,3 +221,89 @@ class TestReviewFindings:
         assert len(sent) == 2
         assert "tool_choice" in sent[0] and "tool_choice" not in sent[1]
         assert response.parse().word == "teal"
+
+
+class TestAJsonModeCallIsConstrainedToItsSchema:
+    """JSON mode on a 5.5 model is sent as a structured output
+    (`output_config.format`): the host measured 32 parse re-asks in 80 cards
+    without it (`probe_structured_outputs.py` for the acceptance matrix)."""
+
+    def _encode(self, model_id, format=SmallDto, params=None):
+        from mirascope.llm.tools import AsyncToolkit
+
+        from dialectical_framework.utils.bedrock_provider import BedrockAnthropicProvider
+
+        return BedrockAnthropicProvider._encode(
+            model_id, [llm.messages.user("Name a colour.")], AsyncToolkit(tools=[]), format, params or {}
+        )
+
+    @pytest.mark.parametrize(
+        "model",
+        ["bedrock/global.anthropic.claude-sonnet-5-5", "bedrock/global.anthropic.claude-opus-5-5"],
+    )
+    def test_a_substituted_call_carries_the_schema(self, model):
+        _, resolved, kwargs = self._encode(model)
+        assert resolved.mode == "json"
+        constraint = kwargs["output_config"]["format"]
+        assert constraint["type"] == "json_schema"
+        schema = constraint["schema"]
+        assert schema["additionalProperties"] is False
+        assert schema["required"] == ["word"]
+        assert set(schema["properties"]) == {"word"}
+
+    def test_an_explicit_json_mode_call_carries_it_too(self):
+        """The two thinking writers ask for JSON mode themselves; on 5.5 they
+        re-asked as often as the substituted calls (7 of 240 view draws)."""
+        _, _, kwargs = self._encode(
+            "bedrock/global.anthropic.claude-sonnet-5-5", llm.format(SmallDto, mode="json")
+        )
+        assert kwargs["output_config"]["format"]["type"] == "json_schema"
+
+    def test_the_effort_and_the_format_share_one_output_config(self):
+        """`with_thinking_compat` folds the model's effort into `output_config`
+        after the format was placed there; neither may evict the other."""
+        from dialectical_framework.utils.thinking_compat import with_thinking_compat
+
+        _, _, kwargs = self._encode(
+            "bedrock/global.anthropic.claude-opus-5-5",
+            params={"thinking": {"level": "medium"}, "max_tokens": 4096},
+        )
+        sent = with_thinking_compat("global.anthropic.claude-opus-5-5", kwargs, {"thinking": {"level": "medium"}})
+        assert sent["output_config"]["effort"] == "medium"
+        assert sent["output_config"]["format"]["type"] == "json_schema"
+        # The moved call's "off" on Opus 5.5 is low effort, in the same dict.
+        _, _, off = self._encode("bedrock/global.anthropic.claude-opus-5-5")
+        sent_off = with_thinking_compat("global.anthropic.claude-opus-5-5", off, {})
+        assert sent_off["output_config"] == {
+            "format": off["output_config"]["format"],
+            "effort": "low",
+        }
+
+    @pytest.mark.parametrize(
+        "model",
+        ["bedrock/global.anthropic.claude-sonnet-5", "bedrock/global.anthropic.claude-haiku-4-5"],
+    )
+    def test_a_model_on_forced_tool_use_is_untouched(self, model):
+        """Sonnet 5 took the constraint in the probe too, but every judged
+        figure there was taken without it — widening it is a measurement."""
+        _, resolved, kwargs = self._encode(model)
+        assert resolved.mode == "tool"
+        assert "output_config" not in kwargs
+        _, _, explicit = self._encode(model, llm.format(SmallDto, mode="json"))
+        assert "output_config" not in explicit
+
+    def test_a_primitive_or_parser_format_gets_no_constraint(self):
+        from dialectical_framework.utils.format_compat import structured_output_format
+
+        assert structured_output_format("global.anthropic.claude-sonnet-5-5", llm.format(list[str], mode="json")) is None
+        assert structured_output_format("global.anthropic.claude-sonnet-5-5", None) is None
+
+    def test_the_schema_is_the_sdks_strict_transform(self):
+        """Pinned because the transform is imported from the SDK's private
+        `_parse` module: a rename there must fail here, not in production."""
+        from anthropic.lib._parse._transform import transform_schema
+
+        from dialectical_framework.utils.format_compat import structured_output_format
+
+        got = structured_output_format("global.anthropic.claude-sonnet-5-5", llm.format(SmallDto, mode="json"))
+        assert got == {"type": "json_schema", "schema": transform_schema(SmallDto)}

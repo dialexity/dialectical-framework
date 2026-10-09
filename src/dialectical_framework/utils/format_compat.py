@@ -23,6 +23,21 @@ that accept both. It parses as reliably on a DTO-shaped call and costs less
 prefill (`probe_format_mode_thinking.py`), but the framework's measured figures
 were taken on forced tool use, so switching every model is a measurement, not
 a compatibility fix.
+
+**A JSON-mode call to such a model is also sent as a structured output**
+(`output_config.format`, a JSON-schema constraint on the reply; since
+2026-10-09). JSON mode alone asks for JSON and gets prose-shaped JSON back
+often enough to cost whole calls: a host measured 32 parse re-asks in 80 cards
+on Sonnet 5.5 (25 on `TransformationSketchDto`, 7 on `ViewSketchDto` —
+trailing commas, invalid JSON), each a full extra generation on the
+framework's parse ladder. The constraint removes the class; Bedrock takes it
+through the client the framework uses on Sonnet 5, Sonnet 5.5 and Opus 5.5,
+with every thinking shape the framework sends and with the real DTO schemas
+(`tests/e2e/probe_structured_outputs.py`). Applied to the SAME models that
+refuse forced tool use — the ones whose structured calls go in JSON mode in
+the first place, explicitly (`format_mode="json"`) or by substitution — and
+to no other: Sonnet 5 / Opus 5 took it too in the probe, but every judged
+figure there was taken without it, so widening it is a measurement.
 """
 
 from __future__ import annotations
@@ -31,8 +46,10 @@ import logging
 import re
 from typing import Any, Optional, get_origin
 
+from anthropic.lib._parse._transform import transform_schema
 from mirascope import llm
 from mirascope.llm.formatting.format import Format
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +146,29 @@ def learn_format_mode_from_error(
         model_name,
     )
     return True
+
+
+def structured_output_format(model_name: str, format: Any) -> Optional[dict[str, Any]]:
+    """The ``output_config.format`` for this request, or None when it gets none.
+
+    Given the format AS RESOLVED for the model (after `with_format_compat`):
+    a `Format` in JSON mode on a model whose structured calls go in JSON mode
+    (`refuses_forced_tool_use`) gets a ``json_schema`` constraint on the reply;
+    everything else — forced tool use, parser mode, a primitive or an output
+    parser, a model that keeps forced tool use — gets None and goes as it
+    always did. The schema is the SDK's own strict transform of the DTO
+    (``additionalProperties: false`` on every object, the constraints the
+    grammar cannot hold moved into descriptions), the same one
+    ``messages.parse`` would send.
+    """
+    if format is None or not refuses_forced_tool_use(model_name):
+        return None
+    if not isinstance(format, Format) or format.mode != JSON:
+        return None
+    formattable = format.formattable
+    if not (isinstance(formattable, type) and issubclass(formattable, BaseModel)):
+        return None
+    return {"type": "json_schema", "schema": transform_schema(formattable)}
 
 
 def reset_learned_format_modes() -> None:

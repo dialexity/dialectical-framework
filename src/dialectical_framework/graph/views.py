@@ -327,6 +327,32 @@ class WheelView:
 
 
 @dataclass(frozen=True)
+class FailedDrawView:
+    """One best-of-N draw that produced nothing — what failed, by type.
+
+    A drawn view is best-of-N (`Consultant.exploration_view(attempts=)`), and a
+    draw that raises used to vanish: the gather dropped it, nothing logged it,
+    and the census never saw a call it could not record. A host measured the
+    gap as 8 of 240 draws on Opus 5.5 with no cause on record. `kind` is the
+    exception's class name (`ModelRefusal`, `ParseError`, a provider error);
+    `category` is the provider's refusal category when the kind is a refusal
+    and it sent one; `message` is the exception's text, for a log, never for
+    a screen — `without_terminology()` drops it, since a parse error names DTO
+    fields.
+    """
+
+    kind: str
+    category: Optional[str] = None
+    message: Optional[str] = None
+
+    def without_terminology(self) -> FailedDrawView:
+        return dataclasses.replace(self, message=None)
+
+    def to_dict(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)
+
+
+@dataclass(frozen=True)
 class ExplorationView:
     """The perspectives seen together — an exploration's (a Nexus's) members,
     or, with no exploration, every active perspective in the case.
@@ -344,6 +370,11 @@ class ExplorationView:
     #: host's "again"/"another" can show one without a new reasoning call.
     #: Empty for a view read off the graph, or drawn once.
     runners_up: list[PerspectiveView] = field(default_factory=list)
+    #: The best-of-N draws that FAILED, in no particular order — so a host can
+    #: count them and tell a card chosen among three from one that was the only
+    #: draw left. Empty for a view read off the graph. A view with every draw
+    #: failed is never returned: the method raises the first failure instead.
+    failed_draws: list[FailedDrawView] = field(default_factory=list)
 
     def without_terminology(self) -> ExplorationView:
         return dataclasses.replace(
@@ -351,6 +382,7 @@ class ExplorationView:
             perspectives=[p.without_terminology() for p in self.perspectives],
             nexus_hash=None,
             runners_up=[p.without_terminology() for p in self.runners_up],
+            failed_draws=[f.without_terminology() for f in self.failed_draws],
         )
 
     def to_dict(self) -> dict[str, Any]:

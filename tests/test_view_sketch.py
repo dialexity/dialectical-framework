@@ -388,3 +388,87 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         """The view is a method the HOST calls; the prompt's "You have no
         tools" must stay true."""
         assert Consultant(app_preamble="x")._conversation._tools == []
+
+
+class TestAFailedDrawIsOnRecord:
+    """Best-of-N: a draw that raises used to vanish — dropped by the gather,
+    unlogged, uncounted (8 of 240 draws on Opus 5.5, no cause on record). Now
+    it is logged by type and carried on the view as `failed_draws`."""
+
+    def _submits(self, monkeypatch, outcomes):
+        from dialectical_framework.concerns import tetrad_candidates
+
+        queue = iter(outcomes)
+
+        async def fake_submit(self, response_model, user_content, max_tool_rounds=10):
+            outcome = next(queue)
+            if isinstance(outcome, BaseException):
+                raise outcome
+            self._messages.append(llm.messages.user(user_content))
+            self._messages.append(llm.messages.assistant(str(outcome), model_id=None, provider_id=None))
+            return outcome
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+
+        async def fake_select(candidates, context=""):
+            verdicts = [tetrad_candidates.SketchVerdict(0.9, 0.9) for _ in candidates]
+            return 0, verdicts
+
+        monkeypatch.setattr(tetrad_candidates, "select_sketch", fake_select)
+
+    @pytest.mark.asyncio
+    async def test_a_refusal_is_recorded_with_its_category_and_logged(self, monkeypatch, caplog):
+        import logging
+
+        from dialectical_framework.exceptions.provider_errors import ModelRefusal
+
+        self._submits(monkeypatch, [
+            ViewSketchDto(tensions=[_tension(thesis="Draw one")]),
+            ModelRefusal("opus", category="general_harms", explanation="declined"),
+            ViewSketchDto(tensions=[_tension(thesis="Draw three")]),
+        ])
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        with caplog.at_level(logging.WARNING, logger="dialectical_framework.agents.consultant.consultant"):
+            view = await head.exploration_view(focus="a perspective", attempts=3)
+
+        assert len(view.perspectives) == 1 and len(view.runners_up) == 1
+        assert [(f.kind, f.category) for f in view.failed_draws] == [("ModelRefusal", "general_harms")]
+        assert "declined" in view.failed_draws[0].message
+        assert any("ModelRefusal (general_harms)" in r.getMessage() for r in caplog.records)
+        # The record is JSON-ready and the screen projection drops the text.
+        assert view.to_dict()["failed_draws"][0]["kind"] == "ModelRefusal"
+        scrubbed = view.without_terminology().failed_draws[0]
+        assert scrubbed.message is None and scrubbed.kind == "ModelRefusal"
+
+    @pytest.mark.asyncio
+    async def test_two_failures_leave_one_draw_and_no_comparison(self, monkeypatch):
+        """The shape the host saw once: a single survivor is served as drawn,
+        with no judge call, and the view says why there was no choice."""
+        from mirascope.llm.exceptions import ParseError
+
+        self._submits(monkeypatch, [
+            ParseError("Failed to parse response: trailing comma", original_exception=ValueError("x")),
+            ViewSketchDto(tensions=[_tension(thesis="The survivor")]),
+            RuntimeError("provider went away"),
+        ])
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        view = await head.exploration_view(focus="a perspective", attempts=3)
+        assert [p.t.text for p in view.perspectives] == ["The survivor"]
+        assert view.runners_up == []
+        assert sorted(f.kind for f in view.failed_draws) == ["ParseError", "RuntimeError"]
+        assert all(f.category is None for f in view.failed_draws)
+
+    @pytest.mark.asyncio
+    async def test_every_draw_failing_still_raises_the_first(self, monkeypatch):
+        self._submits(monkeypatch, [RuntimeError("one"), RuntimeError("two"), RuntimeError("three")])
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        with pytest.raises(RuntimeError, match="one"):
+            await head.exploration_view(focus="a perspective", attempts=3)
+
+    @pytest.mark.asyncio
+    async def test_a_clean_card_has_no_failed_draws(self, monkeypatch):
+        _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        view = await head.exploration_view(attempts=1)
+        assert view.failed_draws == []
+        assert "failed_draws" in view.to_dict()

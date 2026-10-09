@@ -194,7 +194,10 @@ mode, the one structured shape that can), and what it drew stays in `messages` a
 consultant's own words so the next turn can be asked about a corner. `attempts=` draws N in
 parallel on copies of the history and keeps the one the framework's coherence check prefers
 (`concerns/tetrad_candidates.py`; default `DEFAULT_SKETCH_ATTEMPTS`, max 3) — the same
-selection the Advisor's build and the document pipeline run. Same `ExplorationView`
+selection the Advisor's build and the document pipeline run. The judged draws that lost
+come back as `runners_up`; a draw that FAILED comes back as a `failed_draws` entry (its
+exception type, the refusal category when there is one) and is logged, so a host can
+count them — only when every draw fails does the call raise. Same `ExplorationView`
 — texts and the reading (`intent`, composed as the graph composes it) only, a corner the ask
 did not reach left `null`. Terminology-free by construction (no hash, alias or score exists;
 `without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no

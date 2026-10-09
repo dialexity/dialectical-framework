@@ -177,3 +177,90 @@ would pick a model for the host; that is a deployment decision.
 - Smaller: `list[str]` formats are re-asked as JSON too; the format learn matches the forced
   types only and never retries a model already sent as JSON.
 - Left as is: a moved call that asked for `level="default"` is sent as off — no caller does.
+
+## The 5.5 handoff: lost draws, JSON re-asks, the Opus card's clock (2026-10-09)
+
+The first app ran its retry-routing eval (40 frozen cards × 2 reps, concurrency 4) on Sonnet
+5.5 and Opus 5.5 against 2.0.7 and handed back three findings. `tests/e2e/probe_card_replay.py`
+replays its frozen cards through `Consultant.exploration_view(attempts=3)` +
+`TransformationSketch` and accounts for every draw; all figures below are from it
+(`results/tetrad_quality/card_replay-*-20261009-*.json`), six cases, concurrency 4.
+
+**1. Failed draws vanished.** `exploration_view` gathered with `return_exceptions=True` and
+dropped a failed draw with no log, no field and no census record — the census records a call
+AFTER the provider returns, so a draw that raised inside the provider call (a refusal at
+`raise_on_refusal`, a 5xx that exhausted the three-attempt ladder, a 4xx) left nothing at all.
+The app counted 8 of 240 Opus 5.5 draws gone (six cards drew 2, one drew 1 and had no
+comparison), all unrecorded, on cards that were among the slowest. Now: each failure is logged
+by type (`"A view-turn draw failed (2 of 3 drawn): ModelRefusal (general_harms): …"`) and
+returned as `ExplorationView.failed_draws` (`FailedDrawView`: kind, refusal category, message;
+`without_terminology()` drops the message). **Not reproduced**: 144 draws on Opus 5.5 over the
+six cards that lost draws in the app's run (two batches of 24 cards, the second beside a
+Sonnet 5.5 series as the app's first seven minutes were) — 0 failed, 0 parse re-asks. At the
+app's 3.3% a clean 144 has probability under 1%, so either the rate moved with the code (every
+structured call on 5.5 is now a structured output, below) or the cause is a provider condition
+this run did not meet. The two classes that fit the evidence — unrecorded AND slow — are a
+refusal after a long generation and a 5xx/overload that ran the ladder out; the next app run
+names it on `failed_draws`. "Stop it costing time" waits on that name: a ladder exit is already
+bounded (3 attempts, 5 s base), and a refusal is one generation.
+
+**2. JSON-mode parse re-asks.** On 5.5 every structured call goes in JSON mode, and JSON asked
+for in prose comes back with trailing commas: the app measured 32 re-asks in 80 Sonnet 5.5 cards
+(25 on `TransformationSketchDto`, 7 on `ViewSketchDto`), each a whole extra generation on the
+flat parse ladder. Structured outputs (`output_config.format`, a JSON-schema constraint) are GA
+on Bedrock, and `probe_structured_outputs.py` sent them through the framework's client to
+Sonnet 5, Sonnet 5.5 and Opus 5.5 with every thinking shape the framework uses and with the two
+real DTO schemas: 33/33 accepted, 33/33 valid JSON. `format_compat.structured_output_format`
+now attaches the SDK's strict transform of the DTO (`anthropic.lib._parse._transform.
+transform_schema`, what `messages.parse` sends) to every JSON-mode call on a model that refuses
+forced tool use, explicit `format_mode="json"` included; `_encode` puts it in the same
+`output_config` the thinking layer later writes `effort` into. Before/after on Sonnet 5.5, 18
+cards each (3 reps × 6 cases):
+
+| Sonnet 5.5, 18 cards | parse re-asks | view calls/card | sketch calls/card | card median / p90 / max |
+|---|---|---|---|---|
+| JSON mode alone (`DIALEXITY_PROBE_STRUCTURED=0`) | 11 (4 view, 6 sketch, 1 judge) | 3.22 | 1.33 | 13.0 / 17.7 / 30.3 s |
+| + `output_config.format` (ships) | 0 | 3.00 | 1.00 | 13.2 / 21.5 / 23.7 s |
+
+The worst card went from 30.3 s (four re-asks) to 23.7 s; the medians are the same because a
+re-ask is rare per card and cheap on Sonnet 5.5 (a draw is 2.5–3.5 s). Opus 5.5 with the
+constraint: 0 re-asks in 48 cards. Sonnet 5 / Opus 5 are untouched (forced tool use, as every
+judged figure was taken); the probe says they take the constraint too, so widening it is one
+measurement away, on the CC and antithesis probes.
+
+**3. Where an Opus 5.5 card's time goes.** The app measured 41.5 / 49.3 / 56.9 s (median /
+p90 / max) for a whole card against a 60 s line. The framework's share, replayed alone (24
+cards, thinking at the deployment default `medium` on the view turn, Opus 5.5 everywhere):
+
+| phase | calls | wall (median) | per call (median) | note |
+|---|---|---|---|---|
+| view draws | 3, parallel | 17.9 s | 15.8 s | JSON mode with `medium` thinking |
+| coherence judge | 6, parallel | 9.7 s | 8.6 s | `low` effort (Opus 5.5's off); ~530 output tokens of reasoning a call |
+| `TransformationSketch` | 1 | 7.9 s | 7.9 s | `low` effort |
+| framework card | 10 | **36.1 s** (p90 39.1, max 42.1) | | the app adds its wisdom text + shift classifier (~5 s) |
+
+The second batch beside the Sonnet series: 35.3 / 38.7 / 41.0 s. Output tokens ~4.6k a card.
+The clock is three serial phases, each a provider round on Opus 5.5; parallelism cannot buy
+more than the ~2 s between the slowest draw and the view's wall. The two levers measured
+(TIME only — a judged quality question stays open on both):
+
+| Opus 5.5 arm (18 cards) | view wall | judge wall | sketch | card median / p90 / max |
+|---|---|---|---|---|
+| default (`medium` view turn, Opus judge) | 17.9 s | 9.7 s | 7.9 s | 36.1 / 39.1 / 42.1 s |
+| `Consultant(thinking="low")` | 13.8 s | 9.9 s | 8.0 s | 32.0 / 33.2 / 34.6 s |
+| judge on Sonnet 5.5 (`DIALEXITY_PROBE_JUDGE_MODEL`) | 18.2 s | 5.0 s | 7.7 s | 31.1 / 36.3 / 37.8 s |
+
+Each lever is worth about 4–5 s of median and they stack (view ~4 s, judge ~5 s): a card at
+~27 s framework-side, ~32 s with the app's two calls, against the app's 41.5 today. Neither
+ships by itself here. The view turn's level is the HOST's to pass (`Consultant(thinking=)`,
+per session like every head; the deployment default stays `medium`, chosen on `thinking-check`
+for the Advisor's turn, and its quality on the one-shot writer at `low` is unjudged). A
+cheaper judge is gated by `probe_joint_judge_stability.py` (40 stored triples, 92% agreement
+to beat) before it may select a card, and the framework routes every structured call through
+ONE `reasoning_model` — a judge on its own model is a new seam (a concern-level model), not a
+setting to flip; the probe's `DIALEXITY_PROBE_JUDGE_MODEL` is a monkeypatch for the timing.
+The 3 s the app's max would leave under its line is therefore not a framework bug to fix but a
+budget to spend: the host picks the view level (4 s, free to pass today), and the judge model
+after the stability probe (5 s, a framework change). What does NOT help: structured outputs
+(0 re-asks on Opus either way, no time moved), more parallelism (the three phases are serial
+by data; ~2 s between the slowest draw and the view wall).

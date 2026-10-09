@@ -20,6 +20,7 @@ from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.format_compat import (
     learn_format_mode_from_error,
+    structured_output_format,
     with_format_compat,
 )
 from dialectical_framework.utils.thinking_compat import (
@@ -381,7 +382,9 @@ class BedrockAnthropicProvider(AnthropicProvider):
         5.5); see format_compat. Encoding happens here, BEFORE the request is
         built, because the mode decides the request's shape — tools and
         tool_choice for one, system instructions for the other — and the
-        decoded response's parser follows the resolved format. Earlier turns'
+        decoded response's parser follows the resolved format. A JSON-mode
+        call to such a model also carries its schema as a structured output
+        (`output_config.format`, see `structured_output_format`). Earlier turns'
         thinking blocks are dropped here too, for a model that binds them to
         their prefix (see `without_earlier_turn_thinking`).
 
@@ -411,6 +414,16 @@ class BedrockAnthropicProvider(AnthropicProvider):
         )
         if compatible is not format and "thinking" not in kwargs:
             kwargs["thinking"] = {"type": "disabled"}
+        # A JSON-mode call to a model whose structured calls go in JSON mode
+        # is constrained to its schema (`output_config.format`): JSON asked for
+        # in prose came back with trailing commas often enough to cost a whole
+        # re-ask per 2.5 cards on Sonnet 5.5 (see format_compat). The thinking
+        # layer merges its `effort` into the same `output_config` later.
+        constraint = structured_output_format(model_name, compatible)
+        if constraint is not None:
+            output_config = dict(kwargs.get("output_config") or {})
+            output_config["format"] = constraint
+            kwargs["output_config"] = output_config
         _fix_cache_breakpoints(kwargs)
         return input_messages, resolved_format, kwargs
 
