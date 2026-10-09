@@ -1937,7 +1937,10 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    **The layer above, graph-free: `concerns/transformation_sketch.py`** (2026-10-06). ONE statement of the
    Transformation as a tetrad, `TRANSFORMATION_POSITIONS` (Ac/Re poles; Ac+ = T-→A+, Re+ = A-→T+; Ac- = Ac+
    without Re+ carrying T+ into A-, Re- the mirror; the diagonal contradictions) and `SYNTHESIS_SHAPE` (S+
-   a gain in dimension, S- one named state, the measured either/or rule verbatim), read by THREE sites:
+   a gain in dimension, S- one named state, the measured either/or rule verbatim plus the in-turn forms
+   "X, then Y" / "X alternating with Y" since 2026-10-09 — under the structured-output constraint on
+   Sonnet 5.5 the writer put the traps in sequence, S- 57% → 42% as a third failure, named back to 57%;
+   `tests/e2e/probe_structured_s_minus.py`, and the `s_minus` field description says the same), read by THREE sites:
    the concern's own `SYSTEM_PROMPT` (via `TRANSFORMATION_BUILD_PROCEDURE`, poles-first order),
    `synthesis_generation.SYSTEM_PROMPT` ("The shape of the inputs") and host prompts (the first app's
    pill embeds the procedure and subclasses `TransformationSketchDto`). Why one statement: the app's copy

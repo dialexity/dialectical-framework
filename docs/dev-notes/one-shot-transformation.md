@@ -495,3 +495,54 @@ fields 57, text only 56, same 1, order-bound 36 — **50% of 113 decided pairs (
 distinct third failure 75% / 75% (150 each). The fields do not move S-. The re-run replicated the
 fields' effect (valid Re- +39, Ac- +19, both clear) and measured their one price clear of noise:
 "Ac- is the action itself" 100% -> 93%. Recorded on `TransformationSketchDto`.
+
+### The structured-output constraint wrote S- as the two traps in turn (2026-10-09)
+
+The first app's wisdom eval (27 frozen tetrads × 2, Sonnet 5.5, judge Opus 4.8, this repo's third-trap
+auditor) read S- as a distinct third failure in 63% of cards on pypi-2.0.7 and 41% / 33% on 2.0.8 under
+two different app text prompts (paired −30, CI −47..−12). S- comes from `TransformationSketchDto` and
+`TRANSFORMATION_BUILD_PROCEDURE`, which no app text reaches; 2.0.8's one change on a Sonnet 5.5
+structured call was `output_config.format` (`format_compat.structured_output_format`).
+
+**Reproduced** on the gate's 25 tetrads, same call, same text, the constraint the only difference
+(`probe_structured_s_minus.py`, Sonnet 5.5 writer, Opus 4.8 judge, 100 pairs): third failure 42% with
+the constraint against 57% without (+15, CI +2..+28); the constrained reference replicated at 44/41/42/41
+across five runs. **Not a lost instruction**: the SDK's strict transform keeps every description and the
+order (twelve required strings, and the API keeps required keys in schema order), the request differs in
+nothing else (`probe_structured_wire.py`: same system text, Mirascope's JSON instruction and the DTO
+docstring in both, `thinking: between_tools` in both, no prose and no thinking block in either reply).
+What changes is the register: one compact line, terser texts (~290-350 output tokens against ~320-390
+pretty-printed) — and S- as the two traps IN TURN: 13-14 of ~58 failures per 100 were "X, then Y" /
+"X alternating with Y" against 4 of 43 unconstrained, and `SYNTHESIS_SHAPE` named only the side-by-side
+forms. Ac-/Re- were not the casualty: the constraint helps them (Ac- valid 94-98% against 91-93%).
+
+**Arms, all constraint-on unless said, paired against the constrained reference, n = 100 each:**
+
+| arm | S- third | Ac- valid | Re- valid | S- pairwise vs reference (x-y, order-bound) |
+|---|---|---|---|---|
+| `json_only` (2.0.7's shape, constraint off) | +15 (+2..+28) | −5 (noise) | −8 (noise) | 41-41, 18 |
+| `no_docstring` (DTO docstring out of the schema; n = 50) | −4 (noise) | +4 | −10 | 17-23 |
+| `s_scaffold` (a sentence naming the state before the headline) | +17 (+4..+30) | −9 (−16..−2) | −5 | 25-53, 20 |
+| `pretty` (one line of system text asking for pretty JSON) | +4 (noise) | −6 | +6 | 34-37 |
+| `think_low` (`format_mode="json", thinking="low"`) | +9 (−3..+21) | +6 (+1..+11) | +6 | 31-45 |
+| **`shape_then`** (the in-turn forms named in the rule and the field) | **+15 (+2..+28)**, replicated **+16 (+3..+29)** | −8 (−15..−1), then −4 (noise) | −5, −9 (noise) | 29-42, 30-48 |
+| `shape_then_think` (the wording + thinking low) | +15 (+3..+27) | +4 (noise) | −5 (noise) | 26-44 |
+| `shape_then_particular` (+ "in this situation's own particulars" on the headline) | +2 (noise) | +1 | +6 | **60-19** |
+| `shape_then` on **Sonnet 5** (forced tool use, no constraint) | −1 (noise) | +2 | −3 | 29-45 |
+
+**Shipped: `shape_then`** — `SYNTHESIS_SHAPE` lists "X, then Y" and "X alternating with Y" beside the
+either/or forms ("side by side or in turn"), and the `s_minus` description says the same. It restores S-
+to the unconstrained level with the constraint kept (the re-asks stay gone: 1.00 calls per write in
+every constrained arm against 1.12-1.15 without), and is neutral on Sonnet 5, where the synthesis prompt
+also reads it. **The price is a pairwise read, and that read is not a shape read:** the "which S- is more
+specific and recognisable" judge preferred the reference's S- in every arm that restored the shape
+(29-42, 30-48, 26-44), tied on 2.0.7's shape (41-41), and the arm that asked for particulars won it
+60-19 while losing the whole shape gain — the judge rewards the two traps named concretely, which is
+what the rule forbids. Where both passed the third-trap read, the reference was still "sharper" 14-6.
+A headline that is one state is more abstract than one that names both traps; the two reads trade, and
+the shape is the one the theory asks for. Thinking at `low` on this call (Sonnet 5.5: no latency, 4.7 s
+against 4.4 s a write) kept Ac- where the wording alone dented it and added nothing on S-; not wired,
+because on a forced-tool model it would also move the call to JSON mode. The next lever if Ac- under the
+constraint needs one. The docstring of the DTO (its measurement history, in the schema and in the
+prompt on both shapes) is not it (−4).
+

@@ -53,8 +53,30 @@ one-shot can replace it there is a separate, gated measurement
 (`one-shot-transformation.md`, "Open"). Texts only, nothing persisted, no
 scores — a number here would be an unchecked guess.
 
-Unthinking, like every concern: nothing measured thinking on this call, and
-the measured arm ran without it.
+Unthinking, like every concern. Measured once, on Sonnet 5.5 under the
+structured-output constraint (2026-10-09, `probe_structured_s_minus.py`, 100
+pairs): the same call thinking at `low` (`format_mode="json", thinking="low"`)
+kept Ac- (+4, within noise) where the in-turn wording alone cost it a little
+(−8 / −4 over two runs), at no latency on that model (4.7 s against 4.4 s a
+write); on S- it added nothing beyond the wording (+15 either way). Not wired:
+on a model that keeps forced tool use it would also move this call to JSON
+mode, where no figure for it was taken. The next lever, if Ac- under the
+constraint needs one.
+
+THE CONSTRAINT AND S- (2026-10-09)
+=================================
+On a model whose structured calls carry `output_config.format`
+(`format_compat.structured_output_format`; Sonnet 5.5 first), the reply comes
+back as one compact line with terser texts — no prose, no thinking, the same
+request otherwise (`probe_structured_wire.py`) — and S- came back as the two
+traps IN TURN: a distinct third failure in 42% of 100 (four runs: 42/44/41/42)
+against 57% for the same call without the constraint (+15, CI +2..+28), which
+is what the first app measured on its cards (63% → 41% / 33%). Ac-/Re- were
+not hurt; the constraint helps them (96-98% valid against 91-93%). The rule
+now names the in-turn forms (`SYNTHESIS_SHAPE`), which restores S- to the
+unconstrained level under the constraint and is neutral without it. The
+constraint stays: it ended the parse re-asks, and the loss was a shape the
+rule did not name.
 
 SELECTION: AVAILABLE, OFF BY DEFAULT
 ====================================
@@ -99,8 +121,19 @@ TRANSFORMATION_POSITIONS = """1. The action (Ac): the concrete move that carries
 
 #: What the developments produce together. The S- sentences are the measured
 #: fix (`one-shot-transformation.md`: third-trap 4/17 → 12/17 on graph-built
-#: wheels once the synthesis prompt carried them) and are kept word for word.
-SYNTHESIS_SHAPE = """S+ is what emerges only when Ac+ and Re+ run together — a gain in dimension, not a middle: not "both", not the two strengths listed side by side. S- is the ONE named state Ac- and Re- produce together: a single way of failing that is neither trap on its own and not a choice between them. "Either X or Y", "X versus Y" and "X while Y" with X and Y the two traps are the inputs listed, not the collapse named."""
+#: wheels once the synthesis prompt carried them) and are kept word for word,
+#: with the two IN-TURN forms added on 2026-10-09: a writer under a structured-
+#: output constraint (Sonnet 5.5, `format_compat.structured_output_format`)
+#: wrote S- as the two traps in sequence ("X, then Y", "X alternating with Y")
+#: in 13-14 of ~58 failures per 100 against 4 of 43 without the constraint,
+#: and the rule named only the side-by-side forms. With them named: S- as a
+#: distinct third failure 42% → 57% on 100 pairs, twice (+15 / +16, both clear
+#: of noise), back to the unconstrained writer's 57%; neutral on Sonnet 5
+#: (−1, 100 pairs). Price: a pairwise "which S- is more specific" judge
+#: prefers the trap-restating headline (30-48 against this wording; an arm
+#: that asked for particulars won that read 60-19 and lost the whole shape
+#: gain), so that read is not a shape read. `tests/e2e/probe_structured_s_minus.py`.
+SYNTHESIS_SHAPE = """S+ is what emerges only when Ac+ and Re+ run together — a gain in dimension, not a middle: not "both", not the two strengths listed side by side. S- is the ONE named state Ac- and Re- produce together: a single way of failing that is neither trap on its own and not a choice between them. "Either X or Y", "X versus Y", "X while Y", "X, then Y" and "X alternating with Y" with X and Y the two traps are the inputs listed, side by side or in turn, not the collapse named."""
 
 #: How a one-shot call builds it: the poles FIRST, because a degraded action
 #: needs an action to degrade (the measured order), then the developments,
@@ -236,7 +269,8 @@ class TransformationSketchDto(BaseModel):
     s_minus: str = Field(
         description=(
             "S- — what Ac- and Re- running together collapse into: ONE named way of "
-            "failing that is neither T- nor A- on its own. Never 'either X or Y'."
+            "failing that is neither T- nor A- on its own. Never 'either X or Y', "
+            "'X then Y' or 'X alternating with Y'."
         )
     )
 

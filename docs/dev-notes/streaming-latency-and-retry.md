@@ -228,6 +228,17 @@ constraint: 0 re-asks in 48 cards. Sonnet 5 / Opus 5 are untouched (forced tool 
 judged figure was taken); the probe says they take the constraint too, so widening it is one
 measurement away, on the CC and antithesis probes.
 
+**The constraint changed what `TransformationSketch` wrote, not only whether it parsed** (2026-10-09,
+the first app's handoff: S- as a distinct third failure 63% on 2.0.7 → 33-41% on 2.0.8 on Sonnet 5.5).
+Reproduced at 42% against 57% unconstrained on the gate's 25 tetrads (100 pairs, +15 clear of noise);
+the request differs in nothing but `output_config.format`, and the reply differs in register — one
+compact line, terser lines, S- as the two traps in turn. Repaired in the prompt, not the seam:
+`SYNTHESIS_SHAPE` names the in-turn forms and S- is back at 57% with the constraint on, Ac-/Re- better
+under it than without. Story and the nine arms: `docs/dev-notes/one-shot-transformation.md`; probe:
+`tests/e2e/probe_structured_s_minus.py`, with `probe_structured_wire.py` for the wire diff. Rule: a judged
+figure taken on forced tool use does not transfer to the constrained call by itself — the sketch and view
+DTOs have been re-read under it, every other concern has not.
+
 **3. Where an Opus 5.5 card's time goes.** The app measured 41.5 / 49.3 / 56.9 s (median /
 p90 / max) for a whole card against a 60 s line. The framework's share, replayed alone (24
 cards, thinking at the deployment default `medium` on the view turn, Opus 5.5 everywhere):

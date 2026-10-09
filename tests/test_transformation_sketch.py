@@ -67,6 +67,18 @@ class TestTheTheoryIsStatedOnce:
         assert "S- is the ONE named state" in ts.SYNTHESIS_SHAPE
         assert '"Either X or Y"' in ts.SYNTHESIS_SHAPE
 
+    def test_the_rule_names_the_in_turn_forms(self):
+        """Under a structured-output constraint (Sonnet 5.5) the writer put the
+        two traps in SEQUENCE and the rule named only the side-by-side forms:
+        S- as a distinct third failure 42% -> 57% on 100 pairs, twice, once
+        the in-turn forms were named (2026-10-09,
+        `tests/e2e/probe_structured_s_minus.py`). In the rule AND the field
+        description — a field description is an instruction too."""
+        assert '"X, then Y"' in ts.SYNTHESIS_SHAPE
+        assert '"X alternating with Y"' in ts.SYNTHESIS_SHAPE
+        desc = ts.TransformationSketchDto.model_fields["s_minus"].description
+        assert "'X then Y'" in desc and "'X alternating with Y'" in desc
+
     def test_the_procedure_puts_the_poles_first(self):
         """The measured order: a degraded action needs an action to degrade."""
         proc = ts.TRANSFORMATION_BUILD_PROCEDURE

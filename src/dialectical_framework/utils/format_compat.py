@@ -38,6 +38,17 @@ refuse forced tool use — the ones whose structured calls go in JSON mode in
 the first place, explicitly (`format_mode="json"`) or by substitution — and
 to no other: Sonnet 5 / Opus 5 took it too in the probe, but every judged
 figure there was taken without it, so widening it is a measurement.
+
+**The constraint changes what is written, not only how it parses.** Under it
+the reply is one compact line with terser texts (`tests/e2e/
+probe_structured_wire.py`), and `TransformationSketch`'s S- came back as the
+two traps in turn: a distinct third failure 42% against 57% unconstrained on
+Sonnet 5.5 (100 pairs, +15 clear of noise; the first app saw 63% → 33-41%),
+while Ac-/Re- validity rose. The repair was the prompt, not the constraint:
+`SYNTHESIS_SHAPE` names the in-turn forms since 2026-10-09 and S- is back at
+57% with the constraint on (`tests/e2e/probe_structured_s_minus.py`, the gate
+for this seam on the transformation layer). A judged figure taken on a
+forced-tool model does not transfer to the constrained call by itself.
 """
 
 from __future__ import annotations
