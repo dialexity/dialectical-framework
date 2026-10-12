@@ -391,6 +391,89 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         assert Consultant(app_preamble="x")._conversation._tools == []
 
 
+class TestAHostCanPinTheThesisVerbatim:
+    """`exploration_view(thesis=)` — the position kept word for word.
+
+    Asked for by the first app (2026-10-12): the card shows the person their
+    own typed sentence as their position, while T was a seven-word
+    recomposition of it. The pin is in CODE, not in compliance: the request
+    says so (`THESIS_IS_FIXED`, so the rest of the tetrad is built around the
+    position as given) and the given text is then written over whatever the
+    draw wrote. Distinct from `SketchTetrad(thesis=)`, which asks for the
+    position condensed to `component_length` because the graph stores a
+    headline.
+    """
+
+    _PINNED = (
+        "Im not inviting my sister to the wedding. after what she said about "
+        "Marco at christmas she doesnt get to be there. done."
+    )
+
+    def test_the_request_fixes_the_position_and_drops_the_stance_ask(self):
+        from dialectical_framework.concerns.view_sketch import (
+            THESIS_IS_A_STANCE, THESIS_IS_FIXED)
+
+        prompt = view_sketch_prompt("a perspective for this", 7, thesis=self._PINNED)
+        assert THESIS_IS_FIXED in prompt
+        assert f'The position: "{self._PINNED}"' in prompt
+        assert THESIS_IS_A_STANCE not in prompt, (
+            "there is no stance to find when the host has handed one over"
+        )
+        assert "ONE tension: the one the given position below stands in" in prompt
+        assert "The given position is the one exception" in prompt, (
+            "the length exception sits on the line that states the limit"
+        )
+        assert str(VIEW_SKETCH_MAX_PERSPECTIVES) not in prompt
+
+    def test_without_it_nothing_changes(self):
+        from dialectical_framework.concerns.view_sketch import (
+            THESIS_IS_A_STANCE, THESIS_IS_FIXED)
+
+        for pinned in (None, "", "   "):
+            prompt = view_sketch_prompt("a perspective for this", 7, thesis=pinned)
+            assert THESIS_IS_A_STANCE in prompt
+            assert THESIS_IS_FIXED not in prompt
+            assert str(VIEW_SKETCH_MAX_PERSPECTIVES) in prompt
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_drawn_thesis_is_overwritten_with_the_hosts_own_words(
+        self, monkeypatch
+    ):
+        _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
+        head = Consultant(app_preamble="You are a thinking partner.")
+
+        view = await head.exploration_view(
+            focus="a perspective for this", attempts=1, thesis=self._PINNED
+        )
+
+        assert view.perspectives[0].t.text == self._PINNED
+        # The rest of the tetrad is the draw's, untouched.
+        assert view.perspectives[0].a.text == "Consolidate everything in Zurich"
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_a_runner_up_carries_the_pin_too(self, monkeypatch):
+        """A host serving "another" from a runner-up must not get the drawn
+        wording back, so the pin is applied before selection — to every draw."""
+        drawn = [
+            ViewSketchDto(tensions=[_tension(thesis="Skip the wedding row")]),
+            ViewSketchDto(tensions=[_tension(thesis="Keep her off the list")]),
+        ]
+        calls = iter(drawn)
+
+        async def fake(self, response_model, user_content, max_tool_rounds=10):
+            return next(calls)
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake)
+        head = Consultant(app_preamble="You are a thinking partner.")
+
+        view = await head.exploration_view(attempts=2, thesis=self._PINNED)
+
+        assert view.perspectives[0].t.text == self._PINNED
+        assert [r.t.text for r in view.runners_up] == [self._PINNED]
+
+
 class TestAFailedDrawIsOnRecord:
     """Best-of-N: a draw that raises used to vanish — dropped by the gather,
     unlogged, uncounted (8 of 240 draws on Opus 5.5, no cause on record). Now

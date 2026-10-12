@@ -289,9 +289,25 @@ anchors.
       offers. `probe_option_pair_tetrads.py` audited 128 plus slots on the weak tier and found **17 (13.3%)
       restating their parent**, against 3.1% minus-misparentage — i.e. the defect the probe lane chased across
       three runs is **four times rarer** than the one sitting beside it in the same audit output. When editing
-      `aspect_generation.py`, the load-bearing clause is the "takes up what the opposition offers" half, NOT the
-      parentage half; check it is a positive specification with an example, since "develops T" alone is
-      satisfied by a restatement. **The fix shipped as a CHECK, not a fifth restatement, and that choice is the
+      `aspect_generation.py`, the load-bearing clause is the one about the plus's relation to the OTHER pole,
+      NOT the parentage half; check it is a positive specification, since "develops T" alone is
+      satisfied by a restatement. **But that clause's DIRECTION was reversed by measurement on 2026-10-12, so
+      do not re-derive it from the paragraph above: a plus LEAVES what the other pole is for possible, it does
+      not SUPPLY it.** "Takes up what the opposition offers" is the wording that produced the compromise plus —
+      with a DECIDED thesis ("I'm not inviting my sister — done") it asks for the middle path in so many words,
+      A+ came back as "Leave a path back that she must earn", and `TRANSFORMATION_POSITIONS`' Ac+ (T− → A+) then
+      handed the person back what they had refused, which is how the first app's cards undid decisions.
+      Reversing it, plus one sentence that an aspect is a POSITION held and never a move (the theory's own
+      layering: positions in the tetrad, moves in the Transformation), took A+-is-A's-own-good from 39% to 94%
+      and **coherence from 59% to 91%** on 16 decided stances × 2 reps on Sonnet 5.5
+      (`tests/e2e/probe_decided_stance.py`, the gate for any further edit to this rule;
+      `docs/dev-notes/antithesis-selection.md`). The CC gain is the mechanism, not a bonus: a plus that carries
+      the other pole cannot satisfy "T+ without A+ yields T−", so the control statement has nothing to test —
+      which is also why the 2026-10-02 take-up FIELDS cost 10 points of coherence. Two live caveats:
+      `ASPECT_DEFINITIONS` still states the old relation and was in both arms, so it is unchanged on purpose and
+      editing it is a new measurement; and the check is single-sourced into three paths, so the STAGED writer
+      carries the new wording unread. What the fix did NOT do is stop the decision being undone — the action
+      corners still attach a condition in 38% of draws, which is a second, open site in the transformation text. **The fix shipped as a CHECK, not a fifth restatement, and that choice is the
       transferable part:** the take-up clause was already asserted four times (`ASPECT_DEFINITIONS`, the
       `TetradDto` plus fields, `_tetrad_prompt` step 1, both sibling prompts) and ran at 13.3%, while
       minus-parentage — the one rule with a re-read step in the numbered procedure — ran at 3.1%. Forcefulness of

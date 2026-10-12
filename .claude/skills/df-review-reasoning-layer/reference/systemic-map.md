@@ -1588,11 +1588,51 @@ Ranked by blast radius. Each is a place where an edit to one copy silently diver
    on: **the plus-restatement defect is ~4× more common than the one being chased.** (Both of those
    rates are single-run numbers and the minus one did not reproduce — see the base-rate warning below;
    the *ordering* holds within every run measured, the 4× multiple does not.) So when editing
-   `aspect_generation.py`, treat the "takes up what the opposition offers" half as the load-bearing
-   clause and check it carries a positive specification plus an example — a bare "develops T" is
+   `aspect_generation.py`, treat the clause about the plus's relation to the OTHER pole as the
+   load-bearing one and check it carries a positive specification — a bare "develops T" is
    satisfied by a restatement. A second, rarer shape appears when the two poles are not one axis:
    the plus becomes a **hybrid of both poles** ("Intentional hub-and-spoke model", "Developing
-   internal talent while filling urgent gaps"), scored `neither`. **The restatement shape is now a probe
+   internal talent while filling urgent gaps"), scored `neither`.
+
+   **DIRECTION REVERSED 2026-10-12 — read this before quoting the clause above.** "Takes up what the
+   opposition offers" / "its result also supplies what the other pole is for" is itself the hybrid's
+   cause, and on a DECIDED thesis it is the whole defect: asked to supply what T is for, A+ comes back
+   as the middle path ("Leave a path back that she must earn" for "my sister isn't invited — done";
+   "I help on the farm by agreement" for "I'm not working on the farm this summer"), and since
+   `TRANSFORMATION_POSITIONS` has Ac+ turn T− into A+, the move handed the person back exactly what
+   they had refused — the first app's standing failure, 3 of 7 decided cases in every rep. The rule now
+   says a plus LEAVES the other pole's good possible, and that an aspect is a POSITION held rather than
+   a move (positions in the tetrad, moves in the Transformation). Measured on 16 decided stances × 2
+   reps × 3 arms, Sonnet 5.5 writing, fable-5 judging (`tests/e2e/probe_decided_stance.py`,
+   `decided_stance-20261012-090438.json`; the gate for this rule from now on): A+ a good A itself is
+   for **39% → 94%** (paired +55, 95% CI +33..+77), A+ a blend 61% → 3%, `plus_relation` `distinct`
+   69% → 100%, antithesis-a-position flat at 100%, and **CC pass 59% → 91%** (+31, +9..+54). The
+   relation reversed ALONE reached 75% and an unresolved +12 CC; the position sentence is the other
+   half, and the two ship together. The CC rise is the mechanism and it closes the loop on the
+   2026-10-02 over-correction: a plus that CARRIES the other pole cannot satisfy "T+ without A+ yields
+   T−", so pushing take-up had to cost coherence (25/40 → 15/40) and reversing it had to buy some.
+   Three things this does not settle. `ASPECT_DEFINITIONS` still states the old relation, was in both
+   arms' context, and is deliberately unchanged — editing it is a new measurement, not a sync.
+   `PLUS_RESTATEMENT_CHECK` is single-sourced into three generation paths, so the STAGED writer carries
+   the new wording UNREAD (`probe_aspect_variants.py` is the instrument; read coherence, not only the
+   defect). And repairing A+ did not reach the MOVE: `decision_stands` 62% → 62%, the action corners
+   attaching a condition in 38% of draws either way. That second site was measured the same day and
+   closed — and it was not line 1. Rewording "carries T toward A" moved nothing (−3); naming the
+   DECIDED state in point 2 moved it (53% → 88%, +34, +18..+51, `probe_decided_move.py`). **The
+   transferable part is the scope clause.** Whichever minus the rule is allowed to reach is the one
+   that breaks: unscoped it kept 32/32 decisions and broke Ac- (−25, resolved — told the action must
+   not dilute toward A, the writer wrote Ac- as the decision carried out COLDLY, which lands in T-,
+   the auditor saying so on 10 of 11 failures); moved onto the `action`/`ac_plus` field descriptions
+   it scored the best endpoint (+47) and broke Re- instead (−32, resolved). Only the version naming
+   what it does NOT govern left both landings alone — **a cross-reference, which this file rates
+   BELOW putting a rule on the line that reads it, and which here was the only placement that
+   worked.** Its gate price: `ac_own` 100% → 90% (−10, resolved), the second accepted trade on that
+   read after the scaffold fields' 100% → 93%, named so a third needs an argument. Two instrument
+   lessons: the probe's CONTROL arm swung 19 points between two runs on byte-identical frozen
+   corners (only within-run deltas are quotable), and its registered guard bound (paired CI lower >
+   −0.15) was unmeetable at n=32 where these reads carry ±20 — the mis-sized threshold in its less
+   obvious direction, repaired by taking the question to the text's own 50-row gate rather than by
+   relaxing the bound after the fact. **The restatement shape is now a probe
    PRIMARY** — `tests/e2e/probe_plus_takeup.py`, an A/B of `PLUS_RESTATEMENT_CHECK` against the
    subtracted-fix baseline, sized on the measured 13.3% (0.85 for a two-thirds cut, 0.52 for a halving).
    The hybrid/`neither` shape still has none, and the over-correction it represents is the registered

@@ -114,7 +114,11 @@ class TestThePrompt:
         measured one, so the constant must land in it unchanged."""
         assert TETRAD_BUILD_PROCEDURE in view_sketch_prompt(None, 7)
         assert TETRAD_BUILD_PROCEDURE.startswith("Building a tetrad, when you build one")
-        assert "(b) Restated parent:" in TETRAD_BUILD_PROCEDURE
+        assert "(b) Blended parent:" in TETRAD_BUILD_PROCEDURE, (
+            "the step-3 check is `aspect_generation.PLUS_RESTATEMENT_CHECK`, "
+            "re-aimed from take-up to leaving-possible on 2026-10-12 "
+            "(`tests/e2e/probe_decided_stance.py`)"
+        )
 
     def test_the_thesis_is_asked_for_as_a_stance_in_both_free_writers(self):
         """Measured 2026-10-04 (`probe_question_entry.py`): without it the view

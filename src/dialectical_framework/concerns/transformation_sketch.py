@@ -116,9 +116,40 @@ from dialectical_framework.protocols.has_config import SettingsAware
 #: that writes the way through a tension in its own voice (the first app's
 #: card) — so none of them can restate the theory differently.
 TRANSFORMATION_POSITIONS = """1. The action (Ac): the concrete move that carries T toward A. The reflection (Re): the re-reading that carries A back toward T. These are the two poles of the transformation.
-2. Each developed well — Ac+ turns T's trap (T-) into A's strength (A+); Re+ turns A's trap (A-) into T's strength (T+).
+2. Each developed well — Ac+ turns T's trap (T-) into A's strength (A+); Re+ turns A's trap (A-) into T's strength (T+). Where T is something the person has DECIDED or refused, Ac and Ac+ are that decision carried out: what A is for shapes HOW they carry it out, never whether or how much. This governs the action and the action developed well only — Ac- still ends in A's trap, as point 3 says.
 3. Each overdeveloped one-sidedly — Ac- is the good action without the good reflection (Ac+ without Re+), which carries T's strength (T+) into A's trap (A-); Re- is the good reflection without the good action (Re+ without Ac+), which carries A's strength (A+) into T's trap (T-). They are the ACTION and the REFLECTION gone wrong: they END in the traps but are not the traps restated — a path is not its destination. Ac+ contradicts Re-, and Re+ contradicts Ac-."""
 
+#: THE DECIDED POSITION (2026-10-12). Point 2's second sentence, and the only
+#: part of this text that knows anything about the person's state. The first app
+#: reported the framework handing people back exactly what they had refused:
+#: given "Im not inviting my sister to the wedding … done.", Ac+ came back as
+#: "Give her a clear route back: apologise to Marco and she's welcome." Repairing
+#: A+ upstream (the compromise plus, `antithesis-selection.md`, same day) fixed
+#: the CORNER and not the move — `decision_stands` 62% before and after — so this
+#: layer has its own site, and it is not point 1's "carries T toward A":
+#: rewording that moved nothing (-3 paired, `tests/e2e/probe_decided_move.py`).
+#: What moved it is naming the state: 53% -> 88% of actions keeping the decision
+#: (+34, +18..+51, 32 frozen decided tetrads).
+#:
+#: **The scope clause is load-bearing, measured twice.** Whichever minus the rule
+#: is allowed to reach is the one that breaks. Stated unscoped here it kept 32 of
+#: 32 decisions and broke Ac- (-25, resolved): told the action must not dilute
+#: toward A, the writer wrote Ac- as the decision carried out COLDLY, which lands
+#: in T-, not A-. Moved onto the `action` / `ac_plus` field descriptions it scored
+#: the best endpoint of the three (+47) and broke Re- instead (-32, resolved).
+#: Naming what it does not govern is what left both landings alone.
+#:
+#: Price, on this text's own gate (`probe_transformation_sketch.py`, 25 tetrads
+#: x 2 reps, arm `no_decided_rule`): landings intact (Ac- +2, Re- -4, noise),
+#: validity composites within noise (-8, -10), S- third failure +8, and
+#: **`ac_own` 100% -> 90% (-10, -18..-2, resolved)** — the second accepted trade
+#: on that read, after the scaffold fields' 100% -> 93%. Named rather than
+#: swallowed: a third one needs an argument.
+#:
+#: What the sentence deliberately does NOT say is that a diluted action IS Ac-.
+#: That is a theory claim nothing here has checked, and the archive's record is
+#: that a gloss hardened into a rule gets argued with rather than obeyed.
+#:
 #: What the developments produce together. The S- sentences are the measured
 #: fix (`one-shot-transformation.md`: third-trap 4/17 → 12/17 on graph-built
 #: wheels once the synthesis prompt carried them) and are kept word for word,

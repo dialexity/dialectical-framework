@@ -1269,3 +1269,105 @@ live in the probe, not in `src/`. A third of a card's cost stays where it is unt
 cheaper judge clears this probe against the per-statement one; the obvious next
 candidate is the per-statement PROMPT with a shorter reasoning field, which keeps the
 question and cuts output, measured the same way.
+
+## The plus asked to CONTAIN the other side, and on a decided thesis that is the middle path (2026-10-12)
+
+Reported from the first app (promise eval v12, framework 2.0.11, Sonnet 5.5, two
+reps): where the person has DECIDED — "Im not inviting my sister to the wedding …
+done." — the card's move came back as a compromise that undid the decision ("name
+the repair that would earn her seat", "offer specific days when I'll help"), and
+3 of 7 decided cases failed in EVERY rep after the app had pushed its own text as
+far as it goes ("a decision starts as carried out: never a condition, a trial, an
+option, a smaller amount or a part of what they refused" fixed the other four).
+
+**The derivation was faithful; its input was already the compromise.** In both
+standing failures A+ was itself the middle path, and the owner's own read added a
+third, cleaner case the same day:
+
+| case | T | A+ as drawn | what A's own good would be |
+|---|---|---|---|
+| sister | "My sister isn't invited; she forfeited her place." | "Leave a path back that she must earn." | family ties outlast one bad night |
+| lithuanian | "Šią vasarą neisiu dirbti į tėvų ūkį." | "Padedu ūkyje pagal susitarimą, su aiškiomis poilsio dienomis." | being someone the family can count on |
+| cottage | "I should buy the cottage." | "Invest savings so they fund cottage life." | money left invested keeps growing and keeps options open |
+
+`TRANSFORMATION_POSITIONS` has Ac+ turn T- into A+, so given that A+, "offer a few
+weeks of work" is the correct Ac+ — and the headline, the move and the counsel then
+all repeat one move while the other side's strength never appears. The site is the
+plus, not the transformation.
+
+**Every statement of the plus rule asked it to CONTAIN what the other pole offers**
+— `TETRAD_BUILD_PROCEDURE` step 1 ("so it also takes up what the other pole
+offers"), the two plus fields of `ViewSketchPerspectiveDto` ("so that it also
+strengthens what T offers"), `PLUS_RESTATEMENT_CHECK` ("its result also supplies
+what the other pole is for") and `ASPECT_DEFINITIONS`. With a decided T, "A
+developed so that it supplies what T is for" IS "help on the farm with clear rest
+days". The instruction was being followed.
+
+The archive had the defect and had spent the two obvious levers: `same_compromise`
+11/40 on this surface and 19/40 on the build (2026-10-04, above); the `*_takes_up`
+fields PUSHED take-up and cost coherence 25/40 → 15/40 with compromise pluses
+18 → 23/40 (2026-10-02); a hedged-parent CHECK moved nothing, 40% → 36%
+(2026-09-30). So the direction never tried was the opposite one — and the one the
+theory states, since the truth criterion is that T FOSTERS A+, not that A+ delivers
+T's good.
+
+**Measured, pre-registered, on a population the old fixtures did not contain:**
+`tests/e2e/probe_decided_stance.py` + `fixtures/decided_stances.jsonl` — 16 decided
+stances (the app's 10 decided cases including its three standing failures, the
+cottage case, five framework utterances put in the decided register; Lithuanian and
+German among them, because the defect was reported in both), 2 reps × 3 arms = 96
+draws through the view turn at `attempts=1` on Sonnet 5.5, judged by fable-5.
+Arms differ in ONE rule stated at every site it is stated — step 1, the step-3
+check, the two plus field descriptions — because a site left on the old phrasing
+would contradict the arm.
+
+| read | takes_up (the pre-fix state) | fosters | fosters + position |
+|---|---|---|---|
+| A+ is a good A ITSELF is for | 39% | 75% (**+35**, +14..+57) | 94% (**+55**, +33..+77) |
+| A+ is a blend | 61% | 25% | 3% (−58, −78..−38) |
+| A+ reads as a move | 39% | 28% (noise) | 6% (−32, −49..−16) |
+| CC pass | 59% | 72% (+12, noise) | 91% (**+31**, +9..+54) |
+| `plus_relation` distinct | 69% | 97% | 100% (+31, +15..+48) |
+| antithesis a `position` | 100% | 100% | 100% (+0) |
+| decision stands (action corners) | 62% | 50% (noise) | **62% (+0, −15..+15)** |
+| decision stands (reflection) | 84% | 78% | 69% (−16, −33..+2) |
+
+(`decided_stance-20261012-090438.json`, 96/96 drawn, 0 errors. Paired per (case,
+rep) against the arm that shipped.)
+
+**Shipped: both sentences, together.** Reversing the relation alone reached 75% and
+a CC that did not resolve; what took it to 94% and +31 CC was adding that an aspect
+is a POSITION held, never a move — and that half is the theory's own layering said
+to the writer (positions in the tetrad, moves in the Transformation). The failures
+it removes are imperatives, and a move that answers both sides at once is a
+compromise by construction. **CC did not merely hold, it rose** — the prediction the
+2026-10-02 over-correction already implied: a plus that carries the other pole
+cannot satisfy "T+ without A+ yields T-", so the control statement had nothing to
+test. That is the second time this clause has been measured in a direction, and the
+two agree.
+
+Two things the run does NOT license. The check is single-sourced into three
+generation paths, so **the staged writer got the same edit unread** — a named gap,
+not an oversight; forking the constant would reset the drift clock it exists to
+stop, and leaving two sites of one procedure disagreeing is the competing-signal
+shape. And `ASPECT_DEFINITIONS` still states the relation the old way: it was in
+BOTH arms' context, the win was taken with it present, and editing it is a new
+measurement rather than a tidy-up.
+
+**What did not move is the app's actual symptom.** A+ is repaired and the decision
+is undone at exactly the same rate — the action corners attach a condition in 38%
+of draws either way, and in the sister case all three arms wrote an Ac+ offering her
+a route back even where A+ had become "The sibling bond outlasts this one rupture".
+So the undoing has a SECOND, independent site: `TRANSFORMATION_POSITIONS` line 1
+calls Ac "the concrete move that carries T toward A" — which, with a decided T,
+reads as the concession — and line 2 has Ac+ turn T- into A+. Repairing the corner
+it reads does not reach it. That is an arm on that text's own gate
+(`probe_transformation_sketch.py`), measured on `decision_stands` over this fixture
+with the corners held at what ships, and it is OPEN.
+
+One instrument note worth keeping. The decision judge's DTO **docstring** reached
+the provider as the schema description, and a docstring that described an earlier
+refusal — quoting "reasoning_extraction" and "model outputs" — made the judge refuse
+the call 6 times out of 6, answering 6 of 6 once removed. Prose for a judge DTO goes
+in a comment. Bisected from the opposite (and wrong) first conclusion that long
+field descriptions were the trigger; the field-side bisection was a single sample.

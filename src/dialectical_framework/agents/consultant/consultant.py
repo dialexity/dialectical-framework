@@ -381,7 +381,10 @@ class Consultant:
         return self._conversation._messages
 
     async def exploration_view(
-        self, focus: Optional[str] = None, attempts: Optional[int] = None
+        self,
+        focus: Optional[str] = None,
+        attempts: Optional[int] = None,
+        thesis: Optional[str] = None,
     ) -> ExplorationView:
         """The structure of this conversation as a view — drawn by this head.
 
@@ -401,6 +404,17 @@ class Consultant:
         over the SAME history, because forced-tool structured calls cannot
         think and building a tetrad in one shot is the heaviest reasoning a
         structured call is asked to do here.
+
+        `thesis` pins T to the host's own text, VERBATIM: the request says so
+        (`view_sketch.THESIS_IS_FIXED`) and the given words are then written
+        back over whatever each draw wrote, so the guarantee is code and not
+        compliance. For a host that shows the person their own sentence as
+        their position, a seven-word recomposition of it is a different
+        sentence. The rest of the tetrad is still built — and still built
+        around the pinned position, which is why the request carries the text
+        too rather than relying on the overwrite alone. Not the same contract
+        as `SketchTetrad(thesis=)`, which asks for the position condensed to
+        `component_length` because the graph stores a headline.
 
         Terminology-free by construction (no hash, alias or score exists),
         unchecked by construction (no HS gate, no validation, nothing
@@ -433,7 +447,9 @@ class Consultant:
         # utterances; the first app had measured the same 4.6 calls and +17 s).
         # The request->prose pair `history_ask` keeps OUT of the history is the
         # same trap; the long request as the last turn is what holds the format.
-        request = view_sketch_prompt(focus, self._conversation.settings.component_length)
+        request = view_sketch_prompt(
+            focus, self._conversation.settings.component_length, thesis=thesis
+        )
 
         async def draw() -> ViewSketchDto:
             # Each draw works on a COPY of the history: the turns run in
@@ -472,6 +488,15 @@ class Consultant:
             )
         if not sketches:
             raise failures[0]
+        # The pin, enforced: every draw's first tension carries the host's own
+        # words as T, so the winner and any runner-up a host serves later all
+        # show the sentence the person typed. Done before selection, so the
+        # coherence check judges the tetrad the host will actually get.
+        pinned = (thesis or "").strip()
+        if pinned:
+            for drawn_sketch in sketches:
+                if drawn_sketch.tensions:
+                    drawn_sketch.tensions[0].thesis = pinned
         # With several draws the framework's own coherence check picks the one
         # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
         # draw with no complete first tension sorts last. The card a blindspot

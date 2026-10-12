@@ -546,3 +546,76 @@ because on a forced-tool model it would also move the call to JSON mode. The nex
 constraint needs one. The docstring of the DTO (its measurement history, in the schema and in the
 prompt on both shapes) is not it (−4).
 
+
+## The move on a DECIDED position: three placements, one sentence shipped (2026-10-12)
+
+The first app's standing failure, and the half that `antithesis-selection.md`'s
+compromise-plus fix did not reach. Where the person has decided — "Im not
+inviting my sister to the wedding. after what she said about Marco at christmas
+she doesnt get to be there. done." — the action corners came back as a
+compromise: "Give her a clear route back: apologise to Marco and she's welcome."
+Repairing A+ upstream (39% → 94% own-strength, same day) left `decision_stands`
+at 62% before and after. So the undoing has a second site, in this layer.
+
+**It is not point 1.** "The action (Ac): the concrete move that carries T toward
+A" was the obvious suspect — with a decided T it reads as *concede part of it* —
+and rewording it to "the concrete move, made from T, that reaches what A is for"
+(both theory directions kept) moved nothing: −3 paired, n=32
+(`probe_decided_move.py`, `decided_move-20261012-101408.json`). A plausible
+reading of a sentence is not evidence that the sentence is doing the damage.
+
+**What moved it is naming the state**, which is the distinction the app had put
+in its own card text where it fixed 4 of 7 cases: a decided position is already
+carried out; what the other side gets right shapes HOW, never whether or how
+much. Three placements, 32 frozen decided tetrads each (the corners the newly
+shipped layer-1 text drew, held byte-identical across arms), `decision_stands`
+judged by the same prompt that read the 62%:
+
+| placement | decision stands | the guard it broke |
+|---|---|---|
+| unscoped, in point 2 | 72% → **100%** (+28, +12..+44) | `ac_valid` −25 (−45..−5), resolved |
+| on the `action` / `ac_plus` field descriptions | 53% → **100%** (+47, +29..+64) | `re_valid` −32 (−55..−9), resolved |
+| point 2, positively stated, naming what it does NOT govern | 53% → **88%** (+34, +18..+51) | none resolved |
+
+**Whichever minus the rule is allowed to reach is the one that breaks**, and the
+mechanism is the same both times. Told the action must not dilute toward A, the
+writer wrote Ac- as the decision carried out COLDLY — "Announce it, book the
+move, and fly home before she has absorbed it" — which lands in T-, the person's
+own trap, where the theory requires A-. The auditor said exactly that on 10 of
+the 11 failures (`ac_minus_is_degenerated_action` true, `ends_in_a_minus` false).
+That is the failure shape `transformation_sketch`'s own docstring records for the
+makeup half of the minus definition, re-created by a rule pushing the action away
+from A. The field-scoped version moved the damage to the other minus rather than
+removing it. Only the version that names what it does not govern left both
+landings alone — a cross-reference, which this archive's own doctrine rates
+BELOW putting a rule on the line that reads it, and which here was the only one
+that worked. Worth remembering before applying that doctrine as a law.
+
+**Two instrument failures in this run, both worth carrying.** The probe's control
+arm read `decision_stands` 72% in one round and 53% in the next, on byte-identical
+frozen corners and byte-identical text — a 19-point swing, which is the archive's
+"two runs of one instrument are not two measurements of one rate" showing up on a
+paired design. Only within-run deltas from this probe are quotable. And the
+guard bound registered for it (paired CI lower > −0.15) was **unmeetable at
+n=32**, where these binary reads carry ±20: by that bound no arm could pass even
+with nothing wrong, which is the mis-sized-threshold trap in its less obvious
+direction. The bound was NOT relaxed after the fact; the Ac-/Re-/S- question went
+to the text's registered gate instead, which is where it belonged — 50 paired
+rows, established baselines, the transition auditor three blind panels agree with.
+
+**Gate (`transformation_sketch-20261012-102932.json`, 25 tetrads × 2 reps, arm
+`no_decided_rule`):** landings intact (Ac- lands +2, Re- lands −4, both noise),
+validity composites within noise (−8, −10), S- third failure +8 with the crossed
+pairwise 21–15 and 11 order-bound (unresolved) — and **`ac_own` 100% → 90%
+(−10, −18..−2, resolved)**: Ac- reads a little less often as the operation
+degenerated. Shipped at that price, with the price named — that read has now been
+paid down twice, after the `*_from`/`*_into` scaffold fields' 100% → 93% in
+2026-10-07, so a third trade on it needs an argument rather than another "within
+the registered endpoints". What bought it: the defect is the framework handing a
+person back the thing they refused, the loss sits on the half of Ac- the theory
+does not use to DEFINE it (the landing is the definition, and it held), and Ac-
+reaches a person only through the "what goes wrong" line, never as counsel.
+
+The sentence stops short of saying a diluted action IS Ac-. That would be a
+theory claim nothing here has checked, and the archive's record is that a gloss
+hardened into a rule gets argued with rather than obeyed.

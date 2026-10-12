@@ -290,6 +290,19 @@ class TestPlusTakeUpIsChecked:
     `PLUS_RESTATEMENT_CHECK` and interpolated into every generation path — a
     fifth restatement of the rule would have been the thing already measured to
     not work.
+
+    **The RULE the check states was re-aimed on 2026-10-12, and the class name
+    is now half right.** The take-up direction ("its result also supplies what
+    the other pole is for") is what produced the compromise plus: with a decided
+    thesis it asks for the middle path in so many words, and the first app's
+    cards handed people back the thing they had refused. The check now says a
+    plus is its own parent developed and LEAVES the other pole's good possible —
+    "Blended parent:" — keeping the restatement test as its second sentence.
+    Measured on 16 decided stances x 2 reps (`tests/e2e/probe_decided_stance.py`,
+    Sonnet 5.5): A+ a good A itself is for 39% -> 94%, compromise pluses gone,
+    and coherence 59% -> 91%. So restatement is still checked (this class's
+    subject) and the blend is checked beside it; what must NOT come back is the
+    take-up phrasing, which is why that is its own assertion below.
     """
 
     def test_the_check_is_stated_once_and_interpolated_not_re_typed(self):
@@ -297,7 +310,10 @@ class TestPlusTakeUpIsChecked:
         assertions of this rule drifted apart in the first place."""
         from dialectical_framework.concerns import aspect_generation
 
-        assert "Restated parent:" in aspect_generation.PLUS_RESTATEMENT_CHECK
+        assert "Blended parent:" in aspect_generation.PLUS_RESTATEMENT_CHECK
+        assert "only names what its own parent already delivers" in (
+            aspect_generation.PLUS_RESTATEMENT_CHECK
+        ), "the restatement test is the check's second sentence, still there"
 
         for method in (
             aspect_generation.AspectGeneration._tetrad_prompt,
@@ -312,7 +328,46 @@ class TestPlusTakeUpIsChecked:
 
         # the constant's own wording must exist in exactly one place
         module_src = inspect.getsource(aspect_generation)
-        assert module_src.count("if a plus only names what its own parent") == 1
+        assert module_src.count("a plus only names what its own parent") == 1
+
+    def test_the_check_does_not_ask_the_plus_to_supply_the_other_pole(self):
+        """The reverted direction, pinned so it cannot drift back.
+
+        "so that its result also supplies what the other pole is for" is the
+        wording that produced the compromise plus on a decided thesis (A+ "I
+        help on the farm by agreement" for "I'm not working on the farm this
+        summer"). A plus that CARRIES the other pole also cannot satisfy "T+
+        without A+ yields T-", which is why reversing it RAISED coherence
+        (`probe_decided_stance.py`, 2026-10-12). `ASPECT_DEFINITIONS` still
+        states the old relation and is deliberately untouched — it was in both
+        arms' context — so this assertion is about the CHECK and step 1 only.
+        """
+        from dialectical_framework.concerns import aspect_generation, view_sketch
+
+        for text in (
+            aspect_generation.PLUS_RESTATEMENT_CHECK,
+            view_sketch.TETRAD_BUILD_PROCEDURE,
+        ):
+            assert "also supplies what the other pole is for" not in text
+            assert "also takes up what the other pole offers" not in text
+
+    def test_the_one_shot_procedure_says_an_aspect_is_a_position(self):
+        """Half the measured gain, and the half the theory already implies:
+        positions live in the tetrad, moves in the Transformation. Without this
+        sentence the same reversed relation reached 75% own-strength A+ and
+        +12 CC; with it, 94% and +31 (`probe_decided_stance.py`). The failures
+        it removes are imperatives — "Leave a path back that she must earn" —
+        and a move that answers both sides at once is a compromise by
+        construction."""
+        from dialectical_framework.concerns.view_sketch import (
+            TETRAD_BUILD_PROCEDURE, ViewSketchPerspectiveDto)
+
+        assert "never a move to make" in TETRAD_BUILD_PROCEDURE
+        for name in ("t_plus", "a_plus"):
+            assert "A position held, not a move to make." in (
+                ViewSketchPerspectiveDto.model_fields[name].description or ""
+            ), f"{name}'s field description carried it in the measured arm"
+
 
     def test_tetrad_prompt_re_read_step_covers_both_failures_distinctly(self):
         """Step 3 used to be parentage-only. Both defects are re-read failures of

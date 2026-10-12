@@ -165,10 +165,35 @@ Generate aspect statements that fit the semantic structure."""
 # — small, and not re-measured at the archive's sample size. Do not re-add a
 # worked plus example without measuring BOTH coherence and restatement
 # (`tests/e2e/probe_aspect_variants.py`).
+#
+# Re-aimed on 2026-10-12, by measurement, from "supplies what the other pole is
+# for" to "leaves it possible". The old wording was the take-up half stated a
+# third time, and with a DECIDED thesis ("I'm not inviting my sister — done")
+# "A developed so that it supplies what T is for" IS the middle path: A+ came
+# back as the compromise ("Leave a path back that she must earn"), and the
+# transformation's Ac+, which turns T- into A+, then faithfully handed the
+# person back the thing they had refused (reported by the first app, promise
+# eval v12, 3 of 7 decided cases failing in every rep). On 16 decided stances
+# x 2 reps x 3 arms, Sonnet 5.5 (`tests/e2e/probe_decided_stance.py`,
+# `decided_stance-20261012-090438.json`): A+ a good A ITSELF is for, 39% ->
+# 94% (paired +55, 95% CI +33..+77), compromise pluses gone (plus_relation
+# `distinct` 69% -> 100%), and coherence ROSE, 59% -> 91% (+31, +9..+54) —
+# which is the theory's own reading, since a plus that carries the other pole
+# cannot satisfy "T+ without A+ yields T-". The arm that only reversed the
+# relation reached 75% / +12 CC; what took it to 94% was adding "a position,
+# not a move" (`view_sketch.TETRAD_BUILD_PROCEDURE` step 1), so the two
+# sentences ship together. Not the same lever as the two spent ones: pushing
+# take-up HARDER (the `*_takes_up` fields, 2026-10-02) cost coherence 25/40 ->
+# 15/40, and a hedged-parent CHECK (2026-09-30) moved nothing.
+# `ASPECT_DEFINITIONS` still states the relation the old way and was in both
+# arms' context — unchanged on purpose; editing it is a new measurement.
 PLUS_RESTATEMENT_CHECK = (
-    "Restated parent: if a plus only names what its own parent already "
-    "delivers, rewrite it so the parent stays the generative act while its "
-    "result also supplies what the other pole is for."
+    "Blended parent: a plus is its own parent developed, never the two sides "
+    "combined into one arrangement — not the parent made conditional on the "
+    "other pole, not a partial, scheduled or trial version of it, not the "
+    "middle between them. If a plus only names what its own parent already "
+    "delivers, rewrite it so the parent stays the generative act and what the "
+    "other pole is for is left possible by it."
 )
 
 def is_axis_name(axis: Optional[str]) -> bool:

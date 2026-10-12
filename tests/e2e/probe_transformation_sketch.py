@@ -104,6 +104,49 @@ _ENDS_FIRST_LINE_3 = (
     "Ac+ contradicts Re-, and Re+ contradicts Ac-."
 )
 
+#: The DECIDED-STANCE sentence, SHIPPED 2026-10-12 into point 2 — so the arm that
+#: reproduces its measurement is now its ABSENCE (`no_decided_rule`), and
+#: `current` carries it. Re-anchored the day it shipped, like every other arm
+#: here: an arm built by replacement on a string that has since moved is a stale
+#: arm, and the assertions below are what make that loud.
+#:
+#: Why it is in the prompt: on 32 frozen DECIDED tetrads
+#: (`probe_decided_move.py`, two rounds) this sentence took "the action keeps the
+#: decision" from 53% to 88% (+34, +18..+51) where rewording point 1's "carries
+#: T toward A" moved nothing (-3). Its own gate run here, 25 tetrads x 2 reps,
+#: 50 paired rows (`transformation_sketch-20261012-102932.json`): the LANDINGS
+#: hold (Ac- lands +2, Re- lands -4, both noise), the two validity composites sit
+#: within noise (-8, -10), S- third failure +8 with the crossed pairwise 21-15
+#: and 11 order-bound (unresolved) — and `ac_own` falls 100% -> 90% (-10,
+#: -18..-2, RESOLVED). That read has now been paid down twice: the `*_from` /
+#: `*_into` scaffold fields cost it 100% -> 93% in 2026-10-07. Accepted at a
+#: product defect of the first order (the framework handing a person back the
+#: thing they refused), with the budget named: a third trade on `ac_own` needs
+#: an argument, not another "within the registered endpoints".
+#:
+#: Two placements were measured and REJECTED first, and they say the same thing
+#: twice: whichever minus the rule is allowed to reach is the one that breaks.
+#: Unscoped in point 2 — 32/32 decisions kept (+28 on a 72% baseline) and Ac-
+#: broken (-25, resolved): told the action must not dilute toward A, the writer
+#: made Ac- the decision carried out COLDLY ("Announce it, book the move, and fly
+#: home before she has absorbed it"), which lands in T-, not A- (the auditor on
+#: 10 of 11 failures). Moved onto the `action` / `ac_plus` field descriptions —
+#: the strongest endpoint of all three (+47, 32/32) and Re- broken instead (-32,
+#: resolved). The sentence that ships names what it does NOT govern, which is the
+#: only one of the three that left both landings alone.
+_DECIDED_SCOPED = (
+    " Where T is something the person has DECIDED or refused, Ac and Ac+ are "
+    "that decision carried out: what A is for shapes HOW they carry it out, "
+    "never whether or how much. This governs the action and the action "
+    "developed well only — Ac- still ends in A's trap, as point 3 says."
+)
+assert _DECIDED_SCOPED in ts.TRANSFORMATION_POSITIONS, (
+    "the decided sentence shipped on 2026-10-12; `no_decided_rule` removes it"
+)
+
+_SHIPPED_LINE_2 = ts.TRANSFORMATION_POSITIONS.split("\n")[1]
+assert _SHIPPED_LINE_2.startswith("2. "), "TRANSFORMATION_POSITIONS changed shape"
+
 _DESC = {
     "makeup_only": {
         "ac_minus": "Ac- — the SAME action overdeveloped one-sidedly, reflection absent: what this action becomes when done without the reflection. NOT T- or A- restated — it is the action itself gone wrong.",
@@ -122,7 +165,9 @@ _SCAFFOLD = ("ac_minus_from", "ac_minus_into", "re_minus_from", "re_minus_into")
 def _dto_for(arm: str) -> type[BaseModel]:
     """The arm's response model, field order = writing order. `current` is the
     shipped DTO, scaffold fields included; every other arm drops them."""
-    if arm == "current":
+    if arm in ("current", "no_decided_rule"):
+        # `no_decided_rule` varies the SYSTEM text only — it must keep the
+        # scaffold fields, or the arm would differ from `current` in two things.
         return ts.TransformationSketchDto
     fields: dict[str, Any] = {}
     for name, info in ts.TransformationSketchDto.model_fields.items():
@@ -133,13 +178,17 @@ def _dto_for(arm: str) -> type[BaseModel]:
 
 
 def _system_for(arm: str) -> str:
+    if arm == "no_decided_rule":
+        positions = ts.TRANSFORMATION_POSITIONS.replace(_DECIDED_SCOPED, "")
+        assert ts.TRANSFORMATION_POSITIONS in ts.SYSTEM_PROMPT
+        return ts.SYSTEM_PROMPT.replace(ts.TRANSFORMATION_POSITIONS, positions)
     line = {"makeup_only": _MAKEUP_ONLY_LINE_3, "ends_first": _ENDS_FIRST_LINE_3}.get(arm, _SHIPPED_LINE_3)
     positions = ts.TRANSFORMATION_POSITIONS.replace(_SHIPPED_LINE_3, line)
     assert ts.TRANSFORMATION_POSITIONS in ts.SYSTEM_PROMPT
     return ts.SYSTEM_PROMPT.replace(ts.TRANSFORMATION_POSITIONS, positions)
 
 
-ARMS = ("current", "text_only", "makeup_only", "ends_first")
+ARMS = ("current", "text_only", "makeup_only", "ends_first", "no_decided_rule")
 
 
 # --- The transition auditor -------------------------------------------------------

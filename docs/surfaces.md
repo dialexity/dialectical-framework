@@ -205,6 +205,16 @@ validation flag, no dedup, nothing kept; a best-of-N selection is a choice among
 a flag on the one shown): the view BEFORE the upgrade, not a lighter version of the checked one. It raises on a provider failure rather than returning an empty view,
 so "nothing drawn yet" and "the drawing failed" stay distinguishable to the button that asked.
 
+`thesis=` pins T to the host's own text, VERBATIM — for a host whose screen shows the
+person their own sentence as their position, where a seven-word recomposition of it is a
+different sentence. The request says the position is fixed and the given words are then
+written back over every draw's T (winner and `runners_up` alike), so the guarantee is code,
+not compliance; the rest of the tetrad is still built, around the position as given, and the
+view is asked for the ONE tension that position stands in. Note the contrast with
+`SketchTetrad(thesis=)` on the build path, which asks for the position worded in the
+person's terms within `component_length`: that one plants a `Statement`, and the graph
+stores a headline.
+
 **The way through one drawn tension, graph-free.** A host that has a complete tetrad (a
 `PerspectiveView`) and wants the layer above it (the action and the reflection, their
 developments, S+ and S-) without building a wheel calls
