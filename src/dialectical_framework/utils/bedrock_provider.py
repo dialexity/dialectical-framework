@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+import time
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
@@ -18,6 +21,7 @@ from typing_extensions import Unpack
 from dialectical_framework.enums.di import DI
 from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
+from dialectical_framework.settings_context import get_current_settings
 from dialectical_framework.utils.format_compat import (
     learn_format_mode_from_error,
     structured_output_format,
@@ -375,6 +379,135 @@ def raise_on_refusal(response: Any, model_name: str) -> None:
     )
 
 
+logger = logging.getLogger(__name__)
+
+#: Once a streamed awaited call has started writing content, the longest it may
+#: go without another event before it counts as a stall. Generation is a steady
+#: flow of deltas, so a silence this long mid-content is a hang rather than a
+#: slow token. Before the first content delta the wait is the read timeout:
+#: that window holds queueing, prefill and (where a call thinks) the thinking
+#: block. Fired once in 2,700 streamed calls on the first app's promise runs,
+#: so it is a backstop; the measured hangs are all caught at the opening.
+_STREAM_GAP_TIMEOUT_S = 5.0
+
+#: How long a streamed awaited call may wait for the response to OPEN (headers,
+#: `message_start`) before it counts as a stall. Measured on the first app's
+#: promise run (2026-10-12, Sonnet 5.5, 890 streamed calls): every stall (48,
+#: 5.4%) hung before the headers, while healthy calls opened at a median 1.2s,
+#: p99 3.6s, whatever their size (6 of 842 past 5s). Streamed, the opening is
+#: the one wait that does not grow with the output, so it is where a hang is
+#: caught: here at 5s rather than at the whole read timeout.
+_STREAM_HEADERS_TIMEOUT_S = 5.0
+
+#: Deltas that are the answer being written, as opposed to thinking or
+#: bookkeeping. The SDK's stream yields both the raw `content_block_delta` and
+#: a synthesized event per delta kind.
+_CONTENT_DELTAS = frozenset({"text_delta", "input_json_delta"})
+_CONTENT_EVENTS = frozenset({"text", "input_json"})
+
+
+class StreamReadTimeout(httpx.ReadTimeout):
+    """A streamed awaited call went quiet past its budget.
+
+    Subclasses `httpx.ReadTimeout` so `use_brain._is_stall_error` reads it as a
+    stall (the name ends in `ReadTimeout`) and re-asks it once, exactly like a
+    socket read timeout on the non-streamed path.
+    """
+
+
+def _is_content_event(event: Any) -> bool:
+    kind = getattr(event, "type", None)
+    if kind in _CONTENT_EVENTS:
+        return True
+    if kind == "content_block_delta":
+        return getattr(getattr(event, "delta", None), "type", None) in _CONTENT_DELTAS
+    return False
+
+
+async def _stream_to_message(
+    manager: _LearningStreamManager, model_name: str, read_timeout_s: float
+) -> AnthropicMessage:
+    """Consume one stream and return the assembled `Message`, policing silence.
+
+    Three budgets: the response must OPEN within `_STREAM_HEADERS_TIMEOUT_S`
+    (where the measured hangs are), the first content must follow within the
+    read timeout (queueing, prefill, thinking), and once content flows a gap
+    longer than `_STREAM_GAP_TIMEOUT_S` is a stall.
+
+    The provider's `ping`s do not count as progress: a stream that only pings
+    is a hang the socket's read timeout would never see. Every stall is logged
+    with the phase it happened in: the phase is what chose the opening as the
+    place to police (all 137 measured hangs were there), and a shift in it is
+    the first sign that choice needs revisiting.
+    """
+    loop = asyncio.get_running_loop()
+    started = time.monotonic()
+    headers_budget = min(_STREAM_HEADERS_TIMEOUT_S, read_timeout_s)
+    try:
+        stream = await asyncio.wait_for(manager.__aenter__(), timeout=headers_budget)
+    except asyncio.TimeoutError as e:
+        logger.warning(
+            "Stream stalled on %s before headers (%.1fs)",
+            model_name, time.monotonic() - started,
+        )
+        raise StreamReadTimeout(
+            f"stream did not open within {headers_budget:.0f}s"
+        ) from e
+    except Exception as e:
+        if type(e).__name__.endswith(("TimeoutError", "ReadTimeout")):
+            logger.warning(
+                "Stream stalled on %s before headers (%.1fs)",
+                model_name, time.monotonic() - started,
+            )
+        raise
+    events = 0
+    first_content_s: float | None = None
+    try:
+        iterator = stream.__aiter__()
+        deadline = loop.time() + read_timeout_s
+        while True:
+            try:
+                event = await asyncio.wait_for(
+                    iterator.__anext__(), timeout=max(deadline - loop.time(), 0.0)
+                )
+            except StopAsyncIteration:
+                break
+            except Exception as e:
+                timed_out_here = isinstance(e, asyncio.TimeoutError)
+                if not timed_out_here and not type(e).__name__.endswith(
+                    ("Timeout", "TimeoutError")
+                ):
+                    raise
+                elapsed = time.monotonic() - started
+                phase = (
+                    "before first content"
+                    if first_content_s is None
+                    else f"mid-content (first content at {first_content_s:.1f}s)"
+                )
+                logger.warning(
+                    "Stream stalled on %s %s: %.1fs, %d events",
+                    model_name, phase, elapsed, events,
+                )
+                if not timed_out_here:
+                    raise
+                raise StreamReadTimeout(
+                    f"stream went quiet {phase} after {elapsed:.1f}s and {events} events"
+                ) from e
+            if getattr(event, "type", None) == "ping":
+                continue
+            events += 1
+            if first_content_s is None and _is_content_event(event):
+                first_content_s = time.monotonic() - started
+            budget = read_timeout_s if first_content_s is None else _STREAM_GAP_TIMEOUT_S
+            deadline = loop.time() + budget
+        message = await stream.get_final_message()
+    except BaseException as e:
+        await manager.__aexit__(type(e), e, e.__traceback__)
+        raise
+    await manager.__aexit__(None, None, None)
+    return message
+
+
 class BedrockAnthropicProvider(AnthropicProvider):
     """Mirascope v2 provider that routes through AnthropicBedrock client (async-native).
 
@@ -394,6 +527,7 @@ class BedrockAnthropicProvider(AnthropicProvider):
     ) -> None:
         # Skip super().__init__() — parent creates Anthropic/AsyncAnthropic clients we don't need
         timeout = _client_timeout(connect_timeout_s, read_timeout_s)
+        self._read_timeout_s = timeout.read or 120.0
         self.client = AnthropicBedrock(timeout=timeout, max_retries=_SDK_MAX_RETRIES)
         self.async_client = AsyncAnthropicBedrock(
             timeout=timeout, max_retries=_SDK_MAX_RETRIES
@@ -468,8 +602,20 @@ class BedrockAnthropicProvider(AnthropicProvider):
         models reject. `with_thinking_compat` translates by model name; if the
         name heuristic is wrong the 400 itself says which shape is wanted, so
         one retry is both sufficient and self-correcting. See thinking_compat.
+
+        With `Settings.llm_stream_awaited_calls` the same request goes out as a
+        stream and comes back as the same assembled `Message`, so a stall is
+        caught by the gap between chunks (`_stream_to_message`) instead of by a
+        ceiling on the whole generation. The stream manager learns the thinking
+        shape the same way.
         """
         model_name = kwargs["model"]
+        if get_current_settings().llm_stream_awaited_calls:
+            return await _stream_to_message(
+                _LearningStreamManager(self.async_client, kwargs, params),
+                model_name,
+                self._read_timeout_s,
+            )
         try:
             return await self.async_client.messages.create(
                 **with_thinking_compat(model_name, kwargs, params)

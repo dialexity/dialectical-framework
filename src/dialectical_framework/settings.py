@@ -288,8 +288,10 @@ class Settings(BaseModel):
     # so this is a ceiling on one generation; on a streamed round it is the gap
     # between two chunks, and a thinking turn streams its deltas (the
     # facilitator asks for `include_thoughts`), so the long silence is the
-    # non-streamed case only. 120s clears every unstalled generation in the
-    # archive (the longest measured conversational rounds sit under a minute on
+    # non-streamed case only. Since `llm_stream_awaited_calls` (below) every
+    # awaited call is streamed too, so this bounds the wait for the first
+    # content; a hang is caught earlier, when the response fails to open.
+    # 120s clears every unstalled generation in the archive (the longest measured conversational rounds sit under a minute on
     # Sonnet 5 with thinking) while cutting a stall from 600s to two minutes. A
     # host whose calls are short sets it lower: the first app's draws run ~15s,
     # texts ~8s, structured calls ~3s on Sonnet 5.5, and it runs at 30s. Too
@@ -298,6 +300,21 @@ class Settings(BaseModel):
     # does not help a call that needed the time. Read once, with the connect
     # timeout, when the provider registers.
     llm_read_timeout_s: float = Field(default=120.0, description="Read timeout for LLM calls, in seconds: the longest one call may wait for the provider's next byte. Lower where every call is short; a stall then surfaces as a timeout instead of holding the caller.")
+
+    # Every awaited Bedrock call (`BedrockAnthropicProvider._create_async`) is
+    # sent as a stream and assembled into the same `Message` before Mirascope
+    # decodes it, so a stall is caught where it happens instead of at the whole
+    # read timeout: the response must OPEN within 5s (`_STREAM_HEADERS_TIMEOUT_S`),
+    # content must start within `llm_read_timeout_s`, and a gap past 5s once it
+    # flows is a stall. Measured on the first app's promise run (2026-10-12,
+    # Sonnet 5.5, 59 cases, read timeout 20s): ~5.5% of calls hang, ALL before
+    # the response opens, while healthy calls open in a median 1.2s whatever
+    # their size; against a same-day baseline, cards drawn 43 -> 51, cards past
+    # the app's deadline 9 -> 0, p90 53s -> 33s, cost unchanged. The switch
+    # exists as an off switch for a model or provider the measurement did not
+    # cover (`docs/dev-notes/streaming-latency-and-retry.md`, "Hangs are caught
+    # at the opening"). Per request.
+    llm_stream_awaited_calls: bool = Field(default=True, description="Send awaited provider calls as streams and assemble the message, so a hung call is caught when the response fails to open (5s) rather than at the whole read timeout. On by default; off only for a model or provider where streaming misbehaves.")
 
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
@@ -377,5 +394,6 @@ class Settings(BaseModel):
             **_env_thinking_level(),
             llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
             llm_read_timeout_s=float(os.getenv("DIALEXITY_LLM_READ_TIMEOUT_S", 120.0)),
+            llm_stream_awaited_calls=os.getenv("DIALEXITY_LLM_STREAM_AWAITED_CALLS", "true").lower() == "true",
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

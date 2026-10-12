@@ -336,3 +336,58 @@ not a `ProviderError` and keeps its name. Tests: `tests/test_llm_transport_resil
 `TestTheAwaitedResumeIsRetriedToo`), `tests/test_view_sketch.py::TestAFailedDrawIsOnRecord`.
 Unmeasured: the stall rate itself (the app saw one in five runs), and whether the one re-ask
 lands — the retry account now records both (`kinds["stall"]`), so the next promise run can say.
+
+## Hangs are caught at the opening: the awaited call is streamed (2026-10-12)
+
+The first app's handoff asked for two things: a formatted call that yields its text as it is
+written, and a read timeout per call size, because one `llm_read_timeout_s` had to serve a
+few-word `CareDto` and a whole draw. Its own reps at 20 / 14 / 10 s showed lowering the value
+rescued cards (the deadline is 52 s and a stall costs its full length) but bought false re-asks
+on the short calls. Two things in that evidence decided the work, neither the one asked for:
+
+- **The stalls are hangs, not long generations.** Estimated per-call rates sat near 6% for the
+  coherence judge and the draw alike, flat from 20 s to 10 s. The judge led the raw counts only
+  because it is the most frequent call (two per draft, three drafts per view turn).
+- **The host's 60 s CloudFront cliff is a gap between bytes**, which an app-side heartbeat
+  removes with no framework change; the lost cards were the app's own 52 s deadline anyway.
+
+**What was built.** With `Settings.llm_stream_awaited_calls` (default on) every awaited Bedrock
+call (`_create_async`, so every concern and the awaited tool loop's rounds) goes out through
+`messages.stream` and comes back as the same assembled `Message` (`_stream_to_message`), so
+Mirascope's decoder, the format and thinking learning, refusal and the census see no difference.
+The stream is policed by silence: the response must OPEN within `_STREAM_HEADERS_TIMEOUT_S`
+(5 s), content must start within the read timeout, and a gap past `_STREAM_GAP_TIMEOUT_S` (5 s)
+once it flows is a stall; `ping`s are not progress. A stall raises `StreamReadTimeout`, an
+`httpx.ReadTimeout` subclass, so the ladder re-asks it once like any stall. Host-visible deltas
+(the first ask) were not built: the draw is two thirds of a card and has nothing to show.
+
+**The order it was found in** (promise run, Sonnet 5.5, 59 cases, read timeout 20 s, one rep
+per arm; `alsotrue-app/.claude/hillclimb/promise/v18-*`):
+
+| arm | cards | past deadline | p50 | p90 | stalls |
+|---|---|---|---|---|---|
+| baseline, earlier the same day (`v18-r1`) | 46 | 6 | 23 s | 55 s | 35 |
+| baseline, same session (`v18-base2`) | 43 | 9 | 27 s | 53 s | 42 |
+| streamed, gap rule only (`v18-stream`) | 43 | 9 | 32 s | 53 s | 37 (38 before headers, 1 mid-content) |
+| streamed, gap rule, timed (`v18-stream-t`) | 42 | 10 | 40 s | 55 s | 45 (48 before headers) |
+| **streamed + 5 s opening (`v18-hdr5`)** | **51** | **0** | 23 s | **33 s** | 48 (51 before headers) |
+
+The gap rule alone did nothing, because **every hang was before the response opened** — there
+was no content to police. A temporary per-call timing hook on `v18-stream-t` (890 calls, not
+committed) then showed what streaming does buy: healthy calls open in a median 1.2 s, p99 3.6 s,
+whatever the DTO (6 of 842 past 5 s), while the hangs (5.4%) waited the whole 20 s. Streamed,
+the opening is the one wait that does not grow with the output, so a single short budget fits
+every call size — the per-call timeout the handoff asked for, without anyone choosing numbers
+per DTO. Hedging (a second request fired early) was the alternative if the hangs had been
+mid-stream; at the opening a re-ask after 5 s costs less than a hedge and sends nothing twice.
+Judged quality moved with the cards (held 48/59 against 42/57); cost was unchanged ($3.60 against
+$3.52).
+
+**Open.** One card in `v18-hdr5` was lost to a call that hung twice in a row and spent the
+one re-ask (`_STALL_RETRY_MAX = 2`). At 5 s a third attempt is cheap where at 20 s it was not; it
+is unmeasured. The 5 s opening was measured on Sonnet 5.5 only; `tests/e2e/probe_streamed_awaited_call.py`
+checks that the shapes survive streaming on Sonnet 5 and 5.5 but not the opening latency of
+other models — the setting stays as the off switch for one that opens slowly. Tests:
+`tests/test_streamed_awaited_call.py`, the streamed twin in
+`tests/test_format_compat.py::TestReviewFindings`.
+

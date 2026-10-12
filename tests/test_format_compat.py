@@ -210,8 +210,65 @@ class TestReviewFindings:
                     raise ValueError(REJECTED)
                 return _message("end_turn", text='{"word": "teal"}')
 
+        from dialectical_framework.settings_context import (
+            get_current_settings, using_settings)
+
         provider = BedrockAnthropicProvider.__new__(BedrockAnthropicProvider)
         provider.async_client = type("C", (), {"messages": _Messages()})()
+        whole = get_current_settings().model_copy(update={"llm_stream_awaited_calls": False})
+        with using_settings(whole):
+            response = await provider._call_async(
+                model_id="bedrock/global.anthropic.claude-madeup-5",
+                messages=[llm.messages.user("Name a colour.")],
+                toolkit=AsyncToolkit(tools=[]),
+                format=SmallDto,
+            )
+        assert len(sent) == 2
+        assert "tool_choice" in sent[0] and "tool_choice" not in sent[1]
+        assert response.parse().word == "teal"
+
+    async def test_the_streamed_awaited_call_re_encodes_once_after_the_400(self):
+        """The same retry when the awaited call goes out as a stream (the
+        default): the 400 arrives when the stream OPENS, and must still reach
+        `_call_async`'s format-learning branch rather than be swallowed."""
+        from mirascope.llm.tools import AsyncToolkit
+        from test_model_refusal import _message
+
+        from dialectical_framework.utils.bedrock_provider import BedrockAnthropicProvider
+
+        sent = []
+
+        class _Stream:
+            def __aiter__(self):
+                async def events():
+                    return
+                    yield
+
+                return events()
+
+            async def get_final_message(self):
+                return _message("end_turn", text='{"word": "teal"}')
+
+        class _Manager:
+            def __init__(self, kwargs):
+                self._kwargs = kwargs
+
+            async def __aenter__(self):
+                if "tool_choice" in self._kwargs:
+                    raise ValueError(REJECTED)
+                return _Stream()
+
+            async def __aexit__(self, *exc):
+                return None
+
+        class _Messages:
+            def stream(self, **kwargs):
+                sent.append(kwargs)
+                return _Manager(kwargs)
+
+        provider = BedrockAnthropicProvider.__new__(BedrockAnthropicProvider)
+        provider.async_client = type("C", (), {"messages": _Messages()})()
+        provider._read_timeout_s = 120.0
         response = await provider._call_async(
             model_id="bedrock/global.anthropic.claude-madeup-5",
             messages=[llm.messages.user("Name a colour.")],
