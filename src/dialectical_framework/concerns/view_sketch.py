@@ -45,7 +45,7 @@ The view BEFORE the upgrade, not a lighter version of the checked one.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Sequence
 
 from pydantic import BaseModel, Field
 
@@ -215,6 +215,33 @@ For each pair:
 THESIS_IS_FIXED = """The thesis (T) is GIVEN, in the person's own words, and it is FIXED: carry it into the view exactly as it stands — do not reword, shorten, sharpen or generalise it, and do not put a different position in its place. Everything else in the tetrad is built around it as given."""
 
 
+
+#: How much of the person's own words the view turn's JUDGE reads (characters,
+#: newest turns kept whole). The judge never sees T or A, so without context
+#: it scores the four aspects' coherence against nothing: the persisted path
+#: and the one-shot build pass their material, and the view turn passed ""
+#: until 2026-10-13 (the first app's handoff, §3). The person's turns are what
+#: the migration mines as material too (`migration.person_turns`); a card's
+#: history is one utterance, a long consultation is bounded here so six judge
+#: calls do not each re-read it whole (no cache breakpoint sits on a judge
+#: call). Policy, not config.
+JUDGE_CONTEXT_CHARS = 4_000
+
+
+def judge_context(person_texts: Sequence[str], budget: int = JUDGE_CONTEXT_CHARS) -> str:
+    """The person's turns as the judge's `<context>`, in order, the NEWEST
+    kept whole within `budget` and older ones dropped first — a tetrad drawn
+    now answers what was said last. Empty when nothing was said."""
+    kept: list[str] = []
+    used = 0
+    for text in reversed([t.strip() for t in person_texts if t and t.strip()]):
+        if kept and used + len(text) > budget:
+            break
+        kept.append(text)
+        used += len(text)
+    return "\n\n".join(reversed(kept))
+
+
 def view_sketch_prompt(
     focus: Optional[str], max_words: int, thesis: Optional[str] = None
 ) -> str:
@@ -239,6 +266,16 @@ def view_sketch_prompt(
     (`THESIS_IS_FIXED`): the stance ask comes OFF — there is nothing to find —
     and the view is asked for the ONE tension that position stands in, because
     a pinned T says nothing about any other tension and a card shows one.
+
+    ONE request for every draw of a best-of-N, by measurement (2026-10-13,
+    `tests/e2e/probe_view_turn_ask.py`, pinned, 40 utterances, two arms the
+    same day): asking draw 2..N for a different opposition made every card's
+    spares a different position (75/80 positions) and cost the WINNER —
+    coherence 19/40 against 27/40 with identical draws, positions 34 against
+    37, 1.26x the seconds — so the draws stay a re-roll of one request and
+    the spares stay the same tension reworded. The rejected ask and its
+    figures: `docs/dev-notes/antithesis-selection.md`, "Best-of-3 drew the
+    same tetrad three times".
     """
     pinned = (thesis or "").strip()
     focus_line = (

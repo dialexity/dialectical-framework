@@ -425,11 +425,13 @@ class Consultant:
         """
         from dialectical_framework.concerns.view_sketch import (
             ViewSketchDto, exploration_view_from_sketch, history_ask,
-            history_text, perspective_from_sketch, view_sketch_prompt)
+            history_text, judge_context, perspective_from_sketch,
+            view_sketch_prompt)
 
         import asyncio
         import dataclasses
 
+        from dialectical_framework.agents.advisor.migration import person_turns
         from dialectical_framework.concerns.tetrad_candidates import (
             clamp_attempts, ranking, select_sketch)
 
@@ -459,7 +461,6 @@ class Consultant:
             sketch_turn._messages = list(history)
             return await sketch_turn.submit(ViewSketchDto, request)
 
-        n = clamp_attempts(attempts)
         # Fully parallel, deliberately. On a COLD cache all N draws write the
         # ~12k system head instead of one writing and the rest reading (~$0.06
         # a card at list prices, 2026-10-06), and the fix would be to await the
@@ -470,6 +471,13 @@ class Consultant:
         # (`utils/bedrock_provider.py::_CACHE_TTL`) attacks the same cost
         # without the latency, which is the trade taken. Revisit only with a
         # measured cold-start rate.
+        n = clamp_attempts(attempts)
+        # The SAME request N times, by measurement: N identical requests draw
+        # the same opposition N times, reworded (the first app, 52/52 cards),
+        # and asking draw 2..N for a different one made the spares differ and
+        # the winner worse (CC 19/40 against 27/40, 2026-10-13,
+        # `tests/e2e/probe_view_turn_ask.py`) — so this is a coherence re-roll,
+        # and a host's "another" served from `runners_up` is a rewording.
         drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
         sketches = [d for d in drawn if not isinstance(d, BaseException)]
         failures = [d for d in drawn if isinstance(d, BaseException)]
@@ -503,13 +511,20 @@ class Consultant:
         # screen shows is that first tension. The judged draws that lost come
         # back too, best first, as `runners_up` — a host's "again"/"another"
         # can serve one without a new call (the module's stated intent).
+        # The judge reads the PERSON's turns as its context (`judge_context`):
+        # it never sees T or A, and called blind — as it was here until
+        # 2026-10-13, while the build and the persisted path passed their
+        # material — it scored the four aspects against nothing.
         runners_up: list[PerspectiveView] = []
         if len(sketches) > 1:
             firsts = [s.tensions[0] if s.tensions else None for s in sketches]
             judgeable = [i for i, t in enumerate(firsts) if t is not None and all(
                 (getattr(t, k) or "").strip() for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus"))]
             if len(judgeable) > 1:
-                _best, verdicts = await select_sketch([firsts[i] for i in judgeable])
+                _best, verdicts = await select_sketch(
+                    [firsts[i] for i in judgeable],
+                    context=judge_context(person_turns(history)),
+                )
                 order = ranking(verdicts)
                 sketch = sketches[judgeable[order[0]]]
                 runners_up = [perspective_from_sketch(firsts[judgeable[i]]) for i in order[1:]]

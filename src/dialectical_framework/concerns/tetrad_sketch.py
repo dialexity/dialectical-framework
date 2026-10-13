@@ -128,8 +128,10 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
         attempts: Optional[int] = None,
     ) -> ViewSketchPerspectiveDto:
         """One tension, whole. With `attempts` > 1 (`clamp_attempts`, max 3) the
-        call is drawn that many times IN PARALLEL and the framework's own
-        coherence check picks the best (`concerns/tetrad_candidates.py`); the
+        call is drawn that many times IN PARALLEL — the SAME request each
+        time: asking later draws for a different opposition was measured and
+        rejected on the view turn (`view_sketch_prompt`'s docstring) — and
+        the framework's own coherence check picks the best (`concerns/tetrad_candidates.py`); the
         runners-up stay on `self.alternatives` with their verdicts, the
         winner's verdict on `self.verdict`. Measured reason and the guard
         against turning this into a loop: that module's docstring.
@@ -171,6 +173,12 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
                 "drawn": len(candidates),
                 "selected": best,
                 "floors": [None if v is None else round(v.floor, 2) for v in verdicts],
+                "validity": [
+                    None if v is None or v.dialectical_validity is None
+                    else round(v.dialectical_validity, 2)
+                    for v in verdicts
+                ],
+                "oppositions": [c.antithesis for c in candidates],
                 "alternatives": [c.model_dump() for c, _v in self.alternatives],
             }
         return tension

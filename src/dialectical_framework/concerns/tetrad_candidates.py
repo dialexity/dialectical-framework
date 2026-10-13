@@ -12,6 +12,22 @@ parallel, the two control statements judged for each, the best kept. The
 runners-up are returned, not thrown away — a person's "another" can be one of
 them without a new call.
 
+The N draws are N identical requests, and they draw the SAME opposition N
+times, reworded (the first app's handoff, 2026-10-13: 52/52 cards, the chosen
+A at 0.79 similarity to its spares, a served runner-up "the same tension
+re-worded" in 8/8 retries) — a coherence re-roll, which is what the figures
+above measure, not a choice between tensions. Asking draw 2..N for a
+DIFFERENT opposition was tried and rejected the same day on a pre-registered
+A/B (`tests/e2e/probe_view_turn_ask.py`, pinned, 40 utterances): the spares
+became different positions (75/80) and the winner lost — CC 19/40 against
+27/40, positions 34 against 37, 1.26x the seconds. Temperature is not a
+lever either: both one-shot writers think, and a thinking call takes the
+provider's default. The rejected ask and the record:
+`docs/dev-notes/antithesis-selection.md`, "Best-of-3 drew the same tetrad
+three times". What the handoff found beside it is kept: the ranking reads
+dialectical validity after the pass floor (`ranking`), and the view turn's
+judge reads the person's words (`view_sketch.judge_context`).
+
 What this must NOT become: a loop that optimises against the judge. The judge
 never sees the thesis or antithesis — it scores the four aspects' coherence
 and passes a MIRROR antithesis more readily than a genuine position — so a
@@ -75,16 +91,40 @@ def clamp_attempts(attempts: Optional[int], default: Optional[int] = None) -> in
 
 @dataclass(frozen=True)
 class SketchVerdict:
-    """The two control statements' coherence scores for one sketch."""
+    """The two control statements' scores for one sketch: coherence (CC) on
+    both, and dialectical validity (DV) on both where the judge gave it.
+
+    DV is scored in the SAME call as CC (`CoherenceEvaluationDto`), so carrying
+    it costs nothing; until 2026-10-13 it was computed on every draft and
+    dropped here, and the ranking read coherence alone (the first app's
+    handoff). `None` on the DV fields means the judge did not say — a verdict
+    built from CC alone — and such a verdict ranks BELOW any with a DV, never
+    as a zero (a zero is a claim).
+    """
 
     t_plus_without_a_plus: float
     a_plus_without_t_plus: float
     reasoning: str = ""
+    t_plus_without_a_plus_dv: Optional[float] = None
+    a_plus_without_t_plus_dv: Optional[float] = None
 
     @property
     def floor(self) -> float:
         """The weaker statement — what the pass/fail rule reads."""
         return min(self.t_plus_without_a_plus, self.a_plus_without_t_plus)
+
+    @property
+    def mean(self) -> float:
+        return (self.t_plus_without_a_plus + self.a_plus_without_t_plus) / 2
+
+    @property
+    def dialectical_validity(self) -> Optional[float]:
+        """The mean DV of the two statements — whether the relationship is a
+        natural, generative one rather than a forced pairing. `None` when the
+        judge gave none."""
+        if self.t_plus_without_a_plus_dv is None or self.a_plus_without_t_plus_dv is None:
+            return None
+        return (self.t_plus_without_a_plus_dv + self.a_plus_without_t_plus_dv) / 2
 
     @property
     def passes(self) -> bool:
@@ -153,6 +193,8 @@ async def judge_sketches(
                 t_plus_without_a_plus=first.coherence_score,
                 a_plus_without_t_plus=second.coherence_score,
                 reasoning=f"{first.reasoning} / {second.reasoning}".strip(" /"),
+                t_plus_without_a_plus_dv=first.dialectical_validity,
+                a_plus_without_t_plus_dv=second.dialectical_validity,
             )
         except Exception as exc:  # noqa: BLE001 — degrade to "unjudged"
             logger.warning("Judging a sketch failed; it sorts last: %s", exc)
@@ -167,10 +209,11 @@ async def select_sketch(
     """Judge every candidate (gathered) and return the index of the best plus
     all verdicts (None where judging failed).
 
-    Ranking: the weaker control statement first (the pass rule), then the
-    mean, then the earlier draw — a deterministic tie-break, not a preference.
-    A candidate whose judging failed sorts last; if every judging failed the
-    first draw is kept, which is exactly what `attempts=1` would have done.
+    Ranking (`ranking`): the weaker control statement first (the pass rule),
+    then dialectical validity, then the mean coherence, then the earlier draw
+    — a deterministic tie-break, not a preference. A candidate whose judging
+    failed sorts last; if every judging failed the first draw is kept, which
+    is exactly what `attempts=1` would have done.
 
     ONE candidate is never judged: there is nothing to select among, so
     `attempts=1` costs no extra call.
@@ -183,15 +226,30 @@ async def select_sketch(
 
 
 def ranking(verdicts: Sequence[Optional[SketchVerdict]]) -> list[int]:
-    """Candidate indices best first, by `select_sketch`'s rule: the weaker
-    control statement, then the mean, then the earlier draw; unjudged last.
-    `[0]` is the winner; the rest are the runners-up in order."""
+    """Candidate indices best first: the weaker control statement, then
+    dialectical validity, then the mean coherence, then the earlier draw;
+    unjudged last. `[0]` is the winner; the rest are the runners-up in order.
 
-    def key(index: int) -> tuple[int, float, float, int]:
+    Why the floor stays FIRST: it is the pass rule, and every best-of-N figure
+    on record (CC 36/40 on the view turn, 30/40 on the build, 26/46 on
+    documents) is a keep-any-passing-draw figure — a term ahead of it would
+    trade those for an unmeasured one. Why DV comes next, ahead of the mean:
+    DV is the paper's acceptance term beside SP (the Advisor's quality floor
+    already reads it), and it answers the question the choice is about — of
+    two draws that both hold, which is the LIVE tension rather than the
+    forced pairing — where the mean is only the other statement's score,
+    already above the floor. On the archive DV tracks CC at 0.96, so this
+    moves few selections — the draws of one request are rewordings of one
+    tension. A verdict with no DV sorts
+    below any with one (`-1.0` exists only to lose this term, like
+    `explorer._causality_probability`), never as a zero.
+    """
+
+    def key(index: int) -> tuple[int, float, float, float, int]:
         verdict = verdicts[index]
         if verdict is None:
-            return (0, 0.0, 0.0, -index)
-        mean = (verdict.t_plus_without_a_plus + verdict.a_plus_without_t_plus) / 2
-        return (1, verdict.floor, mean, -index)
+            return (0, 0.0, 0.0, 0.0, -index)
+        dv = verdict.dialectical_validity
+        return (1, verdict.floor, -1.0 if dv is None else dv, verdict.mean, -index)
 
     return sorted(range(len(verdicts)), key=key, reverse=True)

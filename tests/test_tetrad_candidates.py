@@ -448,3 +448,173 @@ def test_ranking_orders_by_the_floor_then_the_mean_with_unjudged_last():
         SketchVerdict(0.8, 0.9),  # floor .8, mean .85: wins
     ]
     assert ranking(verdicts) == [3, 2, 0, 1]
+
+
+class TestDialecticalValidityRanksAfterTheFloor:
+    """The handoff of 2026-10-13, §2: DV was scored on every draft in the same
+    call as CC and dropped at the moment of choosing. It now ranks AFTER the
+    pass floor and BEFORE the mean — the floor keeps every keep-any-passing
+    figure on record, DV is the paper's acceptance term and the one that tells
+    two holding draws apart, the mean is the other statement's score."""
+
+    def test_the_floor_still_decides_first(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.6, 0.9, "", 1.0, 1.0),  # fails the rule, perfect DV
+            SketchVerdict(0.8, 0.8, "", 0.3, 0.3),  # holds, poor DV: still wins
+        ]
+        assert ranking(verdicts) == [1, 0]
+
+    def test_among_draws_that_hold_equally_the_live_one_wins_over_the_mean(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.8, 0.95, "", 0.5, 0.5),  # floor .8, mean .875, DV .5
+            SketchVerdict(0.8, 0.80, "", 0.9, 0.9),  # floor .8, mean .80, DV .9: wins
+        ]
+        assert ranking(verdicts) == [1, 0]
+        assert verdicts[1].dialectical_validity == 0.9
+
+    def test_the_mean_then_the_earlier_draw_break_a_dv_tie(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.8, 0.8, "", 0.7, 0.7),
+            SketchVerdict(0.8, 0.9, "", 0.7, 0.7),  # same DV, higher mean: wins
+            SketchVerdict(0.8, 0.9, "", 0.7, 0.7),  # the same again: the earlier draw
+        ]
+        assert ranking(verdicts) == [1, 2, 0]
+
+    def test_a_verdict_without_dv_ranks_below_one_with_it_never_as_a_zero(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        assert SketchVerdict(0.8, 0.8).dialectical_validity is None
+        assert SketchVerdict(0.8, 0.8, "", 0.1, None).dialectical_validity is None
+        verdicts = [
+            SketchVerdict(0.8, 0.9),              # no DV: below any judged DV...
+            SketchVerdict(0.8, 0.8, "", 0.0, 0.0),  # ...even a DV of zero
+        ]
+        assert ranking(verdicts) == [1, 0]
+        # The old pins still hold where no DV is on the verdicts at all.
+        assert ranking([SketchVerdict(0.8, 0.8), SketchVerdict(0.8, 0.9)]) == [1, 0]
+
+    @pytest.mark.asyncio
+    async def test_the_judge_fills_dv_from_the_same_call_as_cc(self, monkeypatch):
+        """No extra call: `CoherenceEvaluationDto` carries both scores."""
+        from dialectical_framework.concerns import control_statements_check as csc
+        from dialectical_framework.concerns.tetrad_candidates import judge_sketches
+
+        async def fake_score_texts(self, *, t_plus, t_minus, a_plus, a_minus, text=""):
+            dv = {"a": 0.2, "b": 0.9}[t_plus]
+            first = csc.CoherenceEvaluationDto(
+                coherence_score=0.8, reasoning="", dialectical_validity=dv, dv_reasoning="",
+            )
+            second = csc.CoherenceEvaluationDto(
+                coherence_score=0.8, reasoning="", dialectical_validity=dv + 0.05, dv_reasoning="",
+            )
+            return first, second
+
+        monkeypatch.setattr(csc.ControlStatementsCheck, "score_texts", fake_score_texts)
+        verdicts = await judge_sketches([_tension(t_plus="a"), _tension(t_plus="b")])
+        assert [round(v.dialectical_validity, 3) for v in verdicts] == [0.225, 0.925]
+        best, _ = await select_sketch([_tension(t_plus="a"), _tension(t_plus="b")])
+        assert best == 1, "equal coherence: the live tension wins"
+
+
+class TestEveryDrawIsTheSameRequest:
+    """The handoff of 2026-10-13, §1, measured and REJECTED the same day:
+    asking draw 2..N for a different opposition made the spares differ (75/80
+    positions) and the winner worse (CC 19/40 against 27/40 with identical
+    draws, positions 34 against 37, 1.26x the seconds;
+    `tests/e2e/probe_view_turn_ask.py`, pinned, two arms). So best-of-N is a
+    coherence re-roll of ONE request on both one-shot writers, and the
+    builders take no per-draw argument."""
+
+    def test_the_builders_take_no_per_draw_argument(self):
+        import inspect
+
+        from dialectical_framework.concerns.tetrad_sketch import tetrad_sketch_prompt
+        from dialectical_framework.concerns.view_sketch import view_sketch_prompt
+
+        for builder in (tetrad_sketch_prompt, view_sketch_prompt):
+            assert not {"draw", "drawn", "variation"} & set(inspect.signature(builder).parameters)
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_build_sends_one_request_n_times_and_records_the_oppositions(self, monkeypatch):
+        sent: list[str] = []
+        names = iter(["a", "b", "c"])
+
+        async def fake_submit(self, model, content):
+            sent.append(content)
+            return TetradSketchDto(tension=_tension(thesis=next(names), antithesis=f"against {len(sent)}"))
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", _verdicts_by_thesis({
+            "a": (0.8, 0.8), "b": (0.8, 0.8), "c": (0.8, 0.8)
+        }))
+        sketch = TetradSketch()
+        await sketch.resolve("I should keep the office.", attempts=3)
+
+        assert len(sent) == 3 and len(set(sent)) == 1, "one request, three draws"
+        # The oppositions drawn and each draw's DV are on the artifact, so a
+        # host can see for itself whether its spares differ.
+        assert sketch.report.artifacts["attempts"]["oppositions"] == ["against 1", "against 2", "against 3"]
+        assert sketch.report.artifacts["attempts"]["validity"] == [None, None, None]
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_view_turn_sends_one_request_n_times(self, monkeypatch):
+        sent: list[str] = []
+        names = iter(["a", "b", "c"])
+
+        async def fake_submit(self, model, content):
+            sent.append(content)
+            return ViewSketchDto(tensions=[_tension(thesis=next(names))])
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", _verdicts_by_thesis({"Keep": (0.8, 0.8)}))
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        await head.exploration_view(focus="the office", attempts=3, thesis="Keep")
+        assert len(sent) == 3 and len(set(sent)) == 1
+
+
+class TestTheViewTurnsJudgeReadsThePersonsWords:
+    """The handoff of 2026-10-13, §3: `select_sketch` was called with no
+    context on the view turn while the build, the staged writer and the
+    persisted check all pass their material — the judge, which never sees T
+    or A, scored the four aspects against nothing."""
+
+    def test_judge_context_keeps_the_newest_turns_whole_within_the_budget(self):
+        from dialectical_framework.concerns.view_sketch import judge_context
+
+        assert judge_context([]) == ""
+        assert judge_context(["", "  "]) == ""
+        assert judge_context(["first", "second"]) == "first\n\nsecond"
+        # Older turns go first; the newest is always kept, even alone and over budget.
+        assert judge_context(["a" * 10, "b" * 10, "c" * 10], budget=25) == "b" * 10 + "\n\n" + "c" * 10
+        assert judge_context(["a" * 10, "c" * 40], budget=25) == "c" * 40
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_judge_is_handed_the_persons_turns(self, monkeypatch):
+        seen: list[str] = []
+        names = iter(["a", "b"])
+
+        async def fake_submit(self, model, content):
+            return ViewSketchDto(tensions=[_tension(thesis=next(names))])
+
+        async def fake_judge(candidates, context=""):
+            seen.append(context)
+            return [SketchVerdict(0.8, 0.8) for _ in candidates]
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
+        history = list(_HISTORY) + [llm.messages.user("Mostly the people who would not move.")]
+        head = Consultant(app_preamble="x", messages=history)
+        await head.exploration_view(focus="the office", attempts=2)
+
+        assert seen == [
+            "Should we close the Berlin office?\n\nMostly the people who would not move."
+        ], "the person's turns, in order, and nothing of the counselor's"

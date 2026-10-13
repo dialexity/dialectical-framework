@@ -1270,6 +1270,115 @@ cheaper judge clears this probe against the per-statement one; the obvious next
 candidate is the per-statement PROMPT with a shorter reasoning field, which keeps the
 question and cuts output, measured the same way.
 
+## Best-of-3 drew the same tetrad three times (2026-10-13, from the first app's handoff)
+
+**What the app saw.** 52 cards on framework 2.1.0 / Sonnet 5.5, every one with all three
+draws naming the SAME opposition, the differences synonym-level ("Stable income that keeps
+choices unforced" / "Steady income keeps the choice unforced"); the chosen A at a 0.79 median
+similarity to its spares; a served runner-up "the same tension re-worded" in 8 of 8 retries
+(the app's own 2026-10-05 finding, the same fact from the other end). A lexical mirror-bias
+probe found no preference for the blander candidate — there was nothing to prefer. So the
+best-of-3 of the section above was a coherence RE-ROLL and not a choice: it bought back the
+draw share of the failure variance (the 52% → 80% keep-any-passing figure stands) and could
+never reach the pair share, which its own text named as needing "a different tension, not
+another roll". The app's handoff also found two things verified in code: `select_sketch` was
+called with no context on the view turn (the build, the staged writer and the persisted check
+all pass their material), so the judge — which never sees T or A — scored the four aspects
+against nothing; and `dialectical_validity` was scored on every draft in the same judge call
+and dropped at the ranking.
+
+**Why not temperature.** `grep temperature src/` finds only `use_brain`'s pass-through. Both
+one-shot writers THINK (json mode with the session's level), and a thinking call takes the
+provider's default temperature only; the default is already the maximum. The staged writer
+does not think but draws for a GIVEN pair, where a different opposition is not on offer. So
+the lever is the request.
+
+**What shipped (`view_sketch.different_opposition_ask`, `ranking`, `judge_context`):**
+- draw 1 keeps the measured request byte for byte; draw 2..N is told, by ordinal, to list the
+  positions a reasonable person holds against the thesis, set the most direct one(s) aside and
+  build on the next — a different axis of disagreement, the thesis unchanged, still a POSITION
+  (`_OPPOSING_POSITION_ASK` stays above it). Ordinal rather than sequential so the draws stay
+  parallel: no draw needs another's result, and the latency bar (16 s) stays where it was. On
+  the view turn only a PINNED request varies — an unpinned view renders what the conversation
+  established and must not be told to disagree with it; `TetradSketch` varies on every request
+  because it always finds the opposition;
+- the ranking reads DV after the pass floor and before the mean: the floor keeps every
+  keep-any-passing figure on record, DV is the paper's acceptance term and the one that tells
+  two holding draws apart; the mean is the other statement's score. A verdict with no DV sorts
+  below any with one, never as a zero;
+- the view turn's judge reads the person's turns (`migration.person_turns`, newest kept whole
+  within `JUDGE_CONTEXT_CHARS`) as its `<context>`, as every other caller already did.
+
+**Pre-registration (same day, before the runs).** `tests/e2e/probe_view_turn_ask.py` with
+`VIEW_TURN_ATTEMPTS=3 VIEW_TURN_PIN=1` (the utterance verbatim as T, the app's contract), the
+40 utterances of sets A+B, two arms the same afternoon: `VIEW_TURN_CONTROL=1` blanks the
+ask (identical draws; pin, N, judge context and DV ranking as the arm), the arm runs the
+shipped code. Both record the runners-up, the chosen A's `SequenceMatcher` similarity to each
+spare's A, and the kind auditor on every spare. Unpaired draws, the same utterances.
+
+| read | control (identical draws) expected | arm must |
+|---|---|---|
+| cards with a distinct spare (a spare's A below 0.6 similarity to the chosen) | near 0/40 | ≥ 20/40 |
+| spares that are a POSITION (kind auditor) | — | ≥ 75% of spares |
+| CC pass on the winner (fresh judge) | the arm's own bar | not more than 5 points below the control |
+| chosen A a position | | not more than 5 points below the control |
+| restated plus slots | | not doubled |
+| median seconds | | ≤ 1.2× the control |
+
+Pass on the first two with no "must not" broken: the shipped code stands as the default.
+A distinct-spare miss: the ask is not landing and comes off both writers (the function stays,
+with the figures, as a measured-and-rejected lever). A "must not" broken: the same, and the
+record says which. Everything else (judge context, DV ranking) stays either way — those are
+corrections of omissions, measured as part of the control arm and not on trial here.
+
+**RESULT (2026-10-13, three runs 09:42–10:52, Sonnet 5.5 writer, Fable 5 judge and auditors;
+files `view_turn_pin_control-20261013-094257.json`, `view_turn_pin_arm-20261013-100005.json`,
+`view_turn_pin_blind-20261013-103441.json`; the same-or-different read by
+`tests/e2e/probe_spare_distinctness.py`, written back into the first two).** A third arm
+was added after the first two landed, because the control sat 9 counts under the last
+unpinned best-of-3 (36/40, 2026-10-04) and the pin could not be told from the two
+corrections: `VIEW_TURN_BLIND=1` restores the selection as it was before this day (judge
+with no context, DV off the ranking), pinned, identical draws.
+
+| read | control: identical draws, judge in context, DV ranks | ARM: different-opposition draws | blind: identical draws, pre-handoff selection |
+|---|---|---|---|
+| cards with a spare naming a DIFFERENT opposition (LLM read) | 11/40 (28%) | **35/40 (88%)** | — |
+| spares different, of 80 | 14 (18%) | **53 (66%)** | — |
+| spares a position (kind auditor) | 74/80 | 75/80 | 70/80 |
+| winner CC pass (fresh judge) | 27/40 (68%, 52–80) | **19/40 (48%, 33–63)** | 30/40 (75%, 60–86) |
+| winner A a position | 37/40 | 34/40 | 37/40 |
+| restated plus slots | 0/80 | 0/80 | 0/80 |
+| T+/A+ same compromise | 19/40 | 19/40 | 13/40 |
+| median seconds | 18.6 | 23.4 | 19.1 |
+| failed draws | 0 | 0 | 0 |
+
+Against the rule. The ask LANDED — distinct spares 35/40 against the bar's 20, spares
+positions 94% against 75% — and then broke three "must not" conditions at once: the
+winner's CC 20 points below the control (bar 5), its antithesis a position 7.5 points
+below (bar 5), 1.26x the seconds (bar 1.2x). **Rejected; the ask and the per-draw request
+plumbing came out of `src/` the same day** (the ask text stays in `probe_view_turn_ask.py`
+as `DIFFERENT_OPPOSITION_ASK`, like the rejected judges). Why the winner lost when draw 1
+was unchanged: the selection judge preferred a different-opposition draw often enough,
+and the fresh judge then failed it — a less direct opposition is judged coherent by the
+selection's own read and not on a fresh one, the "max of noisy reads" flattery of the
+section above, now with the noise spread across tensions instead of rewordings. The
+spares' kind (94% positions) says the different oppositions were not contrivances; they
+were weaker tetrads. So the app's "another" stays a rewording of the shown tension; a
+choice BETWEEN tensions, if it is wanted, is a second request after the card and not a
+draw of the first — unmeasured.
+
+What the control arm also says, read against the blind arm: the pin (the whole utterance,
+verbatim, as T) accounts for the drop from 36/40 to the high twenties, and the two
+corrections kept from the handoff — the judge reading the person's turns, DV in the
+ranking — measure **−3 counts (27 against 30) on unpaired draws, inside their own
+intervals**: neutral, unresolved, not a gain. They stay as corrections of an
+inconsistency (every other caller passed its material; DV was scored and thrown away),
+with that figure on record and nothing pitched on them. The identical-draw spares were a
+different opposition in 18% by the LLM read, so "the same tetrad three times" is 82%,
+not 100% — the handoff's 0.79 lexical median and this probe's 0.55 are two proxies for
+the same fact, and `SequenceMatcher` is not a read of sameness at all (the blind arm's
+identical draws sit at 0.50).
+
 ## The plus asked to CONTAIN the other side, and on a decided thesis that is the middle path (2026-10-12)
 
 Reported from the first app (promise eval v12, framework 2.0.11, Sonnet 5.5, two

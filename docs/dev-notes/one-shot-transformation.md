@@ -619,3 +619,19 @@ reaches a person only through the "what goes wrong" line, never as counsel.
 The sentence stops short of saying a diluted action IS Ac-. That would be a
 theory claim nothing here has checked, and the archive's record is that a gloss
 hardened into a rule gets argued with rather than obeyed.
+
+## Open: `third_failure` reads 85% / 44% / 63% on the same 27 frozen tetrads (2026-10-13, the first app)
+
+Reported in the app's handoff, nothing changed here. The app's wisdom eval runs the
+framework's own third-trap auditor over 27 frozen tetrads; three runs under identical
+conditions the same day read 85%, 44% and 63%. The tetrads are frozen and the
+`TransformationSketch` is resampled each run, so it is the sketch's S- varying run to run,
+or the auditor — the app cannot tell which from outside, and neither can this record
+without a run that re-audits ONE stored sketch three times (auditor variance) beside three
+sketches of one tetrad audited once each (writer variance). Until that is run, a
+`third_failure` figure on n ≈ 27 is weather, and the 57% / 42% pair in `SYNTHESIS_SHAPE`'s
+story (100 pairs) is the only one on record with an n that means anything. Also from the
+same handoff, recorded so it is not chased here: the app's card had been handing its text
+writer four of `TransformationSketchDto`'s twelve fields and dropping `Ac-`/`Re-` — fixed
+app-side, its depth measure 22/49 → 36/49; the framework was writing the reversal and
+nobody read it.

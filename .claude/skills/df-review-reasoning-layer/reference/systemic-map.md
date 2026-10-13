@@ -2041,7 +2041,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    length-scaled default was argued and rejected (`ingest-and-extraction.md`).
 0d. **Best-of-N selection sits BETWEEN the tetrad call and persistence, on BOTH writers, and it is selection only (2026-10-04).**
    `concerns/tetrad_candidates.py`: `TetradSketch.resolve(attempts=)` and the staged
-   `AspectGeneration._generate_tetrad` (via `resolve(attempts=)` / `ExpandPolarity(attempts=)`) draw N identical
+   `AspectGeneration._generate_tetrad` (via `resolve(attempts=)` / `ExpandPolarity(attempts=)`) draw N
    requests in parallel (fresh facilitator each; the view turn on COPIES of its history) and `select_sketch` ranks them by the
    framework's own control statements (`ControlStatementsCheck.score_texts`, per draft and per statement; a one-call judge was tried and rejected 2026-10-06 — the SAME two statements
    `_validate_and_flag` scores after commit, built from the same words; a verdict here and one taken
@@ -2049,9 +2049,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    antithesis more readily than a position — any change that feeds the verdict BACK into generation turns
    selection into regeneration and converges on coherent strawmen; measure the antithesis kind beside CC;
    (b) one candidate is never judged (`attempts=1` must stay today's cost); (c) the request is byte-for-byte
-   the single-draw request — a per-attempt prompt variation would make the selection a prompt comparison
-   (the archive's 87.5% view-turn figure has that caveat); (d) the selection's own verdict flatters the
-   winner (max of noisy reads) — the honest number is a FRESH judge pass, which is what the probes report.
+   the single-draw request on EVERY draw — a per-draw prompt variation makes the selection a prompt
+   comparison, and the one tried (draw 2..N asked for a different opposition, 2026-10-13) made the spares
+   differ and the winner worse (CC 19/40 against 27/40; `antithesis-selection.md`, "Best-of-3 drew the
+   same tetrad"); it lives in `probe_view_turn_ask.py` as `DIFFERENT_OPPOSITION_ASK`, not in `src/`,
+   and the builders take no `draw` argument — so the draws are rewordings of one tension and the spares
+   are the same tension reworded (82% by an LLM read); (d) the selection's own verdict flatters the
+   winner (max of noisy reads) — the honest number is a FRESH judge pass, which is what the probes report;
+   (e) `ranking` reads the pass floor, then DV (same judge call, `SketchVerdict.dialectical_validity`),
+   then the mean — a term placed ahead of the floor trades every keep-any-passing figure for an unmeasured
+   one; (f) the judge's `<context>` is the material on every caller, the view turn's being the person's
+   turns (`view_sketch.judge_context`, bounded by `JUDGE_CONTEXT_CHARS`) — a blind judge scores the four
+   aspects against nothing.
    One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
    apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
