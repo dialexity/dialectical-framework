@@ -521,9 +521,15 @@ class Consultant:
             judgeable = [i for i, t in enumerate(firsts) if t is not None and all(
                 (getattr(t, k) or "").strip() for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus"))]
             if len(judgeable) > 1:
+                # This writer CHOOSES the thesis, so a second judge reads each
+                # draw's T, A and A+ against the person's words — the claim
+                # they would sign, an opposition they have not granted
+                # (`tetrad_candidates.judge_fit`, 2026-10-20). With a pinned T
+                # the first read is the same on every draw and the second
+                # still tells them apart.
+                words = judge_context(person_turns(history))
                 _best, verdicts = await select_sketch(
-                    [firsts[i] for i in judgeable],
-                    context=judge_context(person_turns(history)),
+                    [firsts[i] for i in judgeable], context=words, fit_against=words
                 )
                 order = ranking(verdicts)
                 sketch = sketches[judgeable[order[0]]]

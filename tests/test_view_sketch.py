@@ -314,7 +314,7 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
 
-        async def fake_select(candidates, context=""):
+        async def fake_select(candidates, context="", fit_against=None):
             verdicts = [
                 tetrad_candidates.SketchVerdict(0.5, 0.6),  # draw one: weakest
                 tetrad_candidates.SketchVerdict(0.9, 0.8),  # draw two: the winner
@@ -494,7 +494,7 @@ class TestAFailedDrawIsOnRecord:
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
 
-        async def fake_select(candidates, context=""):
+        async def fake_select(candidates, context="", fit_against=None):
             verdicts = [tetrad_candidates.SketchVerdict(0.9, 0.9) for _ in candidates]
             return 0, verdicts
 

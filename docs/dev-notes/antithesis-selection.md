@@ -1480,3 +1480,81 @@ refusal — quoting "reasoning_extraction" and "model outputs" — made the judg
 the call 6 times out of 6, answering 6 of 6 once removed. Prose for a judge DTO goes
 in a comment. Bisected from the opposite (and wrong) first conclusion that long
 field descriptions were the trigger; the field-side bisection was a single sample.
+
+## The hedge wins on coherence (2026-10-20, from the first app's second handoff)
+
+**The handoff** is `docs/handoff-2026-10-20-thesis-choice.md`, kept whole; this is the
+framework's reading of it and what shipped. One case, reproduced four ways, not a
+measurement: a six-sentence Lithuanian polemic holding four claims in rising force and a
+concession ("ne tik … bet ir", not only, but also), through `Consultant.exploration_view`
+with `attempts=3` on framework 2.1.1 / Sonnet 5.5.
+
+**What came back.** A tetrad about the mildest sub-claim — "society has the right to ask" —
+with A "explain violence by social conditions", which the person's own text names as the
+opponent and concedes in the same sentence; A+ "study the roots through poverty, exclusion,
+school" is a clause they typed. The demand they would sign, "stop mass migration", sat in no
+corner; its content surfaced only as T-, the trap, and the card then priced them for a position
+they had written "not only" against. Opus 5.5 unpinned drew the demand against integration at
+42 s; Sonnet 5.5 drew the hedge pinned or not, with or without the stance quoted.
+
+**The part that is the framework's, not the model's.** On run A (Sonnet, unpinned) the two
+runners-up WERE the demand ("Sustokime masinę migraciją, kol nebuvo per vėlu" against
+integration). The writer found it twice in three draws; `ranking` kept the hedge, because a
+tetrad about a hedge degenerates more coherently ("name facts" without "study roots" yields
+"attribute all violence to origin") than one about a demand, and coherence was all the
+ranking read. This is the limit of the Best-of-N section above, which the 2026-10-13 section
+already stated from the other side: the choice is a coherence re-roll, and the judge never
+sees T or A. Three places were one-sided in the same direction:
+
+- `THESIS_IS_A_STANCE` said what a stance IS and nothing about WHICH claim when the words
+  hold several. Every figure behind it (`probe_question_entry.py`, the 40-utterance arms) was
+  on one-sentence, one-claim inputs, where the question never arose.
+- `_OPPOSING_POSITION_ASK` was tuned against the strawman end (19/19 caricatures under HS
+  ranking) and asked for A "in the thesis's own terms". When the thesis's own terms name
+  their opponent and concede it, that opponent is the most literal answer, and the ask had
+  nothing to say about it. The 2026-10-12 decided-stance fix made A+ A's OWN good rather than
+  a compromise — and here A+ was A's own good, already in the person's words. That fix never
+  asked whether A was the right A.
+- `ranking` read coherence (then DV, then the mean) and could not tell a hedge from a demand.
+
+**What shipped (unmeasured — the owner's credit on the framework side was out, and the
+app's eval set is short single-claim cases, which is why none of this was ever seen).**
+
+1. `THESIS_IS_A_STANCE` ends with WHICH claim: the one the person would sign, the conclusion
+   or demand the rest leads to, never a premise, a hedge on the way to it, or a claim conceded
+   in passing. One constant, so the first app's intake gate reads it too — by design, since
+   the gate's cut is what the writer then reads as T.
+2. `_OPPOSING_POSITION_ASK` carries the caricature's mirror: an opposition the thesis's own
+   words name AND concede is seen, not missing; rate its tetrad potential low, oppose the
+   claim actually made. Stated at the ask, both DTO field descriptions and the Optimum-A
+   ranking prompt (the parity rule in the systemic map).
+3. A second judge for the writers that CHOOSE the thesis: `ThesisFitCheck`
+   (`concerns/thesis_fit_check.py`) reads T, A and A+ against the person's words and scores
+   "is T the claim they would sign" and "do their words already grant A+"; the fit is the
+   weaker read. `select_sketch(fit_against=)` takes the person's words as a SEPARATE argument
+   from `context`, because on the build the control statements' context is the Advisor's
+   paraphrase and the fit judge must read the material; the view turn passes its
+   `judge_context` to both. One call per draw, gathered beside the control statements' two
+   (a comparative read of the field was the shape the joint judge failed on — 29/40
+   first-listed winners), fail-soft to `None` = not judged = fits (a provider error on one
+   draw must not demote it; the opposite of DV's `None`, on purpose). `ranking` reads it as
+   a YES/NO (`THESIS_FIT_THRESHOLD` 0.5) inside the pass rule — pass, then fits, then the
+   floor's value, DV, the mean — so every keep-any-passing figure in this note stands and the
+   floor still decides between two fitting draws. The staged writer on a given pair does not
+   ask: same T and A on every draw, N calls to say nothing. Cost: +N calls on a card's judging
+   (2N today), so roughly a sixth more per card at N = 3.
+
+**Why not the things the handoff ruled out, restated.** No different-opposition ask for the
+spares (rejected 2026-10-13, the section above) and no regeneration from a verdict: the fit
+judge chooses among draws the one request already made, and on the handoff's run A it would
+have had the demand to choose. Where every draw is the hedge it changes nothing — that is the
+two prompt rules' job, and if they fail on Sonnet 5.5 the lever is the model, which is the
+app's choice (`Consultant(thinking="low")` and the judge on Sonnet are its two time levers).
+
+**The gates, when run.** `tests/e2e/probe_joint_judge_stability.py` for the fit judge's own
+stability (reversed order, re-judging); `tests/e2e/probe_view_turn_ask.py` over a case set of
+long multi-claim inputs — the app will supply its de-identified ones — with three things
+counted: the winner's coherence (the keep-any-passing figure must not fall), the antithesis
+kind, and a read of whether the winner's T is the claim the person would sign and its A+ is
+not in their words. Re-run `probe_question_entry.py`'s echo count, since rule 1 is the same
+constant. Until then, nothing in this section is pitched.

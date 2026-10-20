@@ -191,6 +191,7 @@ class TestThePromptAsksForAPosition:
         assert field.annotation is float
         assert "coherent tetrad" in field.description
         assert "caricature" in field.description
+        assert "already name and concede" in field.description
 
     def test_both_mode_point_prompts_carry_the_ask_and_its_example(self):
         service = AntithesisExtraction()
@@ -201,6 +202,10 @@ class TestThePromptAsksForAPosition:
             assert "functionally opposes the role the thesis plays" in prompt
             assert "Never quit, stay employed forever" in prompt, "the concrete failure, not a rule"
             assert "Rate its tetrad potential" in prompt, "a step in the procedure, not context"
+            # The caricature's mirror (2026-10-20): an opposition the thesis's
+            # own words name and concede is seen, not missing.
+            assert "already name AND concede" in prompt
+            assert "oppose the claim they actually make" in prompt
             assert "represents Negation of the thesis" not in prompt
 
 
@@ -342,5 +347,5 @@ class TestTheOptimumAIsChosenComparatively:
         service = self._service_with_ranking(monkeypatch, [1, 2], capture)
         asyncio.run(service._rank_optimum_a(self._thesis(), [_cand("a", 0.9, 0.7, "x"), _cand("b", 0.8, 0.7, "y")]))
         prompt = capture["prompt"]
-        for phrase in ("holds for its own value", "functionally opposes", "caricature", "merely hedged", "every number exactly once"):
+        for phrase in ("holds for its own value", "functionally opposes", "caricature", "merely hedged", "already name and concede", "every number exactly once"):
             assert phrase in prompt

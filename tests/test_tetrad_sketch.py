@@ -130,6 +130,10 @@ class TestThePrompt:
         assert THESIS_IS_A_STANCE in tetrad_sketch_prompt(UTTERANCE, "", 7)
         assert THESIS_IS_A_STANCE not in tetrad_sketch_prompt(UTTERANCE, "", 7, thesis="Quit")
         assert "never their question restated" in THESIS_IS_A_STANCE
+        # 2026-10-20: WHICH claim when the words hold several (the first app's
+        # handoff, `docs/handoff-2026-10-20-thesis-choice.md`) — unmeasured.
+        assert "the one the person would sign" in THESIS_IS_A_STANCE
+        assert "not a claim they concede in passing" in THESIS_IS_A_STANCE
 
     def test_the_dto_is_one_flat_tension_with_no_numbers(self):
         fields = TetradSketchDto.model_fields

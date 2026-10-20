@@ -618,3 +618,264 @@ class TestTheViewTurnsJudgeReadsThePersonsWords:
         assert seen == [
             "Should we close the Berlin office?\n\nMostly the people who would not move."
         ], "the person's turns, in order, and nothing of the counselor's"
+
+
+class TestTheFitTermRanksInsideThePassRule:
+    """The first app's handoff of 2026-10-20 (`docs/handoff-2026-10-20-thesis-choice.md`):
+    on a multi-claim input the writer drew the claim the person would sign
+    twice in three draws and the coherence-only ranking kept the hedge. A
+    second judge (`concerns/thesis_fit_check.py`) reads T, A and A+ against
+    the person's words; its yes/no ranks AFTER the pass rule and BEFORE the
+    floor's value, so every keep-any-passing figure stands and a hedge no
+    longer wins on coherence alone. Not judged counts as fitting."""
+
+    def test_the_verdict_reads_the_threshold_and_treats_unjudged_as_fitting(self):
+        from dialectical_framework.concerns.thesis_fit_check import THESIS_FIT_THRESHOLD
+
+        assert SketchVerdict(0.8, 0.8).thesis_fit is None
+        assert SketchVerdict(0.8, 0.8).fits, "no fit judging: ranks as before the term"
+        assert SketchVerdict(0.8, 0.8, thesis_fit=THESIS_FIT_THRESHOLD).fits
+        assert not SketchVerdict(0.8, 0.8, thesis_fit=THESIS_FIT_THRESHOLD - 0.01).fits
+
+    def test_the_fit_is_the_weaker_of_the_two_reads(self):
+        from dialectical_framework.concerns.thesis_fit_check import ThesisFitDto
+
+        on_the_claim_but_granted = ThesisFitDto(
+            thesis_is_the_claim=1.0, a_plus_already_granted=0.9, reasoning="")
+        assert on_the_claim_but_granted.fit == pytest.approx(0.1)
+        a_hedge_with_a_real_opposition = ThesisFitDto(
+            thesis_is_the_claim=0.2, a_plus_already_granted=0.0, reasoning="")
+        assert a_hedge_with_a_real_opposition.fit == pytest.approx(0.2)
+
+    def test_among_passing_draws_the_one_on_the_persons_claim_beats_the_more_coherent_hedge(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.9, 0.95, "", 0.9, 0.9, thesis_fit=0.2),  # the hedge: holds best
+            SketchVerdict(0.75, 0.8, "", 0.7, 0.7, thesis_fit=0.9),  # the demand: holds, fits
+        ]
+        assert ranking(verdicts) == [1, 0]
+
+    def test_the_pass_rule_still_decides_first(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.6, 0.9, thesis_fit=1.0),  # fits, fails the rule
+            SketchVerdict(0.8, 0.8, thesis_fit=0.1),  # does not fit, holds: still wins
+        ]
+        assert ranking(verdicts) == [1, 0], "a term ahead of the floor would trade every keep-any-passing figure"
+
+    def test_among_fitting_draws_the_floor_decides_as_before(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.8, 0.8, thesis_fit=0.95),  # fits better, holds less
+            SketchVerdict(0.9, 0.9, thesis_fit=0.6),   # fits, holds better: wins
+        ]
+        assert ranking(verdicts) == [1, 0], "a yes/no, not a score: the fit never outranks the floor's value among fitting draws"
+
+    def test_among_failing_draws_the_fit_decides_the_same_way(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.6, 0.6, thesis_fit=0.1),
+            SketchVerdict(0.5, 0.5, thesis_fit=0.9),  # no draw holds: the one on their claim
+        ]
+        assert ranking(verdicts) == [1, 0]
+
+    def test_an_unjudged_fit_never_demotes_a_draw(self):
+        from dialectical_framework.concerns.tetrad_candidates import ranking
+
+        verdicts = [
+            SketchVerdict(0.8, 0.8, thesis_fit=None),  # the fit call failed on this one
+            SketchVerdict(0.8, 0.8, thesis_fit=0.9),
+        ]
+        assert ranking(verdicts) == [0, 1], "a provider error on one draw is not a verdict against it"
+        # And every pin from before the term holds with no fit on any verdict.
+        assert ranking([SketchVerdict(0.5, 0.9), None, SketchVerdict(0.8, 0.8), SketchVerdict(0.8, 0.9)]) == [3, 2, 0, 1]
+
+
+class TestTheFitJudgeIsGatheredBesideTheControlStatements:
+    @pytest.mark.asyncio
+    async def test_fit_against_runs_both_judges_and_the_verdicts_carry_the_fit(self, monkeypatch):
+        seen: dict = {}
+
+        async def fake_judge(cands, context=""):
+            seen["cc"] = context
+            return [SketchVerdict(0.9, 0.9), SketchVerdict(0.8, 0.8)]
+
+        async def fake_fit(cands, context):
+            seen["fit"] = context
+            return [0.1, 0.9]
+
+        monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
+        monkeypatch.setattr(candidates, "judge_fit", fake_fit)
+        best, verdicts = await select_sketch(
+            [_tension(thesis="hedge"), _tension(thesis="demand")],
+            context="a paraphrase", fit_against="what the person said",
+        )
+        assert seen == {"cc": "a paraphrase", "fit": "what the person said"}, (
+            "two judges, two inputs: the control statements take the caller's context, "
+            "the fit judge the person's own words"
+        )
+        assert best == 1
+        assert [v.thesis_fit for v in verdicts] == [0.1, 0.9]
+
+    @pytest.mark.asyncio
+    async def test_without_words_to_read_against_the_fit_judge_is_not_asked(self, monkeypatch):
+        async def boom(cands, context):
+            raise AssertionError("asked blind")
+
+        monkeypatch.setattr(candidates, "judge_sketches", _verdicts_by_thesis({"a": (0.8, 0.8), "b": (0.9, 0.9)}))
+        monkeypatch.setattr(candidates, "judge_fit", boom)
+        for words in (None, "", "   "):
+            best, verdicts = await select_sketch(
+                [_tension(thesis="a"), _tension(thesis="b")], fit_against=words)
+            assert best == 1 and all(v.thesis_fit is None for v in verdicts)
+
+    @pytest.mark.asyncio
+    async def test_a_failed_fit_judging_is_none_for_that_draw_alone(self, monkeypatch):
+        from dialectical_framework.concerns import thesis_fit_check as tfc
+        from dialectical_framework.concerns.tetrad_candidates import judge_fit
+
+        calls = iter([RuntimeError("provider"), tfc.ThesisFitDto(
+            thesis_is_the_claim=0.9, a_plus_already_granted=0.1, reasoning="")])
+
+        async def fake_score(self, *, thesis, antithesis, a_plus, text):
+            outcome = next(calls)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", fake_score)
+        fits = await judge_fit([_tension(thesis="a"), _tension(thesis="b")], "words")
+        assert fits[0] is None and fits[1] == pytest.approx(0.9)
+
+    @pytest.mark.asyncio
+    async def test_the_fit_judge_reads_t_a_and_a_plus_against_the_words(self, monkeypatch):
+        from dialectical_framework.concerns import thesis_fit_check as tfc
+        from dialectical_framework.concerns.tetrad_candidates import judge_fit
+
+        seen: list[dict] = []
+
+        async def fake_score(self, *, thesis, antithesis, a_plus, text):
+            seen.append(dict(thesis=thesis, antithesis=antithesis, a_plus=a_plus, text=text))
+            return tfc.ThesisFitDto(thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="")
+
+        monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", fake_score)
+        await judge_fit([_tension()], "Should we close it?")
+        assert seen == [dict(
+            thesis="Keep the Berlin office", antithesis="Go fully remote",
+            a_plus="Hire wherever the talent is", text="Should we close it?",
+        )]
+
+    @pytest.mark.asyncio
+    async def test_a_transition_tetrad_has_no_thesis_and_is_not_fit_judged(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from dialectical_framework.concerns import thesis_fit_check as tfc
+        from dialectical_framework.concerns.tetrad_candidates import judge_fit
+
+        async def boom(self, **kwargs):
+            raise AssertionError("a transition tetrad has no claim to fit")
+
+        monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", boom)
+        corners = SimpleNamespace(t_plus="a", t_minus="b", a_plus="c", a_minus="d")
+        assert await judge_fit([corners, corners], "words") == [None, None]
+
+    def test_the_prompt_asks_the_two_questions_over_the_words(self):
+        from dialectical_framework.concerns.thesis_fit_check import ThesisFitDto
+
+        fields = ThesisFitDto.model_fields
+        assert list(fields) == ["thesis_is_the_claim", "a_plus_already_granted", "reasoning"], (
+            "scores before the reasoning; a reasoning written first anchors the score"
+        )
+        assert "would SIGN" in fields["thesis_is_the_claim"].description
+        assert "ALREADY name and concede" in fields["a_plus_already_granted"].description
+
+
+class TestWhoAsksForTheFit:
+    """The writers that CHOOSE the thesis ask; the writers on a given pair do
+    not, because every draw has the same T and A there and N calls would say
+    nothing."""
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_view_turn_hands_the_persons_turns_to_both_judges(self, monkeypatch):
+        seen: dict = {}
+        names = iter(["a", "b"])
+
+        async def fake_submit(self, model, content):
+            return ViewSketchDto(tensions=[_tension(thesis=next(names))])
+
+        async def fake_judge(cands, context=""):
+            seen["cc"] = context
+            return [SketchVerdict(0.8, 0.8) for _ in cands]
+
+        async def fake_fit(cands, context):
+            seen["fit"] = context
+            return [0.9 for _ in cands]
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
+        monkeypatch.setattr(candidates, "judge_fit", fake_fit)
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        await head.exploration_view(focus="the office", attempts=2)
+        assert seen == {"cc": "Should we close the Berlin office?", "fit": "Should we close the Berlin office?"}
+
+    @pytest.mark.asyncio
+    async def test_the_one_shot_build_hands_the_material_to_the_fit_judge(self, monkeypatch):
+        seen: dict = {}
+        names = iter(["a", "b"])
+
+        async def fake_submit(self, model, content):
+            return TetradSketchDto(tension=_tension(thesis=next(names)))
+
+        async def fake_judge(cands, context=""):
+            seen["cc"] = context
+            return [SketchVerdict(0.8, 0.8) for _ in cands]
+
+        async def fake_fit(cands, context):
+            seen["fit"] = context
+            return [0.9 for _ in cands]
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
+        monkeypatch.setattr(candidates, "judge_fit", fake_fit)
+        await TetradSketch().resolve("I should keep the office.", context="He holds 45%.", attempts=2)
+        assert seen == {"cc": "He holds 45%.", "fit": "I should keep the office."}, (
+            "the control statements keep the caller's context; the fit judge reads the person's words"
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_staged_writer_on_a_given_pair_does_not_ask(self, monkeypatch):
+        from dialectical_framework.graph.nodes.perspective import (
+            POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS, POSITION_T_PLUS)
+
+        gen = TestTheStagedWriterSelectsToo()._generator(monkeypatch)
+        gen._text = "the material"
+        names = iter(["a", "b", "c"])
+
+        async def fake_submit(self, response_model, user_content):
+            return TestTheStagedWriterSelectsToo._dto(next(names))
+
+        async def boom(cands, context):
+            raise AssertionError("a given pair has one T and one A on every draw")
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", lambda cands, context="": _same(cands))
+        monkeypatch.setattr(candidates, "judge_fit", boom)
+        await gen._generate_tetrad([POSITION_T_PLUS, POSITION_A_MINUS, POSITION_A_PLUS, POSITION_T_MINUS])
+
+    def test_the_transformation_sketch_does_not_ask_either(self):
+        import inspect
+
+        from dialectical_framework.concerns import transformation_sketch
+
+        assert "fit_against" not in inspect.getsource(transformation_sketch), (
+            "a transition tetrad has no thesis to fit"
+        )
+
+
+async def _same(cands):
+    return [SketchVerdict(0.8, 0.8) for _ in cands]

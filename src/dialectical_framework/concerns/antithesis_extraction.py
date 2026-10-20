@@ -66,7 +66,17 @@ _AwaitedT = TypeVar("_AwaitedT")
 # because the previous ask ("an antithesis that represents Negation of the
 # thesis") was complied with exactly — and at the high rungs exact compliance
 # is a caricature (measured 19/19, `tests/probe_blindspot_paths.py`).
-_OPPOSING_POSITION_ASK = """The antithesis is a POSITION someone holds for its own value, that functionally opposes the role the thesis plays — at this rung's mechanism, in the thesis's own terms. It is not the thesis's absence or degradation restated as a stance. Example: for "Quit my job and start my own company", Negation is "Keep the security and craft of employed work", not "Never quit, stay employed forever"; the second is a caricature nobody holds, and a caricature cannot be developed constructively — rate such a candidate's tetrad potential low rather than dressing it up."""
+#
+# The second failure, the caricature's mirror (2026-10-20, the first app's
+# handoff `docs/handoff-2026-10-20-thesis-choice.md`): "in the thesis's own
+# terms" was complied with exactly too, and when the thesis's own words NAME
+# their opponent and concede it ("not only schools, but also …"), that
+# opponent is the most literal answer — the writer drew it as A on Sonnet 5.5
+# in every configuration, and the card handed the person their own clause as
+# the blind spot they were not seeing. This ask was one-sided: tuned against
+# the strawman end, it had nothing to say about the granted end. UNMEASURED
+# as a rule; the shape is the caricature rule's, in the same place.
+_OPPOSING_POSITION_ASK = """The antithesis is a POSITION someone holds for its own value, that functionally opposes the role the thesis plays — at this rung's mechanism, in the thesis's own terms. It is not the thesis's absence or degradation restated as a stance. Example: for "Quit my job and start my own company", Negation is "Keep the security and craft of employed work", not "Never quit, stay employed forever"; the second is a caricature nobody holds, and a caricature cannot be developed constructively — rate such a candidate's tetrad potential low rather than dressing it up. The mirror failure: an opposition the thesis's own words already name AND concede ("not only X but also Y", "X matters, but …") is seen, not missing — its constructive side is something the person has already granted, and a tetrad built on it shows them their own concession as a blind spot. Rate such a candidate's tetrad potential low as well, and oppose the claim they actually make."""
 
 
 # --- Extraction-specific DTOs ---
@@ -94,7 +104,9 @@ class ModePointResultDto(BaseModel):
             "A is a position someone holds for its own value, it can be developed so "
             "that it also strengthens what T is for (an A+ exists), and it has its own "
             "one-sided failure (an A-). Low: A is T's absence or degradation dressed as "
-            "a position, or a caricature nobody would hold — nothing to develop."
+            "a position, a caricature nobody would hold — nothing to develop — or an "
+            "opposition the thesis's own words already name and concede, whose A+ the "
+            "person has granted."
         ),
     )
     arousal_label: str = Field(
@@ -132,7 +144,8 @@ class OptimumARankingDto(BaseModel):
             "functionally opposes the role the thesis plays; it can be developed so "
             "that it also strengthens what the thesis is for, and it has its own "
             "one-sided failure. Worst = the thesis's absence or degradation dressed "
-            "as a stance, or a caricature nobody holds."
+            "as a stance, a caricature nobody holds, or an opposition the thesis's own "
+            "words already concede."
         )
     )
     reasoning: str = Field(
@@ -542,7 +555,7 @@ Thesis: "{thesis.prompt_text}"
 Candidates:
 {numbered}
 
-The best antithesis is the one most likely to yield a coherent tetrad with the thesis: a POSITION someone holds for its own value that functionally opposes the role the thesis plays — it can be developed constructively so that it also strengthens what the thesis is for, and it has its own one-sided failure. Rank lower any candidate that is the thesis's absence or degradation dressed as a stance, a caricature nobody would hold, or the thesis merely hedged. Return every number exactly once."""
+The best antithesis is the one most likely to yield a coherent tetrad with the thesis: a POSITION someone holds for its own value that functionally opposes the role the thesis plays — it can be developed constructively so that it also strengthens what the thesis is for, and it has its own one-sided failure. Rank lower any candidate that is the thesis's absence or degradation dressed as a stance, a caricature nobody would hold, the thesis merely hedged, or an opposition the thesis's own words already name and concede. Return every number exactly once."""
         try:
             verdict = await self._conversation.isolate().submit(
                 response_model=OptimumARankingDto, user_content=prompt

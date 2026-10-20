@@ -159,7 +159,14 @@ class TetradSketch(ReasonableConcern[ViewSketchPerspectiveDto], SettingsAware):
             self._report.summary = f"Sketch failed: {first}"
             raise first
 
-        best, verdicts = await select_sketch(candidates, context or "")
+        # This writer chooses the thesis (or words a given one), so the draws
+        # are ranked by the person's claim as well as by coherence
+        # (`tetrad_candidates.judge_fit`): the fit judge reads the MATERIAL,
+        # the person's own words, where the control statements keep the
+        # caller's `context`; with no material it is skipped.
+        best, verdicts = await select_sketch(
+            candidates, context or "", fit_against=material
+        )
         tension = candidates[best]
         self.verdict = verdicts[best]
         self.alternatives = [

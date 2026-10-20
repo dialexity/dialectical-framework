@@ -2026,7 +2026,17 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    is not re-asked for): measured on 20 questions without it, T echoed the question in 6/20 while the
    tetrad itself was statement-grade (`tests/e2e/probe_question_entry.py`). The same text is read by a
    host's intake gate (0d), so what a gate passes as "carrying a lean" is what the writer then reads as T —
-   edit it in one place and re-run the probe.
+   edit it in one place and re-run the probe. **Since 2026-10-20 it also says WHICH claim when the words
+   hold several** (the one the person would sign — the conclusion or demand — never a premise, a hedge on
+   the way to it, or a claim conceded in passing): every figure above was on one-sentence, one-claim inputs,
+   and a four-claim polemic came back as a tetrad about its mildest sub-claim (the handoff
+   `docs/handoff-2026-10-20-thesis-choice.md`). Unmeasured; re-check the question-echo figure when it is,
+   since it is the same constant. **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
+   day**: an opposition the thesis's own words name AND concede ("not only X but also Y") is seen, not
+   missing — rate its tetrad potential low, oppose the claim actually made; stated at the ask, the
+   `tetrad_potential` field, the `OptimumARankingDto` field and the Optimum-A ranking prompt together
+   (parity rule above). The ask had been one-sided: tuned against the strawman end, it said nothing about
+   the granted end, and "in the thesis's own terms" was complied with exactly. Unmeasured.
 0d. **A host's intake gate reads `THESIS_IS_A_STANCE` too (2026-10-04; app code since 2026-10-05).** The
    alsotrue app's `StanceCapture` (its repo, `alsotrue/stance_capture.py`) is one structured call → a stance OR
    one question, built on the same stance text as the writers. Not a framework prompt site; listed so that an
@@ -2056,11 +2066,22 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    and the builders take no `draw` argument — so the draws are rewordings of one tension and the spares
    are the same tension reworded (82% by an LLM read); (d) the selection's own verdict flatters the
    winner (max of noisy reads) — the honest number is a FRESH judge pass, which is what the probes report;
-   (e) `ranking` reads the pass floor, then DV (same judge call, `SketchVerdict.dialectical_validity`),
-   then the mean — a term placed ahead of the floor trades every keep-any-passing figure for an unmeasured
-   one; (f) the judge's `<context>` is the material on every caller, the view turn's being the person's
-   turns (`view_sketch.judge_context`, bounded by `JUDGE_CONTEXT_CHARS`) — a blind judge scores the four
-   aspects against nothing.
+   (e) `ranking` reads the pass rule, then — on the writers that CHOOSE the thesis — the thesis FIT as a
+   yes/no (`SketchVerdict.fits`, `THESIS_FIT_THRESHOLD`; 2026-10-20), then the floor's value, then DV (same
+   judge call, `SketchVerdict.dialectical_validity`), then the mean — a term placed ahead of the pass rule
+   trades every keep-any-passing figure for an unmeasured one, and the fit is a yes/no so the floor's value
+   still decides between two fitting draws; (f) the judge's `<context>` is the material on every caller,
+   the view turn's being the person's turns (`view_sketch.judge_context`, bounded by `JUDGE_CONTEXT_CHARS`)
+   — a blind judge scores the four aspects against nothing; (g) the FIT judge
+   (`concerns/thesis_fit_check.py::ThesisFitCheck`, one call per draw gathered beside the two control
+   statements, reads T, A, A+ against the PERSON's words handed as `select_sketch(fit_against=)` — the
+   view turn's `judge_context`, the build's MATERIAL, never the Advisor's paraphrase that is the build's
+   `context`; fail-soft to `None` = not judged = fits) exists because a coherence-only choice prefers a
+   tetrad about a hedge to one about the demand the person would sign (the first app's handoff
+   `docs/handoff-2026-10-20-thesis-choice.md`); it is a SELECTION term under (a)'s rule, never a signal
+   into generation, and the staged writer on a given pair does not ask (same T and A on every draw).
+   UNMEASURED: gate on `probe_joint_judge_stability.py` and `probe_view_turn_ask.py` over long
+   multi-claim inputs, coherence and antithesis kind counted beside the fit.
    One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
    apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX

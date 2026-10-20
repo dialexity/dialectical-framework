@@ -28,6 +28,21 @@ three times". What the handoff found beside it is kept: the ranking reads
 dialectical validity after the pass floor (`ranking`), and the view turn's
 judge reads the person's words (`view_sketch.judge_context`).
 
+The second handoff (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`)
+found the limit of a coherence-only choice: on a multi-claim input the
+writer drew the claim the person would sign twice in three draws and the
+ranking kept the hedge, because a tetrad about a hedge degenerates more
+coherently than one about a demand, and coherence was all the ranking read.
+So the writers that CHOOSE the thesis (the view turn, the one-shot build)
+ask for a second judge beside the control statements, `ThesisFitCheck`
+(`concerns/thesis_fit_check.py`): is this draw's T the claim they would
+sign, and is its A+ something their words do not already grant. It ranks
+AFTER the pass floor as a yes/no (`SketchVerdict.fits`), so every
+keep-any-passing figure on record stands; it is a selection term, never a
+signal back into generation. The staged writer draws for a GIVEN pair, where
+T and A are the same on every draw, and does not ask. Unmeasured at the time
+of writing — the gates are named on the concern.
+
 What this must NOT become: a loop that optimises against the judge. The judge
 never sees the thesis or antithesis — it scores the four aspects' coherence
 and passes a MIRROR antithesis more readily than a genuine position — so a
@@ -48,12 +63,15 @@ holding a text or an object with `.statement` (`TetradDto`'s `AspectDto`).
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
 from dialectical_framework.concerns.control_statements_check import \
     ControlStatementsCheck
+from dialectical_framework.concerns.thesis_fit_check import (
+    THESIS_FIT_THRESHOLD, ThesisFitCheck)
 from dialectical_framework.graph.nodes.estimation import \
     CONCEPTUAL_COHERENCE_THRESHOLD
 
@@ -100,6 +118,15 @@ class SketchVerdict:
     handoff). `None` on the DV fields means the judge did not say — a verdict
     built from CC alone — and such a verdict ranks BELOW any with a DV, never
     as a zero (a zero is a claim).
+
+    `thesis_fit` is the second judge's read (`ThesisFitCheck`, 2026-10-20):
+    whether the draw stands on the claim the person would sign, against an
+    opposition they have not already granted. `None` here means the fit
+    judge did NOT run (the caller did not ask, had no words to read against,
+    or the call failed) and the draw ranks as it did before the term existed
+    — the opposite convention from DV's, on purpose: DV's `None` is a verdict
+    the judge gave without it, fit's `None` is no judging at all, and a
+    provider error on one draw must not demote it.
     """
 
     t_plus_without_a_plus: float
@@ -107,6 +134,7 @@ class SketchVerdict:
     reasoning: str = ""
     t_plus_without_a_plus_dv: Optional[float] = None
     a_plus_without_t_plus_dv: Optional[float] = None
+    thesis_fit: Optional[float] = None
 
     @property
     def floor(self) -> float:
@@ -129,6 +157,11 @@ class SketchVerdict:
     @property
     def passes(self) -> bool:
         return self.floor >= CONCEPTUAL_COHERENCE_THRESHOLD
+
+    @property
+    def fits(self) -> bool:
+        """Not judged, or judged at or above `THESIS_FIT_THRESHOLD`."""
+        return self.thesis_fit is None or self.thesis_fit >= THESIS_FIT_THRESHOLD
 
 
 def aspect_text(value: Any) -> str:
@@ -203,17 +236,58 @@ async def judge_sketches(
     return list(await asyncio.gather(*(one(c) for c in candidates)))
 
 
+async def judge_fit(
+    candidates: Sequence[Any], context: str
+) -> list[Optional[float]]:
+    """`ThesisFitCheck` on every candidate, each on its own (gathered), each
+    read against the person's words in `context`. One call per draw beside
+    the control statements' two. Fail-soft per candidate: a failed judging
+    is `None` — NOT judged, which `SketchVerdict.fits` treats as fitting.
+    A candidate without a thesis or antithesis (a transition tetrad through
+    `as_control_tetrad`) is not judged either."""
+
+    async def one(tension: Any) -> Optional[float]:
+        thesis = aspect_text(getattr(tension, "thesis", "")).strip()
+        antithesis = aspect_text(getattr(tension, "antithesis", "")).strip()
+        if not thesis or not antithesis:
+            return None
+        try:
+            verdict = await ThesisFitCheck().score_texts(
+                thesis=thesis,
+                antithesis=antithesis,
+                a_plus=aspect_text(tension.a_plus),
+                text=context,
+            )
+            return verdict.fit
+        except Exception as exc:  # noqa: BLE001 — degrade to "not judged"
+            logger.warning("Judging a sketch's thesis fit failed; it ranks unjudged: %s", exc)
+            return None
+
+    return list(await asyncio.gather(*(one(c) for c in candidates)))
+
+
 async def select_sketch(
-    candidates: Sequence[Any], context: str = ""
+    candidates: Sequence[Any], context: str = "", fit_against: Optional[str] = None
 ) -> tuple[int, list[Optional[SketchVerdict]]]:
     """Judge every candidate (gathered) and return the index of the best plus
     all verdicts (None where judging failed).
 
     Ranking (`ranking`): the weaker control statement first (the pass rule),
-    then dialectical validity, then the mean coherence, then the earlier draw
-    — a deterministic tie-break, not a preference. A candidate whose judging
-    failed sorts last; if every judging failed the first draw is kept, which
-    is exactly what `attempts=1` would have done.
+    then — with `fit_against` — whether the draw stands on the person's claim
+    against an opposition they have not granted (`judge_fit`, a yes/no), then
+    the floor's value, dialectical validity, the mean coherence, then the
+    earlier draw — a deterministic tie-break, not a preference. A candidate
+    whose judging failed sorts last; if every judging failed the first draw
+    is kept, which is exactly what `attempts=1` would have done.
+
+    `fit_against` is the PERSON's words, for the writers that CHOOSE the
+    thesis (the view turn's `judge_context`, the one-shot build's material):
+    on a given pair every draw has the same T and A and the term would cost
+    N calls to say nothing. It is a separate argument from `context` because
+    the two judges read different things: the control statements take the
+    caller's context (on the build, a paraphrase the Advisor composed), the
+    fit judge must read what the person actually said. Empty or `None` skips
+    the fit judge — it is never asked blind.
 
     ONE candidate is never judged: there is nothing to select among, so
     `attempts=1` costs no extra call.
@@ -221,19 +295,38 @@ async def select_sketch(
     if len(candidates) == 1:
         return 0, [None]
 
-    verdicts = await judge_sketches(candidates, context)
+    words = (fit_against or "").strip()
+    if words:
+        verdicts, fits = await asyncio.gather(
+            judge_sketches(candidates, context), judge_fit(candidates, words)
+        )
+        verdicts = [
+            None if v is None else dataclasses.replace(v, thesis_fit=f)
+            for v, f in zip(verdicts, fits)
+        ]
+    else:
+        verdicts = await judge_sketches(candidates, context)
     return ranking(verdicts)[0], verdicts
 
 
 def ranking(verdicts: Sequence[Optional[SketchVerdict]]) -> list[int]:
-    """Candidate indices best first: the weaker control statement, then
+    """Candidate indices best first: whether the weaker control statement
+    passes, then whether the draw fits the person's claim (`fits`: not
+    judged counts as fitting), then the weaker statement's value, then
     dialectical validity, then the mean coherence, then the earlier draw;
     unjudged last. `[0]` is the winner; the rest are the runners-up in order.
 
-    Why the floor stays FIRST: it is the pass rule, and every best-of-N figure
-    on record (CC 36/40 on the view turn, 30/40 on the build, 26/46 on
-    documents) is a keep-any-passing-draw figure — a term ahead of it would
-    trade those for an unmeasured one. Why DV comes next, ahead of the mean:
+    Why the pass rule stays FIRST: every best-of-N figure on record (CC 36/40
+    on the view turn, 30/40 on the build, 26/46 on documents) is a
+    keep-any-passing-draw figure — a term ahead of it would trade those for
+    an unmeasured one. The fit term sits INSIDE that rule, as a yes/no: among
+    draws that hold, one on the claim the person would sign against an
+    opposition they have not granted beats one on a hedge, however coherent
+    the hedge (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`); among
+    draws that fail, the fit decides the same way, so a card with no passing
+    draw still shows the person's claim. A yes/no rather than the score
+    because the floor's VALUE should keep deciding between two draws that
+    both fit, as it did before the term. Why DV comes next, ahead of the mean:
     DV is the paper's acceptance term beside SP (the Advisor's quality floor
     already reads it), and it answers the question the choice is about — of
     two draws that both hold, which is the LIVE tension rather than the
@@ -245,11 +338,19 @@ def ranking(verdicts: Sequence[Optional[SketchVerdict]]) -> list[int]:
     `explorer._causality_probability`), never as a zero.
     """
 
-    def key(index: int) -> tuple[int, float, float, float, int]:
+    def key(index: int) -> tuple[int, bool, bool, float, float, float, int]:
         verdict = verdicts[index]
         if verdict is None:
-            return (0, 0.0, 0.0, 0.0, -index)
+            return (0, False, False, 0.0, 0.0, 0.0, -index)
         dv = verdict.dialectical_validity
-        return (1, verdict.floor, -1.0 if dv is None else dv, verdict.mean, -index)
+        return (
+            1,
+            verdict.passes,
+            verdict.fits,
+            verdict.floor,
+            -1.0 if dv is None else dv,
+            verdict.mean,
+            -index,
+        )
 
     return sorted(range(len(verdicts)), key=key, reverse=True)

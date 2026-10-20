@@ -190,7 +190,19 @@ class ViewSketchDto(BaseModel):
 #: named the lean of "why do I keep hiring people like me" was then removed
 #: because the writer used that line as BOTH poles on its own utterance
 #: (one item, unmeasured deletion, said so). Story: the alsotrue app repo, docs/lab-notes-entry.md.
-THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all."""
+#:
+#: The last sentence — WHICH claim when the words hold several — is from the
+#: first app's second handoff (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`):
+#: a six-sentence polemic holding four claims and a concession came back as a
+#: tetrad about its mildest sub-claim ("society has the right to ask"), while
+#: the demand the person would sign ("stop mass migration") sat in no corner.
+#: Every figure above was taken on one-sentence, one-claim inputs, where the
+#: question never arose. UNMEASURED: to be run on a set of long multi-claim
+#: inputs (`tests/e2e/probe_view_turn_ask.py` once there is a case set), with
+#: the question-echo figure above re-checked, since it is the same constant.
+#: A host's intake gate reads this text too (`systemic-map.md` 0d), so its
+#: cut moves with it — by design: the gate's cut is what the writer reads as T.
+THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all. When the words hold SEVERAL claims, T is the one the person would sign — the conclusion or demand the rest leads to — not a premise or a hedge on the way to it ("we have the right to ask" is the run-up to the demand that follows), and not a claim they concede in passing ("not only X but also Y" concedes X; their stance is Y)."""
 
 TETRAD_BUILD_PROCEDURE = f"""Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
 Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
