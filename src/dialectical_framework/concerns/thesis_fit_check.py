@@ -76,7 +76,7 @@ class ThesisFitDto(BaseModel):
         le=1.0,
         description=(
             "Do the person's own words ALREADY name and concede what A+ says? "
-            "1.0: they wrote it themselves ('not only X but also Y' concedes Y). "
+            "1.0: they wrote it themselves ('not only X but also Y' concedes X). "
             "0.0: it is a constructive side of the opposition they have not seen."
         ),
     )

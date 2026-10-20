@@ -792,6 +792,37 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         )
         assert "would SIGN" in fields["thesis_is_the_claim"].description
         assert "ALREADY name and concede" in fields["a_plus_already_granted"].description
+        # The idiom reads the SAME way at the field and in the prompt: "not only
+        # X but also Y" concedes X (the field said Y until 2026-10-20, and the
+        # judge was handed both readings in one call).
+        assert "concedes X" in fields["a_plus_already_granted"].description
+        assert "concedes Y" not in fields["a_plus_already_granted"].description
+
+    @pytest.mark.asyncio
+    async def test_the_field_and_the_prompt_read_the_idiom_the_same_way(self, monkeypatch):
+        """The judge is handed the schema and the prompt in ONE call; two
+        readings of "not only X but also Y" in that call is a judge told to
+        contradict itself."""
+        from dialectical_framework.agents.conversation_facilitator import \
+            ConversationFacilitator
+        from dialectical_framework.concerns.thesis_fit_check import (
+            ThesisFitCheck, ThesisFitDto)
+
+        seen = {}
+
+        async def fake_submit(self, *, response_model, user_content):
+            seen["prompt"] = user_content
+            return ThesisFitDto(
+                thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="r"
+            )
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        await ThesisFitCheck().score_texts(
+            thesis="t", antithesis="a", a_plus="a+", text="words"
+        )
+        prompt = seen["prompt"]
+        assert "concedes X" in prompt and "concedes Y" not in prompt
+        assert "<context>\nwords\n</context>" in prompt
 
 
 class TestWhoAsksForTheFit:
