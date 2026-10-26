@@ -1620,13 +1620,44 @@ unfounded on 40 inputs. And 19/40 is the first number of any kind for "does the
 writer draw the claim the person would sign" on multi-claim input: better than
 the handoff's 0/1, far from good.
 
-**What the next run needs**, in order: a set selected for a LATE demand (the
-pool has 2,174 length-qualified candidates and the screen already reports the
-call to action, so position is a free filter); and a primary read that is a
-CHOICE among the text's own claims — the blind screen already lists them, so
-"which of these claims does T state, or none" replaces a boolean that cannot
-tell a paraphrase from a different claim. Both are changes to the instrument,
-pre-registered before the next run, and neither touches `src/`.
+**The second run, the same day, with both instrument changes made.** A second set,
+`MULTI_CLAIM_CASES_LATE` — 40 petitions pre-filtered, on the author's demand alone, for a
+demand stated in no sentence of the first half (78 of 4,624 qualified; the blind screen passed
+41) — and a second primary read: the judge chooses WHICH of the text's own claims T states,
+from the blind screen's list, against a label placed once per case from the author's demand
+by the same judge on the same list. The first set's saved draws were re-read under the new
+instrument too (`rescore_multiclaim.py`, ~$1), so both sets sit on both reads:
+
+| set | demand sits | read | with the rules | without | discordant |
+|---|---|---|---|---|---|
+| first | first third 37/40 | choice among the claims | 30/40 | 29/40 | 1 |
+| first | | boolean "same claim" | 19/40 | 19/40 | 4 |
+| late | middle 21, last 19 | choice among the claims | 25/40 | 26/40 | 4 (2-2) |
+| late | | boolean "same claim" | 32/40 | 28/40 | 8 (6-2, p 0.29) |
+
+Side conditions on the late set: coherence 30 against 29, antithesis a position 40 against 40.
+Mirror cases on it: 2, unreadable; the mirror rule's figure stays the first set's 3 against 5.
+
+**Verdict: the rules are inert within the resolution of either instrument, on both shapes.**
+Every bar missed again. The one hint in the rules' favour — the late set's boolean, +4,
+6-2 on discordant pairs — is below the bar and is not reproduced by the choice read on the
+same draws (−1). And the two reads disagree with each other by more than either arm
+difference: on the first set the choice read finds ten more demands than the boolean (30
+against 19 — the paraphrases the boolean refused), on the late set four fewer (25 against
+32). An arm effect of ±1 under a read disagreement of ±5 to ±10 is nothing.
+
+What the two runs did establish, which was not known on the morning of the 26th: the writer
+draws a BURIED demand as T about 65% of the time with or without the rules (25-26 of 40 by
+choice, 28-32 by boolean), so the handoff's failure — the hedge chosen over the demand — is
+real but not the common case on real inputs of that shape; and the two rules cost nothing on
+either set. They stay, as harmless and unproven. The remaining lever for the handoff's case
+is the one the handoff itself named last: the model (Opus drew the demand unpinned at 42 s).
+
+Instrument notes for whoever runs the third: five of forty late-set demands (and three of
+forty first-set) could not be placed among the screen's listed claims by the labelling call,
+and count as missing rather than as misses; the probe's demand locator now uses the sentence
+criterion the late set was built on (a word-level locator put 13 of its demands in the first
+third on "government" alone); and the boolean is kept only for continuity.
 
 **The gates.** `probe_joint_judge_stability.py` measures a different judge, so the fit judge
 got its own instrument, `tests/e2e/probe_thesis_fit_judge.py` (stored view-turn draws, nothing

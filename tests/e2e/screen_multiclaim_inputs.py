@@ -236,7 +236,20 @@ def _content_words(phrase: str) -> set[str]:
     }
 
 
-def demand_is_in_the_text(action: str, call_to_action: Optional[str]) -> bool:
+def _best_sentence_overlap(action: str, text: str) -> int:
+    """The most content words any ONE sentence of the text shares with the demand."""
+    import re
+
+    author = _content_words(action)
+    return max(
+        (len(author & _content_words(s)) for s in re.split(r"(?<=[.!?])\s+", text)),
+        default=0,
+    )
+
+
+def demand_is_in_the_text(
+    action: str, call_to_action: Optional[str], text: str = ""
+) -> bool:
     """Does the author's own one-line demand actually appear in the argument?
 
     The gate holds `action` back as ground truth for "the claim the person
@@ -253,10 +266,20 @@ def demand_is_in_the_text(action: str, call_to_action: Optional[str]) -> bool:
     FILTER on the case set, never a measurement, and it is computed from two
     independent phrasings of the same demand, not from the framework's output.
     """
-    if not call_to_action:
-        return False
     author = _content_words(action)
     if not author:
+        return False
+    # Second route, for a demand the text states in its OWN words somewhere
+    # other than the sentence the screen quoted: a buried demand is often
+    # preceded by a generic opener ("We call on the Government to review the
+    # law"), which the screen quotes as the call to action while the specific
+    # demand sits further down. One sentence sharing three content words with
+    # the author's demand is that demand, stated. Three, not two: anywhere in
+    # 120 words two shared words is too easy (petition 305554's text shares
+    # "rent", "council" and "tax" with a demand it never makes as a demand).
+    if text and _best_sentence_overlap(action, text) >= 3:
+        return True
+    if not call_to_action:
         return False
     shared = author & _content_words(call_to_action)
     # Two shared content words, after stopwords. A FRACTION of the author's
@@ -269,14 +292,14 @@ def demand_is_in_the_text(action: str, call_to_action: Optional[str]) -> bool:
     return len(shared) >= need
 
 
-def qualifies(read: ClaimStructureDto, action: str) -> tuple[bool, bool]:
+def qualifies(read: ClaimStructureDto, action: str, text: str = "") -> tuple[bool, bool]:
     """(usable for the which-claim stratum, usable for the mirror stratum)."""
     multi = (
         len(read.distinct_claims) >= 3
         and not read.is_one_claim_restated
         and bool(read.call_to_action)
         and read.has_weaker_surrounding_claims
-        and demand_is_in_the_text(action, read.call_to_action)
+        and demand_is_in_the_text(action, read.call_to_action, text)
     )
     return multi, multi and bool(read.conceded_opposing_view)
 
@@ -284,7 +307,17 @@ def qualifies(read: ClaimStructureDto, action: str) -> tuple[bool, bool]:
 @pytest.mark.asyncio
 async def test_screen_builds_the_case_set():
     """Fetch, screen, record. Prints the counts and writes the JSON."""
-    pool = fetch_pool()
+    pool_file = os.environ.get("MULTICLAIM_POOL_FILE")
+    if pool_file:
+        # A pre-filtered pool (e.g. the buried-demand subset, selected on the
+        # author's `action` sitting in the text's second half — a filter that
+        # reads nothing the screen reads). Same screen, same blindness.
+        pool = json.load(open(pool_file, encoding="utf-8"))
+        for c in pool:
+            c.setdefault("url", f"https://petition.parliament.uk/petitions/{c['id']}")
+            c.setdefault("markers", c.get("concession_markers", []))
+    else:
+        pool = fetch_pool()
     assert pool, "no candidates fetched — is the petitions API reachable?"
     candidates = pool[:SCREEN_LIMIT]
     print(f"\npool {len(pool)} candidates; screening {len(candidates)}")
@@ -298,7 +331,7 @@ async def test_screen_builds_the_case_set():
                 read = await screen.read(candidate["text"])
             except Exception as e:  # a screen failure is data, not a stop
                 return {**candidate, "error": f"{type(e).__name__}: {e}"}
-        multi, mirror = qualifies(read, candidate["action"])
+        multi, mirror = qualifies(read, candidate["action"], candidate["text"])
         return {
             **candidate,
             "read": read.model_dump(),
@@ -339,6 +372,7 @@ async def test_screen_builds_the_case_set():
         print(f"   screen's call to action:     {read['call_to_action']}")
         print(f"   conceded opposition:         {read['conceded_opposing_view']}")
     print(f"\nwrote {out}")
-    assert len(which) >= 40, (
-        f"only {len(which)} usable items; raise MULTICLAIM_SCREEN_LIMIT or widen MIN_WORDS"
+    need = int(os.environ.get("MULTICLAIM_SCREEN_NEED", "40"))
+    assert len(which) >= need, (
+        f"only {len(which)} usable items; raise MULTICLAIM_SCREEN_LIMIT or widen the pool"
     )

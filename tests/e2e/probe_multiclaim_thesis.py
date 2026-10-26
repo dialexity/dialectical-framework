@@ -36,8 +36,25 @@ the drawn T and that demand and nothing else — not the arm, not the rule, not 
 other arm's answer. The mirror rule is scored the same way against the clause the
 blind screen quoted as the text's own concession.
 
-PRE-REGISTERED, before the first call
-=====================================
+THE SECOND INSTRUMENT (same day, after the first run)
+=====================================================
+The first run was a dead null on a set whose demand sat in the opening sentence
+31 times in 40, read by a boolean judge that flipped on paraphrase (dev note,
+"inert on the set that could be built"). Two changes, neither touching `src/`:
+
+* `MULTICLAIM_SET=late` runs `MULTI_CLAIM_CASES_LATE` — 40 cases whose demand
+  is stated in NO sentence of the first half, the handoff's shape.
+* The primary read is a CHOICE, not a boolean: the judge is shown T and the
+  text's own claims as the blind screen listed them, and names the one T
+  states (or none). Which listed claim IS the demand is labelled once per case,
+  blind, from the author's demand alone, before any arm is read. A paraphrase
+  of the demand and the demand itself land on the same option, which is what
+  the boolean could not do. The boolean is kept as `thesis_is_the_demand` for
+  continuity with the first run; the choice is `thesis_claim_index` and the
+  primary count is `thesis_picks_the_demand`.
+
+PRE-REGISTERED, before the first call (same bars for the second run)
+====================================================================
 Primary (rule 1): T states the author's demand, counted over 40 paired cases.
     The WITH arm must win by at least +7 of 40, with the sign test over
     discordant pairs reported beside it.
@@ -71,7 +88,8 @@ from dialectical_framework.agents.conversation_facilitator import \
     ConversationFacilitator
 from e2e.config import E2EConfig
 from e2e.modelctx import using_model
-from e2e.multiclaim_cases import MULTI_CLAIM_CASES, MultiClaimCase
+from e2e.multiclaim_cases import (MULTI_CLAIM_CASES, MULTI_CLAIM_CASES_LATE,
+                                  MultiClaimCase)
 from e2e.probe_aspect_variants import _judge
 from e2e.probe_tetrad_quality import _audit_kind
 # `_texts` reused rather than rewritten: the view's fields are `t`/`a`, not
@@ -197,6 +215,52 @@ async def _same_claim(drawn: str, demand: str) -> Optional[bool]:
     return dto.states_the_same_claim
 
 
+class WhichClaimDto(BaseModel):
+    """Blind read: which of a text's listed claims does a position state?"""
+
+    claim_number: int = Field(
+        description=(
+            "The number of the ONE listed claim the position states — the same "
+            "commitment, however worded. 0 if it states none of them (a different "
+            "claim, or something weaker than any of them)."
+        )
+    )
+    reasoning: str = Field(description="One sentence.")
+
+
+def _numbered(claims: tuple[str, ...]) -> str:
+    return "\n".join(f"{i}. {c}" for i, c in enumerate(claims, 1))
+
+
+async def _which_claim(position: str, claims: tuple[str, ...]) -> Optional[int]:
+    """T against the text's own claims, in the text's own order.
+
+    Not shuffled: a fixed order makes any position bias identical in both arms
+    and identical to the labelling call below, which is the comparison that
+    matters."""
+    if not claims:
+        return None
+    try:
+        dto = await ConversationFacilitator().submit(
+            response_model=WhichClaimDto,
+            user_content=(
+                "A piece of writing makes these claims:\n\n"
+                f"{_numbered(claims)}\n\n"
+                f'Which ONE of them does this position state?\n\nPosition: "{position}"'
+            ),
+        )
+    except Exception:
+        return None
+    return dto.claim_number if 0 <= dto.claim_number <= len(claims) else None
+
+
+async def _label_demand(case: MultiClaimCase) -> Optional[int]:
+    """Which listed claim is the author's demand — once per case, before any
+    arm, from the author's own words. The same judge and the same list as
+    `_which_claim`, so a paraphrase lands where the demand does."""
+    return await _which_claim(case.demand, case.claims)
+
+
 async def _restates(drawn: str, clause: str) -> Optional[bool]:
     try:
         dto = await ConversationFacilitator().submit(
@@ -263,24 +327,30 @@ def _demand_positions(cases: tuple[MultiClaimCase, ...]) -> dict[str, int]:
     A demand in the opening sentence is drawn correctly by position alone, so
     this is the difficulty of the set: the rule under test is about choosing
     the signable claim over the hedges that precede it.
+
+    Located as the SENTENCE sharing the most content words with the author's
+    demand (at least two), the criterion the late set was pre-filtered on. A
+    first attempt located the demand's first distinctive WORD, which put 13 of
+    the late set's demands in the first third on the strength of "government"
+    or "children" alone — a locator cruder than the filter it was checking.
     """
+    import re
+
+    from e2e.screen_multiclaim_inputs import _content_words
+
     buckets = {"first third": 0, "middle": 0, "last third": 0, "not located": 0}
     for case in cases:
-        head = " ".join(case.demand.split()[:4]).lower()
-        position = case.text.lower().find(head) if head else -1
-        if position < 0:
-            # The demand is reworded in the text rather than quoted; fall back
-            # to the most distinctive word it shares with the text.
-            words = sorted(
-                (w for w in head.split() if len(w) > 5), key=len, reverse=True
-            )
-            position = next(
-                (case.text.lower().find(w) for w in words if w in case.text.lower()), -1
-            )
-        if position < 0:
+        author = _content_words(case.demand)
+        best, best_at, at = 0, None, 0
+        for sentence in re.split(r"(?<=[.!?])\s+", case.text):
+            overlap = len(author & _content_words(sentence))
+            if overlap > best:
+                best, best_at = overlap, at
+            at += len(sentence) + 1
+        if best < 2 or best_at is None:
             buckets["not located"] += 1
             continue
-        fraction = position / max(1, len(case.text))
+        fraction = best_at / max(1, len(case.text))
         key = (
             "first third" if fraction < 1 / 3
             else "middle" if fraction < 2 / 3
@@ -340,10 +410,13 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
     # A smoke run on the first few cases, for checking the wiring without
     # paying for the whole set. A capped run is NOT the gate: the bars above
     # are stated over 40 and 22, and the report says so.
-    limit = int(os.environ.get("MULTICLAIM_LIMIT", "0")) or len(MULTI_CLAIM_CASES)
-    cases = MULTI_CLAIM_CASES[:limit]
-    if limit < len(MULTI_CLAIM_CASES):
-        print(f"    SMOKE RUN on {limit} of {len(MULTI_CLAIM_CASES)} cases — not the gate")
+    which_set = os.environ.get("MULTICLAIM_SET", "first")
+    full_set = MULTI_CLAIM_CASES_LATE if which_set == "late" else MULTI_CLAIM_CASES
+    limit = int(os.environ.get("MULTICLAIM_LIMIT", "0")) or len(full_set)
+    cases = full_set[:limit]
+    print(f"    set: {which_set} ({len(full_set)} cases)")
+    if limit < len(full_set):
+        print(f"    SMOKE RUN on {limit} of {len(full_set)} cases — not the gate")
 
     arms = {
         name: await _run_arm(name, cases, batch)
@@ -352,14 +425,34 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
 
     demand = {c.petition_id: c.demand for c in cases}
     conceded = {c.petition_id: c.conceded for c in cases if c.conceded}
+    claims = {c.petition_id: c.claims for c in cases}
+    # The label, once per case, blind, before either arm is read.
+    labels = dict(
+        zip(
+            [c.petition_id for c in cases],
+            await asyncio.gather(*(_label_demand(c) for c in cases)),
+        )
+    )
+    labelled = sum(1 for v in labels.values() if v)
+    print(f"  demand located among the listed claims: {labelled}/{len(cases)}", flush=True)
 
     for name, rows in arms.items():
         complete = [r for r in rows if r.get("thesis")]
-        claims = await asyncio.gather(
+        claims_bool = await asyncio.gather(
             *(_same_claim(r["thesis"], demand[r["petition_id"]]) for r in complete)
         )
-        for row, verdict in zip(complete, claims):
+        for row, verdict in zip(complete, claims_bool):
             row["thesis_is_the_demand"] = verdict
+        picks = await asyncio.gather(
+            *(_which_claim(r["thesis"], claims[r["petition_id"]]) for r in complete)
+        )
+        for row, pick in zip(complete, picks):
+            row["thesis_claim_index"] = pick
+            row["demand_claim_index"] = labels.get(row["petition_id"])
+            row["thesis_picks_the_demand"] = (
+                None if not pick or not row["demand_claim_index"]
+                else pick == row["demand_claim_index"]
+            )
         mirror_rows = [
             r for r in complete if r["petition_id"] in conceded and r.get("a_plus")
         ]
@@ -387,8 +480,15 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
     report = {
         "bars": BARS,
         "cases": len(cases),
-        "is_the_gate": len(cases) == len(MULTI_CLAIM_CASES),
+        "set": which_set,
+        "is_the_gate": len(cases) == len(full_set),
         "drawn": {k: _count(v, "drawn") for k, v in arms.items()},
+        "demand_located_in_claims": labelled,
+        # PRIMARY: the choice among the text's own claims.
+        "thesis_picks_the_demand": {
+            k: _count(v, "thesis_picks_the_demand") for k, v in arms.items()
+        },
+        # The first run's boolean, kept for continuity; flips on paraphrase.
         "thesis_is_the_demand": {k: _count(v, "thesis_is_the_demand") for k, v in arms.items()},
         "a_plus_already_granted": {
             k: _count(v, "a_plus_already_granted") for k, v in arms.items()
@@ -406,6 +506,7 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
         # front-loaded cannot show what rule 1 is for, and any null from it is
         # partly a fact about the set. Reported on every run from now on.
         "demand_position": _demand_positions(cases),
+        "sign_test_picks": _sign_test(w, wo, "thesis_picks_the_demand"),
         "sign_test_demand": _sign_test(w, wo, "thesis_is_the_demand"),
         "sign_test_granted": _sign_test(w, wo, "a_plus_already_granted"),
     }
@@ -479,6 +580,27 @@ class TestTheInstrument:
         report = inspect.getsource(test_the_two_prompt_rules_on_multi_claim_input)
         assert '_count(v, "pass")' in report
         assert 'r.get("a_kind") == "position"' in report
+
+    def test_the_late_set_poses_the_handoffs_shape(self):
+        """The demand sits in the second half — or the set does not test what
+        the first one could not."""
+        positions = _demand_positions(MULTI_CLAIM_CASES_LATE)
+        assert positions["first third"] <= 4, positions
+
+    def test_the_label_and_the_choice_use_one_judge_and_one_list(self):
+        """A paraphrase of the demand must land on the same option as the
+        demand, which only holds if both reads see the same numbered list."""
+        import inspect
+
+        import ast
+        import textwrap
+
+        assert "_which_claim(case.demand, case.claims)" in inspect.getsource(_label_demand)
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_which_claim)))
+        names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | {
+            n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
+        }
+        assert not names & {"shuffle", "random", "sample"}, names
 
     def test_the_sign_test_pairs_by_case(self):
         a = [{"petition_id": "1", "k": True}, {"petition_id": "2", "k": False}]
