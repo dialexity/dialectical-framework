@@ -1551,10 +1551,40 @@ have had the demand to choose. Where every draw is the hedge it changes nothing 
 two prompt rules' job, and if they fail on Sonnet 5.5 the lever is the model, which is the
 app's choice (`Consultant(thinking="low")` and the judge on Sonnet are its two time levers).
 
-**The gates, when run.** `tests/e2e/probe_joint_judge_stability.py` for the fit judge's own
-stability (reversed order, re-judging); `tests/e2e/probe_view_turn_ask.py` over a case set of
-long multi-claim inputs — the app will supply its de-identified ones — with three things
-counted: the winner's coherence (the keep-any-passing figure must not fall), the antithesis
-kind, and a read of whether the winner's T is the claim the person would sign and its A+ is
-not in their words. Re-run `probe_question_entry.py`'s echo count, since rule 1 is the same
-constant. Until then, nothing in this section is pitched.
+**The gates.** `probe_joint_judge_stability.py` measures a different judge, so the fit judge
+got its own instrument, `tests/e2e/probe_thesis_fit_judge.py` (stored view-turn draws, nothing
+generated; the model comes from the bench config through `modelctx.using_model`, so no model id
+sits in the file). `probe_view_turn_ask.py` over a case set of long multi-claim inputs is still
+owed — the app will supply its de-identified ones — with three things counted: the winner's
+coherence (the keep-any-passing figure must not fall), the antithesis kind, and whether the
+winner's T is the claim the person would sign with an A+ not already in their words. Re-run
+`probe_question_entry.py`'s echo count, since rule 1 is the same constant.
+
+**What the first run says (2026-10-26, Sonnet 5.5 on the native `anthropic/` provider).** The
+judge is steady and almost nothing moves behind it.
+
+| read | figure |
+|---|---|
+| self-agreement on `fits`, 40 stored draws re-judged twice | 40/40 (a repeat run, 39/40) |
+| mean absolute shift in `fit` between the two reads | 0.011, max 0.10 |
+| stored fields (winner + spares) SPLIT on `fits` | 6/120 (5%, repeat 7/120) |
+| unanimous pass / unanimous fail | 114/120 / 0/120 |
+| a spare outscores its winner on fit, same side of the line | 33/120 (28%) |
+
+The split count is the one that decides whether the term does anything: the fit is a yes/no
+inside the pass rule, so a field where every draw answers the same way is a field the term
+cannot touch. At 5% on these single-claim utterances the term is nearly inert — which is the
+safety property the ranking was designed for (no keep-any-passing figure can move) and, on this
+evidence, no help either. It says nothing about the handoff's shape, where the draws differ on
+which claim they bear; that still needs the case set. The two prompt rules are untested.
+
+**A thinking structured call does not run on the native provider.** The view-turn arm of the
+gate returned 400 on all 40 utterances: `"thinking.type.enabled" is not supported for this
+model`. The framework's thinking SHAPE translation (`thinking_compat.with_thinking_compat`,
+which turns `{type: enabled, budget_tokens}` into whatever the model accepts) is applied inside
+`utils/bedrock_provider.py::_encode`, and `use_brain` reaches that provider only when the
+resolved model starts with `bedrock/`. The view turn and `TetradSketch` are the two structured
+calls that think, so both are Bedrock-only today; every unthinking concern, the fit judge
+included, parses on either provider. Nothing was billed — a 400 carries no tokens. Whether the
+compat belongs at a provider-neutral seam is a real question and an unmeasured change: every
+figure in this archive was taken through the Bedrock encoder.

@@ -33,13 +33,27 @@ other draws. Fail-soft: a failed judging is `None`, and `None` means "not
 judged", which the ranking treats as fitting — a provider error must never
 demote a draw that was otherwise best.
 
-UNMEASURED (2026-10-20). Written from one reproduced case with a clear
-direction, not from a run; the owner's credit on the framework side was out.
-The gates when it is measured: `tests/e2e/probe_joint_judge_stability.py`
-for the judge's own stability, `tests/e2e/probe_view_turn_ask.py` on a case
-set of long multi-claim inputs for the selection's effect, with coherence
-and the antithesis kind counted beside the fit — a selection term that
-rescues the demand's draw must not cost the keep-any-passing figure.
+The judge itself is MEASURED, its effect on a choice is not (2026-10-26,
+`tests/e2e/probe_thesis_fit_judge.py`, Sonnet 5.5, stored view-turn draws,
+nothing generated). Stable: 40/40 stored draws re-judged twice agreed on
+`fits`, mean |fit| shift 0.011, no read crossing the threshold. And nearly
+INERT on the single-claim sets this archive holds: of 120 stored fields
+(a winner and its spares) 6 split on `fits` — only there can the term move
+a choice — 114 passed unanimously and none failed unanimously, while a
+spare outscored its winner in 33/120 without crossing the line. So it
+cannot disturb a keep-any-passing figure here, and it cannot help here
+either: the shape it was written for, a multi-claim input where one draw
+bears the demand and another the hedge, is still UNMEASURED for want of
+such a case set. The two prompt rules beside it are unmeasured too.
+
+The view-turn arm of that gate does not run on the native `anthropic/`
+provider: the view turn is the one structured call that THINKS, and the
+thinking-shape translation (`thinking_compat.with_thinking_compat`, which
+turns the framework's `{type: enabled, budget_tokens}` into the model's own
+accepted shape) is applied in `utils/bedrock_provider.py::_encode`, reached
+only for a `bedrock/` model — so 40/40 draws came back 400
+("thinking.type.enabled is not supported for this model"). This judge has
+no thinking and parses on either provider.
 """
 
 from __future__ import annotations

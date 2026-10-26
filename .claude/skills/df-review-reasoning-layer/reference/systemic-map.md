@@ -2080,8 +2080,13 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    tetrad about a hedge to one about the demand the person would sign (the first app's handoff
    `docs/handoff-2026-10-20-thesis-choice.md`); it is a SELECTION term under (a)'s rule, never a signal
    into generation, and the staged writer on a given pair does not ask (same T and A on every draw).
-   UNMEASURED: gate on `probe_joint_judge_stability.py` and `probe_view_turn_ask.py` over long
-   multi-claim inputs, coherence and antithesis kind counted beside the fit.
+   The JUDGE is measured, its effect on a choice is not (`probe_thesis_fit_judge.py`, 2026-10-26,
+   Sonnet 5.5, stored draws): self-agreement on `fits` 40/40, mean |fit| shift 0.011; but only
+   6 of 120 stored fields split on `fits`, so on single-claim input the term is nearly inert —
+   safe for every keep-any-passing figure and no help there either. The multi-claim shape it was
+   written for still needs a case set, and the view-turn arm needs a `bedrock/` model (the
+   thinking-shape compat is applied only in `bedrock_provider._encode`; natively the thinking
+   view turn 400s). The two prompt rules remain unmeasured.
    One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
    apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
