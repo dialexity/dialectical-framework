@@ -1573,6 +1573,61 @@ have had the demand to choose. Where every draw is the hedge it changes nothing 
 two prompt rules' job, and if they fail on Sonnet 5.5 the lever is the model, which is the
 app's choice (`Consultant(thinking="low")` and the judge on Sonnet are its two time levers).
 
+### The two prompt rules, measured at last — and inert on the set that could be built (2026-10-26)
+
+**Result first: both pre-registered bars MISSED, and the side conditions held.**
+`tests/e2e/probe_multiclaim_thesis.py`, 40 real multi-claim inputs
+(`multiclaim_cases.py`), `attempts=1`, WITH the two rules against WITHOUT them,
+paired, one run, one transport:
+
+| read | with the rules | without | bar | verdict |
+|---|---|---|---|---|
+| T states the author's own demand | 19/40 | 19/40 | +7 | missed, a dead null |
+| A+ restates the conceded clause (of 22) | 3 | 5 | −4 | missed, right direction, −2 |
+| coherence pass | 32/40 | 31/40 | no worse than −3 | holds |
+| antithesis a genuine position | 39/40 | 38/40 | no worse than −3 | holds |
+
+Only 4 of 40 cases differed between the arms at all (2 each way). So on this set
+the rules are **inert**: they cost nothing (both side conditions clear) and buy
+nothing that this instrument can see.
+
+**Two reasons the null is weaker evidence than it looks, both found by
+inspecting the run rather than by rerunning it.**
+
+1. **The set is the wrong difficulty.** The author's demand sits in the text's
+   FIRST THIRD in 31 of 40 cases (4 in the middle, 1 last, 4 reworded past
+   locating), because a petition opens with its demand: "We call on the
+   Government to ...". The handoff's case buried the demand LAST, after four
+   claims of rising force and a concession. A writer gets a front-loaded demand
+   by position alone, and rule 1 — prefer the signable claim over the hedges
+   that lead to it — has almost nothing to act on. The report now prints this
+   distribution on every run, because a null from a front-loaded set is partly
+   a fact about the set.
+2. **The primary judge flips on paraphrase.** Of the four discordant pairs, at
+   least two are the same claim worded twice: "income support matching
+   employees'" (scored not-the-demand) against "... matching employees now."
+   (scored the demand); "keep close to full gross pay" against "keep nearly all
+   their gross pay". A boolean "do these state the same claim" resolves worse
+   than the effect being measured. On clear cases it behaves — "Self-employed
+   people deserve the same support as employees" genuinely is not "claim 80% of
+   average annual income" — so the 19/40 level is a real reading; the PAIRED
+   comparison is what sits at the noise floor.
+
+**What is nonetheless now known, and was not before.** The two rules do not cost
+coherence and do not cost the antithesis its character — the fear that a rule
+pushing for the harder claim would degrade the tetrad is measured and
+unfounded on 40 inputs. And 19/40 is the first number of any kind for "does the
+writer draw the claim the person would sign" on multi-claim input: better than
+the handoff's 0/1, far from good.
+
+**What the next run needs**, in order: a set selected for a LATE demand (the
+pool has 2,174 length-qualified candidates and the screen already reports the
+call to action, so position is a free filter); and a primary read that is a
+CHOICE among the text's own claims — the blind screen already lists them, so
+"which of these claims does T state, or none" replaces a boolean that cannot
+tell a paraphrase from a different claim. Both are changes to the instrument,
+pre-registered before the next run, and neither touches `src/`.
+
 **The gates.** `probe_joint_judge_stability.py` measures a different judge, so the fit judge
 got its own instrument, `tests/e2e/probe_thesis_fit_judge.py` (stored view-turn draws, nothing
 generated; the model comes from the bench config through `modelctx.using_model`, so no model id
