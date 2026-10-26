@@ -67,7 +67,9 @@ _HISTORY = [
 def _tension(**overrides: str) -> ViewSketchPerspectiveDto:
     fields = dict(
         thesis="Keep the Berlin office",
+        thesis_held_by="",
         antithesis="Consolidate everything in Zurich",
+        antithesis_held_by="",
         t_plus_vs_a_minus_axis="local presence",
         t_plus="Berlin stays close to the German clients",
         a_minus="Zurich alone loses the German market",
@@ -453,6 +455,21 @@ class TestAHostCanPinTheThesisVerbatim:
 
     @pytest.mark.llm
     @pytest.mark.asyncio
+    async def test_a_pinned_position_is_never_someone_elses(self, monkeypatch):
+        """The host's own words are the person's own position by contract, so
+        whatever holder the draw wrote is dropped with its wording."""
+        _fake_submit(
+            monkeypatch,
+            ViewSketchDto(tensions=[_tension(thesis_held_by="the Minister")]),
+        )
+        head = Consultant(app_preamble="You are a thinking partner.")
+
+        view = await head.exploration_view(attempts=1, thesis=self._PINNED)
+
+        assert view.perspectives[0].t.held_by is None
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
     async def test_a_runner_up_carries_the_pin_too(self, monkeypatch):
         """A host serving "another" from a runner-up must not get the drawn
         wording back, so the pin is applied before selection — to every draw."""
@@ -578,3 +595,49 @@ class TestAFailedDrawIsOnRecord:
         view = await head.exploration_view(attempts=1)
         assert view.failed_draws == []
         assert "failed_draws" in view.to_dict()
+
+
+class TestWhoseStance:
+    """Since 2026-10-26 the view carries WHOSE position T (and A) is, when it
+    is not the person's own — the repair for the pasted-material finding, where
+    the writer took someone else's position as T in 28/28 draws and nothing
+    said so (`tests/e2e/probe_pasted_material.py`)."""
+
+    def test_the_holder_rides_on_the_pole(self):
+        view = perspective_from_sketch(
+            _tension(thesis_held_by="the Minister", antithesis_held_by="Siân Berry")
+        )
+        assert view.t.held_by == "the Minister"
+        assert view.a.held_by == "Siân Berry"
+
+    def test_the_persons_own_position_is_none_not_a_sentinel(self):
+        """Empty on the DTO (every field there is a text) is `None` on the
+        view: absence is None, and the aspects never carry a holder."""
+        view = perspective_from_sketch(_tension(thesis_held_by="  "))
+        assert view.t.held_by is None
+        assert view.a.held_by is None
+        assert all(getattr(view, k).held_by is None for k in ("t_plus", "t_minus", "a_plus", "a_minus"))
+
+    def test_the_dto_names_the_holder_beside_its_pole(self):
+        names = list(ViewSketchPerspectiveDto.model_fields)
+        assert names.index("thesis_held_by") == names.index("thesis") + 1
+        assert names.index("antithesis_held_by") == names.index("antithesis") + 1
+        for name in ("thesis_held_by", "antithesis_held_by"):
+            assert "Empty" in ViewSketchPerspectiveDto.model_fields[name].description
+
+    def test_the_record_says_whose_so_the_next_reply_does_not_say_yours(self):
+        view = exploration_view_from_sketch(
+            ViewSketchDto(tensions=[_tension(thesis_held_by="the Minister", antithesis_held_by="Siân Berry")])
+        )
+        text = history_text(view)
+        assert "(the Minister's position)" in text
+        assert "(Siân Berry's)" in text
+        own = history_text(exploration_view_from_sketch(ViewSketchDto(tensions=[_tension()])))
+        assert "position)" not in own and "'s)" not in own
+
+    def test_the_rule_tells_the_writer_whose_and_names_the_field(self):
+        from dialectical_framework.concerns.view_sketch import THESIS_IS_A_STANCE
+
+        assert "WHOSE stance depends on the words" in THESIS_IS_A_STANCE
+        assert "`held_by`" in THESIS_IS_A_STANCE
+        assert "first person" not in THESIS_IS_A_STANCE

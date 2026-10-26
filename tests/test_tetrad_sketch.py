@@ -32,7 +32,9 @@ UTTERANCE = "I should quit my job and start my own company."
 
 SKETCH = ViewSketchPerspectiveDto(
     thesis="Quit and start my own company",
+    thesis_held_by="",
     antithesis="Keep the craft and security of employment",
+    antithesis_held_by="",
     t_plus_vs_a_minus_axis="ownership of outcomes",
     t_plus="Build something I own, using what the job taught me",
     a_minus="Clinging to a salary that stops me growing",
@@ -129,11 +131,18 @@ class TestThePrompt:
         assert THESIS_IS_A_STANCE in view_sketch_prompt(None, 7)
         assert THESIS_IS_A_STANCE in tetrad_sketch_prompt(UTTERANCE, "", 7)
         assert THESIS_IS_A_STANCE not in tetrad_sketch_prompt(UTTERANCE, "", 7, thesis="Quit")
-        assert "never their question restated" in THESIS_IS_A_STANCE
+        assert "never a question restated" in THESIS_IS_A_STANCE
+        # Since 2026-10-26 WHOSE stance depends on the words, and the holder is
+        # carried by `held_by` rather than by the wording (the pasted-material run).
+        assert "WHOSE stance depends on the words" in THESIS_IS_A_STANCE
+        assert "held_by" in THESIS_IS_A_STANCE
         # 2026-10-20: WHICH claim when the words hold several (the first app's
-        # handoff, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence") — unmeasured.
-        assert "the one the person would sign" in THESIS_IS_A_STANCE
-        assert "not a claim they concede in passing" in THESIS_IS_A_STANCE
+        # handoff, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on
+        # coherence"). Measured 2026-10-26 on 80 real multi-claim inputs and
+        # inert; kept as harmless. "their holder" since the same day, when
+        # whose stance became a matter of the words.
+        assert "the one their holder would sign" in THESIS_IS_A_STANCE
+        assert "not a claim conceded in passing" in THESIS_IS_A_STANCE
 
     def test_the_dto_is_one_flat_tension_with_no_numbers(self):
         fields = TetradSketchDto.model_fields

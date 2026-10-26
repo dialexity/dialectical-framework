@@ -505,6 +505,9 @@ class Consultant:
             for drawn_sketch in sketches:
                 if drawn_sketch.tensions:
                     drawn_sketch.tensions[0].thesis = pinned
+                    # A pinned position is the host's own words for the
+                    # person's own position: never someone else's.
+                    drawn_sketch.tensions[0].thesis_held_by = ""
         # With several draws the framework's own coherence check picks the one
         # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
         # draw with no complete first tension sorts last. The card a blindspot

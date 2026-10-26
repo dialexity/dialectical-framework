@@ -213,3 +213,38 @@ position" rather than "your position". The field is a DTO change on `ViewSketchP
 and a host-contract change on `PerspectiveView`, which is the owner's call; without it, arm B
 alone buys "draw on articles" and nothing about attribution. Routing material to the documents
 path remains the no-code alternative.
+
+**Shipped (option 2, the owner's call the same evening): the rule AND the field.** Arm B's text
+is now `view_sketch.THESIS_IS_A_STANCE`, with one sentence added — the holder is NAMED in
+`held_by` — and the old first-person text moved into the probe as the control
+(`STANCE_ARM=first_person`), the way rejected prompt text is kept in this tree.
+`ViewSketchPerspectiveDto` gained `thesis_held_by` and `antithesis_held_by`, each a text beside
+its pole (every field on that DTO is a text; empty = the person's own, and the strict schema
+keeps them required — a defaulted field drops out of `required` and the model may omit it).
+`PoleView.held_by` carries it: None = the person's own or, off the graph path, unknown (a
+persisted Statement stores no holder). It is words, so `without_terminology` keeps it — it is
+exactly what a hidden-machinery screen must show instead of "your position". `history_text`
+writes "(the Minister's position)" so the next reply does not say "yours". A pinned thesis
+(`exploration_view(thesis=)`) forces it empty in code, since the host's words are the person's
+own by contract. The real-provider shape check (both probes re-run on the shipped prompts, with
+`held_by` read) follows below.
+
+**The shape check, on the real provider (same evening).** Both probes re-run on the shipped
+prompts with `held_by` read:
+
+| | reportage (20) | dialogue (17) | the 20-question echo probe |
+|---|---|---|---|
+| drew | 19 | 17 | 17 (3 declined: 3 of the 4 requests for information) |
+| `held_by` named on T | 19/19 | 17/17 | **0/17** — the person's own words, empty as required |
+| names the same party the blind screen did | 9/15 | 16/17 | — |
+| `held_by` named on A | 18/19 | 15/17 | — |
+| T a held position; T and A two holders | 15/19; 13/19 | 17/17; 9/17 | — |
+| asker's own stance / echo / CC | — | — | 16/17 / 1/17 / 16/17 |
+
+The field fills where it should and stays empty where it should, and the names are specific
+("Lee Myung-bak's government", "Protesters and critics", "Ken Cuccinelli, Virginia Attorney
+General"). The 9/15 on articles is partly the same-party judge's strictness ("the documentary
+(Hartog)" against the screen's "Hartog" was called a mismatch) and partly real: an article has
+more parties than a two-speaker window. Two things stay open, named in CLAUDE.md: in about half
+the dialogues the writer still invents A instead of taking the other speaker's position, and
+the fit judge's two reads presuppose authorship.

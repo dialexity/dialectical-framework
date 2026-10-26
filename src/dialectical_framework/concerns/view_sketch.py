@@ -96,11 +96,24 @@ class ViewSketchPerspectiveDto(BaseModel):
     the next lever must be measured on coherence first.
     """
 
-    thesis: str = Field(description="T — the position, in the person's own terms.")
+    thesis: str = Field(description="T — the position, in its holder's own terms.")
+    thesis_held_by: str = Field(
+        description=(
+            "Who holds T, named from the words, ONLY when it is not the person's own "
+            "position — the quoted party, the speaker, 'critics', 'the Minister'. "
+            "Empty when the person speaks for themselves."
+        )
+    )
     antithesis: str = Field(
         description=(
-            "A — what T is in tension with, in the person's own terms. Empty if "
+            "A — what T is in tension with, in its holder's own terms. Empty if "
             "the ask stops at the thesis."
+        )
+    )
+    antithesis_held_by: str = Field(
+        description=(
+            "Who holds A, named from the words, ONLY when it is someone other than "
+            "the person — in a debate, the other speaker. Empty otherwise."
         )
     )
     t_plus_vs_a_minus_axis: str = Field(
@@ -202,7 +215,24 @@ class ViewSketchDto(BaseModel):
 #: the question-echo figure above re-checked, since it is the same constant.
 #: A host's intake gate reads this text too (`systemic-map.md` 0d), so its
 #: cut moves with it — by design: the gate's cut is what the writer reads as T.
-THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all. When the words hold SEVERAL claims, T is the one the person would sign — the conclusion or demand the rest leads to — not a premise or a hedge on the way to it ("we have the right to ask" is the run-up to the demand that follows), and not a claim they concede in passing ("not only X but also Y" concedes X; their stance is Y)."""
+#:
+#: WHOSE stance (2026-10-26, `tests/e2e/probe_pasted_material.py`): the text
+#: used to presume authorship — "something the person holds, written as a claim
+#: they could say in the first person" — and on pasted MATERIAL (20 third-party
+#: articles, 17 Hansard dialogue windows, none carrying the reader's position)
+#: the writer took one of the OTHER parties' positions as T in 28 of 28 draws
+#: with nothing saying whose, so a card would show it as the person's. The
+#: first-person device was never reaching the wording anyway: both the old and
+#: this text produce bare claims ("Drop the family farm tax"), and the device's
+#: real job — stopping the writer echoing a question as T (6/20 → 0/20) — is
+#: done by the sentences kept here. Measured as an arm before it shipped: on
+#: material it stops the writer DECLINING articles (11/20 → 20/20 drawn) and
+#: draws the tension in them (a held position 16/20); on the 20-question echo
+#: probe it is neutral within one case (own stance 15/15, echo 1/15, requests
+#: for information declined 4/4). The holder is carried by `held_by` on the DTO
+#: and the view, because no wording of this rule can carry it: 0 of 37 draws
+#: named one in either arm. Story: `docs/dev-notes/views.md`, "Pasted material".
+THESIS_IS_A_STANCE = """The thesis (T) is a STANCE: a claim that someone in these words HOLDS, wants or is about to act on — never a question restated, never a description of what happens. WHOSE stance depends on the words. When the person speaks for themselves, T is their own position, worded as they could say it. When the words report, quote or transcribe OTHER people's positions and carry none of the person's own — an article, a debate, a conversation they are relaying — T is one of THOSE positions, worded as its holder would state it and never as the person's own, and the holder is NAMED (in the `held_by` field) so that nobody is told it is theirs; the person is reading, not asserting. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what its holder holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all. When the words hold SEVERAL claims, T is the one their holder would sign — the conclusion or demand the rest leads to — not a premise or a hedge on the way to it ("we have the right to ask" is the run-up to the demand that follows), and not a claim conceded in passing ("not only X but also Y" concedes X; the stance is Y)."""
 
 TETRAD_BUILD_PROCEDURE = f"""Building a tetrad, when you build one — as its two diagonal contradiction pairs (T+ vs A-, A+ vs T-).
 Each aspect has one fixed parent: T+ and T- develop T; A+ and A- develop A.
@@ -341,11 +371,14 @@ Write every position in the person's own terms, {max_words} words or fewer each.
 # --- The view shaping (pure) ----------------------------------------------
 
 
-def _pole(text: Optional[str]) -> Optional[PoleView]:
+def _pole(text: Optional[str], held_by: Optional[str] = None) -> Optional[PoleView]:
     """A pole from a text, or None for an empty one — the view's own rule: an
-    absent position is `None`, not an empty box, and `complete` says so."""
+    absent position is `None`, not an empty box, and `complete` says so.
+    `held_by` empty means the person's own, and is `None` on the pole: absence
+    is None, never a sentinel."""
     text = (text or "").strip()
-    return PoleView(text=text) if text else None
+    held_by = (held_by or "").strip() or None
+    return PoleView(text=text, held_by=held_by) if text else None
 
 
 def perspective_from_sketch(tension: ViewSketchPerspectiveDto) -> PerspectiveView:
@@ -365,8 +398,8 @@ def perspective_from_sketch(tension: ViewSketchPerspectiveDto) -> PerspectiveVie
         if is_axis_name(axis)
     }
     poles = {
-        "t": _pole(tension.thesis),
-        "a": _pole(tension.antithesis),
+        "t": _pole(tension.thesis, tension.thesis_held_by),
+        "a": _pole(tension.antithesis, tension.antithesis_held_by),
         "t_plus": _pole(tension.t_plus),
         "t_minus": _pole(tension.t_minus),
         "a_plus": _pole(tension.a_plus),
@@ -430,10 +463,14 @@ def history_text(view: ExplorationView) -> str:
     for n, p in enumerate(view.perspectives, 1):
         t = p.t.text if p.t else None
         a = p.a.text if p.a else None
+        # Whose, when it is not the person's own — so the next reply says "the
+        # Minister's position", not "your position" (the pasted-material run).
+        t_whose = f" ({p.t.held_by}'s position)" if p.t and p.t.held_by else ""
+        a_whose = f" ({p.a.held_by}'s)" if p.a and p.a.held_by else ""
         if t and not a:
-            lines.append(f'{n}. Position: "{t}" — its opposition not yet found.')
+            lines.append(f'{n}. Position: "{t}"{t_whose} — its opposition not yet found.')
             continue
-        head = f'{n}. Tension: "{t}" against "{a}"'
+        head = f'{n}. Tension: "{t}"{t_whose} against "{a}"{a_whose}'
         if p.intent:
             head += f" ({p.intent})"
         corners = [

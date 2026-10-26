@@ -46,6 +46,8 @@ def _tension(**overrides) -> ViewSketchPerspectiveDto:
         a_plus_vs_t_minus_axis="reach",
         a_plus="Hire wherever the talent is",
         t_minus="Only who can commute counts",
+        thesis_held_by="",
+        antithesis_held_by="",
     )
     base.update(overrides)
     return ViewSketchPerspectiveDto(**base)

@@ -348,6 +348,7 @@ class TestWithoutTerminology:
         pole = PoleView(
             text="Steadiness",
             canonical_text="Control",
+            held_by="the Minister",
             position=POSITION_T_PLUS,
             label="T1+",
             hash="abc123",
@@ -359,7 +360,10 @@ class TestWithoutTerminology:
         hidden = pole.without_terminology()
 
         assert (hidden.text, hidden.canonical_text) == ("Steadiness", "Control")
-        assert list(_values(hidden.__dict__)) == ["Steadiness", "Control"] + [None] * 7
+        # `held_by` is words a hidden-machinery screen must SHOW ("the
+        # Minister's position", not "your position"), so it stays.
+        assert hidden.held_by == "the Minister"
+        assert list(_values(hidden.__dict__)) == ["Steadiness", "Control", "the Minister"] + [None] * 7
 
     def test_an_unfinished_tetrad_projects_without_inventing_poles(self):
         with scope(_new_sid()):

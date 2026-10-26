@@ -112,6 +112,15 @@ class PoleView:
     text: str
     #: The canonical text, when `text` is a host-set display override.
     canonical_text: Optional[str] = None
+    #: Who holds this position, named from the person's words, when it is NOT
+    #: the person's own — a quoted party in an article they pasted, a speaker
+    #: in a transcript. None = the person's own (or, off the graph path, not
+    #: known: a persisted Statement has no holder). Words, not terminology, so
+    #: `without_terminology` keeps it: it is exactly what a hidden-machinery
+    #: screen must show instead of "your position" (2026-10-26, the
+    #: pasted-material run: 28 of 28 draws on others' material were someone
+    #: else's position and nothing said so).
+    held_by: Optional[str] = None
     #: Framework terminology: "T", "A", "T+", "T-", "A+", "A-".
     position: Optional[str] = None
     #: The alias stored on the edge — "T1+", or a domain alias the app chose.

@@ -1,7 +1,10 @@
 """
 What the view turn does with material that is not the person's stance.
 
-A FINDING run, one arm (the shipped prompts), over `pasted_material_cases.py`:
+A FINDING run over `pasted_material_cases.py` — first made 2026-10-26 on the
+then-shipped prompts (the control below, `STANCE_ARM=first_person`), which led
+to the shipped rule saying WHOSE stance and to `held_by` on the view; with no
+arm set it now runs the shipped prompts and ALSO reads `held_by`:
 real reportage (Wikinews) and real dialogue (Hansard), none of it the reader's
 own position — see `screen_pasted_material.py` for the sourcing and the blind
 screen that listed each text's held positions and their holders.
@@ -56,28 +59,29 @@ from e2e.probe_view_turn_ask import FOCUS, _texts
 
 pytestmark = [pytest.mark.llm]
 
-#: ARM B, kept here and not in `src/` until it clears both probes. The owner's
-#: reading of the finding (2026-10-26): why word T in the first person at all —
-#: a thesis is a claim. The first-person wording was a DEVICE, not a goal: it
-#: is what stopped the writer echoing a question as T (6/20 → 0/20,
-#: `probe_question_entry.py`), so this arm keeps everything that did that work
-#: and replaces only the presumption of authorship. T is a claim SOMEONE in the
-#: words holds; whose depends on the words. Measured on this probe (does T stop
-#: being worded as the reader's on others' material, while still being a held
-#: position) and on the echo probe (does the echo stay at 0, do the person's
-#: own questions still get their own stance). Ships only if both hold.
-HELD_BY_STANCE = """The thesis (T) is a STANCE: a claim that someone in these words HOLDS, wants or is about to act on — never a question restated, never a description of what happens. WHOSE stance depends on the words. When the person speaks for themselves, T is their own position, worded as they could say it. When the words report, quote or transcribe OTHER people's positions and carry none of the person's own — an article, a debate, a conversation they are relaying — T is one of THOSE positions, worded as its holder would state it and never as the person's own; the person is reading, not asserting. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what its holder holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all. When the words hold SEVERAL claims, T is the one their holder would sign — the conclusion or demand the rest leads to — not a premise or a hedge on the way to it ("we have the right to ask" is the run-up to the demand that follows), and not a claim conceded in passing ("not only X but also Y" concedes X; the stance is Y)."""
+#: THE CONTROL: `THESIS_IS_A_STANCE` as it stood before 2026-10-26, kept here
+#: and not in `src/` like the other rejected prompt text (`DIFFERENT_OPPOSITION_ASK`).
+#: It presumed authorship — "something the person holds, written as a claim they
+#: could say in the first person" — and on pasted material the writer took one of
+#: the OTHER parties' positions as T in 28 of 28 draws with nothing saying whose.
+#: The shipped text (arm B of that day, now `view_sketch.THESIS_IS_A_STANCE`)
+#: keeps every sentence that stopped the question-echo and says WHOSE stance
+#: depends on the words, with the holder carried by `held_by`. `STANCE_ARM=first_person`
+#: re-runs the control; measured with it, the two texts are neutral on the
+#: 20-question echo probe within one case and differ on material only in that
+#: the shipped one stops declining articles (11/20 → 20/20 drawn).
+FIRST_PERSON_STANCE = """The thesis (T) is a STANCE: something the person holds, wants or is about to do, written as a claim they could say in the first person — never their question restated, never a description of what happens to them. When they asked a question, T is the answer their wording leans to: "Why should I keep paying for his phone when he never calls?" carries "I should stop paying for his phone"; "Isn't it time we stopped standups?" carries "We should stop standups". A behaviour described is not yet a stance; the stance is what the person holds about it. When the question is genuinely open between options ("Zurich or Vilnius?"), T is one of those options held as a stance. A request for information ("what is the best way to learn Spanish?") carries no stance at all. When the words hold SEVERAL claims, T is the one the person would sign — the conclusion or demand the rest leads to — not a premise or a hedge on the way to it ("we have the right to ask" is the run-up to the demand that follows), and not a claim they concede in passing ("not only X but also Y" concedes X; their stance is Y)."""
 
 
 class _StanceArm:
-    """`STANCE_ARM=held_by` runs the view turn on ARM B; anything else, as shipped."""
+    """`STANCE_ARM=first_person` runs the view turn on the pre-2026-10-26 control; anything else, as shipped."""
 
     def __enter__(self) -> "_StanceArm":
         from dialectical_framework.concerns import view_sketch
 
         self._module, self._was = view_sketch, view_sketch.THESIS_IS_A_STANCE
-        if os.environ.get("STANCE_ARM") == "held_by":
-            view_sketch.THESIS_IS_A_STANCE = HELD_BY_STANCE
+        if os.environ.get("STANCE_ARM") == "first_person":
+            view_sketch.THESIS_IS_A_STANCE = FIRST_PERSON_STANCE
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -106,6 +110,22 @@ class WhichPositionDto(BaseModel):
         description="The number of the ONE listed position the sentence states, however worded; 0 if none."
     )
     reasoning: str = Field(description="One sentence.")
+
+
+class SamePartyDto(BaseModel):
+    same_party: bool = Field(description="True if the two names refer to the same person or body.")
+    reasoning: str = Field(description="One sentence.")
+
+
+async def _same_party(a: str, b: str) -> Optional[bool]:
+    try:
+        dto = await ConversationFacilitator().submit(
+            response_model=SamePartyDto,
+            user_content=f'Do these two refer to the same person or body?\n\n1. "{a}"\n2. "{b}"',
+        )
+    except Exception:
+        return None
+    return dto.same_party
 
 
 def _numbered(positions: tuple[tuple[str, str], ...]) -> str:
@@ -162,6 +182,9 @@ async def _draw_one(case: PastedMaterialCase) -> dict[str, Any]:
     }
     if first is not None:
         row.update(_texts(first))
+        # The field shipped 2026-10-26: whose position, when not the person's.
+        row["t_held_by"] = first.t.held_by if first.t else None
+        row["a_held_by"] = first.a.held_by if first.a else None
     return row
 
 
@@ -201,6 +224,14 @@ async def test_what_the_view_turn_does_with_pasted_material(di_container) -> Non
         r["attributed_to"] = att
         r["t_position_index"] = pick
         r["t_is_a_held_position"] = bool(pick)
+    # `held_by` against the screen's holder of the position T matched: the
+    # field is right when it names the same party the blind screen did.
+    named = [r for r in drawn if r.get("t_held_by") and r.get("t_position_index")]
+    matches = await asyncio.gather(
+        *(_same_party(r["t_held_by"], by_id[r["case_id"]].positions[r["t_position_index"] - 1][0]) for r in named)
+    )
+    for r, m in zip(named, matches):
+        r["t_holder_matches_screen"] = m
     for r, pick in zip(a_rows, a_picks):
         r["a_position_index"] = pick
         positions = by_id[r["case_id"]].positions
@@ -219,6 +250,9 @@ async def test_what_the_view_turn_does_with_pasted_material(di_container) -> Non
             "t_attributed_to_reader": _count(kd, "attributed_to", "reader"),
             "t_attributed_to_someone_else": _count(kd, "attributed_to", "someone_else"),
             "t_is_a_held_position": _count(kd, "t_is_a_held_position"),
+            "t_held_by_named": sum(1 for r in kd if r.get("t_held_by")),
+            "t_holder_matches_screen": _count(kd, "t_holder_matches_screen"),
+            "a_held_by_named": sum(1 for r in kd if r.get("a_held_by")),
             "t_and_a_are_two_holders": _count(kd, "t_and_a_are_two_holders"),
             "median_seconds": sorted(r["seconds"] for r in k)[len(k) // 2] if k else None,
         }
@@ -227,14 +261,14 @@ async def test_what_the_view_turn_does_with_pasted_material(di_container) -> Non
     out.write_text(json.dumps({"report": report, "rows": rows}, indent=1, ensure_ascii=False))
     print("\n" + json.dumps(report, indent=1))
     for r in drawn[:4]:
-        print(f"\n[{r['kind']} {r['case_id']}] T: {r['thesis']}\n    A: {r.get('antithesis')}\n    attributed to: {r['attributed_to']} | T is held position #{r['t_position_index']}")
+        print(f"\n[{r['kind']} {r['case_id']}] T: {r['thesis']}  [held by: {r.get('t_held_by')}]\n    A: {r.get('antithesis')}  [held by: {r.get('a_held_by')}]\n    attributed to: {r['attributed_to']} | T is held position #{r['t_position_index']} | holder matches screen: {r.get('t_holder_matches_screen')}")
     print(f"\nwrote {out}")
 
 
 class TestTheInstrument:
-    def test_arm_b_keeps_every_sentence_that_stopped_the_echo(self):
-        """What the first-person device bought must survive the arm, or the
-        echo probe is being asked to re-measure a regression we could see."""
+    def test_the_shipped_text_keeps_every_sentence_that_stopped_the_echo(self):
+        """What the first-person device bought had to survive the change, or
+        the echo probe would be re-measuring a regression we could see."""
         from dialectical_framework.concerns.view_sketch import THESIS_IS_A_STANCE
 
         for kept in (
@@ -248,10 +282,11 @@ class TestTheInstrument:
             "not a premise or a hedge",
         ):
             assert kept in THESIS_IS_A_STANCE, kept
-            assert kept in HELD_BY_STANCE, kept
-        assert "first person" in THESIS_IS_A_STANCE
-        assert "first person" not in HELD_BY_STANCE
-        assert "OTHER people's positions" in HELD_BY_STANCE
+            assert kept in FIRST_PERSON_STANCE, kept
+        assert "first person" in FIRST_PERSON_STANCE
+        assert "first person" not in THESIS_IS_A_STANCE
+        assert "OTHER people's positions" in THESIS_IS_A_STANCE
+        assert "held_by" in THESIS_IS_A_STANCE, "the rule names the field that carries the holder"
 
     def test_the_arm_is_off_unless_asked(self, monkeypatch):
         from dialectical_framework.concerns import view_sketch
@@ -260,9 +295,9 @@ class TestTheInstrument:
         before = view_sketch.THESIS_IS_A_STANCE
         with _StanceArm():
             assert view_sketch.THESIS_IS_A_STANCE is before
-        monkeypatch.setenv("STANCE_ARM", "held_by")
+        monkeypatch.setenv("STANCE_ARM", "first_person")
         with _StanceArm():
-            assert view_sketch.THESIS_IS_A_STANCE is HELD_BY_STANCE
+            assert view_sketch.THESIS_IS_A_STANCE is FIRST_PERSON_STANCE
         assert view_sketch.THESIS_IS_A_STANCE is before
 
     def test_the_writer_never_sees_the_screens_reads(self):

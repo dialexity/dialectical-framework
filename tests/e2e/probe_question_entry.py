@@ -157,6 +157,8 @@ async def _draw(text: str, category: str, attempts: int) -> dict:
         ):
             row[name] = pole.text if pole else None
         row["intent"] = first.intent
+        # Since 2026-10-26: on the person's OWN words this must stay empty.
+        row["t_held_by"] = first.t.held_by if first.t else None
     return row
 
 
@@ -174,9 +176,9 @@ async def test_questions_through_the_view_turn(di_container) -> None:
 
     rows: list[dict] = []
     batch = max(1, 10 // attempts)
-    # `STANCE_ARM=held_by` draws on ARM B of `probe_pasted_material.py` — the
-    # stance rule without the presumption of authorship — so a change made for
-    # pasted material is checked here against the echo it was first built to stop.
+    # `STANCE_ARM=first_person` draws on the pre-2026-10-26 control kept in
+    # `probe_pasted_material.py`, so the shipped rule (whose stance depends on
+    # the words) is checked here against the echo the old one was built to stop.
     from e2e.probe_pasted_material import _StanceArm
 
     print(f"    stance arm: {os.environ.get('STANCE_ARM', 'shipped')}", flush=True)
@@ -215,6 +217,7 @@ async def test_questions_through_the_view_turn(di_container) -> None:
     print(f"  A kind          {dict(kinds)}   position {_fmt(kinds.get('position', 0), len(complete))}   (statements: 36/40)")
     print(f"  stance          {dict(collections.Counter(r.get('stance') for r in with_thesis))}")
     print(f"  asker's own     {_fmt(sum(bool(r.get('askers_own')) for r in with_thesis), len(with_thesis))}")
+    print(f"  held_by filled  {sum(1 for r in with_thesis if r.get('t_held_by'))}/{len(with_thesis)}   (the person's own words: should be 0)")
     print("  per category (drawn / stance kinds / own):")
     for cat in ("leaning", "neutral", "complaint", "none", "belief"):
         group = [r for r in rows if r["category"] == cat]

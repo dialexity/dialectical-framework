@@ -2030,8 +2030,19 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    hold several** (the one the person would sign — the conclusion or demand — never a premise, a hedge on
    the way to it, or a claim conceded in passing): every figure above was on one-sentence, one-claim inputs,
    and a four-claim polemic came back as a tetrad about its mildest sub-claim (the handoff
-   `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"). Unmeasured; re-check the question-echo figure when it is,
-   since it is the same constant. **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
+   `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"). Measured 2026-10-26 on 80 real
+   multi-claim inputs (`probe_multiclaim_thesis.py`) and INERT within either instrument's resolution; kept as
+   harmless. **Since 2026-10-26 the same text says WHOSE stance** — "a claim that someone in these words
+   holds; whose depends on the words": the person's own when they speak for themselves, one of the reported
+   holders' when the words carry only others' positions, NAMED in `thesis_held_by` / `antithesis_held_by` on
+   `ViewSketchPerspectiveDto` and carried as `PoleView.held_by` (None = the person's own; words, so
+   `without_terminology` keeps it; `history_text` says "(the Minister's position)"). Replaced "something the
+   person holds, written as a claim they could say in the first person", which on pasted material (20
+   third-party articles, 17 Hansard dialogues, `probe_pasted_material.py`) had the writer take someone else's
+   position as T in 28/28 draws with nothing saying whose — and which never reached the wording anyway
+   (both texts write bare claims). Every sentence that stopped the question-echo is kept; the old text
+   stays in that probe as the control (`STANCE_ARM=first_person`). A pinned thesis (`exploration_view(thesis=)`)
+   forces `held_by` empty in code. **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
    day**: an opposition the thesis's own words name AND concede ("not only X but also Y") is seen, not
    missing — rate its tetrad potential low, oppose the claim actually made; stated at the ask, the
    `tetrad_potential` field, the `OptimumARankingDto` field and the Optimum-A ranking prompt together
