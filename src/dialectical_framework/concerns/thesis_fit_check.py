@@ -46,14 +46,15 @@ either: the shape it was written for, a multi-claim input where one draw
 bears the demand and another the hedge, is still UNMEASURED for want of
 such a case set. The two prompt rules beside it are unmeasured too.
 
-The view-turn arm of that gate does not run on the native `anthropic/`
-provider: the view turn is the one structured call that THINKS, and the
-thinking-shape translation (`thinking_compat.with_thinking_compat`, which
-turns the framework's `{type: enabled, budget_tokens}` into the model's own
-accepted shape) is applied in `utils/bedrock_provider.py::_encode`, reached
-only for a `bedrock/` model — so 40/40 draws came back 400
-("thinking.type.enabled is not supported for this model"). This judge has
-no thinking and parses on either provider.
+This judge does not think, so it parses on either transport. The view-turn
+arm of the same gate did not, until the Mirascope floor moved to 2.8.2 on
+2026-10-26: the view turn is the one structured call that THINKS, the
+framework's thinking-shape translation is applied in
+`utils/bedrock_provider.py::_encode` alone, and Mirascope 2.5 sent every
+level as the legacy token budget — 40/40 draws came back 400
+("thinking.type.enabled is not supported for this model"). 2.8.2 emits the
+adaptive shape itself. The off-policy and the learned-shape retry are still
+Bedrock-only (see CLAUDE.md), so say which transport a figure came from.
 """
 
 from __future__ import annotations

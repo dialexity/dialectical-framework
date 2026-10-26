@@ -1578,13 +1578,37 @@ safety property the ranking was designed for (no keep-any-passing figure can mov
 evidence, no help either. It says nothing about the handoff's shape, where the draws differ on
 which claim they bear; that still needs the case set. The two prompt rules are untested.
 
-**A thinking structured call does not run on the native provider.** The view-turn arm of the
-gate returned 400 on all 40 utterances: `"thinking.type.enabled" is not supported for this
-model`. The framework's thinking SHAPE translation (`thinking_compat.with_thinking_compat`,
-which turns `{type: enabled, budget_tokens}` into whatever the model accepts) is applied inside
-`utils/bedrock_provider.py::_encode`, and `use_brain` reaches that provider only when the
-resolved model starts with `bedrock/`. The view turn and `TetradSketch` are the two structured
-calls that think, so both are Bedrock-only today; every unthinking concern, the fit judge
-included, parses on either provider. Nothing was billed — a 400 carries no tokens. Whether the
-compat belongs at a provider-neutral seam is a real question and an unmeasured change: every
-figure in this archive was taken through the Bedrock encoder.
+**A thinking structured call did not run on the native provider, and the fix was the
+dependency.** The view-turn arm of the gate returned 400 on all 40 utterances:
+`"thinking.type.enabled" is not supported for this model`. Diagnosis: the framework's thinking
+SHAPE translation (`thinking_compat.with_thinking_compat`, which turns
+`{type: enabled, budget_tokens}` into whatever the model accepts) is applied inside
+`utils/bedrock_provider.py::_encode`, and `use_brain` reaches that provider only for a
+`bedrock/` model — so on the native path Mirascope 2.5.0's own encoder sent the legacy budget
+straight through. The view turn and `TetradSketch` are the two structured calls that think;
+every unthinking concern, the fit judge included, parsed on either transport already. Nothing
+was billed, a 400 carries no tokens.
+
+The first instinct was to extract the compat layer out of the Bedrock class and register a
+sibling provider for `anthropic/` — seven methods, only the constructor actually about Bedrock.
+That work was not needed. **Mirascope 2.8.2 does the same translation itself**
+(`anthropic/_utils/encode.py`: `uses_adaptive_thinking_only` → `{"type": "adaptive"}` plus
+`output_config.effort`, with an `_ALWAYS_ON_THINKING_MODEL` set that raises on a `none` level),
+the project's pin already allowed it, and `providers/anthropic/provider.py` — the class this
+framework subclasses six methods of — is byte-identical between 2.5.0 and 2.8.2. After the
+upgrade one native thinking view-turn draw came back complete, and the full mocked suite is
+unchanged (3321 passed, 43 skipped, both before and after). The floor in `pyproject.toml` moved
+to `^2.8.2` because on 2.5 the native path silently 400s.
+
+Two things the upgrade does NOT move, both still Bedrock-only, because they live in the
+framework's provider rather than in Mirascope:
+
+- the conversational off-policy (`_apply_off`: an unset level sent as the model's own off inside
+  `conversational_round()`), so a native deployment thinks by default on conversational turns
+  where Bedrock sends off — cost and latency, not correctness;
+- the learned-shape retry, which corrects a wrong name heuristic from the 400 itself.
+
+On Bedrock nothing moved on the wire: Mirascope is handed the PREFIXED model id, which its
+`^claude-` pattern does not match, so the framework's layer still does the translation exactly
+as every figure in this archive was taken under. Where both could fire the emitted shape is the
+same and the framework's layer is a no-op on an already-adaptive request.

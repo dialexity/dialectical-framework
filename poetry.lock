@@ -1847,18 +1847,18 @@ test = ["flake8", "nbdime", "nbval", "notebook", "pytest"]
 
 [[package]]
 name = "mirascope"
-version = "2.5.0"
+version = "2.8.2"
 description = "Every frontier LLM. One unified interface."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "mirascope-2.5.0-py3-none-any.whl", hash = "sha256:4aee8148ce48254a02bf016b9a494ca0ce701d3cb351baff3c1207e0484962c1"},
-    {file = "mirascope-2.5.0.tar.gz", hash = "sha256:bf4a24838a9717eb03ec4cf1d69b211d30fd7f48a774491f000ee81d0b636968"},
+    {file = "mirascope-2.8.2-py3-none-any.whl", hash = "sha256:4d242b8587cf004e57313f82db91e8b813b715dd3c953f832350b9f1e3a1d57d"},
+    {file = "mirascope-2.8.2.tar.gz", hash = "sha256:743079786d5015a8953e4221d99333b54a59d24272ae365d8a9b4ffb89c8d7c9"},
 ]
 
 [package.dependencies]
-anthropic = {version = ">=0.76.0,<1.0", optional = true, markers = "extra == \"anthropic\""}
+anthropic = {version = ">=0.78.0,<1.0", optional = true, markers = "extra == \"anthropic\""}
 docstring-parser = ">=0.17.0"
 httpx = ">=0.27.0"
 jiter = ">=0.7.0"
@@ -1879,8 +1879,8 @@ pydantic = ">=2.0.0"
 typing-extensions = ">=4.10.0"
 
 [package.extras]
-all = ["anthropic (>=0.76.0,<1.0)", "google-genai (>=1.58.0,<2)", "libcst (>=1.8.6)", "mcp (>=1.25.0,<2)", "mlx-lm (>=0.28.4,<1)", "openai (>=2.15.0,<3)", "opentelemetry-api (>=1.38.0,<2)", "opentelemetry-exporter-otlp (>=1.38.0,<2)", "opentelemetry-instrumentation (>=0.59b0,<1)", "opentelemetry-instrumentation-anthropic (>=0.50.0,<1)", "opentelemetry-instrumentation-google-genai (>=0.3b0,<1)", "opentelemetry-instrumentation-openai-v2 (>=2.0b0,<3)", "opentelemetry-propagator-b3 (>=1.38.0)", "opentelemetry-propagator-b3 (>=1.38.0,<2)", "opentelemetry-propagator-jaeger (>=1.38.0)", "opentelemetry-sdk (>=1.38.0,<2)", "orjson (>=3.11.4)", "packaging (>=25.0)", "pillow (>=10.4.0,<11)", "proto-plus (>=1.24.0)"]
-anthropic = ["anthropic (>=0.76.0,<1.0)"]
+all = ["anthropic (>=0.78.0,<1.0)", "google-genai (>=1.58.0,<2)", "libcst (>=1.8.6)", "mcp (>=1.25.0,<2)", "mlx-lm (>=0.28.4,<1)", "openai (>=2.15.0,<3)", "opentelemetry-api (>=1.38.0,<2)", "opentelemetry-exporter-otlp (>=1.38.0,<2)", "opentelemetry-instrumentation (>=0.59b0,<1)", "opentelemetry-instrumentation-anthropic (>=0.50.0,<1)", "opentelemetry-instrumentation-google-genai (>=0.3b0,<1)", "opentelemetry-instrumentation-openai-v2 (>=2.0b0,<3)", "opentelemetry-propagator-b3 (>=1.38.0)", "opentelemetry-propagator-b3 (>=1.38.0,<2)", "opentelemetry-propagator-jaeger (>=1.38.0)", "opentelemetry-sdk (>=1.38.0,<2)", "orjson (>=3.11.4)", "packaging (>=25.0)", "pillow (>=10.4.0,<11)", "proto-plus (>=1.24.0)"]
+anthropic = ["anthropic (>=0.78.0,<1.0)"]
 google = ["google-genai (>=1.58.0,<2)", "pillow (>=10.4.0,<11)", "proto-plus (>=1.24.0)"]
 mcp = ["mcp (>=1.25.0,<2)"]
 mlx = ["mlx-lm (>=0.28.4,<1)"]
@@ -4221,4 +4221,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "73718391d305929a2d46bbfb64416caf08c7da5ca9c3c2c106e5d5c80695bc61"
+content-hash = "b8048b81863b5d8034a49daf302fe6c99cabd2344d1e09dce360745bab500960"

@@ -2084,9 +2084,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    Sonnet 5.5, stored draws): self-agreement on `fits` 40/40, mean |fit| shift 0.011; but only
    6 of 120 stored fields split on `fits`, so on single-claim input the term is nearly inert —
    safe for every keep-any-passing figure and no help there either. The multi-claim shape it was
-   written for still needs a case set, and the view-turn arm needs a `bedrock/` model (the
-   thinking-shape compat is applied only in `bedrock_provider._encode`; natively the thinking
-   view turn 400s). The two prompt rules remain unmeasured.
+   written for still needs a case set. The view-turn arm needed a `bedrock/` model until the
+   Mirascope floor moved to 2.8.2 (the framework's thinking-shape compat is applied only in
+   `bedrock_provider._encode`, and 2.5 sent the legacy token budget, so the thinking view turn
+   400'd natively); 2.8.2 emits the adaptive shape itself, while the off-policy and the learned
+   retry stay Bedrock-only. The two prompt rules remain unmeasured.
    One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
    apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX
