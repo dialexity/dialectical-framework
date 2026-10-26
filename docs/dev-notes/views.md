@@ -114,3 +114,65 @@ screen projection keeps kind and category and drops the message (a parse error n
 fields). The call still raises only when every draw failed. The replay that looked for the
 cause (`tests/e2e/probe_card_replay.py`, 144 Opus 5.5 draws) found none, so the field is also
 the instrument: `docs/dev-notes/streaming-latency-and-retry.md`, "The 5.5 handoff".
+
+## Pasted material: the view turn hands the reader a position that is not theirs (2026-10-26)
+
+**The question.** `THESIS_IS_A_STANCE` presupposes the text carries the person's own position
+("something the person holds ... a claim they could say in the first person"). A host routes
+whatever the person pastes to the view turn — the first app routes everything — and nothing in
+`src/` distinguishes their own words from an article or a transcript. The fit judge's two reads
+both presuppose authorship too. So: what does the writer do with text that carries only other
+people's positions?
+
+**The set** (`tests/e2e/pasted_material_cases.py`, built by `screen_pasted_material.py`): 20
+pieces of REPORTAGE — Wikipedia controversy intros (CC BY-SA) and one Wikinews article (CC BY
+2.5), 100-400 words, the author asserting nothing of their own by a blind screen's read — and
+17 pieces of DIALOGUE, windows of 3-5 consecutive Hansard Commons contributions by at least two
+named members (Open Parliament Licence). The screen listed each text's held positions with
+their holders; the writer saw only the text.
+
+**The finding** (`probe_pasted_material.py`, one arm, the shipped prompts, `attempts=1`):
+
+| | reportage (20) | dialogue (17) |
+|---|---|---|
+| drew a tetrad | 11 | 17 |
+| T worded as the READER's own stance | 11 of 11 | 17 of 17 |
+| T worded as someone else's | 0 | 0 |
+| T is one of the text's held positions | 10 of 11 | 17 of 17 |
+| T and A are two different holders' positions | 7 of 11 | 8 of 17 |
+| median seconds | 3.3 | 2.9 |
+
+The hypothesis holds without exception: **whenever the writer draws, T is one of the OTHER
+parties' positions, re-worded as the reader's own** — "The government was wrong to lift the beef
+ban", "Scott was a bungler, not a hero", "Drop the family farm tax" — 28 of 28 draws attributed
+to the reader, 27 of 28 a position the text attributes to someone else. A card built on this
+tells the person "your position is X" about a claim they pasted from a newspaper or a debate.
+That is the 2026-10-20 handoff's defect in another coat (a person handed a claim they did not
+make), and it is not the rare case here but the only case.
+
+Two further things the run says. The writer DECLINED 9 of 20 reportage items (no error, no
+failed draw: the view came back empty), so the "a request for information carries no stance"
+instinct reaches some third-party text — but not most, and never a dialogue. And in a dialogue
+the writer took one speaker's position as T and then, in 9 of 17, INVENTED the opposition (A
+matched none of the listed positions) rather than taking the other speaker's — the tension the
+transcript actually carries was drawn in 8 of 17.
+
+**What this means, and what it does not.** It does not mean the view turn is wrong to draw on
+material: the one-shot writer finding the tension IN a text is exactly what the documents
+ladder does, and this run shows it can (T a held position 27/28). It means the view turn has
+no way to say WHOSE position it drew, and its prompt tells it to word everything as the
+reader's. Three candidate repairs, none measured: (1) routing — a host sends third-party
+material to the documents path (`ingest`), which never attributes; (2) a prompt rule for the
+view turn — when the words carry others' positions and none of the reader's, draw the tension
+in them and word T as theirs, not the reader's — which needs a way for the view to CARRY that
+attribution to the screen; (3) an intake read, like the first app's stance gate, that
+classifies the input kind before anything is drawn. (1) exists today and costs nothing to try;
+(2) is a DTO change as much as a prompt change; (3) is app-side. The run that decides between
+them is this probe with a second arm.
+
+Instrument notes. The attribution read sees T's wording alone and the position read sees T
+against the screen's list; both are blind to the hypothesis. The writer's arm is pinned by AST
+to read only `case.text`. The Wikipedia items are encyclopedic rather than news — a limitation
+of the reportage stratum, stated; Wikinews proved too slow to fetch at volume for this run
+(its extracts API returns empty for most pages, and the parse route needs one throttled
+request per title).
