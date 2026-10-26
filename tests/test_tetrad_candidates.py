@@ -621,7 +621,7 @@ class TestTheViewTurnsJudgeReadsThePersonsWords:
 
 
 class TestTheFitTermRanksInsideThePassRule:
-    """The first app's handoff of 2026-10-20 (`docs/handoff-2026-10-20-thesis-choice.md`):
+    """The first app's handoff of 2026-10-20 (`docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"):
     on a multi-claim input the writer drew the claim the person would sign
     twice in three draws and the coherence-only ranking kept the hedge. A
     second judge (`concerns/thesis_fit_check.py`) reads T, A and A+ against

@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, Optional, get_origin
+from typing import Any, Mapping, Optional, get_origin
 
 from anthropic.lib._parse._transform import transform_schema
 from mirascope import llm
@@ -180,6 +180,70 @@ def structured_output_format(model_name: str, format: Any) -> Optional[dict[str,
     if not (isinstance(formattable, type) and issubclass(formattable, BaseModel)):
         return None
     return {"type": "json_schema", "schema": transform_schema(formattable)}
+
+
+#: Fields the API ADDS to a response and REJECTS on input. Replaying an
+#: assistant turn verbatim — which is what Mirascope does with `raw_message`,
+#: and what the whole tool loop depends on — therefore 400s once one of them is
+#: present.
+#:
+#: `parsed_output` sits on a TEXT block and appears when the request carried a
+#: response format, i.e. exactly when `structured_output_format` above did its
+#: job: "messages.1.content.0.text.parsed_output: Extra inputs are not
+#: permitted" on the second round of a tool loop whose first round was a
+#: structured call (reproduced on the native transport, 2026-10-26,
+#: `tests/e2e/probe_native_transport_smoke.py`). The Anthropic SDK marks the
+#: field as output-only itself (`types/parsed_message.py`:
+#: `__api_exclude__ = {"parsed_output"}`), and Mirascope strips it — but only in
+#: `anthropic/_utils/beta_encode.py`, the BETA encoder, which this framework
+#: deliberately does not use (strict is a third formatting mode; see
+#: `bedrock_provider._AnthropicTransport`). So the strip is ours to do.
+#:
+#: `caller` sits on a TOOL_USE block, and is the same class of defect found
+#: earlier; `ConversationFacilitator._strip_caller_from_messages` still removes
+#: it from the conversation of record, where it also keeps the stored history
+#: clean. This one is the backstop for every request, including the tool loop's
+#: resumes, which are Mirascope's own and never pass through the facilitator.
+_OUTPUT_ONLY_BLOCK_FIELDS = {"text": ("parsed_output",), "tool_use": ("caller",)}
+
+
+def without_output_only_fields(messages: list[Any]) -> list[Any]:
+    """Encoded messages with every output-only block field removed.
+
+    Pure: returns a new list and never mutates the blocks it was given (the
+    facilitator's `raw_message` dicts are the conversation of record, and the
+    same objects can be aliased into a request already in flight). Returns the
+    input unchanged when there is nothing to strip, so the common case costs
+    one pass and no allocation.
+    """
+    out: list[Any] = []
+    changed = False
+    for message in messages:
+        if not isinstance(message, Mapping) or not isinstance(
+            message.get("content"), list
+        ):
+            out.append(message)
+            continue
+        blocks: list[Any] = []
+        touched = False
+        for block in message["content"]:
+            unwanted = (
+                _OUTPUT_ONLY_BLOCK_FIELDS.get(block.get("type"), ())
+                if isinstance(block, Mapping)
+                else ()
+            )
+            present = [field for field in unwanted if field in block]
+            if present:
+                blocks.append({k: v for k, v in block.items() if k not in present})
+                touched = True
+            else:
+                blocks.append(block)
+        if touched:
+            changed = True
+            out.append({**message, "content": blocks})
+        else:
+            out.append(message)
+    return out if changed else messages
 
 
 def reset_learned_format_modes() -> None:

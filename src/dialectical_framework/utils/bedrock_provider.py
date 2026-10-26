@@ -1,3 +1,34 @@
+"""
+The framework's compat layer over an Anthropic-shaped transport, for BOTH
+transports it speaks: AWS Bedrock (`bedrock/...`) and the Anthropic API
+(`anthropic/...`).
+
+Everything in here is about the MODEL, not about who hosts it — which thinking
+shape it takes, which formatting mode it accepts, whether its thinking blocks
+are bound to their prefix, where a cache breakpoint belongs, how a refusal
+arrives, how long a stalled stream may stay quiet. None of it is Bedrock-specific,
+and until 2026-10-26 all of it was Bedrock-ONLY, because `BedrockAnthropicProvider`
+was the only seam this tree owned: a deployment pointed at `anthropic/` got
+Mirascope's defaults instead, which made the two transports two different
+instruments (a json-mode call went out as JSON asked for in prose, conversational
+turns thought by default, the SDK retried under the ladder with a 600s read
+timeout, and the Advisor's rebuilt system prompt could 400 on a replayed
+thinking block). `_AnthropicTransport` now holds the whole layer and the two
+providers differ only in their CLIENT, so a figure measured on one transport is
+a figure about the model.
+
+What stays different, irreducibly: the model NAMES (Bedrock's are prefixed
+inference profiles, `global.anthropic.claude-...`; every heuristic here reads
+them with `re.search`, so both spellings work), and whether the account can
+take a given request at all. One thing is still asymmetric by choice: Mirascope
+2.8.2 translates the thinking shape itself for a model whose bare name it can
+read, so on `anthropic/` its encoder has already emitted the adaptive shape by
+the time `with_thinking_compat` sees the request, while on Bedrock the prefixed
+name never matches its pattern. The framework re-derives the effort either way
+(`thinking_compat`), so the wire is the same; the layer is a backstop on one
+transport and the author on the other.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +38,8 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
-from anthropic import AnthropicBedrock, AsyncAnthropicBedrock
+from anthropic import (Anthropic, AnthropicBedrock, AsyncAnthropic,
+                       AsyncAnthropicBedrock)
 from anthropic import types as anthropic_types
 from anthropic._constants import DEFAULT_TIMEOUT
 from anthropic.types import Message as AnthropicMessage
@@ -26,6 +58,7 @@ from dialectical_framework.utils.format_compat import (
     learn_format_mode_from_error,
     structured_output_format,
     with_format_compat,
+    without_output_only_fields,
 )
 from dialectical_framework.utils.thinking_compat import (
     learn_thinking_shape_from_error,
@@ -315,14 +348,6 @@ def _fix_cache_breakpoints(kwargs: dict[str, Any]) -> None:
     _lengthen_stable_ttl(kwargs)
 
 
-def _bedrock_model_name(model_id: str) -> str:
-    """Strip scope prefix(es) to get the raw Bedrock model identifier.
-
-    Handles both 'bedrock/model' and 'bedrock/anthropic/model'.
-    """
-    return model_id.removeprefix("bedrock/").removeprefix("anthropic/")
-
-
 class _LearningStreamManager:
     """`messages.stream(...)` that learns the thinking shape from a 400, once.
 
@@ -508,34 +533,50 @@ async def _stream_to_message(
     return message
 
 
-class BedrockAnthropicProvider(AnthropicProvider):
-    """Mirascope v2 provider that routes through AnthropicBedrock client (async-native).
+class _AnthropicTransport(AnthropicProvider):
+    """The per-model compat layer, over whichever client a subclass builds.
 
-    Bedrock does not support the beta structured output API (client.beta.messages.parse),
-    so we override _call_async to always use the standard path.
+    A subclass sets `id`, `default_scope` and a `__init__` that builds
+    `client` / `async_client` (with `_client_timeout` and
+    `_SDK_MAX_RETRIES` — the ladder above is the whole retry budget) and sets
+    `_read_timeout_s`. Everything else — encoding, the thinking shape, the
+    formatting mode, refusals, the streamed awaited call — is here and is the
+    same on both transports, on purpose: see this module's docstring.
+
+    Neither transport uses Mirascope's BETA structured-output path
+    (`client.beta.messages.parse`). Bedrock cannot (no beta endpoint through
+    this client), and the native transport deliberately does not: strict
+    structured output is a third formatting mode, and every judged figure in
+    this tree was taken on the two modes `format_compat` chooses between. So
+    `_call_async` / `_call` / `_stream_async` are overridden to take the
+    standard path on both, and `_beta_provider` is never built.
+
+    What is NOT covered, equally on both transports: Mirascope's CONTEXT call
+    paths (`_context_call` and friends, for a call carrying `llm.Context`).
+    Nothing in this tree makes one — `use_brain` never passes a context — so
+    they are left as the parent wrote them, which means they would reach the
+    beta provider this class sets to `None`. A host that needs context calls
+    needs this layer extended to them, not a second provider.
     """
 
-    id = "bedrock"
-    default_scope = "bedrock/"
+    #: Set by each subclass; `_provider_model_name` strips it off a model id.
+    default_scope: str
 
-    def __init__(
-        self,
-        *,
-        connect_timeout_s: float | None = None,
-        read_timeout_s: float | None = None,
-        **kwargs,  # noqa: ARG002
-    ) -> None:
-        # Skip super().__init__() — parent creates Anthropic/AsyncAnthropic clients we don't need
-        timeout = _client_timeout(connect_timeout_s, read_timeout_s)
-        self._read_timeout_s = timeout.read or 120.0
-        self.client = AnthropicBedrock(timeout=timeout, max_retries=_SDK_MAX_RETRIES)
-        self.async_client = AsyncAnthropicBedrock(
-            timeout=timeout, max_retries=_SDK_MAX_RETRIES
-        )
-        self._beta_provider = None
+    _read_timeout_s: float
 
-    @staticmethod
+    @classmethod
+    def _provider_model_name(cls, model_id: str) -> str:
+        """The bare model name this transport's client wants.
+
+        Both scope prefixes come off: Bedrock ids are written
+        `bedrock/model` or `bedrock/anthropic/model`, native ones
+        `anthropic/model`.
+        """
+        return model_id.removeprefix(cls.default_scope).removeprefix("anthropic/")
+
+    @classmethod
     def _encode(
+        cls,
         model_id: str,
         messages: Sequence[Message],
         toolkit: AsyncToolkit | Toolkit,
@@ -562,7 +603,7 @@ class BedrockAnthropicProvider(AnthropicProvider):
         a cost, latency and behaviour change no figure was taken under.
         `with_thinking_compat` turns "disabled" into the model's own off.
         """
-        model_name = _bedrock_model_name(model_id)
+        model_name = cls._provider_model_name(model_id)
         compatible = with_format_compat(model_name, format)
         input_messages, resolved_format, kwargs = _utils.encode_request(
             model_id=model_id,
@@ -578,6 +619,11 @@ class BedrockAnthropicProvider(AnthropicProvider):
         kwargs["messages"] = without_earlier_turn_thinking(
             model_name, kwargs["messages"], every_turn=format is not None
         )
+        # A replayed assistant turn must not carry the fields the API added to
+        # it on the way out (`parsed_output` on a text block, `caller` on a
+        # tool_use) — they are rejected as input, so one structured round
+        # inside a tool loop 400s the next one. See `without_output_only_fields`.
+        kwargs["messages"] = without_output_only_fields(kwargs["messages"])
         if compatible is not format and "thinking" not in kwargs:
             kwargs["thinking"] = {"type": "disabled"}
         # A JSON-mode call to a model whose structured calls go in JSON mode
@@ -676,9 +722,9 @@ class BedrockAnthropicProvider(AnthropicProvider):
         )
         return AsyncResponse(
             raw=anthropic_response,
-            provider_id="bedrock",
+            provider_id=self.id,
             model_id=model_id,
-            provider_model_name=_bedrock_model_name(model_id),
+            provider_model_name=self._provider_model_name(model_id),
             params=params,
             tools=toolkit,
             input_messages=input_messages,
@@ -707,9 +753,9 @@ class BedrockAnthropicProvider(AnthropicProvider):
             anthropic_stream, include_thoughts=include_thoughts
         )
         return AsyncStreamResponse(
-            provider_id="bedrock",
+            provider_id=self.id,
             model_id=model_id,
-            provider_model_name=_bedrock_model_name(model_id),
+            provider_model_name=self._provider_model_name(model_id),
             params=params,
             tools=toolkit,
             input_messages=input_messages,
@@ -750,9 +796,9 @@ class BedrockAnthropicProvider(AnthropicProvider):
         )
         return Response(
             raw=anthropic_response,
-            provider_id="bedrock",
+            provider_id=self.id,
             model_id=model_id,
-            provider_model_name=_bedrock_model_name(model_id),
+            provider_model_name=self._provider_model_name(model_id),
             params=params,
             tools=toolkit,
             input_messages=input_messages,
@@ -763,14 +809,98 @@ class BedrockAnthropicProvider(AnthropicProvider):
         )
 
 
-_registered = False
+
+class BedrockAnthropicProvider(_AnthropicTransport):
+    """The compat layer over the AWS Bedrock client (async-native).
+
+    Model ids are Bedrock's own inference profiles
+    (`bedrock/global.anthropic.claude-sonnet-5-5-...-v1:0`). Mirascope is
+    handed the PREFIXED id, whose name its own pattern cannot read, so this
+    tree's `thinking_compat` is the only thing that shapes thinking here.
+    """
+
+    id = "bedrock"
+    default_scope = "bedrock/"
+
+    def __init__(
+        self,
+        *,
+        connect_timeout_s: float | None = None,
+        read_timeout_s: float | None = None,
+        **kwargs,  # noqa: ARG002
+    ) -> None:
+        # Skip super().__init__() — parent creates Anthropic/AsyncAnthropic clients we don't need
+        timeout = _client_timeout(connect_timeout_s, read_timeout_s)
+        self._read_timeout_s = timeout.read or 120.0
+        self.client = AnthropicBedrock(timeout=timeout, max_retries=_SDK_MAX_RETRIES)
+        self.async_client = AsyncAnthropicBedrock(
+            timeout=timeout, max_retries=_SDK_MAX_RETRIES
+        )
+        self._beta_provider = None
+
+
+class NativeAnthropicProvider(_AnthropicTransport):
+    """The same compat layer over the Anthropic API client (`anthropic/...`).
+
+    It exists so the two transports are ONE instrument. Without it a native
+    deployment ran on Mirascope's `AnthropicProvider`, which differs from this
+    tree's layer in five ways that each move a measurement or a bill: a
+    structured call to a 5.5 model goes out as forced tool use (which that
+    model refuses) or, in json mode, as JSON asked for in prose with no
+    schema constraint; a conversational turn thinks by default; earlier turns'
+    thinking blocks are replayed under a rebuilt system prompt; the cache
+    breakpoint sits behind the Advisor's mutable dump and expires in five
+    minutes; and the client keeps the SDK's 600s read timeout and its own
+    retries, under the ladder that is supposed to be the whole budget.
+
+    `api_key` / `base_url` are the parent's parameters and keep its meaning
+    (`None` = the SDK's own `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL`), so a
+    host that registers this provider itself can point it at a gateway.
+    """
+
+    id = "anthropic"
+    default_scope = "anthropic/"
+
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        connect_timeout_s: float | None = None,
+        read_timeout_s: float | None = None,
+        **kwargs,  # noqa: ARG002
+    ) -> None:
+        # Deliberately not super().__init__(): it would build the clients with
+        # the SDK's timeouts and retries, and a beta provider this layer never
+        # uses (see `_AnthropicTransport`).
+        timeout = _client_timeout(connect_timeout_s, read_timeout_s)
+        self._read_timeout_s = timeout.read or 120.0
+        self.client = Anthropic(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=_SDK_MAX_RETRIES,
+        )
+        self.async_client = AsyncAnthropic(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=timeout,
+            max_retries=_SDK_MAX_RETRIES,
+        )
+        self._beta_provider = None
+
+#: Scope -> True once this process has registered the framework's provider for
+#: it. Per scope, not one flag: a deployment can run the conversation on one
+#: transport and the reasoning model on the other (`settings.reasoning_model`),
+#: and then both registrations happen, in whichever order the first calls come.
+_registered: dict[str, bool] = {}
 
 
 @inject
 def ensure_bedrock_provider(
     settings: Settings = Provide[DI.settings],
 ) -> None:
-    """Register the bedrock provider if not already registered. Idempotent.
+    """Register the framework's provider for `bedrock/`. Idempotent.
 
     Registration happens on the first call, so `llm_connect_timeout_s` and
     `llm_read_timeout_s` are read from DI here rather than in `__init__`
@@ -778,8 +908,7 @@ def ensure_bedrock_provider(
     idempotence: changing either setting after the first LLM call of the
     process has no effect.
     """
-    global _registered
-    if _registered:
+    if _registered.get("bedrock/"):
         return
     llm.register_provider(
         BedrockAnthropicProvider(
@@ -788,4 +917,42 @@ def ensure_bedrock_provider(
         ),
         scope="bedrock/",
     )
-    _registered = True
+    _registered["bedrock/"] = True
+
+
+@inject
+def ensure_anthropic_provider(
+    settings: Settings = Provide[DI.settings],
+) -> None:
+    """Register the framework's provider for `anthropic/`. Idempotent.
+
+    The twin of `ensure_bedrock_provider`, and it OVERRIDES what Mirascope
+    would otherwise do with the scope — twice over. Mirascope auto-registers
+    its own `AnthropicProvider` for `anthropic/` on first use, which skips
+    this tree's whole compat layer (`_AnthropicTransport`); and when
+    `ANTHROPIC_API_KEY` is unset but `MIRASCOPE_API_KEY` is, it silently
+    auto-registers the Mirascope ROUTER instead, so a misconfigured
+    deployment would reach a different provider rather than fail. An explicit
+    registration wins over auto-registration (longest-prefix match on the
+    registry, then the auto chain), so calling this before the first native
+    call is what makes `anthropic/` the same instrument as `bedrock/`.
+
+    The API key stays the SDK's business (`ANTHROPIC_API_KEY`): this framework
+    has no setting for it, and a host that needs a key or gateway per request
+    registers `NativeAnthropicProvider` itself.
+    """
+    if _registered.get("anthropic/"):
+        return
+    llm.register_provider(
+        NativeAnthropicProvider(
+            connect_timeout_s=getattr(settings, "llm_connect_timeout_s", None),
+            read_timeout_s=getattr(settings, "llm_read_timeout_s", None),
+        ),
+        scope="anthropic/",
+    )
+    _registered["anthropic/"] = True
+
+
+def reset_registered_providers() -> None:
+    """Test seam — the registry and these flags are process-global by design."""
+    _registered.clear()

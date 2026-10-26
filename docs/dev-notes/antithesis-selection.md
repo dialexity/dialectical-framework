@@ -1483,8 +1483,12 @@ field descriptions were the trigger; the field-side bisection was a single sampl
 
 ## The hedge wins on coherence (2026-10-20, from the first app's second handoff)
 
-**The handoff** is `docs/handoff-2026-10-20-thesis-choice.md`, kept whole; this is the
-framework's reading of it and what shipped. One case, reproduced four ways, not a
+**The handoff file was retired on 2026-10-26**, once its three proposals had shipped and
+the judge had its own gate; it lives in git history
+(`git log --diff-filter=D -- docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"`, then
+`git show <sha>^:docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"`). Everything of it that is the
+framework's business is in this section, including the one table below that was only there.
+This is the framework's reading of it and what shipped. One case, reproduced four ways, not a
 measurement: a six-sentence Lithuanian polemic holding four claims in rising force and a
 concession ("ne tik … bet ir", not only, but also), through `Consultant.exploration_view`
 with `attempts=3` on framework 2.1.1 / Sonnet 5.5.
@@ -1496,6 +1500,24 @@ school" is a clause they typed. The demand they would sign, "stop mass migration
 corner; its content surfaced only as T-, the trap, and the card then priced them for a position
 they had written "not only" against. Opus 5.5 unpinned drew the demand against integration at
 42 s; Sonnet 5.5 drew the hedge pinned or not, with or without the stance quoted.
+
+**The four runs, kept because the pin/model reading rests on them** (one input, one draw
+each, `attempts=3`, 2026-10-20; the app's own probe, `probe_case_tensions.py` in its repo).
+Lithuanian texts abridged to the point each makes:
+
+| run | T | A | A+ | s |
+|---|---|---|---|---|
+| prod: Sonnet 5.5, pinned | the gate's 80-word stance | explain violence by social conditions | study the roots through poverty, exclusion, school | ~25 |
+| A: Sonnet 5.5, unpinned | we must ask openly how much migration drives school violence | school and social conditions drive it first | roots studied through conditions and evidence | 15 |
+| D: Sonnet 5.5, stance quoted, not pinned | raise the roots publicly through migration and stop mass migration | solve school violence through school conditions and inclusion | explain violence by social, school and integration conditions | 30 |
+| B: Opus 5.5, unpinned | stop mass migration, clear limits are needed | integrate the arrivals rather than close the door | integration makes arrivals part of the community | 42 |
+| C: Opus 5.5, pinned | the gate's 80-word stance | exclusion breeds violence, not origin | remove the exclusion that grows violence | 34 |
+
+Two readings the framework acts on. **Sonnet 5.5 bore the mild claim in every
+configuration** — pinned or not, stance quoted or not — so the pin is a SMALLER effect than
+the model; and **run B is the tension the person and four independent reviewers asked for**,
+which Opus found unpinned and half-found pinned. One case, four ways: a reproduction with a
+direction, never a measurement.
 
 **The part that is the framework's, not the model's.** On run A (Sonnet, unpinned) the two
 runners-up WERE the demand ("Sustokime masinę migraciją, kol nebuvo per vėlu" against
@@ -1600,8 +1622,9 @@ upgrade one native thinking view-turn draw came back complete, and the full mock
 unchanged (3321 passed, 43 skipped, both before and after). The floor in `pyproject.toml` moved
 to `^2.8.2` because on 2.5 the native path silently 400s.
 
-Two things the upgrade does NOT move, both still Bedrock-only, because they live in the
-framework's provider rather than in Mirascope:
+Two things the upgrade does NOT move, both Bedrock-only at the time of writing, because they
+live in the framework's provider rather than in Mirascope (**closed the same day — see "The
+seam moved" below**):
 
 - the conversational off-policy (`_apply_off`: an unset level sent as the model's own off inside
   `conversational_round()`), so a native deployment thinks by default on conversational turns
@@ -1645,3 +1668,79 @@ So: the run validates the dependency fix and nothing else. The result file is ke
 one instrument. That seam is now an evidenced question rather than a tidiness one: four things
 ride on `_encode` plus two on `_create_async`, and at least one of them measurably moves the
 writing.
+
+**The seam moved (2026-10-26, same session).** The owner's call on reading the table above:
+the two transports should be interchangeable, so the compat went to a provider-neutral seam
+rather than the gate going back to Bedrock. `utils/bedrock_provider.py` now holds
+`_AnthropicTransport(AnthropicProvider)` — `_encode`, `_create_async`, `_create_sync`,
+`_call_async`, `_call`, `_stream_async`, `_provider_model_name` — and two subclasses that
+define nothing but `id`, `default_scope` and an `__init__` that builds a client:
+`BedrockAnthropicProvider` (unchanged on the wire) and `NativeAnthropicProvider`.
+`use_brain` registers the native one for `anthropic/` on the same line that registers Bedrock.
+
+What a native deployment gained, each item a thing that was silently different before:
+
+| | before | after |
+|---|---|---|
+| structured call on a 5.5 model | forced tool use, which that model refuses | json mode (`with_format_compat`) |
+| json-mode reply | asked for in prose | `output_config.format` schema constraint |
+| earlier turns' thinking blocks | replayed under a rebuilt system prompt (a 400 on a binding model) | dropped (`without_earlier_turn_thinking`) |
+| cache breakpoint | behind the Advisor's mutable dump, 5-minute TTL | on the stable head, 1h TTL |
+| conversational turn with no level | the provider default, which is ON | the model's own off (`_apply_off`) |
+| a refusal | a parse failure re-asked | `ModelRefusal` |
+| client | SDK defaults: 600s read, its own retries under the ladder | `_client_timeout` + `_SDK_MAX_RETRIES = 0` |
+| an awaited call | one 600s read ceiling | streamed, stalls caught at the opening |
+| a wrong thinking-shape heuristic | the 400 surfaces | learned once, re-asked |
+| the scope itself | Mirascope auto-registers — its ROUTER when `MIRASCOPE_API_KEY` is set and `ANTHROPIC_API_KEY` is not | the framework's provider, explicitly |
+
+Two choices inside it worth naming. **Neither transport takes Mirascope's beta strict path**
+(`client.beta.messages.parse`): Bedrock cannot, and natively `_should_use_beta` would have sent
+every bare-DTO call there — a THIRD formatting mode, on which no figure in this archive was
+taken. Overriding the three call paths on the base class keeps both on the standard path.
+And **the thinking shape is now translated by two layers on the native side**: Mirascope 2.8.2
+reads `claude-sonnet-5-5` and emits adaptive itself, where Bedrock's
+`global.anthropic.claude-...` never matches its `^claude-` pattern. Rather than fight it, the
+framework re-derives the EFFORT on an already-adaptive request (`_with_effort`), because the two
+level tables differ: Mirascope has no `xhigh` and sends any level it cannot read as `medium`, so
+without this the same configured level would have thought less natively. The wire is identical
+either way; the layer is the author on one transport and a backstop on the other.
+
+`tests/test_transport_parity.py` is the gate: the layer may not be overridden on either
+subclass (an override is how the two drifted apart in the first place), one structured call's
+kwargs are compared term by term across the transports, the conversational off and the effort
+are compared, and an explicit registration is shown to beat the auto one. Three mutants were
+run against it — a native `_encode` that goes straight to Mirascope, a dropped effort
+re-derivation, a dropped registration — and each was caught.
+
+**The probe then found a second native-only defect, which is the framework's own.** Three real
+calls on the configured native model (`tests/e2e/probe_native_transport_smoke.py`: a plain
+structured concern call, a thinking structured call, a conversational tool-path turn). The first
+two passed on the first run with exactly the predicted wire — `tool_choice` absent, the schema
+constraint present, `between_tools` for an unset level, `adaptive`+`medium` for a set one. The
+third returned
+`messages.1.content.0.text.parsed_output: Extra inputs are not permitted`.
+
+Cause: the schema constraint we now send (`structured_output_format`) makes the API add
+`parsed_output` to the reply's text block, and the next round of the tool loop replays that
+assistant turn verbatim, where the field is rejected as input. The SDK marks it output-only
+itself (`types/parsed_message.py`, `__api_exclude__`), and Mirascope strips it — but only in
+`anthropic/_utils/beta_encode.py`, the BETA encoder this tree deliberately does not use. So the
+strip is ours: `format_compat.without_output_only_fields`, applied in `_encode` (not in the
+facilitator: the resumes that hit this are Mirascope's own requests and never pass through it).
+With it, the tool loop completes natively — the model calls the tool and answers "17 squared is
+289" over four rounds, each sent `between_tools`.
+
+Worth the detour it took: **the defect was unreachable on Bedrock for a reason that is itself an
+asymmetry.** `_encode_message` replays `raw_message` only when `message.provider_id ==
+"anthropic"`; our Bedrock responses carry `provider_id="bedrock"`, so there every assistant turn
+is REBUILT from decoded content and no raw field can survive. The first version of the
+regression test asserted "no `parsed_output` reaches the request" on both transports and passed
+on Bedrock with the strip removed — a vacuous arm. It now pins the rebuild on Bedrock and the
+replay-plus-strip natively, and says so. Unifying the two replay paths is a measurement, not a
+cleanup: it changes what every Bedrock figure in this archive was taken on.
+
+What this does NOT buy: the native run in the table above stays unusable, because it was taken
+BEFORE the fix, and the file stays outside the probe's glob. **A figure is about the model only
+for runs made after this change.** The two prompt rules are still ungated, and the gate can now
+run on either transport — but the cheapest honest reading is still the one the prompt rules
+actually need: the multi-claim case set.

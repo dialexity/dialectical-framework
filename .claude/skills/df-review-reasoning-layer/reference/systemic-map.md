@@ -2030,7 +2030,7 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    hold several** (the one the person would sign — the conclusion or demand — never a premise, a hedge on
    the way to it, or a claim conceded in passing): every figure above was on one-sentence, one-claim inputs,
    and a four-claim polemic came back as a tetrad about its mildest sub-claim (the handoff
-   `docs/handoff-2026-10-20-thesis-choice.md`). Unmeasured; re-check the question-echo figure when it is,
+   `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"). Unmeasured; re-check the question-echo figure when it is,
    since it is the same constant. **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
    day**: an opposition the thesis's own words name AND concede ("not only X but also Y") is seen, not
    missing — rate its tetrad potential low, oppose the claim actually made; stated at the ask, the
@@ -2078,17 +2078,22 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    view turn's `judge_context`, the build's MATERIAL, never the Advisor's paraphrase that is the build's
    `context`; fail-soft to `None` = not judged = fits) exists because a coherence-only choice prefers a
    tetrad about a hedge to one about the demand the person would sign (the first app's handoff
-   `docs/handoff-2026-10-20-thesis-choice.md`); it is a SELECTION term under (a)'s rule, never a signal
+   `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"); it is a SELECTION term under (a)'s rule, never a signal
    into generation, and the staged writer on a given pair does not ask (same T and A on every draw).
    The JUDGE is measured, its effect on a choice is not (`probe_thesis_fit_judge.py`, 2026-10-26,
    Sonnet 5.5, stored draws): self-agreement on `fits` 40/40, mean |fit| shift 0.011; but only
    6 of 120 stored fields split on `fits`, so on single-claim input the term is nearly inert —
    safe for every keep-any-passing figure and no help there either. The multi-claim shape it was
    written for still needs a case set. The view-turn arm needed a `bedrock/` model until the
-   Mirascope floor moved to 2.8.2 (the framework's thinking-shape compat is applied only in
+   Mirascope floor moved to 2.8.2 (the framework's thinking-shape compat was applied only in
    `bedrock_provider._encode`, and 2.5 sent the legacy token budget, so the thinking view turn
-   400'd natively); 2.8.2 emits the adaptive shape itself, while the off-policy and the learned
-   retry stay Bedrock-only. The two prompt rules remain unmeasured.
+   400'd natively); 2.8.2 emits the adaptive shape itself, and the whole compat layer then moved
+   to a provider-neutral seam (`bedrock_provider._AnthropicTransport`, inherited whole by the
+   Bedrock and native providers alike, gate `tests/test_transport_parity.py`) — so a prompt
+   figure is now about the MODEL rather than the transport, for runs made after 2026-10-26.
+   Figures taken before it do not transfer: the native view-turn run of that day read CC 36/40
+   and restatement 49/80 against an archive of 24/40 and 10/80, which is the then-missing
+   structured-output constraint and not the prompts. The two prompt rules remain unmeasured.
    One constant per writer (`DEFAULT_SKETCH_ATTEMPTS`, `DEFAULT_ASPECT_ATTEMPTS`, both 3) because they were measured
    apart; the pre-registered runs and the replication: `antithesis-selection.md`, "Best-of-N".
 1. **ThesisExtraction text → StatementClassification → AntithesisExtraction.** The classifier's SIMPLE/COMPLEX

@@ -28,7 +28,7 @@ three times". What the handoff found beside it is kept: the ranking reads
 dialectical validity after the pass floor (`ranking`), and the view turn's
 judge reads the person's words (`view_sketch.judge_context`).
 
-The second handoff (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`)
+The second handoff (2026-10-20, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence")
 found the limit of a coherence-only choice: on a multi-claim input the
 writer drew the claim the person would sign twice in three draws and the
 ranking kept the hedge, because a tetrad about a hedge degenerates more
@@ -322,7 +322,7 @@ def ranking(verdicts: Sequence[Optional[SketchVerdict]]) -> list[int]:
     an unmeasured one. The fit term sits INSIDE that rule, as a yes/no: among
     draws that hold, one on the claim the person would sign against an
     opposition they have not granted beats one on a hedge, however coherent
-    the hedge (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`); among
+    the hedge (2026-10-20, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"); among
     draws that fail, the fit decides the same way, so a card with no passing
     draw still shows the person's claim. A yes/no rather than the score
     because the floor's VALUE should keep deciding between two draws that

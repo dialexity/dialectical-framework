@@ -306,12 +306,33 @@ def with_thinking_compat(
         if thinking_shape(model_name) == ADAPTIVE:
             return _apply_off(model_name, out)
         return out
+    if isinstance(thinking, dict) and thinking.get("type") == "adaptive":
+        # Already adaptive: the encoder read the model's bare name and
+        # translated the level itself (Mirascope 2.8.2 on the native
+        # transport; on Bedrock its pattern never matches the prefixed
+        # inference-profile name, so this branch is not reached there). The
+        # shape agrees — re-derive the EFFORT, because the two level tables
+        # differ: Mirascope has no "xhigh" and sends any level it cannot read
+        # as "medium". Taking the effort from this tree's own map is what
+        # makes one request of a given level identical on both transports.
+        return _with_effort(out, params)
     if not isinstance(thinking, dict) or thinking.get("type") != "enabled":
         return out
     if thinking_shape(model_name) != ADAPTIVE:
         return out
 
     out["thinking"] = {"type": "adaptive"}
+    return _with_effort(out, params)
+
+
+def _with_effort(out: dict[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+    """`out` carrying the effort this tree reads out of the asked-for level.
+
+    A level the map cannot read leaves `output_config.effort` as it was: the
+    adaptive shape without an effort is a valid request (the model chooses),
+    and overwriting someone else's effort with a guess would be worse than
+    leaving it.
+    """
     effort = _effort_from_params(params)
     if effort:
         output_config = dict(out.get("output_config") or {})

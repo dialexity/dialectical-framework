@@ -131,7 +131,7 @@ class TestThePrompt:
         assert THESIS_IS_A_STANCE not in tetrad_sketch_prompt(UTTERANCE, "", 7, thesis="Quit")
         assert "never their question restated" in THESIS_IS_A_STANCE
         # 2026-10-20: WHICH claim when the words hold several (the first app's
-        # handoff, `docs/handoff-2026-10-20-thesis-choice.md`) — unmeasured.
+        # handoff, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence") — unmeasured.
         assert "the one the person would sign" in THESIS_IS_A_STANCE
         assert "not a claim they concede in passing" in THESIS_IS_A_STANCE
 

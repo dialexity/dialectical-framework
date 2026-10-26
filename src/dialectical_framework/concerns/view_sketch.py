@@ -192,7 +192,7 @@ class ViewSketchDto(BaseModel):
 #: (one item, unmeasured deletion, said so). Story: the alsotrue app repo, docs/lab-notes-entry.md.
 #:
 #: The last sentence — WHICH claim when the words hold several — is from the
-#: first app's second handoff (2026-10-20, `docs/handoff-2026-10-20-thesis-choice.md`):
+#: first app's second handoff (2026-10-20, `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"):
 #: a six-sentence polemic holding four claims and a concession came back as a
 #: tetrad about its mildest sub-claim ("society has the right to ask"), while
 #: the demand the person would sign ("stop mass migration") sat in no corner.

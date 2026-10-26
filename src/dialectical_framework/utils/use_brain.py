@@ -20,7 +20,8 @@ from pydantic import ValidationError as PydanticValidationError
 from dialectical_framework.enums.di import DI
 from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
-from dialectical_framework.utils.bedrock_provider import ensure_bedrock_provider
+from dialectical_framework.utils.bedrock_provider import (
+    ensure_anthropic_provider, ensure_bedrock_provider)
 from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.concurrency import llm_concurrency_slot
 from dialectical_framework.utils.retry_accounting import record_retry
@@ -131,8 +132,17 @@ def use_brain(
                     _get_reasoning_model() if format is not None else _get_ai_model()
                 )
 
+            # Both Anthropic transports run on the framework's own provider,
+            # so the compat layer (thinking shape, formatting mode, cache
+            # breakpoints, refusals, the stall budget) is the same on either
+            # and a measured figure is about the MODEL, not the host. Native
+            # registration also pre-empts Mirascope's auto-registration, which
+            # would hand `anthropic/` either its own provider or — with no
+            # ANTHROPIC_API_KEY but a MIRASCOPE_API_KEY — its router.
             if resolved.startswith("bedrock/"):
                 ensure_bedrock_provider()
+            elif resolved.startswith("anthropic/"):
+                ensure_anthropic_provider()
 
             call_params: dict[str, Any] = {}
             if format is not None:

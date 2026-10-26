@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from dialectical_framework.utils.format_compat import (
     claude_version,
+    without_output_only_fields,
     learn_format_mode_from_error,
     refuses_forced_tool_use,
     reset_learned_format_modes,
@@ -364,3 +365,65 @@ class TestAJsonModeCallIsConstrainedToItsSchema:
 
         got = structured_output_format("global.anthropic.claude-sonnet-5-5", llm.format(SmallDto, mode="json"))
         assert got == {"type": "json_schema", "schema": transform_schema(SmallDto)}
+
+
+class TestOutputOnlyFieldsAreStripped:
+    """The API adds fields to a response that it rejects as input, so replaying
+    an assistant turn verbatim 400s once one is present — which is what the
+    whole tool loop does. Found on the native transport, 2026-10-26: one
+    structured round inside a tool loop and the next round came back
+    "messages.1.content.0.text.parsed_output: Extra inputs are not permitted".
+    `parsed_output` appears exactly when `structured_output_format` did its job,
+    so this strip is the other half of that constraint."""
+
+    TEXT = {"type": "text", "text": "ok", "parsed_output": {"word": "x"}}
+    TOOL_USE = {"type": "tool_use", "id": "t", "name": "x", "input": {}, "caller": "assistant"}
+
+    def _history(self):
+        return [
+            {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+            {"role": "assistant", "content": [dict(self.TEXT), dict(self.TOOL_USE)]},
+        ]
+
+    def test_parsed_output_goes_from_a_text_block(self):
+        out = without_output_only_fields(self._history())
+        assert out[1]["content"][0] == {"type": "text", "text": "ok"}
+
+    def test_caller_goes_from_a_tool_use_block(self):
+        out = without_output_only_fields(self._history())
+        assert "caller" not in out[1]["content"][1]
+        assert out[1]["content"][1]["name"] == "x", "the block is otherwise intact"
+
+    def test_it_is_pure(self):
+        """The history it is given is the conversation of record, and the same
+        block objects can be aliased into a request already in flight."""
+        history = self._history()
+        without_output_only_fields(history)
+        assert history[1]["content"][0]["parsed_output"] == {"word": "x"}
+        assert history[1]["content"][1]["caller"] == "assistant"
+
+    def test_a_clean_history_is_returned_unchanged(self):
+        """Every request pays for this pass, so the common case allocates nothing."""
+        clean = [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+        assert without_output_only_fields(clean) is clean
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            {"role": "user", "content": "a plain string"},
+            {"role": "assistant"},
+            "not a mapping at all",
+        ],
+    )
+    def test_shapes_it_must_not_choke_on(self, message):
+        assert without_output_only_fields([message]) == [message]
+
+    def test_a_field_is_stripped_only_from_the_block_type_that_carries_it(self):
+        """`parsed_output` is a text-block field and `caller` a tool_use one;
+        stripping by name alone would quietly drop a legitimate field of the
+        same name from some future block type."""
+        odd = [{"role": "assistant", "content": [
+            {"type": "tool_use", "id": "t", "name": "x", "input": {}, "parsed_output": "keep"},
+            {"type": "text", "text": "t", "caller": "keep"},
+        ]}]
+        assert without_output_only_fields(odd) is odd

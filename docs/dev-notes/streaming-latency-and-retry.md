@@ -158,7 +158,8 @@ would pick a model for the host; that is a deployment decision.
   provider's explanation, and `_is_rate_limit_error` matches "rate" + "limit" anywhere —
   "Requests to generate malware fall outside the limits…" classified as `rate_limit`. Both
   ladders now exit on the type before classifying.
-- **The awaited raise was Bedrock-only**; `use_brain` and the awaited resume now also raise on
+- **The awaited raise was Bedrock-only** (the whole compat layer was, until it moved to
+  `_AnthropicTransport` on 2026-10-26 — `antithesis-selection.md`, "The seam moved"); `use_brain` and the awaited resume now also raise on
   `finish_reason == REFUSAL`, so `anthropic/` and others behave like the streamed path.
 - **A refusal after `record_decision` skipped the seam**, so the Decision never got its
   pathway weave; `Advisor._settle_refused_turn` follows up what the tools wrote (no classifier
@@ -391,3 +392,59 @@ other models — the setting stays as the off switch for one that opens slowly. 
 `tests/test_streamed_awaited_call.py`, the streamed twin in
 `tests/test_format_compat.py::TestReviewFindings`.
 
+## What this layer is, and what a third vendor would need (2026-10-26)
+
+Asked plainly, after the compat layer moved to `_AnthropicTransport`: if Mirascope is the
+abstraction, why does the framework carry this much per-model adaptation, and what happens on
+ChatGPT?
+
+The honest split is **vendor API shape vs model capability drift**. Mirascope abstracts the
+first and does it well: messages, tools, formatting modes, streaming, usage decoding, and (since
+2.8.2) the thinking shape. The second is what this tree carries, and all of it is Claude 5.x:
+
+| shim | the fact it encodes | what it cost to find |
+|---|---|---|
+| `format_compat.with_format_compat` | 5.5 refuses `tool_choice` of type `tool`/`any` | every structured call 400'd with a 5.5 model configured |
+| `thinking_compat.with_thinking_compat` | Claude 5 rejects the token-budget thinking shape | an agent that returned empty text and called no tools |
+| `thinking_compat.off_shape` | `disabled` / `between_tools` / low effort, each rejected by the others | a 400 on the way to turning thinking OFF |
+| `without_earlier_turn_thinking` | 5.5+ binds thinking blocks to their prefix | a 400 whenever the Advisor's dump changed |
+| `structured_output_format` | json mode alone is JSON asked for in prose | 32 parse re-asks in 80 cards on a host |
+| `_fix_cache_breakpoints` | the breakpoint lands behind the mutable dump; the TTL is 5 minutes | 6.8x prefill, and a system head written on every first card |
+
+Every one is keyed on `format_compat.claude_version`, which reads `claude-<family>-<major>[-<minor>]`
+out of the model name with `re.search` (so both the bare `claude-sonnet-5-5` and Bedrock's
+`global.anthropic.claude-sonnet-5-5-...-v1:0` are read the same). A name it cannot read returns
+`None`, and then `refuses_forced_tool_use` is False, `thinking_shape` is BUDGETED,
+`binds_thinking_to_prefix` is False and `structured_output_format` is None — i.e. **the whole
+layer passes a non-Claude request through untouched.** Verified on `gpt-5.2`, `gpt-4o`,
+`o4-mini`. So the layer is not "adaptation for the same model"; it is a bet that Mirascope
+catches up with Anthropic's version drift, and the bet has paid out once already (2.8.2 took the
+thinking shape and left ours a backstop).
+
+**On OpenAI, today, with no work:** nothing in `src/` mentions it (grepped), Mirascope's own
+provider takes the scope, and everything above the provider is vendor-neutral — the retry
+ladder, the concurrency slot, `call_census`, the progress channel, and the refusal check, which
+reads Mirascope's `FinishReason.REFUSAL` in `use_brain` rather than Anthropic's `stop_reason`
+(the provider-level `raise_on_refusal` is the extra one, for `stop_details`). A thinking level
+maps to OpenAI's reasoning effort.
+
+Two things that are NOT free, neither of them urgent:
+
+1. **The default formatting mode inverts, and that is a measurement.** On OpenAI,
+   `providers/openai/responses/_utils/encode.py` resolves a bare DTO with
+   `default_mode = "strict" if model_supports_strict else "tool"`; on Anthropic
+   `DEFAULT_FORMAT_MODE = "tool"`. So every concern call would go out schema-CONSTRAINED on
+   day one, where the whole archive was taken on forced tool use. This repo has already
+   measured that the constraint changes what is written and not only how it parses
+   (`TransformationSketch`'s S- at 42% against 57%, repaired in the prompt). An OpenAI
+   deployment is therefore a third instrument, and its figures start from scratch — the same
+   trap the two Anthropic transports just had, from the other side.
+2. **It runs on Mirascope's client**, so it loses three framework POLICIES that have nothing to
+   do with Anthropic: `_client_timeout` (a 30s connect for cold links, a read phase set by
+   `settings.llm_read_timeout_s` rather than the SDK's 600s), `_SDK_MAX_RETRIES = 0` (so the
+   ladder is the whole retry budget and `retry_accounting` can see every retry), and the stall
+   policing at the stream opening (`_stream_to_message`). Lifting them is a thin provider
+   subclass doing the client plus the stall budget. Not written: no OpenAI deployment exists,
+   no figure in the archive was taken on one, and an untested layer guarding an unobserved
+   problem is worse than none. The cache-breakpoint work has no equivalent to lift — OpenAI
+   caches without breakpoints.

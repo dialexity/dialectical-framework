@@ -12,7 +12,7 @@ the person made?" — and on a multi-claim input the two come apart: a tetrad
 about a hedge ("society has the right to ask") degenerates more coherently
 than one about the demand the person would sign ("stop mass migration"), so a
 coherence-only ranking prefers the hedge. The first app's handoff of
-2026-10-20 (`docs/handoff-2026-10-20-thesis-choice.md`) found exactly that:
+2026-10-20 (`docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence") found exactly that:
 the writer drew the demand twice among three draws and the ranking threw it
 away, and the chosen A+ was a clause the person had typed and conceded
 ("not only schools, but also"), handed back to them as their blind spot.
@@ -53,8 +53,11 @@ framework's thinking-shape translation is applied in
 `utils/bedrock_provider.py::_encode` alone, and Mirascope 2.5 sent every
 level as the legacy token budget — 40/40 draws came back 400
 ("thinking.type.enabled is not supported for this model"). 2.8.2 emits the
-adaptive shape itself. The off-policy and the learned-shape retry are still
-Bedrock-only (see CLAUDE.md), so say which transport a figure came from.
+adaptive shape itself, and the rest of the compat layer then moved to a
+provider-neutral seam (`bedrock_provider._AnthropicTransport`), so the two
+transports send the same request. Figures taken BEFORE that, this judge's
+included, came off whichever transport ran them: the stored draws it was
+measured on are Bedrock's.
 """
 
 from __future__ import annotations

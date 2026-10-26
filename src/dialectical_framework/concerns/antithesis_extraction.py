@@ -68,7 +68,7 @@ _AwaitedT = TypeVar("_AwaitedT")
 # is a caricature (measured 19/19, `tests/probe_blindspot_paths.py`).
 #
 # The second failure, the caricature's mirror (2026-10-20, the first app's
-# handoff `docs/handoff-2026-10-20-thesis-choice.md`): "in the thesis's own
+# handoff `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"): "in the thesis's own
 # terms" was complied with exactly too, and when the thesis's own words NAME
 # their opponent and concede it ("not only schools, but also …"), that
 # opponent is the most literal answer — the writer drew it as A on Sonnet 5.5

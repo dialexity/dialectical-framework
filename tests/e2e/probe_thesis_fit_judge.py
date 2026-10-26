@@ -1,7 +1,7 @@
 """Is the thesis-fit judge stable, and does it tell draws of one utterance apart?
 
 The gate the 2026-10-20 handoff named for `concerns/thesis_fit_check.py`
-(`docs/handoff-2026-10-20-thesis-choice.md`, proposal 3). The term ranks INSIDE
+(`docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence", proposal 3). The term ranks INSIDE
 the pass rule (`tetrad_candidates.ranking`), so it only ever changes an outcome
 when two draws of the SAME utterance disagree on it — which makes
 discrimination, not accuracy, the question that decides whether the term is
