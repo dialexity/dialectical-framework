@@ -176,3 +176,40 @@ to read only `case.text`. The Wikipedia items are encyclopedic rather than news 
 of the reportage stratum, stated; Wikinews proved too slow to fetch at volume for this run
 (its extracts API returns empty for most pages, and the parse route needs one throttled
 request per title).
+
+**Arm B, the same evening: drop the presumption of authorship.** The owner's reading of the
+finding — why word T in the first person at all, a thesis is a claim — run as a second arm,
+`HELD_BY_STANCE` in `probe_pasted_material.py` (`STANCE_ARM=held_by`): the same constant with
+every sentence that stopped the question-echo kept, and "something the person holds, written
+as a claim they could say in the first person" replaced by "a claim someone in these words
+holds; whose depends on the words" — their own when they speak for themselves, one of the
+reported holders' when the words carry only others' positions. Two probes, one run each:
+
+| | shipped | arm B |
+|---|---|---|
+| reportage: drew | 11/20 | 20/20 |
+| reportage: T worded as the reader's / as someone else's | 11 / 0 of 11 | 17 / 0 of 20 |
+| reportage: T a held position; T and A two holders | 10/11; 7/11 | 16/20; 10/20 |
+| dialogue: T worded as the reader's / as someone else's | 17 / 0 of 17 | 16 / 0 of 17 |
+| dialogue: T a held position; T and A two holders | 17/17; 8/17 | 16/17; 10/17 |
+| echo probe (20 questions): asker's own stance | — | 15/15 |
+| echo probe: not-a-stance (the echo) | 0/20 (2026-10-05) | 1/15 |
+| echo probe: requests for information declined | 3/4 | 4/4 |
+
+**What arm B shows is that the first-person instruction was never reaching the wording.** Both
+arms write bare claims — "Keep the ban; public safety comes first", "Drop the family farm tax"
+— and the attribution read calls a bare claim the reader's, because nothing in it names a
+holder; 0 of 37 draws in EITHER arm named one. So the attribution the finding is about is not
+in T's words at all. It is in the host's ask ("my position, what it stands against") and in
+the screen ("Taken as: your position"), and no wording of the rule can carry it. The one thing
+arm B did change: the writer stops DECLINING third-party articles (9/20 → 0/20) and draws the
+tension in them, a held position 16/20 and the two holders' positions 10/20, at twice the
+seconds (7.6 against 3.3). On the person's own questions it is neutral within one case.
+
+So the repair has two halves and only one of them is a prompt: arm B's rule (harmless, draws
+the tension in material instead of declining it), and a FIELD the view carries — whose
+position T is, named by the writer from the words — so a host can show "the Minister's
+position" rather than "your position". The field is a DTO change on `ViewSketchPerspectiveDto`
+and a host-contract change on `PerspectiveView`, which is the owner's call; without it, arm B
+alone buys "draw on articles" and nothing about attribution. Routing material to the documents
+path remains the no-code alternative.

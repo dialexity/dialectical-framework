@@ -174,10 +174,17 @@ async def test_questions_through_the_view_turn(di_container) -> None:
 
     rows: list[dict] = []
     batch = max(1, 10 // attempts)
+    # `STANCE_ARM=held_by` draws on ARM B of `probe_pasted_material.py` — the
+    # stance rule without the presumption of authorship — so a change made for
+    # pasted material is checked here against the echo it was first built to stop.
+    from e2e.probe_pasted_material import _StanceArm
+
+    print(f"    stance arm: {os.environ.get('STANCE_ARM', 'shipped')}", flush=True)
     for start in range(0, len(QUESTIONS), batch):
-        rows += await asyncio.gather(
-            *(_draw(q, c, attempts) for q, c in QUESTIONS[start : start + batch])
-        )
+        with _StanceArm():
+            rows += await asyncio.gather(
+                *(_draw(q, c, attempts) for q, c in QUESTIONS[start : start + batch])
+            )
         out.write_text(json.dumps(rows, indent=2, ensure_ascii=False))
         print(f"  drawn {len(rows)}/{len(QUESTIONS)}", flush=True)
 
