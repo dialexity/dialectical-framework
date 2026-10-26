@@ -1612,3 +1612,36 @@ On Bedrock nothing moved on the wire: Mirascope is handed the PREFIXED model id,
 `^claude-` pattern does not match, so the framework's layer still does the translation exactly
 as every figure in this archive was taken under. Where both could fire the emitted shape is the
 same and the framework's layer is a no-op on an already-adaptive request.
+
+**The native transport is a DIFFERENT INSTRUMENT, and the first run on it proves it.** With the
+upgrade in place the view-turn gate completed on the native provider — 40/40 drawn, 0 errors,
+0 failed draws — and the figures were unusable as a read on the 2026-10-20 prompt rules, because
+they do not sit on the same instrument as anything they compare against:
+
+| read | this run (native) | same probe's archive |
+|---|---|---|
+| CC pass | 36/40 (90%) | 24/40 with the ask, 15/40 on the last run |
+| antithesis a position | 34/40 (85%) | 30/40, 40/40 on the last run |
+| plus slots that RESTATE | 49/80 (61%) | 10/80, and 0/80 on the last run |
+| T+/A+ distinct | 40/40 | — |
+| median seconds | 8.1 | ~20 |
+
+A sixfold rise in restatement beside a coherence figure far above anything the archive holds is
+the signature `format_compat` already describes: **the framework's structured-output constraint
+is not applied on the native path.** `BedrockAnthropicProvider._encode` is where
+`with_format_compat`, `structured_output_format`, `without_earlier_turn_thinking` and
+`_fix_cache_breakpoints` are applied, and `use_brain` installs that provider only for a
+`bedrock/` model. Mirascope's own encoder puts a JSON request in PROSE (its `output_config.format`
+is never set in json mode; forced tool use is its tool-mode branch), and this repo's own record
+of that constraint says it changes the writing and not only the parsing — terser texts under it,
+looser without. Longer, more elaborate poles pass the control statements more readily and
+restate the pole more often, which is exactly the shape above.
+
+So: the run validates the dependency fix and nothing else. The result file is kept as
+`NATIVE_TRANSPORT_view_turn_fit_rules-20261026-121822.json`, deliberately OUTSIDE the probe's
+`view_turn_*.json` glob, so it cannot become the baseline the next run reads itself against.
+**The gate for the two prompt rules has to run on the transport its baselines were taken on**
+(Bedrock), or the compat has to move to a provider-neutral seam first so the two transports are
+one instrument. That seam is now an evidenced question rather than a tidiness one: four things
+ride on `_encode` plus two on `_create_async`, and at least one of them measurably moves the
+writing.
