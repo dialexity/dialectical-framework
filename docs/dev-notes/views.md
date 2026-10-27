@@ -321,7 +321,7 @@ compliance. **The lever left is code, not prompt**: a fail-soft attribution chec
 draw, one judge call per NAMED holder (free on the person's own words, where `held_by` is
 empty), that blanks a holder the text does not bear — the misquotation becomes an honest
 unnamed construction, the way the pin is enforced by write-back rather than by compliance.
-Unbuilt; the cost on material is one short call per pole named.
+Built the same afternoon (owner: "go through the points you recommended"), below.
 
 The first gate run was lost to its own instrument: the reads gathered ~150 judge calls at once
 against the organisation's concurrency limit and one judge without a try/except raised a stream
@@ -337,3 +337,50 @@ person who pasted the words" — and, with no holder, "its holder is the person 
 shipped behaviour in substance. The stability arm of `probe_thesis_fit_judge.py` was re-run on
 the reworded prompt the same day (figures in `antithesis-selection.md`, "The fit judge is told
 whose claim"); its effect on a choice is still unmeasured, as before.
+
+**The attribution check, in code (2026-10-27, `concerns/attribution_check.py`).** After the draws and
+before selection, `Consultant.exploration_view` runs `drop_unborne_holders` over every draw's first
+tension — the spares too, since a runner-up is served without a new call. One structured call per
+NAMED holder, shown the person's words and one pole, asked whether the text gives that party this
+position; a holder not borne is blanked in place. Fail-soft keeps the holder (dropping on error would
+show "your position" over the Minister's). No call where no holder is named, so the person's own words
+cost nothing. Never a replacement: the judge may not put a different name on the screen.
+
+Measured offline first, on the saved WITH-arm draws of the gate (`tests/e2e/rescore_attribution_check.py`,
+130 named holders on 74 draws), read against the probe's own text-grounded judge and same-party read:
+
+| verdict wording | dropped | of them the probe had flagged | of them the probe had grounded (over-blank) | flagged but kept |
+|---|---|---|---|---|
+| v1: "does the text attribute this position to X" | 28 | 18 | 10 | 9 |
+| v2: a fair condensation of their stance is theirs; NOT = no stance, the opposite side, or someone else's | 22 | 17 | 5 | 10 |
+
+v1 read an elaboration as a misquotation ("opponents of trophy hunting" refused "killing for pleasure is
+wrong" because the text says only that the controversy is about the morality of hunting for pleasure; a
+rhetorical question that takes a side was "no stance"), and a dropped TRUE holder costs exactly what the
+check exists to prevent, in reverse. v2's five over-blanks are two compound poles half the writer's own
+("the memo doesn't reflect official policy; the case rested on real WMD", the second clause nobody's),
+two inferences from a question (Melanie Onn, John Lamont) and "supporters of trophy hunting" given an
+argument the intro does not state — defensible drops, all of them. Its ten "flagged but kept" are the
+same-party read's compound-name mismatches ("Assange's defenders and press freedom groups" against
+"Assange's defenders"), correctly kept. The two clear hand-read misquotations — Andrew George named for
+the inverse of his own position, the inquiry lawyers and the government swapped — are among the agreed
+drops. v2 ships; v1 is recorded in the module.
+
+**Live, with the check active** (the 37-case finding probe, one draw each, 35 drawn; the same
+text-grounded reads as the gate):
+
+| | gate, WITH arm (74 draws, no check) | live with the check (35 draws) |
+|---|---|---|
+| A named for words the text does not bear | 16 (22%) | 4 (11%; dialogue 1 of 16) |
+| T named for words the text does not bear | 11 (15%) | 3 (9%) |
+| A still named | 60 (81%) | 25 (71%) |
+| A a position the text attributes to someone | 58 (78%) | 26 (74%) |
+| median seconds a draw | 3.6 | 7.2 reportage / 8.1 dialogue |
+
+So the rule and the check together take the misquotation from the shipped run's level to about one
+A in ten by the probe's judge — which still counts compound-name mismatches as false, so the real
+figure is lower — at the cost of one judge call's latency on material, sitting between the draws and
+selection because the fit judge reads the holder. On the person's own words nothing changes: no
+holder, no call. Not pursued: running the check beside the selection judges (would hide the latency
+on best-of-N cards at the price of the fit judge reading an unchecked holder), and a replacement name
+from the check (the judge may not name a party for the screen).

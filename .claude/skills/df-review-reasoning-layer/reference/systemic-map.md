@@ -2052,7 +2052,17 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    build's free-thesis branch does not carry it, since the graph path drops the holder before persisting.
    Gate: `probe_pasted_material.py::test_the_holder_rule_on_pasted_material` — WITH against WITHOUT, two
    draws per case, TEXT-GROUNDED reads (`_holder_in_text`: whose own words take this sentence), bars
-   pre-registered in `BARS`; figures in `docs/dev-notes/views.md`, "Pasted material".
+   pre-registered in `BARS`; figures in `docs/dev-notes/views.md`, "Pasted material". The rule halved the
+   misquotation and did not end it, so **the last step is code: `concerns/attribution_check.py`** (same day) —
+   after the draws and before selection, `Consultant.exploration_view` runs `drop_unborne_holders` over every
+   draw's first tension (the spares too, since a runner-up is served without a new call): one structured call
+   per NAMED holder (`AttributionDto`, verdict first and the safe value first for the mocked suite), shown the
+   person's words and one pole and asked whether the text gives that party this position — a fair
+   condensation of their stance is theirs, no stance / the opposite side / someone else's is not — and a holder
+   not borne is blanked in place. Fail-soft KEEPS the holder (dropping on error would show "your position"
+   over the Minister's). No call where no holder is named, so the person's own words cost nothing. Never a
+   replacement: the judge may not put a different name on the screen. Measured offline on the gate's saved
+   draws (`tests/e2e/rescore_attribution_check.py`, two wordings of the verdict) and live on the finding run.
    **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
    day**: an opposition the thesis's own words name AND concede ("not only X but also Y") is seen, not
    missing — rate its tetrad potential low, oppose the claim actually made; stated at the ask, the

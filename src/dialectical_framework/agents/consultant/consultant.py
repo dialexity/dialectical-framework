@@ -432,6 +432,8 @@ class Consultant:
         import dataclasses
 
         from dialectical_framework.agents.advisor.migration import person_turns
+        from dialectical_framework.concerns.attribution_check import \
+            drop_unborne_holders
         from dialectical_framework.concerns.tetrad_candidates import (
             clamp_attempts, ranking, select_sketch)
 
@@ -508,6 +510,17 @@ class Consultant:
                     # A pinned position is the host's own words for the
                     # person's own position: never someone else's.
                     drawn_sketch.tensions[0].thesis_held_by = ""
+        # The person's turns, for the judges below. Also the words a named
+        # holder is checked against.
+        words = judge_context(person_turns(history))
+        # A holder the words do not bear is dropped, in code, on every draw
+        # (`concerns/attribution_check.py`, 2026-10-27): the prompt rule
+        # halved the misquotation on pasted material and did not end it, and a
+        # runner-up served later must not carry one either. No call where no
+        # holder is named — the person's own words cost nothing here.
+        firsts_to_check = [s.tensions[0] for s in sketches if s.tensions]
+        for dropped in await drop_unborne_holders(firsts_to_check, words):
+            logger.info("A drawn holder was dropped: %s", dropped)
         # With several draws the framework's own coherence check picks the one
         # whose FIRST tension holds best (`concerns/tetrad_candidates.py`); a
         # draw with no complete first tension sorts last. The card a blindspot
@@ -530,7 +543,6 @@ class Consultant:
                 # (`tetrad_candidates.judge_fit`, 2026-10-20). With a pinned T
                 # the first read is the same on every draw and the second
                 # still tells them apart.
-                words = judge_context(person_turns(history))
                 _best, verdicts = await select_sketch(
                     [firsts[i] for i in judgeable], context=words, fit_against=words
                 )
