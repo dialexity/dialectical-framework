@@ -532,3 +532,24 @@ wants a hard ceiling to be a validation failure can put `max_length` on its own 
 SDK strips it from the wire, pydantic enforces it at parse, and the ladder re-asks the
 `ParseError` — at the price that the ceiling is characters, not sentences. Tests:
 `tests/test_structured_reply_text.py`.
+
+**The same evening: the native opening is SLOW, not hung.** The app answered its own open
+question with the setting the morning bought it (its handoff of that evening, folded here and
+removed): the same local API on `anthropic/claude-sonnet-5-5`, framework 2.1.3 at `f5e89b7`
+editable, `DIALEXITY_LLM_STREAM_HEADERS_TIMEOUT_S=15` and `DIALEXITY_LLM_READ_TIMEOUT_S=20` in
+the process env, streaming on, the same 1,070-character Lithuanian post, eight fresh sessions in
+series (gate call, best-of-3 view turn, then the text, closing and story calls). **Eight of
+eight landed, 29.0–41.5 s a card, and the run's log carries no stall of any phase** — no "before
+headers", no "before first content", no mid-content gap, no re-ask — against six of twelve lost
+that afternoon at the 5 s default, every one of them "did not open within 5s" twice over, the
+five that landed at 29–40 s. Widening the budget removed the stalls outright; a higher hang rate
+would have survived it at the re-ask's one-in-two. So on this account and transport the native
+opening's tail sits between 5 and 15 s, the slow-vs-hang question above is answered SLOW, and
+the one re-ask is the right ladder — the opening does not need its own retry kind. What is still
+not measured is the healthy opening distribution: the provider logs the phase on a stall and
+nothing on a healthy open, so 15 is a ceiling that worked, not a p99, and a host setting the
+budget still reads a stall count rather than a run. A DEBUG line carrying the opening time on
+every healthy stream is the cheap instrument for that and is not built. The app pinned 2.1.3,
+documented the setting with both figures in its own `.env.example`, and wired its
+`whole_paragraph` warning to log `raw=` from `ConversationFacilitator.last_structured_reply_text`
+so the next cut can be read — none in the eight (16 Lithuanian paragraphs whole since its guard).
