@@ -2042,7 +2042,18 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    position as T in 28/28 draws with nothing saying whose — and which never reached the wording anyway
    (both texts write bare claims). Every sentence that stopped the question-echo is kept; the old text
    stays in that probe as the control (`STANCE_ARM=first_person`). A pinned thesis (`exploration_view(thesis=)`)
-   forces `held_by` empty in code. **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
+   forces `held_by` empty in code. **Since 2026-10-27 the view turn's request also carries
+   `view_sketch.HOLDER_FROM_THE_WORDS`** (after the opposition ask, before the build procedure, on BOTH
+   branches): a party is named as holding a pole only when its own words take it, the other party's
+   opposition IS A when it stands in the words, a built opposition has NO holder — on the shipped run the
+   writer had put a speaker's name on an opposition it built itself (the Exchequer Secretary given "Fund
+   public services through taxing business"), which a screen would show as a quotation. The two `held_by`
+   field descriptions say the same (the floor in both arms of the gate). View turn ONLY: the one-shot
+   build's free-thesis branch does not carry it, since the graph path drops the holder before persisting.
+   Gate: `probe_pasted_material.py::test_the_holder_rule_on_pasted_material` — WITH against WITHOUT, two
+   draws per case, TEXT-GROUNDED reads (`_holder_in_text`: whose own words take this sentence), bars
+   pre-registered in `BARS`; figures in `docs/dev-notes/views.md`, "Pasted material".
+   **`_OPPOSING_POSITION_ASK` carries the caricature's mirror since the same
    day**: an opposition the thesis's own words name AND concede ("not only X but also Y") is seen, not
    missing — rate its tetrad potential low, oppose the claim actually made; stated at the ask, the
    `tetrad_potential` field, the `OptimumARankingDto` field and the Optimum-A ranking prompt together
@@ -2087,7 +2098,10 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    (`concerns/thesis_fit_check.py::ThesisFitCheck`, one call per draw gathered beside the two control
    statements, reads T, A, A+ against the PERSON's words handed as `select_sketch(fit_against=)` — the
    view turn's `judge_context`, the build's MATERIAL, never the Advisor's paraphrase that is the build's
-   `context`; fail-soft to `None` = not judged = fits) exists because a coherence-only choice prefers a
+   `context`; fail-soft to `None` = not judged = fits; since 2026-10-27 told WHOSE claim when the draw
+   names T's holder — `judge_fit` hands `thesis_held_by` to `score_texts(held_by=)`, and both reads are
+   worded for "the holder", the person when they speak for themselves, because a host's `fit_against` is
+   whatever was pasted and may carry only others' positions) exists because a coherence-only choice prefers a
    tetrad about a hedge to one about the demand the person would sign (the first app's handoff
    `docs/dev-notes/antithesis-selection.md`, "The hedge wins on coherence"); it is a SELECTION term under (a)'s rule, never a signal
    into generation, and the staged writer on a given pair does not ask (same T and A on every draw).

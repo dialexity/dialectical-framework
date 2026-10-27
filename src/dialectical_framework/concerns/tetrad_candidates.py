@@ -240,11 +240,13 @@ async def judge_fit(
     candidates: Sequence[Any], context: str
 ) -> list[Optional[float]]:
     """`ThesisFitCheck` on every candidate, each on its own (gathered), each
-    read against the person's words in `context`. One call per draw beside
-    the control statements' two. Fail-soft per candidate: a failed judging
-    is `None` — NOT judged, which `SketchVerdict.fits` treats as fitting.
-    A candidate without a thesis or antithesis (a transition tetrad through
-    `as_control_tetrad`) is not judged either."""
+    read against the words in `context`. One call per draw beside the
+    control statements' two. Fail-soft per candidate: a failed judging is
+    `None` — NOT judged, which `SketchVerdict.fits` treats as fitting. A
+    candidate without a thesis or antithesis (a transition tetrad through
+    `as_control_tetrad`) is not judged either. A draw that names T's holder
+    (`thesis_held_by`, the view turn on pasted material) hands it on, so the
+    judge asks whose claim about the right party."""
 
     async def one(tension: Any) -> Optional[float]:
         thesis = aspect_text(getattr(tension, "thesis", "")).strip()
@@ -257,6 +259,7 @@ async def judge_fit(
                 antithesis=antithesis,
                 a_plus=aspect_text(tension.a_plus),
                 text=context,
+                held_by=(getattr(tension, "thesis_held_by", "") or "").strip(),
             )
             return verdict.fit
         except Exception as exc:  # noqa: BLE001 — degrade to "not judged"

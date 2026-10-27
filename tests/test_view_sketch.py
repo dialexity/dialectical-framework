@@ -641,3 +641,31 @@ class TestWhoseStance:
         assert "WHOSE stance depends on the words" in THESIS_IS_A_STANCE
         assert "`held_by`" in THESIS_IS_A_STANCE
         assert "first person" not in THESIS_IS_A_STANCE
+
+    def test_a_holder_is_named_only_for_words_that_take_the_position(self):
+        """2026-10-27: on the shipped run the writer named a speaker as holding
+        an opposition it had built itself (`tests/e2e/probe_pasted_material.py`,
+        "a name on words never said"). The rule is read by the view turn on
+        BOTH branches — a pinned T is the person's own, the opposition in the
+        words it came with may still be someone else's."""
+        from dialectical_framework.concerns.view_sketch import (
+            HOLDER_FROM_THE_WORDS, view_sketch_prompt)
+
+        assert "only when their own words state it or plainly take it" in HOLDER_FROM_THE_WORDS
+        assert "leave its holder EMPTY" in HOLDER_FROM_THE_WORDS
+        assert "a name on words never said is a misquotation" in HOLDER_FROM_THE_WORDS
+        assert "A IS that party's position" in HOLDER_FROM_THE_WORDS
+        free = view_sketch_prompt("the tension", 7)
+        pinned = view_sketch_prompt("the tension", 7, thesis="Keep the Berlin office")
+        assert HOLDER_FROM_THE_WORDS in free and HOLDER_FROM_THE_WORDS in pinned
+        # Placed after the opposition ask and before the build procedure: the
+        # holder is decided where A is chosen, before the corners are built.
+        from dialectical_framework.concerns.view_sketch import (
+            TETRAD_BUILD_PROCEDURE, _OPPOSING_POSITION_ASK)
+        assert free.index(_OPPOSING_POSITION_ASK) < free.index(HOLDER_FROM_THE_WORDS) < free.index(TETRAD_BUILD_PROCEDURE)
+
+    def test_the_a_holder_field_says_a_built_opposition_has_none(self):
+        description = ViewSketchPerspectiveDto.model_fields["antithesis_held_by"].description
+        assert "BUILT the opposition" in description
+        assert "never a name on words they did not say" in description
+        assert "own words take it" in ViewSketchPerspectiveDto.model_fields["thesis_held_by"].description

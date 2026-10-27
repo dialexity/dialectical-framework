@@ -100,7 +100,8 @@ class ViewSketchPerspectiveDto(BaseModel):
     thesis_held_by: str = Field(
         description=(
             "Who holds T, named from the words, ONLY when it is not the person's own "
-            "position — the quoted party, the speaker, 'critics', 'the Minister'. "
+            "position — the quoted party, the speaker, 'critics', 'the Minister' — "
+            "and only a party whose own words take it. "
             "Empty when the person speaks for themselves."
         )
     )
@@ -112,8 +113,11 @@ class ViewSketchPerspectiveDto(BaseModel):
     )
     antithesis_held_by: str = Field(
         description=(
-            "Who holds A, named from the words, ONLY when it is someone other than "
-            "the person — in a debate, the other speaker. Empty otherwise."
+            "Who holds A, named from the words, ONLY when a party's own words state "
+            "or plainly take it — in a debate, the other speaker. Empty when the "
+            "person speaks for themselves, and Empty when you BUILT the opposition "
+            "because no one in the words holds it: never a name on words they did "
+            "not say."
         )
     )
     t_plus_vs_a_minus_axis: str = Field(
@@ -256,6 +260,34 @@ For each pair:
 #: it has quietly reworded).
 THESIS_IS_FIXED = """The thesis (T) is GIVEN, in the person's own words, and it is FIXED: carry it into the view exactly as it stands — do not reword, shorten, sharpen or generalise it, and do not put a different position in its place. Everything else in the tetrad is built around it as given."""
 
+#: WHO HOLDS A POLE is read off the words (2026-10-27, `tests/e2e/probe_pasted_material.py`,
+#: "a name on words never said"). The field descriptions alone said "the other
+#: speaker" and nothing about an opposition the writer BUILT, and on the
+#: shipped text's dialogue run the writer put a speaker's name on its own
+#: construction: the Exchequer Secretary given "Fund public services through
+#: taxing business" over a window in which he defended a rates support package,
+#: Anna Turley given the opposition to a position she had just agreed with. A
+#: screen then shows "the Minister's position" over words the Minister never
+#: said — a misquotation, worse than "your position" was. The same run drew the
+#: opposition itself in 2 of 17 dialogues where the other speaker's stood in the
+#: text (an honest construction, left unnamed), and took the other speaker's in
+#: the rest once a text-grounded judge read them (the position-list judge had
+#: called 8 of 17 "none", most of them paraphrases). This text is read by the
+#: view turn ONLY: the one-shot build drops the holder before the graph (a
+#: Statement stores none), so its half of the rule is unmeasured there.
+#: Measured before it shipped, WITH against WITHOUT, two draws per case over the
+#: 37 pasted-material cases (74 draws an arm), text-grounded reads: A a position
+#: the text attributes to someone 58 against 46 (paired 16/4, p = 0.012, the one
+#: resolved effect); A named for words the text does not bear 16 against 23
+#: (dialogues 4 against 8) — the pre-registered absolute bar of 2 MISSED, on a
+#: same-party read that counts compound names as mismatches in both arms, about
+#: 4 against 10 by one hand read; coherence 41 against 46, at its bar and inside
+#: the judge's variance. Shipped with the miss stated: the rule halves the
+#: misquotation and does not end it; the lever left is a code-side attribution
+#: check after the draw (unbuilt). Story and table: `docs/dev-notes/views.md`,
+#: "A name on words never said".
+HOLDER_FROM_THE_WORDS = """Who HOLDS a pole is read off the words, never supplied. Name a party as holding a position only when their own words state it or plainly take it; a party who agrees with T does not hold A. When another party in the words holds the position T stands against, A IS that party's position, in their terms, and they are named — a transcript's tension is between its speakers. When no one in the words holds the opposition, build it by the method below and leave its holder EMPTY: an opposition you built is nobody's, and a name on words never said is a misquotation."""
+
 
 
 #: How much of the person's own words the view turn's JUDGE reads (characters,
@@ -303,6 +335,10 @@ def view_sketch_prompt(
     (docs/dev-notes/antithesis-selection.md, 2026-10-02). The thesis is asked
     for as a STANCE (`THESIS_IS_A_STANCE`): on 20 questions the turn echoed the
     question as T in 6 before the ask was here (the alsotrue app repo, docs/lab-notes-entry.md).
+    Who HOLDS each pole is read off the words (`HOLDER_FROM_THE_WORDS`, on both
+    branches — a pinned T is the person's own, but the words it came with may
+    still carry someone else's opposition): a name goes on a position only
+    when that party's own words take it, and a built opposition has none.
 
     With `thesis` the host has the position already and wants it kept verbatim
     (`THESIS_IS_FIXED`): the stance ask comes OFF — there is nothing to find —
@@ -362,6 +398,8 @@ Rules for what goes in the view:
 {thesis_section}
 
 {_OPPOSING_POSITION_ASK}
+
+{HOLDER_FROM_THE_WORDS}
 
 {TETRAD_BUILD_PROCEDURE}
 

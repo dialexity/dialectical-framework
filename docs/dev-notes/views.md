@@ -245,6 +245,95 @@ The field fills where it should and stays empty where it should, and the names a
 ("Lee Myung-bak's government", "Protesters and critics", "Ken Cuccinelli, Virginia Attorney
 General"). The 9/15 on articles is partly the same-party judge's strictness ("the documentary
 (Hartog)" against the screen's "Hartog" was called a mismatch) and partly real: an article has
-more parties than a two-speaker window. Two things stay open, named in CLAUDE.md: in about half
-the dialogues the writer still invents A instead of taking the other speaker's position, and
-the fit judge's two reads presuppose authorship.
+more parties than a two-speaker window. Two things stayed open after that evening: the writer
+inventing A instead of taking the other speaker's position, and the fit judge's two reads
+presupposing authorship. Both are taken up below.
+
+**A name on words never said (2026-10-27).** Re-reading the shipped run's dialogues against
+their texts: the "invents A in about half" figure was mostly the position-list judge calling a
+paraphrase "none" (8 of 17 at 0, several of them the other speaker's position reworded). The
+real defect in it was narrower and worse: the writer had named a speaker as holding an
+opposition it had BUILT — the Exchequer Secretary given "Fund public services through taxing
+business" over a window in which he defended a rates support package; Anna Turley given the
+opposition to a position she had just agreed with. A screen shows that as "the Minister's
+position" over words the Minister never said: a misquotation, worse than "your position" was.
+The field descriptions said "the other speaker" and nothing about a built opposition.
+
+The repair is one more rule text on the view turn's request, `view_sketch.HOLDER_FROM_THE_WORDS`
+(after the opposition ask, before the build procedure, both branches): a party is named as
+holding a pole only when its own words state or plainly take it; when another party in the
+words holds the position T stands against, A IS that party's position and they are named; when
+no one does, build it and leave the holder EMPTY — "a name on words never said is a
+misquotation". The two `held_by` field descriptions say the same and stayed in both arms (the
+arm isolates the rule text; the fields are the floor). View turn only: the one-shot build drops
+the holder before persisting, so its half is unmeasured there.
+
+The gate (`probe_pasted_material.py::test_the_holder_rule_on_pasted_material`): WITH against
+WITHOUT the text, the 37 cases, two draws each, 74 per arm, paired by case and draw. The reads
+are TEXT-GROUNDED this time — `_holder_in_text` is shown the text and one sentence and asked to
+whom the text attributes it — because the position-list read had proved too coarse. Bars were
+pre-registered: PRIMARY, A falsely attributed (a holder named and the text does not bear it) at
+most 2 of 74 WITH and no more than WITHOUT; SECONDARY, A a position the text attributes to
+someone, +6; side conditions, coherence, the antithesis a position and T-from-the-text each
+losing at most 5.
+
+Two readings, because the first judge was wrong for half the set and I changed it after seeing
+the data — stated as such. The first asked whose OWN WORDS take the sentence, which is right for
+a transcript and wrong for an encyclopedic intro, where nobody speaks and every position is
+REPORTED: it called "opponents of trophy hunting" a false attribution in both arms (reportage 24
+against 25). The second asks to whom the TEXT attributes it, stated or reported, which is the
+criterion a misquotation violates. Draws were not redrawn; the saved run was re-read
+(`PASTED_REREAD`).
+
+| per arm, 74 draws | WITH | WITHOUT | paired (W/L, p) |
+|---|---|---|---|
+| A falsely attributed — own-words read | 30 | 37 | 6/7, 1.0 |
+| A falsely attributed — attributed-by-the-text read | 16 (dialogue 4/34) | 23 (dialogue 8/34) | 7/12, 0.36 |
+| A a position the text attributes to someone | 58 | 46 | 16/4, **0.012** |
+| A built and left unnamed (the honest case) | 9 | 9 | |
+| A unnamed though the text attributes it (missed holder) | 5 | 1 | |
+| T falsely attributed | 11 | 13 | |
+| T a position the text attributes | 63 | 65 | 5/7 |
+| coherence pass | 41 | 46 | 10/15, 0.42 |
+| antithesis a position | 65 | 66 | 5/6 |
+| median seconds | 3.6 | 3.6 | |
+
+**The verdict, by the bars: the absolute primary bar is MISSED (16, not 2), the relative half
+holds, the secondary clears and resolves (+12, the only resolved effect), the side conditions
+sit at or inside their bars** — coherence loses exactly 5, and the 15 pairs it lost include
+several where the A text is identical in both arms (the US beef case scored 0.62 against 0.82
+on the same words), so that is the judge's own variance. The rule ships. Why, with the primary
+bar missed: the bar presupposed a judge with no false positives, and the same-party read is
+not one — "Assange's defenders and press freedom groups" against the text's "Assange's
+defenders", "Rep. Shelley Berkley and Rep. Jon Porter" against "Jon Porter", "Charles Duelfer;
+George W. Bush" against "Iraq Survey Group (headed by Charles Duelfer)" are all counted false in
+BOTH arms. One hand read of the flagged rows (one rater, this session, stated): the real
+named inventions are about 4 of 74 WITH against about 10 WITHOUT, dialogues about 2 against 5,
+and the ones gone are the shipped run's own — the Exchequer Secretary (twice WITHOUT, never
+WITH), Sarah Jones given a restructuring position she never stated (twice WITHOUT), Georgia
+Gould given "accept transition strain". What remains WITH: Andrew George named for the
+inverse of his own position (one draw), the inquiry lawyers and the government swapped
+(one), and two arguable inferences from a question ("welfare growth must be held down" from
+a member who said the bill keeps growing). So the rule halves the misquotation and does not
+end it; about one draw in twenty on material still names a party for words the text does not
+bear, and no wording was going to take that to zero — prompt enforcement scales with
+compliance. **The lever left is code, not prompt**: a fail-soft attribution check after the
+draw, one judge call per NAMED holder (free on the person's own words, where `held_by` is
+empty), that blanks a holder the text does not bear — the misquotation becomes an honest
+unnamed construction, the way the pin is enforced by write-back rather than by compliance.
+Unbuilt; the cost on material is one short call per pole named.
+
+The first gate run was lost to its own instrument: the reads gathered ~150 judge calls at once
+against the organisation's concurrency limit and one judge without a try/except raised a stream
+timeout after 148 unsaved draws. Draws are now saved before any read, the judges go through a
+semaphore (`PASTED_JUDGE_CONCURRENCY`, 6), and a saved run can be re-read.
+
+**The fit judge no longer presupposes authorship (same day).** Its two reads were worded as
+"the claim the PERSON would sign" and "the PERSON's own words", and a host's `fit_against` is
+whatever was pasted. `ThesisFitCheck.score_texts(held_by=)` now takes the holder the draw
+names for T (`judge_fit` hands on `thesis_held_by`) and asks both questions about THAT party —
+"T is the Minister's position, which the words REPORT: its holder is the Minister, not the
+person who pasted the words" — and, with no holder, "its holder is the person speaking", the
+shipped behaviour in substance. The stability arm of `probe_thesis_fit_judge.py` was re-run on
+the reworded prompt the same day (figures in `antithesis-selection.md`, "The fit judge is told
+whose claim"); its effect on a choice is still unmeasured, as before.

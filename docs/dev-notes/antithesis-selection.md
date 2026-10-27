@@ -1830,3 +1830,21 @@ BEFORE the fix, and the file stays outside the probe's glob. **A figure is about
 for runs made after this change.** The two prompt rules are still ungated, and the gate can now
 run on either transport — but the cheapest honest reading is still the one the prompt rules
 actually need: the multi-claim case set.
+
+### The fit judge is told whose claim (2026-10-27)
+
+Both of its reads were worded for the PERSON — "the claim the person would sign", "the
+person's own words" — and the words a host hands as `fit_against` are whatever was pasted,
+which on material carry only other people's positions (`views.md`, "Pasted material"). The
+view turn now names the holder of a T that is not the person's own, so
+`ThesisFitCheck.score_texts(held_by=)` takes it (`judge_fit` hands on `thesis_held_by`) and
+asks both questions about that party: "T is the Minister's position, which the words REPORT:
+its holder is the Minister, not the person who pasted the words. Judge both questions by what
+the Minister says in them." With no holder: "Its holder is the person speaking above." The
+field descriptions say "its HOLDER" where they said "the person". On the person's own words
+the ask is the same in substance, and the stability arm of `probe_thesis_fit_judge.py`
+re-run on the reworded prompt the same day agrees with itself 40/40 on `fits`, mean |fit|
+shift 0.002, max 0.10, 0 crossings (this arm on the bench's strong tier, Sonnet 5 via
+Bedrock; the 2026-10-26 figure of 40/40 and 0.011 was Sonnet 5.5). Its effect on a choice is
+as unmeasured as before; on material it has never been exercised, since every pasted-material
+run is `attempts=1`.

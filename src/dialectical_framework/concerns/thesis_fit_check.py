@@ -46,6 +46,18 @@ either: the shape it was written for, a multi-claim input where one draw
 bears the demand and another the hedge, is still UNMEASURED for want of
 such a case set. The two prompt rules beside it are unmeasured too.
 
+WHOSE claim (2026-10-27). Both reads presupposed authorship — "the claim the
+PERSON would sign", "the PERSON's own words" — and the words a host hands as
+`fit_against` are whatever the person pasted, which may carry only other
+people's positions (`docs/dev-notes/views.md`, "Pasted material"). The view
+turn names the holder of a T that is not the person's own
+(`ViewSketchPerspectiveDto.thesis_held_by`), so `score_texts(held_by=)` takes
+it and the two reads are asked about THAT party: the claim they would sign in
+the words that report them, what their words concede. With no holder the
+holder is the person speaking, as before — the shipped behaviour on the
+person's own words is unchanged in substance, and the stability arm of the
+gate below was re-run on the reworded judge the same day.
+
 This judge does not think, so it parses on either transport. The view-turn
 arm of the same gate did not, until the Mirascope floor moved to 2.8.2 on
 2026-10-26: the view turn is the one structured call that THINKS, the
@@ -82,19 +94,20 @@ class ThesisFitDto(BaseModel):
         ge=0.0,
         le=1.0,
         description=(
-            "Is the thesis the claim the person would SIGN — the conclusion or "
-            "demand their words lead to? 1.0: it is that claim. 0.0: it is a "
-            "premise, a hedge or a concession on the way to it ('we have the "
-            "right to ask' when they go on to demand; 'X matters, but' when "
-            "they then argue against X)."
+            "Is the thesis the claim its HOLDER would SIGN — the conclusion or "
+            "demand the holder's words lead to? The holder is the person when "
+            "they speak for themselves, or the party the words report it from. "
+            "1.0: it is that claim. 0.0: it is a premise, a hedge or a "
+            "concession on the way to it ('we have the right to ask' when they "
+            "go on to demand; 'X matters, but' when they then argue against X)."
         ),
     )
     a_plus_already_granted: float = Field(
         ge=0.0,
         le=1.0,
         description=(
-            "Do the person's own words ALREADY name and concede what A+ says? "
-            "1.0: they wrote it themselves ('not only X but also Y' concedes X). "
+            "Do the HOLDER's own words ALREADY name and concede what A+ says? "
+            "1.0: they said it themselves ('not only X but also Y' concedes X). "
             "0.0: it is a constructive side of the opposition they have not seen."
         ),
     )
@@ -112,25 +125,41 @@ class ThesisFitCheck:
     """Text-only, graph-free, no report: a judge the selector gathers."""
 
     async def score_texts(
-        self, *, thesis: str, antithesis: str, a_plus: str, text: str
+        self,
+        *,
+        thesis: str,
+        antithesis: str,
+        a_plus: str,
+        text: str,
+        held_by: str = "",
     ) -> ThesisFitDto:
-        """Both reads in one call. `text` is the person's own words (the view
-        turn's `judge_context`, the build's material) and is required: with
-        nothing to read against, neither question can be answered, and the
-        caller skips the judge instead of asking it blind."""
+        """Both reads in one call. `text` is the words handed to the judge (the
+        view turn's `judge_context`, the build's material) and is required:
+        with nothing to read against, neither question can be answered, and
+        the caller skips the judge instead of asking it blind. `held_by` is
+        the party T is attributed to when it is not the person's own
+        (`thesis_held_by` on the draw); empty = the person speaking."""
+        holder = (held_by or "").strip()
+        whose = (
+            f"T is {holder}'s position, which the words REPORT: its holder is "
+            f"{holder}, not the person who pasted the words. Judge both questions "
+            f"by what {holder} says in them."
+            if holder
+            else "Its holder is the person speaking above."
+        )
         prompt = f"""<context>
 {text}
 </context>
 
-A dialectical tetrad was drawn from what the person said above. Read its thesis, its antithesis and the constructive side of the antithesis against their words, and rate two things independently.
+A dialectical tetrad was drawn from the words above. {whose} Read its thesis, its antithesis and the constructive side of the antithesis against the holder's words, and rate two things independently.
 
 Thesis (T): "{thesis}"
 Antithesis (A): "{antithesis}"
 Constructive side of A (A+): "{a_plus}"
 
-1. Is T the claim the person would sign? When their words hold several claims, the one they would sign is the conclusion or demand the rest leads to — not a premise, not a hedge on the way to it, and not a claim they concede in passing ("not only X but also Y" concedes X and argues for Y).
+1. Is T the claim its holder would sign? When the holder's words hold several claims, the one they would sign is the conclusion or demand the rest leads to — not a premise, not a hedge on the way to it, and not a claim they concede in passing ("not only X but also Y" concedes X and argues for Y).
 
-2. Do the person's own words already name AND concede what A+ says? An opposition they have conceded themselves is seen, not missing; a tetrad on it shows them their own sentence as a blind spot."""
+2. Do the holder's own words already name AND concede what A+ says? An opposition they have conceded themselves is seen, not missing; a tetrad on it shows them their own sentence as a blind spot."""
         return await ConversationFacilitator().submit(
             response_model=ThesisFitDto, user_content=prompt
         )
