@@ -356,8 +356,8 @@ on the short calls. Two things in that evidence decided the work, neither the on
 call (`_create_async`, so every concern and the awaited tool loop's rounds) goes out through
 `messages.stream` and comes back as the same assembled `Message` (`_stream_to_message`), so
 Mirascope's decoder, the format and thinking learning, refusal and the census see no difference.
-The stream is policed by silence: the response must OPEN within `_STREAM_HEADERS_TIMEOUT_S`
-(5 s), content must start within the read timeout, and a gap past `_STREAM_GAP_TIMEOUT_S` (5 s)
+The stream is policed by silence: the response must OPEN within the opening budget (5 s, then
+the constant `_STREAM_HEADERS_TIMEOUT_S`, a setting since 2026-10-27 — last section), content must start within the read timeout, and a gap past `_STREAM_GAP_TIMEOUT_S` (5 s)
 once it flows is a stall; `ping`s are not progress. A stall raises `StreamReadTimeout`, an
 `httpx.ReadTimeout` subclass, so the ladder re-asks it once like any stall. Host-visible deltas
 (the first ask) were not built: the draw is two thirds of a card and has nothing to show.
@@ -448,3 +448,87 @@ Two things that are NOT free, neither of them urgent:
    no figure in the archive was taken on one, and an untested layer guarding an unobserved
    problem is worse than none. The cache-breakpoint work has no equivalent to lift — OpenAI
    caches without breakpoints.
+
+## The native opening and the split field (2026-10-27)
+
+The first app's handoff the day it moved its local run from `bedrock/*` to `anthropic/*` on
+2.1.2 (Sonnet 5.5 native, `Consultant.exploration_view` with `attempts=3`, then the app's own
+text and closing calls; four fresh draws of one 1,070-character Lithuanian post plus two
+English smoke cards — a reproduction with a count, not a measurement). Two findings, two asks.
+
+**1. Three of four draws died on "stream did not open within 5s".** The opening budget was a
+module constant (`_STREAM_HEADERS_TIMEOUT_S = 5.0`), the Bedrock figure from the promise run
+above. On the native transport, with `_SDK_MAX_RETRIES = 0` (so this is real time-to-first-byte,
+not the SDK's own backoff), three of four fresh sessions ran stall at 5 s, re-ask after 2 s,
+stall at 5 s, `StreamReadTimeout` — six of eight attempts never saw headers. A second run of
+eight the same hour stalled three more, so **six of twelve fresh sessions** were lost; the five
+that landed took 29–40 s a card.
+
+| request | where it died | calls | provider s | spent |
+|---|---|---|---|---|
+| 1 | inside the view turn | 14 | 50.4 | $0.084 |
+| 2 | the gate, first call | 1 | 2.2 | $0.002 |
+| 3 | the gate, first call | 1 | 2.2 | $0.002 |
+| 4 | landed, 42.8 s wall | 19 | 79.3 | $0.111 |
+
+The same warning appears in the app's 2026-10-20 Bedrock log (Opus 5.5 and Sonnet 5.5 both
+"stalled before headers (5.0s)") and there the re-ask recovered every time. This repo's own
+e2e runs of the same afternoon show the shape too: five `StreamReadTimeout('stream did not
+open within 5s')` in 185 view-turn draws across three result files under
+`tests/e2e/results/pasted/` (the files do not record the transport).
+
+**What changed.** `Settings.llm_stream_headers_timeout_s` (env
+`DIALEXITY_LLM_STREAM_HEADERS_TIMEOUT_S`), default 5.0, read PER REQUEST at
+`_AnthropicTransport._create_async` beside `llm_stream_awaited_calls` and passed into
+`_stream_to_message` as a parameter; the constant is gone, no alias. Clamped to the read timeout
+as before. The default stays the Bedrock measurement and is NOT per transport: a native default
+would be a guess, and the handoff's count cannot tell a SLOW opening (a wider budget lands the
+call) from a HANG at a higher rate (only a retry would) — 50% of attempts past 5 s is either.
+The setting is how a host finds out, and `tests/e2e/probe_view_turn_ask.py` on the native
+transport is the instrument for the rate once it has. The stall retry stays at one re-ask
+(`_STALL_RETRY_MAX = 2`): the handoff is right that two re-asks would have landed all three, and
+the 2026-10-12 note already said a third attempt is cheap at 5 s — but the ladder does not tell
+an opening stall from a read-timeout stall, and a third attempt on the latter is three read
+timeouts before the caller hears anything. Making the opening its own retry kind is a second
+change, to be made when the native rate is measured rather than guessed. Tests:
+`tests/test_streamed_awaited_call.py::TestTheOpeningBudgetIsASetting` (default, env, clamp,
+both transports read it per request).
+
+**2. A structured reply split inside a field.** On a Lithuanian card that landed, the text
+call's `paragraph` ended mid-word after four whole sentences and a cut fifth, and `parallel`
+began with the paragraph's missing tail followed by an English "There's". The app's story check
+caught the story; nothing read the paragraph, so the fragment reached the card. One of two
+Lithuanian cards; both English cards whole. The handoff read it as the signature the 2026-10-26
+note describes for the native path; it is not that. That note's signature was JSON asked for in
+PROSE (no `output_config.format`), which shows as trailing commas, parse re-asks and looser
+writing — and `dddf139` closed it by applying the constraint on both transports, which the app
+was running. What the raw response would have shown is not visible from here, but three things
+are, and they rule the PARSER out:
+
+- Under the schema constraint the reply is grammar-valid JSON, and Mirascope's extraction
+  (`responses/_utils.extract_serialized_json`) is a brace scan over the first object followed
+  by `json.loads` and `model_validate_json` — there is no field-boundary index to get wrong; a
+  wrong boundary is a `JSONDecodeError`, re-asked, never a shifted field.
+- The API does not support string length constraints (`minLength`/`maxLength`), and the SDK's
+  `transform_schema` strips them into the description — so no grammar wall could have forced
+  the closing quote. The app's DTO has no `max_length` anyway; its ceiling ("four sentences")
+  is prose in the field description.
+- So the boundary is where the MODEL put the closing quote: the writing, under the constraint,
+  on non-English text. Both occurrences are Lithuanian; a hypothesis worth the raw response is
+  constrained decoding over multi-byte tokens, where a masked continuation leaves `"` as the
+  likeliest allowed token and the model, finding itself in the next key, continues the
+  sentence there. Unmeasured.
+
+The framework cannot raise on this: any check would be a reading of the content, which is the
+host's judge (the app's whole-sentence read), not a parse. What it does now is keep the bytes.
+`use_brain` records every parsed structured reply as written — `last_structured_reply_text()`,
+a ContextVar set in the caller's own task so a gathered draw never overwrites it, and a DEBUG
+line with the WHOLE text (unclipped, unlike `_log_unsalvageable`: the tail is the diagnosis) —
+and `ConversationFacilitator._call_with_response_model` copies it onto
+`last_structured_reply_text`, reset per submit, `None` on a turn that made no structured call.
+The salvage branch keeps the envelope as sent, not the unwrapped DTO. A host whose check fires
+reads the field back and can say whether the split was the writing or the wire; a host that
+wants a hard ceiling to be a validation failure can put `max_length` on its own `Field` — the
+SDK strips it from the wire, pydantic enforces it at parse, and the ladder re-asks the
+`ParseError` — at the price that the ceiling is characters, not sentences. Tests:
+`tests/test_structured_reply_text.py`.

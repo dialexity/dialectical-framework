@@ -36,7 +36,9 @@ class Settings(BaseModel):
     `dialectical_framework.settings_context` scopes them to one asyncio context):
     `ai_model`, `reasoning_model`, and everything read through
     `SettingsAware.settings` — word limits, the thinking level, the Advisor's
-    floors and caps, the audit switches.
+    floors and caps, the audit switches. `llm_stream_awaited_calls` and
+    `llm_stream_headers_timeout_s` are read at the provider on every call, so
+    they scope the same way.
 
     Per process (read once, from the base `DialecticalReasoning.setup()` installs;
     a value inside `using_settings` has no effect): `graph_db_*` (the connection is
@@ -304,7 +306,8 @@ class Settings(BaseModel):
     # Every awaited Bedrock call (`BedrockAnthropicProvider._create_async`) is
     # sent as a stream and assembled into the same `Message` before Mirascope
     # decodes it, so a stall is caught where it happens instead of at the whole
-    # read timeout: the response must OPEN within 5s (`_STREAM_HEADERS_TIMEOUT_S`),
+    # read timeout: the response must OPEN within `llm_stream_headers_timeout_s`
+    # (5s by default),
     # content must start within `llm_read_timeout_s`, and a gap past 5s once it
     # flows is a stall. Measured on the first app's promise run (2026-10-12,
     # Sonnet 5.5, 59 cases, read timeout 20s): ~5.5% of calls hang, ALL before
@@ -314,7 +317,29 @@ class Settings(BaseModel):
     # exists as an off switch for a model or provider the measurement did not
     # cover (`docs/dev-notes/streaming-latency-and-retry.md`, "Hangs are caught
     # at the opening"). Per request.
-    llm_stream_awaited_calls: bool = Field(default=True, description="Send awaited provider calls as streams and assemble the message, so a hung call is caught when the response fails to open (5s) rather than at the whole read timeout. On by default; off only for a model or provider where streaming misbehaves.")
+    llm_stream_awaited_calls: bool = Field(default=True, description="Send awaited provider calls as streams and assemble the message, so a hung call is caught when the response fails to open (`llm_stream_headers_timeout_s`) rather than at the whole read timeout. On by default; off only for a model or provider where streaming misbehaves.")
+
+    # How long a streamed awaited call may wait for the response to OPEN
+    # (headers, `message_start`) before it counts as a stall and is re-asked
+    # (`bedrock_provider._stream_to_message`; the re-ask is the stall curve's
+    # one, `use_brain._STALL_RETRY_MAX`). The default is the Bedrock
+    # measurement: the first app's promise run (2026-10-12, Sonnet 5.5, 890
+    # streamed calls) saw every stall (48, 5.4%) hang before the headers while
+    # healthy calls opened at a median 1.2s, p99 3.6s, whatever their size (6
+    # of 842 past 5s) — streamed, the opening is the one wait that does not
+    # grow with the output, so one short budget fits every call size.
+    #
+    # A setting since 2026-10-27 because the figure is per transport and
+    # account, not per model: on the native `anthropic/` transport the same
+    # 5s lost six of twelve fresh sessions in the first app (both attempts past
+    # the budget, with the SDK's own retry at zero so that is real
+    # time-to-first-byte), where on Bedrock the one re-ask had recovered every
+    # stall. Whether the native opening is slow (a wider budget lands the call)
+    # or hangs more often (only a retry would) is what the setting lets a host
+    # find out: widen it where the logged phase says "before headers" at a rate
+    # the re-ask does not absorb. Clamped to the read timeout; lowering it below
+    # the healthy p99 buys nothing. Per request, read at the call.
+    llm_stream_headers_timeout_s: float = Field(default=5.0, description="How long a streamed provider call may wait for the response to open, in seconds, before it counts as a stall and is re-asked once. 5s is the Bedrock measurement; widen it on a transport whose opening tail is longer. Never more than the read timeout.")
 
     @classmethod
     def from_partial(cls, partial_settings: Optional[Settings] = None) -> Self:
@@ -395,5 +420,6 @@ class Settings(BaseModel):
             llm_connect_timeout_s=float(os.getenv("DIALEXITY_LLM_CONNECT_TIMEOUT_S", 30.0)),
             llm_read_timeout_s=float(os.getenv("DIALEXITY_LLM_READ_TIMEOUT_S", 120.0)),
             llm_stream_awaited_calls=os.getenv("DIALEXITY_LLM_STREAM_AWAITED_CALLS", "true").lower() == "true",
+            llm_stream_headers_timeout_s=float(os.getenv("DIALEXITY_LLM_STREAM_HEADERS_TIMEOUT_S", 5.0)),
             effect_log_dir=os.getenv("DIALEXITY_GRAPH_LOG_DIR"),
         )

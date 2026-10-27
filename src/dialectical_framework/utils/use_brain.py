@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import time
@@ -262,7 +263,7 @@ def use_brain(
                     )
                     if has_format:
                         try:
-                            return response.parse()
+                            parsed = response.parse()
                         except ParseError as e:
                             salvaged = _salvage_envelope(
                                 response,
@@ -276,6 +277,7 @@ def use_brain(
                                 e,
                             )
                             if salvaged is not None:
+                                _keep_structured_reply(response, format_name)
                                 return salvaged
                             # Nothing fit, so this is about to cost a re-ask and
                             # a nap. Say what the model actually sent, ONCE per
@@ -288,6 +290,8 @@ def use_brain(
                             if attempt == 0:
                                 _log_unsalvageable(response, format_name)
                             raise
+                        _keep_structured_reply(response, format_name)
+                        return parsed
                     return response
                 except ModelRefusal:
                     # Never retried, and never classified: its explanation is
@@ -478,6 +482,46 @@ def _framing_leak_note(text: str) -> str:
         " DIAGNOSIS: tool-call XML framing leaked into an OTHERWISE COMPLETE "
         "payload. This is the documented trigger for adding an XML salvage rule "
         "to _envelope_candidates — see probe_anchor_retry_cost.py."
+    )
+
+
+#: The text of the last structured reply parsed in this context, exactly as
+#: the model wrote it. A reply that PARSES can still be wrong in a way no
+#: parser sees: a string field cut mid-word with its tail written into the
+#: next field (the first app's handoff of 2026-10-27, one Lithuanian card of
+#: two) is valid JSON, and the DTO carries only the fields. The framework
+#: cannot tell such a field from a whole one — any check would be a reading of
+#: the content, which is the host's judge, not a parse — so what it does is
+#: keep the bytes: a host whose own check fires reads them back through
+#: `ConversationFacilitator.last_structured_reply_text` and can say whether
+#: the split was the model's writing or something on the way. A ContextVar,
+#: set in the caller's own task, so a draw gathered on another task never
+#: overwrites it; `None` until a structured call has returned here.
+_last_structured_reply: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "last_structured_reply", default=None
+)
+
+
+def last_structured_reply_text() -> Optional[str]:
+    """The raw text of the last structured reply parsed in this context."""
+    return _last_structured_reply.get()
+
+
+def _keep_structured_reply(response: Any, format_name: Optional[str]) -> None:
+    """Record a parsed reply as written, and say so at DEBUG, in full.
+
+    Whole and never clipped, unlike `_log_unsalvageable`: the tail is the part a
+    split-field diagnosis needs, and DEBUG is off unless a host turns it on for
+    exactly that. Payload text only — no prompt, no system prompt. Never
+    raises: this runs on the success path.
+    """
+    try:
+        text = response.text("") or ""
+    except Exception:  # noqa: BLE001
+        return
+    _last_structured_reply.set(text)
+    logging.getLogger(__name__).debug(
+        "Structured %s reply as written (%d chars): %s", format_name, len(text), text
     )
 
 

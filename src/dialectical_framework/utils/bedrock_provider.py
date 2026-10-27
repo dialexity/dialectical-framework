@@ -415,15 +415,6 @@ logger = logging.getLogger(__name__)
 #: so it is a backstop; the measured hangs are all caught at the opening.
 _STREAM_GAP_TIMEOUT_S = 5.0
 
-#: How long a streamed awaited call may wait for the response to OPEN (headers,
-#: `message_start`) before it counts as a stall. Measured on the first app's
-#: promise run (2026-10-12, Sonnet 5.5, 890 streamed calls): every stall (48,
-#: 5.4%) hung before the headers, while healthy calls opened at a median 1.2s,
-#: p99 3.6s, whatever their size (6 of 842 past 5s). Streamed, the opening is
-#: the one wait that does not grow with the output, so it is where a hang is
-#: caught: here at 5s rather than at the whole read timeout.
-_STREAM_HEADERS_TIMEOUT_S = 5.0
-
 #: Deltas that are the answer being written, as opposed to thinking or
 #: bookkeeping. The SDK's stream yields both the raw `content_block_delta` and
 #: a synthesized event per delta kind.
@@ -450,14 +441,18 @@ def _is_content_event(event: Any) -> bool:
 
 
 async def _stream_to_message(
-    manager: _LearningStreamManager, model_name: str, read_timeout_s: float
+    manager: _LearningStreamManager,
+    model_name: str,
+    read_timeout_s: float,
+    headers_timeout_s: float,
 ) -> AnthropicMessage:
     """Consume one stream and return the assembled `Message`, policing silence.
 
-    Three budgets: the response must OPEN within `_STREAM_HEADERS_TIMEOUT_S`
-    (where the measured hangs are), the first content must follow within the
-    read timeout (queueing, prefill, thinking), and once content flows a gap
-    longer than `_STREAM_GAP_TIMEOUT_S` is a stall.
+    Three budgets: the response must OPEN within `headers_timeout_s`
+    (`Settings.llm_stream_headers_timeout_s` — where the measured hangs are,
+    and never more than the read timeout), the first content must follow
+    within the read timeout (queueing, prefill, thinking), and once content
+    flows a gap longer than `_STREAM_GAP_TIMEOUT_S` is a stall.
 
     The provider's `ping`s do not count as progress: a stream that only pings
     is a hang the socket's read timeout would never see. Every stall is logged
@@ -467,7 +462,7 @@ async def _stream_to_message(
     """
     loop = asyncio.get_running_loop()
     started = time.monotonic()
-    headers_budget = min(_STREAM_HEADERS_TIMEOUT_S, read_timeout_s)
+    headers_budget = min(headers_timeout_s, read_timeout_s)
     try:
         stream = await asyncio.wait_for(manager.__aenter__(), timeout=headers_budget)
     except asyncio.TimeoutError as e:
@@ -476,7 +471,7 @@ async def _stream_to_message(
             model_name, time.monotonic() - started,
         )
         raise StreamReadTimeout(
-            f"stream did not open within {headers_budget:.0f}s"
+            f"stream did not open within {headers_budget:g}s"
         ) from e
     except Exception as e:
         if type(e).__name__.endswith(("TimeoutError", "ReadTimeout")):
@@ -653,14 +648,18 @@ class _AnthropicTransport(AnthropicProvider):
         stream and comes back as the same assembled `Message`, so a stall is
         caught by the gap between chunks (`_stream_to_message`) instead of by a
         ceiling on the whole generation. The stream manager learns the thinking
-        shape the same way.
+        shape the same way. The opening budget is read here, per request
+        (`llm_stream_headers_timeout_s`); the read timeout was read once, when
+        the client was built.
         """
         model_name = kwargs["model"]
-        if get_current_settings().llm_stream_awaited_calls:
+        settings = get_current_settings()
+        if settings.llm_stream_awaited_calls:
             return await _stream_to_message(
                 _LearningStreamManager(self.async_client, kwargs, params),
                 model_name,
                 self._read_timeout_s,
+                settings.llm_stream_headers_timeout_s,
             )
         try:
             return await self.async_client.messages.create(

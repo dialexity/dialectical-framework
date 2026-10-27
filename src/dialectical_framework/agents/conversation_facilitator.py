@@ -35,7 +35,8 @@ from dialectical_framework.utils.call_census import record_call
 from dialectical_framework.utils.thinking_compat import conversational_round
 from dialectical_framework.utils.retry_accounting import (RetryAccount,
                                                           retry_account)
-from dialectical_framework.utils.use_brain import (prefill_token_kwargs,
+from dialectical_framework.utils.use_brain import (last_structured_reply_text,
+                                                  prefill_token_kwargs,
                                                   retry_transient, use_brain)
 
 from mirascope.llm import FinishReason, TextChunk, ThoughtChunk, ToolOutput
@@ -333,6 +334,15 @@ class ConversationFacilitator(SettingsAware):
         # prefill-sensitive quantity — the one prompt caching can move — is
         # `CallRecord.first_token_seconds` on the turn's first round, not this.
         self.last_submit_first_delta_s: Optional[float] = None
+        # The last STRUCTURED reply of this turn as the model wrote it, before
+        # parsing — the JSON text, or the tool call's arguments as text. `None`
+        # on a turn that made no structured call (a reused written reply, a
+        # mocked one). A DTO that validates can still carry a field the model
+        # cut short and continued in the next one (the first app's handoff,
+        # 2026-10-27); nothing in a parse can see that, but a host's own check
+        # can, and then it needs the bytes to say whether the split was the
+        # writing or the wire. See `use_brain.last_structured_reply_text`.
+        self.last_structured_reply_text: Optional[str] = None
         # Bumped once per submit, and captured by `submit_stream` so its `finally`
         # can tell "this turn is still the current one" from "a turn the consumer
         # walked away from, being finalised now".
@@ -522,6 +532,7 @@ class ConversationFacilitator(SettingsAware):
         self.last_tool_rounds = []
         self.last_submit_seconds = 0.0
         self.last_submit_retries = RetryAccount()
+        self.last_structured_reply_text = None
         # Reset here too although this path can never set it: a facilitator is
         # reused across turns, so without this a non-streaming submit would report
         # the previous STREAMED turn's figure as its own.
@@ -701,6 +712,7 @@ class ConversationFacilitator(SettingsAware):
         self.last_submit_seconds = 0.0
         self.last_submit_retries = RetryAccount()
         self.last_submit_first_delta_s = None
+        self.last_structured_reply_text = None
 
         # Re-entered per await instead of wrapped around the whole generator, and
         # `retry_account` explains why: a contextvar set across a `yield` installs
@@ -1442,6 +1454,8 @@ class ConversationFacilitator(SettingsAware):
             return messages
 
         result = await _llm_call()
+        # Same task as the call, so this is THIS call's text (see use_brain).
+        self.last_structured_reply_text = last_structured_reply_text()
         self._messages.append(
             llm.messages.assistant(
                 self._assistant_history_text(result),
