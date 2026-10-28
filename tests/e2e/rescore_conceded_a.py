@@ -2,7 +2,8 @@
 Does the fit judge's new A read see what the first app's judge saw — and how
 often is A the granted view on the framework's own saved draws?
 
-The handoff (`docs/handoff-2026-10-28-conceded-opposition.md`): on the 29
+The handoff (2026-10-28, retired; its substance is in `docs/dev-notes/antithesis-selection.md`,
+"A is the view the author granted"): on the 29
 app rows whose conceded clause grants a POSITION, the card's A was that
 granted view on 16 (an Opus judge, reviewed), A+ on 3. The framework's gate
 (`probe_multiclaim_thesis.py`) had read only A+ against the clause, so the

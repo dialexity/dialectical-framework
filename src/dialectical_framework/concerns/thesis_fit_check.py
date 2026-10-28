@@ -60,7 +60,8 @@ person's own words is unchanged in substance, and the stability arm of the
 gate below was re-run on the reworded judge the same day.
 
 THE POLE, NOT ONLY ITS DEVELOPMENT (2026-10-28, the first app's third
-handoff, `docs/handoff-2026-10-28-conceded-opposition.md`). The second read
+handoff, retired into `docs/dev-notes/antithesis-selection.md`, "A is the view the
+author granted"). The second read
 asked about A+ alone, because the 2026-10-20 case had A+ as the typed clause.
 The app's eval over the framework's own petition sets (29 rows whose conceded
 clause grants a POSITION, two reps, Sonnet 5.5, Opus judge) found the failure

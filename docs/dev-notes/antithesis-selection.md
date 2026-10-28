@@ -1851,7 +1851,7 @@ run is `attempts=1`.
 
 ## A is the view the author granted (2026-10-28, from the first app's third handoff)
 
-**The handoff** (`docs/handoff-2026-10-28-conceded-opposition.md`): the app ran this repo's two
+**The handoff** (the file was retired the same day, once taken up; this section is its record): the app ran this repo's two
 petition sets (`tests/e2e/multiclaim_cases.py`, 22 conceding + 18 late) through its gate and
 first card — the view turn with the gate's cut quoted in `focus`, no `thesis=`, framework 2.1.3,
 Sonnet 5.5 native, two reps, a reviewed Opus judge. On the 29 rows whose conceded clause grants
