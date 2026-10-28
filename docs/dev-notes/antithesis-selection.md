@@ -1916,7 +1916,9 @@ one-to-three-sentence cut — inflates it. On this repo's own saved view-turn dr
 no stance quoted, `attempts=1`) T is median 8 words, max 11, over 7 on 24/40 (first set) and
 30/40 (late set); A median 8, over 7 on 25–29/40; A+ median 7, over 7 on 11–18/40. So the line
 "{max_words} words or fewer each" is an instruction the writer runs over by one word at the
-median on its own, and the quoted stance adds about two more. Nothing in code condenses a
+median on this path. The app's path sits two words higher — and the app's own arm 3 the same
+day (its focus naming NO stance: median 10 either way, 5/78 within the cap against 4/80) shows
+the quoted cut is not why; what differs between the two paths is its focus wording, unmeasured. Nothing in code condenses a
 view-turn position — `StatementHeadline` runs on the graph path (`anchor`), and a pinned T is
 verbatim by contract — so the cap on this surface is compliance, and it does not hold. Left as
 it is: a condensation call per position is six more calls a card, and a host that needs a hard
