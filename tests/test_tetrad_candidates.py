@@ -69,6 +69,17 @@ def _verdicts_by_thesis(table: dict[str, tuple[float, float] | None]):
     return fake
 
 
+def _fit_dto(fit: float, a_granted: float = 0.0):
+    """A fit judge's read whose `fit` is `fit` (T is the claim at that level,
+    nothing granted unless `a_granted` says so)."""
+    from dialectical_framework.concerns.thesis_fit_check import ThesisFitDto
+
+    return ThesisFitDto(
+        thesis_is_the_claim=fit, antithesis_already_granted=a_granted,
+        a_plus_already_granted=0.0, reasoning="",
+    )
+
+
 def _judging_fails():
     """Every candidate's judging failing: all come back unjudged."""
 
@@ -721,7 +732,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
 
         async def fake_fit(cands, context):
             seen["fit"] = context
-            return [0.1, 0.9]
+            return [_fit_dto(0.1), _fit_dto(0.9)]
 
         monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
         monkeypatch.setattr(candidates, "judge_fit", fake_fit)
@@ -764,7 +775,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
 
         monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", fake_score)
         fits = await judge_fit([_tension(thesis="a"), _tension(thesis="b")], "words")
-        assert fits[0] is None and fits[1] == pytest.approx(0.9)
+        assert fits[0] is None and fits[1].fit == pytest.approx(0.9)
 
     @pytest.mark.asyncio
     async def test_the_fit_judge_reads_t_a_and_a_plus_against_the_words(self, monkeypatch):
@@ -912,7 +923,7 @@ class TestWhoAsksForTheFit:
 
         async def fake_fit(cands, context):
             seen["fit"] = context
-            return [0.9 for _ in cands]
+            return [_fit_dto(0.9) for _ in cands]
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
         monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
@@ -935,7 +946,7 @@ class TestWhoAsksForTheFit:
 
         async def fake_fit(cands, context):
             seen["fit"] = context
-            return [0.9 for _ in cands]
+            return [_fit_dto(0.9) for _ in cands]
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
         monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
@@ -977,3 +988,174 @@ class TestWhoAsksForTheFit:
 
 async def _same(cands):
     return [SketchVerdict(0.8, 0.8) for _ in cands]
+
+
+class TestAGrantedOppositionIsReaskedOnce:
+    """The first app's third handoff (2026-10-28): "X is true, however Y" came
+    back with A = X in EVERY draw of the card, so no selection could help. The
+    view turn can send ONE more request naming the granted view and the
+    re-draw joins the field under the same ranking. Bounded: unanimity
+    triggers it, one request, the pass rule still decides, a failed re-ask
+    leaves the card on its draws. OFF by default since its gate missed the
+    same day (`consultant.REDRAW_ON_GRANTED_OPPOSITION`); the probe's WITH arm
+    turns it on, so these tests pin the mechanism with the switch set."""
+
+    @pytest.fixture(autouse=True)
+    def _switch_on(self, monkeypatch):
+        from dialectical_framework.agents.consultant import consultant as module
+
+        monkeypatch.setattr(module, "REDRAW_ON_GRANTED_OPPOSITION", True)
+
+    def test_the_switch_is_off_by_measurement(self):
+        import inspect
+
+        from dialectical_framework.agents.consultant import consultant as module
+
+        # The fixture above set the module attribute; the SOURCE says what ships.
+        assert "REDRAW_ON_GRANTED_OPPOSITION = False" in inspect.getsource(module), (
+            "the gate missed (granted A 5 → 4 of 22 against a bar of −4, coherence 21 → 18); "
+            "turning it on is a new measurement, not a cleanup"
+        )
+
+    def test_the_trigger_is_unanimity_over_judged_verdicts(self):
+        from dialectical_framework.concerns.tetrad_candidates import every_opposition_granted
+
+        granted = SketchVerdict(0.8, 0.8, thesis_fit=0.1, antithesis_granted=0.9)
+        real = SketchVerdict(0.8, 0.8, thesis_fit=0.9, antithesis_granted=0.0)
+        unjudged = SketchVerdict(0.8, 0.8)
+        assert every_opposition_granted([granted, granted])
+        assert every_opposition_granted([granted, None, unjudged]), "an unjudged draw is not a vote"
+        assert not every_opposition_granted([granted, real]), "one real opposition: the ranking decides"
+        assert not every_opposition_granted([unjudged, None]), "nothing judged: nothing to re-ask about"
+        assert not every_opposition_granted([])
+        # The line is the fit's own: granted at exactly 0.5 still fits, so no re-ask.
+        assert not SketchVerdict(0.8, 0.8, antithesis_granted=0.5).opposes_a_granted_view
+        assert SketchVerdict(0.8, 0.8, antithesis_granted=0.51).opposes_a_granted_view
+
+    @pytest.mark.asyncio
+    async def test_the_verdict_carries_the_a_read_beside_the_fit(self, monkeypatch):
+        monkeypatch.setattr(candidates, "judge_sketches", _verdicts_by_thesis({"a": (0.8, 0.8), "b": (0.8, 0.8)}))
+
+        async def fake_fit(cands, context):
+            return [_fit_dto(1.0, a_granted=0.9), _fit_dto(1.0, a_granted=0.0)]
+
+        monkeypatch.setattr(candidates, "judge_fit", fake_fit)
+        _best, verdicts = await select_sketch(
+            [_tension(thesis="a"), _tension(thesis="b")], fit_against="words")
+        assert [v.antithesis_granted for v in verdicts] == [0.9, 0.0]
+        assert [v.thesis_fit for v in verdicts] == [pytest.approx(0.1), 1.0]
+        assert [v.opposes_a_granted_view for v in verdicts] == [True, False]
+
+    def _head(self, monkeypatch, drawn: list, fits: list, cc=(0.8, 0.8)):
+        """N draws then, if asked, the re-draw: `drawn` is every DTO the fake
+        provider returns in order; `fits` the fit read per candidate in the
+        order they are judged (the field first, the re-draw last)."""
+        sent: list[str] = []
+        queue = iter(drawn)
+
+        async def fake_submit(self, model, content):
+            sent.append(content)
+            nxt = next(queue)
+            if isinstance(nxt, Exception):
+                raise nxt
+            return nxt
+
+        async def fake_judge(cands, context=""):
+            return [SketchVerdict(*cc) if c.t_plus != "weak" else SketchVerdict(0.3, 0.3) for c in cands]
+
+        fit_queue = iter(fits)
+
+        async def fake_fit(cands, context):
+            return [next(fit_queue) for _ in cands]
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+        monkeypatch.setattr(candidates, "judge_sketches", fake_judge)
+        monkeypatch.setattr(candidates, "judge_fit", fake_fit)
+        return Consultant(app_preamble="x", messages=list(_HISTORY)), sent
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_when_every_draw_opposes_a_granted_view_one_more_request_names_it(self, monkeypatch):
+        from dialectical_framework.concerns.view_sketch import GRANTED_OPPOSITION_REASK
+
+        drawn = [
+            ViewSketchDto(tensions=[_tension(antithesis="Keep businesses open")]),
+            ViewSketchDto(tensions=[_tension(antithesis="Keep businesses trading")]),
+            ViewSketchDto(tensions=[_tension(thesis="again", antithesis="Lives before livelihoods")]),
+        ]
+        head, sent = self._head(monkeypatch, drawn, fits=[
+            _fit_dto(1.0, a_granted=0.9), _fit_dto(1.0, a_granted=0.8),  # the field: unanimous
+            _fit_dto(1.0, a_granted=0.0),                                 # the re-draw: a real opposition
+        ])
+        view = await head.exploration_view(focus="the office", attempts=2)
+        assert len(sent) == 3, "two draws, then ONE re-ask"
+        assert sent[0] == sent[1] and sent[2] != sent[0]
+        assert GRANTED_OPPOSITION_REASK.split("{antithesis}")[0] in sent[2]
+        assert '"Keep businesses open"' in sent[2], "the re-ask names the winner's granted view"
+        assert GRANTED_OPPOSITION_REASK[:40] not in sent[0], "the card's own draws are the one request"
+        assert [p.t.text for p in view.perspectives] == ["again"], "a passing, fitting re-draw wins"
+        assert len(view.runners_up) == 2
+        assert head.last_view_redraw == "Keep businesses open"
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_a_field_with_one_real_opposition_is_not_reasked(self, monkeypatch):
+        drawn = [ViewSketchDto(tensions=[_tension()]), ViewSketchDto(tensions=[_tension(thesis="b")])]
+        head, sent = self._head(monkeypatch, drawn, fits=[_fit_dto(1.0, a_granted=0.9), _fit_dto(1.0, a_granted=0.0)])
+        view = await head.exploration_view(focus="the office", attempts=2)
+        assert len(sent) == 2 and head.last_view_redraw is None
+        assert [p.t.text for p in view.perspectives] == ["b"], "the ranking already prefers the real opposition"
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_a_re_draw_that_fails_the_pass_rule_loses_to_a_passing_original(self, monkeypatch):
+        drawn = [
+            ViewSketchDto(tensions=[_tension()]),
+            ViewSketchDto(tensions=[_tension(thesis="b")]),
+            ViewSketchDto(tensions=[_tension(thesis="again", t_plus="weak")]),  # judged 0.3/0.3
+        ]
+        head, sent = self._head(monkeypatch, drawn, fits=[
+            _fit_dto(1.0, a_granted=0.9), _fit_dto(1.0, a_granted=0.9), _fit_dto(1.0, a_granted=0.0)])
+        view = await head.exploration_view(focus="the office", attempts=2)
+        assert len(sent) == 3 and head.last_view_redraw is not None, "re-asked"
+        assert view.perspectives[0].t.text != "again", "every keep-any-passing figure stands"
+        assert len(view.runners_up) == 2, "the re-draw is a runner-up a host may still serve"
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_a_failed_re_ask_leaves_the_card_on_its_draws_and_on_record(self, monkeypatch):
+        drawn = [ViewSketchDto(tensions=[_tension()]), ViewSketchDto(tensions=[_tension(thesis="b")]),
+                 RuntimeError("provider")]
+        head, sent = self._head(monkeypatch, drawn, fits=[_fit_dto(1.0, 0.9), _fit_dto(1.0, 0.9)])
+        view = await head.exploration_view(focus="the office", attempts=2)
+        assert len(sent) == 3 and len(view.perspectives) == 1
+        assert head.last_view_redraw is None, "nothing re-drawn"
+        assert [f.kind for f in view.failed_draws] == ["RuntimeError"]
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_re_draw_is_pinned_too_and_is_never_a_loop(self, monkeypatch):
+        drawn = [
+            ViewSketchDto(tensions=[_tension(thesis="x")]), ViewSketchDto(tensions=[_tension(thesis="y")]),
+            ViewSketchDto(tensions=[_tension(thesis="reworded", antithesis="still the granted view")]),
+        ]
+        head, sent = self._head(monkeypatch, drawn, fits=[
+            _fit_dto(1.0, 0.9), _fit_dto(1.0, 0.9), _fit_dto(1.0, 0.9)])  # the re-draw is granted too
+        view = await head.exploration_view(focus="the office", attempts=2, thesis="Keep")
+        assert len(sent) == 3, "one re-ask, whatever it returns"
+        assert all(p.t.text == "Keep" for p in [view.perspectives[0], *view.runners_up])
+
+    @pytest.mark.llm
+    @pytest.mark.asyncio
+    async def test_the_switch_and_a_single_draw_send_no_re_ask(self, monkeypatch):
+        from dialectical_framework.agents.consultant import consultant as module
+
+        drawn = [ViewSketchDto(tensions=[_tension()]), ViewSketchDto(tensions=[_tension(thesis="b")])]
+        monkeypatch.setattr(module, "REDRAW_ON_GRANTED_OPPOSITION", False)
+        head, sent = self._head(monkeypatch, drawn, fits=[_fit_dto(1.0, 0.9), _fit_dto(1.0, 0.9)])
+        await head.exploration_view(focus="the office", attempts=2)
+        assert len(sent) == 2 and head.last_view_redraw is None
+        monkeypatch.setattr(module, "REDRAW_ON_GRANTED_OPPOSITION", True)
+        head, sent = self._head(monkeypatch, [ViewSketchDto(tensions=[_tension()])], fits=[])
+        await head.exploration_view(focus="the office", attempts=1)
+        assert len(sent) == 1, "one candidate is never judged, so nothing can trigger"

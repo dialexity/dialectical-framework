@@ -1921,3 +1921,42 @@ view-turn position — `StatementHeadline` runs on the graph path (`anchor`), an
 verbatim by contract — so the cap on this surface is compliance, and it does not hold. Left as
 it is: a condensation call per position is six more calls a card, and a host that needs a hard
 cap has the texts.
+
+### The one re-ask, built and measured the same day — a miss, so it ships off (2026-10-28)
+
+The owner's choice on the common case above: re-ask once, measured. Built as the smallest
+thing that could work — `Consultant.exploration_view` sends the SAME request once more with
+`view_sketch.GRANTED_OPPOSITION_REASK` appended, naming the granted view (the winner's A), when
+the fit judge reads EVERY judged draw's A as granted (`tetrad_candidates.every_opposition_granted`,
+on the new `SketchVerdict.antithesis_granted`); the re-draw is judged once
+(`judge_candidates`, the selection split from the ranking) and joins the field under the SAME
+ranking, so it wins only on pass-and-fit and a passing original beats a re-draw that fails the
+pass rule. Not the coherence loop the module forbids: the trigger is a judge that sees A and the
+words, it fires once, on unanimity only. Pre-registered and run
+(`tests/e2e/probe_granted_opposition_redraw.py`, the 22 conceding petitions, best-of-3, paired,
+every read on the final card a FRESH judge call): the granted A must drop by 4 of 22, coherence
+and the antithesis kind may each lose at most 3.
+
+| read (final card, fresh judges) | WITH the re-ask | WITHOUT | bar | verdict |
+|---|---|---|---|---|
+| re-ask fired | 5/22 | — | | |
+| A a granted view (fit judge's A read) | 4 | 5 | −4 | MISSED (−1; discordant 1 / 2) |
+| A restates the clause (boolean read) | 1 | 3 | | |
+| coherence pass | 18 | 21 | ≤ −3 | at the bar |
+| antithesis a position | 22 | 21 | ≤ −3 | holds |
+| median seconds a card | 16.7 | 15.5 | | |
+
+**What the five fires show.** The re-draw was a DIFFERENT opposition in four of five (308031
+"visitors travel responsibly; the county decides who comes", 735371 "prescribing responsibility
+stays with the specialist", 308917 "registration is a UK-specific safety gate", 771145 "spend
+scarce research money on conditions with proven serious harm") and a near neighbour at the line
+in one (763504, granted 0.5). Two of the four became the card, one of them failing a fresh CC; the
+other two LOST the ranking to the granted original — a different opposition is a weaker tetrad
+on the pass rule, which is the 2026-10-13 finding in a new place, and exactly what the ranking is
+built to do. So the mechanism works as specified and the specification cannot beat the trade: at
+most 5 of 22 cards can move, the writer fixes about two of them, and the price is three
+coherence passes. A miss is a miss: `REDRAW_ON_GRANTED_OPPOSITION = False`, the code stays as the
+re-runnable arm (the probe's WITH arm sets it), the tests pin the mechanism with the switch set
+and the shipped value off. **The lever left for the common case is the writer model** — the
+obvious next arm is this probe with the view turn on Opus 5.5, which drew the demand's real
+opposition unpinned on the 2026-10-20 case. Cost of the run: 44 cards, nine minutes.

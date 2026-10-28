@@ -53,8 +53,21 @@ and passes a MIRROR antithesis more readily than a genuine position — so a
 generation steered by its verdict converges on coherent mirrors (the strawman
 shape of 2026-09-30). Selection among independent draws of a prompt that
 already asks for a position is bounded by those draws; regeneration from the
-verdict is not, and is not done here. Attempts are capped, and the antithesis
-kind is measured beside the pass rate whenever this is measured.
+COHERENCE verdict is not, and is not done here. Attempts are capped, and the
+antithesis kind is measured beside the pass rate whenever this is measured.
+
+The ONE bounded exception that was TRIED (2026-10-28, `Consultant.exploration_view`,
+`REDRAW_ON_GRANTED_OPPOSITION`, off): when every judged draw's A is a view the
+person's words already grant (`every_opposition_granted`, the fit judge's A
+read — a judge that DOES see A and the words, so not the coherence loop
+above), the view turn sends ONE more request naming that view, and the
+re-draw joins the field under the SAME ranking (wins only if it passes and
+fits; a passing original beats a re-draw that fails the pass rule). Measured
+on the 22 conceding petitions (`tests/e2e/probe_granted_opposition_redraw.py`,
+fresh judges, the antithesis KIND read beside coherence): fired on 5, granted
+A 5 → 4 against a bar of −4, coherence 21 → 18. A miss, so it is off; the
+mechanism stays as the re-runnable arm. Record:
+`docs/dev-notes/antithesis-selection.md`, "A is the view the author granted".
 
 Text-level and graph-free: a sketch is a dict until it is persisted, so every
 writer selects here — the one-shot `TetradSketch` (the view turn, the thesis-only
@@ -75,7 +88,7 @@ from typing import Any, Optional, Sequence
 from dialectical_framework.concerns.control_statements_check import \
     ControlStatementsCheck
 from dialectical_framework.concerns.thesis_fit_check import (
-    THESIS_FIT_THRESHOLD, ThesisFitCheck)
+    THESIS_FIT_THRESHOLD, ThesisFitCheck, ThesisFitDto)
 from dialectical_framework.graph.nodes.estimation import \
     CONCEPTUAL_COHERENCE_THRESHOLD
 
@@ -140,6 +153,12 @@ class SketchVerdict:
     t_plus_without_a_plus_dv: Optional[float] = None
     a_plus_without_t_plus_dv: Optional[float] = None
     thesis_fit: Optional[float] = None
+    #: The fit judge's A read alone (`ThesisFitDto.antithesis_already_granted`):
+    #: how far the person's words already grant the position A states. Carried
+    #: beside the fit because the view turn's one re-ask triggers on THIS read
+    #: and not on the fit (a hedge T fails the fit too, and a re-ask about the
+    #: opposition cannot repair the thesis). `None` = not judged, like `thesis_fit`.
+    antithesis_granted: Optional[float] = None
 
     @property
     def floor(self) -> float:
@@ -167,6 +186,17 @@ class SketchVerdict:
     def fits(self) -> bool:
         """Not judged, or judged at or above `THESIS_FIT_THRESHOLD`."""
         return self.thesis_fit is None or self.thesis_fit >= THESIS_FIT_THRESHOLD
+
+    @property
+    def opposes_a_granted_view(self) -> bool:
+        """Judged, and A is a view the words grant — read at the same line the
+        fit reads it (1 − granted below `THESIS_FIT_THRESHOLD`), so a verdict
+        that fails the fit on this read alone says so here. Not judged = False:
+        an unjudged draw never triggers a re-ask."""
+        return (
+            self.antithesis_granted is not None
+            and (1.0 - self.antithesis_granted) < THESIS_FIT_THRESHOLD
+        )
 
 
 def aspect_text(value: Any) -> str:
@@ -243,7 +273,7 @@ async def judge_sketches(
 
 async def judge_fit(
     candidates: Sequence[Any], context: str
-) -> list[Optional[float]]:
+) -> list[Optional[ThesisFitDto]]:
     """`ThesisFitCheck` on every candidate, each on its own (gathered), each
     read against the words in `context`: T the claim they would sign, A and
     A+ not views their words already grant. One call per draw beside the
@@ -252,9 +282,11 @@ async def judge_fit(
     candidate without a thesis or antithesis (a transition tetrad through
     `as_control_tetrad`) is not judged either. A draw that names T's holder
     (`thesis_held_by`, the view turn on pasted material) hands it on, so the
-    judge asks whose claim about the right party."""
+    judge asks whose claim about the right party. Returns the judge's whole
+    read (`ThesisFitDto`): the selection takes `fit`, the view turn's re-ask
+    reads `antithesis_already_granted` alone."""
 
-    async def one(tension: Any) -> Optional[float]:
+    async def one(tension: Any) -> Optional[ThesisFitDto]:
         thesis = aspect_text(getattr(tension, "thesis", "")).strip()
         antithesis = aspect_text(getattr(tension, "antithesis", "")).strip()
         if not thesis or not antithesis:
@@ -267,12 +299,46 @@ async def judge_fit(
                 text=context,
                 held_by=(getattr(tension, "thesis_held_by", "") or "").strip(),
             )
-            return verdict.fit
+            return verdict
         except Exception as exc:  # noqa: BLE001 — degrade to "not judged"
             logger.warning("Judging a sketch's thesis fit failed; it ranks unjudged: %s", exc)
             return None
 
     return list(await asyncio.gather(*(one(c) for c in candidates)))
+
+
+async def judge_candidates(
+    candidates: Sequence[Any], context: str = "", fit_against: Optional[str] = None
+) -> list[Optional[SketchVerdict]]:
+    """Every candidate's verdict, nothing chosen: the control statements
+    (`judge_sketches`) and — with `fit_against` — the fit judge (`judge_fit`),
+    gathered, each verdict carrying `thesis_fit` and `antithesis_granted` from
+    the fit read. `select_sketch` is this plus `ranking`; the view turn calls
+    this alone for the one re-draw it adds to an already judged field, so the
+    originals are not judged twice."""
+    words = (fit_against or "").strip()
+    if not words:
+        return await judge_sketches(candidates, context)
+    verdicts, fits = await asyncio.gather(
+        judge_sketches(candidates, context), judge_fit(candidates, words)
+    )
+    return [
+        None if v is None else dataclasses.replace(
+            v,
+            thesis_fit=None if f is None else f.fit,
+            antithesis_granted=None if f is None else f.antithesis_already_granted,
+        )
+        for v, f in zip(verdicts, fits)
+    ]
+
+
+def every_opposition_granted(verdicts: Sequence[Optional[SketchVerdict]]) -> bool:
+    """The view turn's re-ask trigger: at least one verdict carries the A read
+    and EVERY verdict that carries it says A is a view the words grant. A
+    field where one draw found a real opposition is left to the ranking; an
+    unjudged draw (failed judging, no fit words) is not a vote either way."""
+    judged = [v for v in verdicts if v is not None and v.antithesis_granted is not None]
+    return bool(judged) and all(v.opposes_a_granted_view for v in judged)
 
 
 async def select_sketch(
@@ -303,18 +369,7 @@ async def select_sketch(
     """
     if len(candidates) == 1:
         return 0, [None]
-
-    words = (fit_against or "").strip()
-    if words:
-        verdicts, fits = await asyncio.gather(
-            judge_sketches(candidates, context), judge_fit(candidates, words)
-        )
-        verdicts = [
-            None if v is None else dataclasses.replace(v, thesis_fit=f)
-            for v, f in zip(verdicts, fits)
-        ]
-    else:
-        verdicts = await judge_sketches(candidates, context)
+    verdicts = await judge_candidates(candidates, context, fit_against)
     return ranking(verdicts)[0], verdicts
 
 

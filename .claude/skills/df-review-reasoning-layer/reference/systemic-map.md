@@ -2110,8 +2110,11 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    reads since 2026-10-28: T the claim they would sign, A a view their words already GRANT (the pole;
    the first app's third handoff found A = the conceded clause on 16/29 rows while A+ escaped on
    26/29, and the earlier A+-only read was blind to it; `tests/e2e/rescore_conceded_a.py`, 21/29
-   agreement with the app's judge, inert where every draw bears the granted view), A+ already
-   conceded; `fit` the weakest of the three — the
+   agreement with the app's judge, inert where every draw bears the granted view — and the one
+   re-ask built for that case, `view_sketch.GRANTED_OPPOSITION_REASK` on
+   `every_opposition_granted`, ships OFF after its gate missed the same day:
+   `probe_granted_opposition_redraw.py`, granted A 5 → 4 of 22 against −4, coherence 21 → 18), A+
+   already conceded; `fit` the weakest of the three — the
    view turn's `judge_context`, the build's MATERIAL, never the Advisor's paraphrase that is the build's
    `context`; fail-soft to `None` = not judged = fits; since 2026-10-27 told WHOSE claim when the draw
    names T's holder — `judge_fit` hands `thesis_held_by` to `score_texts(held_by=)`, and both reads are

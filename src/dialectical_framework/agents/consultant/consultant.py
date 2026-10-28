@@ -301,6 +301,23 @@ _TOOLS_ON_A_TOOLLESS_HEAD = (
 )
 
 
+#: The view turn's ONE re-ask when every draw's opposition is a view the
+#: person's words already grant (`concerns/view_sketch.GRANTED_OPPOSITION_REASK`).
+#: OFF, by measurement (2026-10-28, `tests/e2e/probe_granted_opposition_redraw.py`,
+#: the 22 conceding petitions, best-of-3, paired, fresh judges on the final
+#: card): it fired on 5 of 22 cards and the granted A went 5 → 4 against a
+#: pre-registered bar of −4 (discordant 1 win / 2 losses), while coherence
+#: went 21 → 18, the whole of its −3 allowance, and the antithesis kind held
+#: (22 against 21 positions). Of the five re-draws two became the card with a
+#: real opposition (one of them failing a fresh CC), one won still carrying
+#: the granted view at the line, and two — each a different opposition —
+#: lost the ranking to the granted original on the pass rule. A miss is a
+#: miss: the mechanism stays here as the measured arm the probe can re-run
+#: (the WITH arm sets this True), and no deployment turns it on. Record:
+#: `docs/dev-notes/antithesis-selection.md`, "A is the view the author granted".
+REDRAW_ON_GRANTED_OPPOSITION = False
+
+
 class Consultant:
     """The method as a prompt, and nothing behind it. Advise and forget.
 
@@ -356,6 +373,10 @@ class Consultant:
             self._conversation.load_messages(messages)
         parts = [p for p in (preamble, method_prompt(include_decision)) if p]
         self._conversation.set_system_prompt("\n\n".join(parts))
+        #: The granted view the last `exploration_view` re-asked about, or None
+        #: when it sent no re-ask (one draw, a field not unanimous, the switch
+        #: off — which it is). Read by the gate probe.
+        self.last_view_redraw: Optional[str] = None
 
     async def chat(self, user_message: str) -> str:
         result = await self._conversation.submit(ChatResponse, user_message)
@@ -424,9 +445,9 @@ class Consultant:
         from "the drawing failed".
         """
         from dialectical_framework.concerns.view_sketch import (
-            ViewSketchDto, exploration_view_from_sketch, history_ask,
-            history_text, judge_context, perspective_from_sketch,
-            view_sketch_prompt)
+            ViewSketchDto, ViewSketchPerspectiveDto,
+            exploration_view_from_sketch, history_ask, history_text,
+            judge_context, perspective_from_sketch, view_sketch_prompt)
 
         import asyncio
         import dataclasses
@@ -435,10 +456,13 @@ class Consultant:
         from dialectical_framework.concerns.attribution_check import \
             drop_unborne_holders
         from dialectical_framework.concerns.tetrad_candidates import (
-            clamp_attempts, ranking, select_sketch)
+            clamp_attempts, every_opposition_granted, judge_candidates,
+            ranking, select_sketch)
 
         level = self._conversation._thinking_kwargs().get("thinking")
         history = self._conversation._messages
+        self.last_view_redraw = None
+        max_words = self._conversation.settings.component_length
         # The WHOLE request is the turn's user message, its "Answer with ONE
         # JSON object" included — by measurement, not habit. For one day
         # (2026-10-06) the static instructions rode on the system prompt so the
@@ -451,17 +475,15 @@ class Consultant:
         # utterances; the first app had measured the same 4.6 calls and +17 s).
         # The request->prose pair `history_ask` keeps OUT of the history is the
         # same trap; the long request as the last turn is what holds the format.
-        request = view_sketch_prompt(
-            focus, self._conversation.settings.component_length, thesis=thesis
-        )
+        request = view_sketch_prompt(focus, max_words, thesis=thesis)
 
-        async def draw() -> ViewSketchDto:
+        async def draw(ask: str) -> ViewSketchDto:
             # Each draw works on a COPY of the history: the turns run in
             # parallel and none of them may write into the record the others
             # read. What the view leaves behind is appended once, below.
             sketch_turn = ConversationFacilitator(format_mode="json", thinking=level)
             sketch_turn._messages = list(history)
-            return await sketch_turn.submit(ViewSketchDto, request)
+            return await sketch_turn.submit(ViewSketchDto, ask)
 
         # Fully parallel, deliberately. On a COLD cache all N draws write the
         # ~12k system head instead of one writing and the rest reading (~$0.06
@@ -480,7 +502,7 @@ class Consultant:
         # the winner worse (CC 19/40 against 27/40, 2026-10-13,
         # `tests/e2e/probe_view_turn_ask.py`) — so this is a coherence re-roll,
         # and a host's "another" served from `runners_up` is a rewording.
-        drawn = await asyncio.gather(*(draw() for _ in range(n)), return_exceptions=True)
+        drawn = await asyncio.gather(*(draw(request) for _ in range(n)), return_exceptions=True)
         sketches = [d for d in drawn if not isinstance(d, BaseException)]
         failures = [d for d in drawn if isinstance(d, BaseException)]
         # A failed draw is a finding, not noise: it costs the card a candidate
@@ -503,13 +525,16 @@ class Consultant:
         # show the sentence the person typed. Done before selection, so the
         # coherence check judges the tetrad the host will actually get.
         pinned = (thesis or "").strip()
-        if pinned:
-            for drawn_sketch in sketches:
-                if drawn_sketch.tensions:
-                    drawn_sketch.tensions[0].thesis = pinned
-                    # A pinned position is the host's own words for the
-                    # person's own position: never someone else's.
-                    drawn_sketch.tensions[0].thesis_held_by = ""
+
+        def pin(drawn_sketch: ViewSketchDto) -> None:
+            if pinned and drawn_sketch.tensions:
+                drawn_sketch.tensions[0].thesis = pinned
+                # A pinned position is the host's own words for the
+                # person's own position: never someone else's.
+                drawn_sketch.tensions[0].thesis_held_by = ""
+
+        for drawn_sketch in sketches:
+            pin(drawn_sketch)
         # The person's turns, for the judges below. Also the words a named
         # holder is checked against.
         words = judge_context(person_turns(history))
@@ -531,11 +556,16 @@ class Consultant:
         # it never sees T or A, and called blind — as it was here until
         # 2026-10-13, while the build and the persisted path passed their
         # material — it scored the four aspects against nothing.
+        def complete(tension: Optional[ViewSketchPerspectiveDto]) -> bool:
+            return tension is not None and all(
+                (getattr(tension, k) or "").strip()
+                for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus")
+            )
+
         runners_up: list[PerspectiveView] = []
         if len(sketches) > 1:
             firsts = [s.tensions[0] if s.tensions else None for s in sketches]
-            judgeable = [i for i, t in enumerate(firsts) if t is not None and all(
-                (getattr(t, k) or "").strip() for k in ("thesis", "antithesis", "t_plus", "t_minus", "a_plus", "a_minus"))]
+            judgeable = [i for i, t in enumerate(firsts) if complete(t)]
             if len(judgeable) > 1:
                 # This writer CHOOSES the thesis, so a second judge reads each
                 # draw's T, A and A+ against the person's words — the claim
@@ -543,12 +573,54 @@ class Consultant:
                 # (`tetrad_candidates.judge_fit`, 2026-10-20). With a pinned T
                 # the first read is the same on every draw and the second
                 # still tells them apart.
-                _best, verdicts = await select_sketch(
-                    [firsts[i] for i in judgeable], context=words, fit_against=words
-                )
+                field = [sketches[i] for i in judgeable]
+                pool = [firsts[i] for i in judgeable]
+                _best, verdicts = await select_sketch(pool, context=words, fit_against=words)
+                # THE ONE RE-ASK (2026-10-28), OFF by measurement — see the
+                # constant. The draws of one request are one tension reworded,
+                # so when the fit judge reads EVERY draw's A as a view the
+                # person's words already grant, no selection can help — the
+                # handoff's "X is true, however Y" cards had A = X in every
+                # rep. One more request names that view and asks for the
+                # opposition to the claim actually made; the re-draw is judged
+                # once and joins the field under the SAME ranking, so it wins
+                # only if it passes and fits, and a passing original beats a
+                # re-draw that fails the pass rule (every keep-any-passing
+                # figure stands). Unanimity is the trigger; never a loop. On
+                # the gate it fixed 2 of the 5 cards it fired on and cost 3
+                # coherence passes of 22, which missed the bar.
+                if REDRAW_ON_GRANTED_OPPOSITION and every_opposition_granted(verdicts):
+                    granted = pool[ranking(verdicts)[0]].antithesis
+                    try:
+                        again: Optional[ViewSketchDto] = await draw(
+                            view_sketch_prompt(
+                                focus, max_words, thesis=thesis, granted_opposition=granted
+                            )
+                        )
+                    except Exception as exc:  # noqa: BLE001 — the card stands on its draws
+                        failed_draws.append(_failed_draw(exc))
+                        logger.warning("The view turn's re-ask failed; the card stands on its draws: %s", exc)
+                        again = None
+                    if again is not None and again.tensions and complete(again.tensions[0]):
+                        pin(again)
+                        for dropped in await drop_unborne_holders([again.tensions[0]], words):
+                            logger.info("A drawn holder was dropped: %s", dropped)
+                        (verdict,) = await judge_candidates(
+                            [again.tensions[0]], context=words, fit_against=words
+                        )
+                        field.append(again)
+                        pool.append(again.tensions[0])
+                        verdicts.append(verdict)
+                        self.last_view_redraw = granted
+                        logger.info(
+                            "The view turn re-asked once: every draw opposed a granted view (%r); "
+                            "the re-draw %s",
+                            granted,
+                            "ranks first" if ranking(verdicts)[0] == len(pool) - 1 else "did not win",
+                        )
                 order = ranking(verdicts)
-                sketch = sketches[judgeable[order[0]]]
-                runners_up = [perspective_from_sketch(firsts[judgeable[i]]) for i in order[1:]]
+                sketch = field[order[0]]
+                runners_up = [perspective_from_sketch(pool[i]) for i in order[1:]]
             else:
                 sketch = sketches[judgeable[0]] if judgeable else sketches[0]
         else:

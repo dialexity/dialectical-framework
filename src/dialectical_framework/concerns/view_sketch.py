@@ -290,6 +290,33 @@ HOLDER_FROM_THE_WORDS = """Who HOLDS a pole is read off the words, never supplie
 
 
 
+#: THE ONE RE-ASK (2026-10-28, the first app's third handoff,
+#: `docs/dev-notes/antithesis-selection.md`, "A is the view the author
+#: granted"). On the petition sets the writer drew A as the view the author
+#: had set down to argue past ("X is true, however Y" → A = X) on about half
+#: the conceding texts, in every draw of the card and under both prompt arms:
+#: the mirror sentence in `_OPPOSING_POSITION_ASK` is inert at the pole, and
+#: selection cannot choose what no draw offers. So when the fit judge reads
+#: every draw's A as granted (`tetrad_candidates.every_opposition_granted`),
+#: `Consultant.exploration_view` CAN send the SAME request once more with this
+#: section added, naming the granted view, the re-draw joining the field
+#: under the ordinary ranking — a second request after the card, not a draw
+#: of the first (the different-opposition ask for draws 2..N was measured and
+#: rejected, `view_sketch_prompt`'s docstring). MEASURED AND OFF the same day
+#: (`Consultant.REDRAW_ON_GRANTED_OPPOSITION`, `probe_granted_opposition_redraw.py`):
+#: on the 22 conceding petitions it fired on 5 cards, moved the granted A
+#: 5 → 4 against a bar of −4 and cost coherence 21 → 18. The re-draw WAS a
+#: different opposition in 4 of 5 — and in 2 of those it lost the ranking to
+#: the granted original, the 2026-10-13 finding again (a different opposition
+#: is a weaker tetrad on the pass rule). The text stays as the measured arm;
+#: the lever left for the common case is the model.
+GRANTED_OPPOSITION_REASK = """The opposition drawn for this position so far — "{antithesis}" — is a view the person's OWN words already grant: they set it down as true or legitimate in order to argue past it, so a tetrad on it shows them their own sentence as the other side. Do not draw it again — not reworded, not folded into the corners. Find the position that genuinely opposes the claim they actually make: one someone holds for its own value, that their words do not concede — and build the tetrad on that."""
+
+
+def granted_opposition_section(antithesis: str) -> str:
+    return GRANTED_OPPOSITION_REASK.format(antithesis=(antithesis or "").strip())
+
+
 #: How much of the person's own words the view turn's JUDGE reads (characters,
 #: newest turns kept whole). The judge never sees T or A, so without context
 #: it scores the four aspects' coherence against nothing: the persisted path
@@ -317,7 +344,10 @@ def judge_context(person_texts: Sequence[str], budget: int = JUDGE_CONTEXT_CHARS
 
 
 def view_sketch_prompt(
-    focus: Optional[str], max_words: int, thesis: Optional[str] = None
+    focus: Optional[str],
+    max_words: int,
+    thesis: Optional[str] = None,
+    granted_opposition: Optional[str] = None,
 ) -> str:
     """The structured turn's request, over the consultant's own conversation.
 
@@ -354,6 +384,12 @@ def view_sketch_prompt(
     the spares stay the same tension reworded. The rejected ask and its
     figures: `docs/dev-notes/antithesis-selection.md`, "Best-of-3 drew the
     same tetrad three times".
+
+    `granted_opposition` is NOT a per-draw argument: it is the one re-ask the
+    view turn can send AFTER the card's draws, when every draw's A was read
+    as a view the person's words grant (`GRANTED_OPPOSITION_REASK`, above;
+    off by measurement). The request is otherwise the same, so the re-draw
+    is the same ask with the granted view excluded by name.
     """
     pinned = (thesis or "").strip()
     focus_line = (
@@ -385,6 +421,11 @@ def view_sketch_prompt(
         if pinned
         else ""
     )
+    reask = (
+        f"\n\n{granted_opposition_section(granted_opposition)}"
+        if granted_opposition and granted_opposition.strip()
+        else ""
+    )
     return f"""Draw the structure of this conversation as dialectical tetrads. Answer with ONE JSON object in the requested schema and nothing else — no prose. Earlier drawings in this conversation are recorded in prose; that is their record, not the format of this answer.
 
 {focus_line}{ASPECT_DEFINITIONS}
@@ -397,7 +438,7 @@ Rules for what goes in the view:
 
 {thesis_section}
 
-{_OPPOSING_POSITION_ASK}
+{_OPPOSING_POSITION_ASK}{reask}
 
 {HOLDER_FROM_THE_WORDS}
 
