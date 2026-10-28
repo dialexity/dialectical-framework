@@ -309,7 +309,9 @@ HOLDER_FROM_THE_WORDS = """Who HOLDS a pole is read off the words, never supplie
 #: different opposition in 4 of 5 — and in 2 of those it lost the ranking to
 #: the granted original, the 2026-10-13 finding again (a different opposition
 #: is a weaker tetrad on the pass rule). The text stays as the measured arm;
-#: the lever left for the common case is the model.
+#: the model is not the lever either: the writer on Opus 5.5 drew the granted
+#: view on 4 of 22 against Sonnet 5.5's 5, the same four petitions, and the
+#: re-ask fired on 4 and moved nothing (4 → 4).
 GRANTED_OPPOSITION_REASK = """The opposition drawn for this position so far — "{antithesis}" — is a view the person's OWN words already grant: they set it down as true or legitimate in order to argue past it, so a tetrad on it shows them their own sentence as the other side. Do not draw it again — not reworded, not folded into the corners. Find the position that genuinely opposes the claim they actually make: one someone holds for its own value, that their words do not concede — and build the tetrad on that."""
 
 

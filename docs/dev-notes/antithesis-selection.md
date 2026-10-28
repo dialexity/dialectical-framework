@@ -1962,3 +1962,40 @@ re-runnable arm (the probe's WITH arm sets it), the tests pin the mechanism with
 and the shipped value off. **The lever left for the common case is the writer model** — the
 obvious next arm is this probe with the view turn on Opus 5.5, which drew the demand's real
 opposition unpinned on the 2026-10-20 case. Cost of the run: 44 cards, nine minutes.
+
+### The writer on Opus 5.5: not the lever either (2026-10-28, the same probe)
+
+`REDRAW_WRITER_MODEL=anthropic/claude-opus-5-5` — the view turn (draws, selection judges, the
+re-ask) on Opus 5.5, every fresh read on the final card on the default Sonnet 5.5, so the writer
+is the only thing that moved against the run above. 44 cards, eleven minutes.
+
+| read (final card, fresh judges) | Opus WITH re-ask | Opus WITHOUT | Sonnet 5.5 WITHOUT (above) |
+|---|---|---|---|
+| re-ask fired | 4/22 | — | 5/22 |
+| A a granted view (fit judge's A read) | 4 | 4 | 5 |
+| A restates the clause (boolean read) | 2 | 4 | 3 |
+| coherence pass | 21 | 16 | 21 |
+| antithesis a position | 20 | 20 | 21 |
+| median seconds a card | 20.5 | 16.9 | 15.5 |
+
+**Both bars missed again** (primary drop 0, discordant 1 / 1), and the baseline is the finding:
+Opus 5.5 draws the granted view on 4 of 22 where Sonnet 5.5 drew it on 5 — and they are the SAME
+four petitions, 308917 (NMC tests), 735371 (GP discretion), 763504 (the visa brake), 771145
+(Gilbert's harmless), on both models, in every arm, in the app's two reps and in this repo's
+`attempts=1` draws of 2026-10-26. Told by name not to draw it, Opus re-drew the identical A on
+two of them. The coherence swing (21 against 16 between Opus's two arms, with four fires) is
+arm-level noise on a writer whose cards read less stably, not an effect of the re-ask; Opus is
+not the safer writer on this read.
+
+**So the "common case" is four texts, and the question they pose is a reading question, not a
+lever.** Either both writers read these texts as holding exactly that tension — "SCAs can be
+declined at a GP's discretion; however, blanket refusal..." is, to a writer, a petition AGAINST
+GP discretion as practised, so GP discretion is its honest opposition — or both judges (the
+app's reviewed Opus 4.8 and this repo's fit judge, 21/29 agreement) over-read "granted": a fact
+the author states about the rules is not a position the author concedes. The instruments here
+cannot settle that; the owner's hand read of the four cards against the four texts can, in ten
+minutes, and decides whether the fit judge's A read is too strict (then loosen it: a stated fact
+is not a grant) or the writers are wrong in the same way on both tiers (then nothing measured
+today repairs it, and a host shows the verdict). Until then the A read stays as shipped, the
+re-ask stays off, and no figure here is quoted as "the writer fails on half the conceding texts":
+it is four of twenty-two by this read, consistent across two models and three runs.

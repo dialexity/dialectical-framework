@@ -75,8 +75,10 @@ the three reads. Still a selection term inside the pass rule, with the same
 limit as before, now measured rather than suspected: the N draws of one card
 are one tension reworded, and in the app's run A was conceded in BOTH reps or
 NEITHER on 12 of 13 petitions with two reps — so where every draw bears the
-granted view this read ranks nothing, and the lever left is the writer or the
-model. What it does do is make the verdict TRUE: a card whose A is the
+granted view this read ranks nothing — and neither of the two levers tried
+the same day moved it: one re-ask naming the granted view (off, its gate
+missed) or the writer on Opus 5.5 (the same four petitions, 4 of 22 against
+5). The record: the dev note section named below. What it does do is make the verdict TRUE: a card whose A is the
 person's own concession is no longer scored as fitting. Measured offline
 before it shipped, nothing drawn (`tests/e2e/rescore_conceded_a.py`): the A
 read agrees with the app's reviewed judge on 21/29 rows (the A+ read 27/29),

@@ -44,12 +44,23 @@ Fired on 5 of 22; granted A 5 → 4 (discordant 1 win / 2 losses, p = 1.0);
 coherence 21 → 18 (the whole allowance); kind 22 against 21. Of the five
 re-draws, two became the card with a real opposition, one won still at the
 line (0.5), two lost to the original. So the switch ships OFF; this file is
-how it is re-measured (a stronger writer model is the obvious next arm).
+how it is re-measured.
+
+THE SECOND RUN, the writer on Opus 5.5 (`REDRAW_WRITER_MODEL`, judges unchanged):
+MISSED again, and the model is not the lever. Fired on 4; granted A 4 → 4
+(discordant 1 / 1); coherence 21 against 16 (an arm-level swing four fires
+cannot explain — Opus's cards are less stable on a fresh CC read); kind 20
+against 20. WITHOUT the re-ask Opus drew the granted view on 4 of 22 against
+Sonnet 5.5's 5 — the SAME four petitions (308917, 735371, 763504, 771145) on
+both models, in every arm; told not to, Opus re-drew the identical A on two.
 
     poetry run pytest tests/e2e/probe_granted_opposition_redraw.py --real-llm -q -s
 
 `REDRAW_LIMIT=n` runs the first n conceding cases as a smoke run (not the gate).
-Models come from the environment and the bench config; none is written here.
+`REDRAW_WRITER_MODEL=<provider/model>` runs the WRITER (the view turn, both arms)
+on that model while every judge stays on the deployment's default — the arm
+that asks whether the model is the lever. Models otherwise come from the
+environment and the bench config; none is written here.
 """
 
 from __future__ import annotations
@@ -83,15 +94,22 @@ BARS: dict[str, int] = {
 CONCEDING: tuple[MultiClaimCase, ...] = tuple(c for c in MULTI_CLAIM_CASES if c.conceded)
 
 
-async def _draw_one(case: MultiClaimCase) -> dict[str, Any]:
-    """One best-of-3 card over the case's argument. Never sees `case.demand`."""
+async def _draw_one(case: MultiClaimCase, container=None, writer: str | None = None) -> dict[str, Any]:
+    """One best-of-3 card over the case's argument. Never sees `case.demand`.
+    With `writer`, the whole view turn — draws, selection judges and the
+    re-ask — runs on that model (`using_model`); the fresh reads below do not."""
+    from contextlib import nullcontext
+
     from dialectical_framework.agents.apps import COUNSELOR_PERSONA
     from dialectical_framework.agents.consultant.consultant import Consultant
+    from e2e.modelctx import using_model
 
     head = Consultant(app_preamble=COUNSELOR_PERSONA, messages=[{"role": "user", "content": case.text}])
     started = time.perf_counter()
+    scope = using_model(container, writer) if writer else nullcontext()
     try:
-        view = await head.exploration_view(focus=FOCUS, attempts=3)
+        with scope:
+            view = await head.exploration_view(focus=FOCUS, attempts=3)
     except Exception as exc:  # noqa: BLE001 — a probe records failure
         return {"petition_id": case.petition_id, "error": repr(exc),
                 "seconds": round(time.perf_counter() - started, 1)}
@@ -113,7 +131,8 @@ async def _draw_one(case: MultiClaimCase) -> dict[str, Any]:
     return row
 
 
-async def _run_arm(name: str, cases: tuple[MultiClaimCase, ...], batch: int) -> list[dict]:
+async def _run_arm(name: str, cases: tuple[MultiClaimCase, ...], batch: int,
+                   container=None, writer: str | None = None) -> list[dict]:
     from dialectical_framework.agents.consultant import consultant as module
 
     rows: list[dict] = []
@@ -122,7 +141,7 @@ async def _run_arm(name: str, cases: tuple[MultiClaimCase, ...], batch: int) -> 
     try:
         for start in range(0, len(cases), batch):
             chunk = cases[start : start + batch]
-            rows += await asyncio.gather(*(_draw_one(c) for c in chunk))
+            rows += await asyncio.gather(*(_draw_one(c, container, writer) for c in chunk))
             print(f"  {name}: drawn {len(rows)}/{len(cases)}", flush=True)
     finally:
         module.REDRAW_ON_GRANTED_OPPOSITION = previous
@@ -155,10 +174,15 @@ async def test_the_one_reask_on_the_conceding_cases(di_container) -> None:
     print(f"\n=== the one re-ask on {len(cases)} conceding cases, best-of-3, bars {BARS}", flush=True)
     if limit < len(CONCEDING):
         print(f"    SMOKE RUN on {limit} of {len(CONCEDING)} — not the gate")
+    writer = os.environ.get("REDRAW_WRITER_MODEL") or None
+    if writer:
+        print(f"    WRITER on {writer}; judges on the default", flush=True)
     RESULTS.mkdir(parents=True, exist_ok=True)
-    out = RESULTS / f"redraw-{time.strftime('%Y%m%d-%H%M%S')}.json"
+    tag = "-" + writer.rsplit("/", 1)[-1] if writer else ""
+    out = RESULTS / f"redraw{tag}-{time.strftime('%Y%m%d-%H%M%S')}.json"
 
-    arms = {name: await _run_arm(name, cases, batch) for name in ("with_redraw", "without_redraw")}
+    arms = {name: await _run_arm(name, cases, batch, di_container, writer)
+            for name in ("with_redraw", "without_redraw")}
     out.write_text(json.dumps({"bars": BARS, "arms": arms}, indent=1, ensure_ascii=False))
 
     by_id = {c.petition_id: c for c in cases}
@@ -183,6 +207,7 @@ async def test_the_one_reask_on_the_conceding_cases(di_container) -> None:
     seconds = {k: sorted(r["seconds"] for r in v) for k, v in arms.items()}
     report = {
         "bars": BARS, "cases": len(cases), "is_the_gate": limit == len(CONCEDING),
+        "writer_model": writer or "the deployment default",
         "drawn": {k: _count(v, "drawn") for k, v in arms.items()},
         "reask_fired": {k: sum(1 for r in v if r.get("reasked_about")) for k, v in arms.items()},
         # PRIMARY: the fresh fit judge's A read on the final card.

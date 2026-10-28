@@ -313,7 +313,9 @@ _TOOLS_ON_A_TOOLLESS_HEAD = (
 #: the granted view at the line, and two — each a different opposition —
 #: lost the ranking to the granted original on the pass rule. A miss is a
 #: miss: the mechanism stays here as the measured arm the probe can re-run
-#: (the WITH arm sets this True), and no deployment turns it on. Record:
+#: (the WITH arm sets this True), and no deployment turns it on. Re-run with
+#: the writer on Opus 5.5 the same day: fired on 4, granted A 4 → 4, the same
+#: four petitions as Sonnet 5.5 drew — the model is not the lever either. Record:
 #: `docs/dev-notes/antithesis-selection.md`, "A is the view the author granted".
 REDRAW_ON_GRANTED_OPPOSITION = False
 
