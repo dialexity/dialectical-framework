@@ -36,12 +36,16 @@ coherently than one about a demand, and coherence was all the ranking read.
 So the writers that CHOOSE the thesis (the view turn, the one-shot build)
 ask for a second judge beside the control statements, `ThesisFitCheck`
 (`concerns/thesis_fit_check.py`): is this draw's T the claim they would
-sign, and is its A+ something their words do not already grant. It ranks
+sign, and is its A — or its A+ — something their words do not already grant
+(the A read since 2026-10-28, the first app's third handoff: on the petition
+sets A itself was the author's own concession on 16 of 29 while A+ escaped on
+26 of 29, and the read aimed at A+ alone could not see it). It ranks
 AFTER the pass floor as a yes/no (`SketchVerdict.fits`), so every
 keep-any-passing figure on record stands; it is a selection term, never a
 signal back into generation. The staged writer draws for a GIVEN pair, where
-T and A are the same on every draw, and does not ask. Unmeasured at the time
-of writing — the gates are named on the concern.
+T and A are the same on every draw, and does not ask. Its reach is bounded by
+the draws: the N draws of one request are one tension reworded, so where every
+draw bears the granted view the term ranks nothing (measured on the concern).
 
 What this must NOT become: a loop that optimises against the judge. The judge
 never sees the thesis or antithesis — it scores the four aspects' coherence
@@ -121,7 +125,8 @@ class SketchVerdict:
 
     `thesis_fit` is the second judge's read (`ThesisFitCheck`, 2026-10-20):
     whether the draw stands on the claim the person would sign, against an
-    opposition they have not already granted. `None` here means the fit
+    opposition — the pole A and its constructive side A+ alike — they have
+    not already granted. `None` here means the fit
     judge did NOT run (the caller did not ask, had no words to read against,
     or the call failed) and the draw ranks as it did before the term existed
     — the opposite convention from DV's, on purpose: DV's `None` is a verdict
@@ -240,7 +245,8 @@ async def judge_fit(
     candidates: Sequence[Any], context: str
 ) -> list[Optional[float]]:
     """`ThesisFitCheck` on every candidate, each on its own (gathered), each
-    read against the words in `context`. One call per draw beside the
+    read against the words in `context`: T the claim they would sign, A and
+    A+ not views their words already grant. One call per draw beside the
     control statements' two. Fail-soft per candidate: a failed judging is
     `None` — NOT judged, which `SketchVerdict.fits` treats as fitting. A
     candidate without a thesis or antithesis (a transition tetrad through

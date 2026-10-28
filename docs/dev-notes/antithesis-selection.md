@@ -1848,3 +1848,76 @@ shift 0.002, max 0.10, 0 crossings (this arm on the bench's strong tier, Sonnet 
 Bedrock; the 2026-10-26 figure of 40/40 and 0.011 was Sonnet 5.5). Its effect on a choice is
 as unmeasured as before; on material it has never been exercised, since every pasted-material
 run is `attempts=1`.
+
+## A is the view the author granted (2026-10-28, from the first app's third handoff)
+
+**The handoff** (`docs/handoff-2026-10-28-conceded-opposition.md`): the app ran this repo's two
+petition sets (`tests/e2e/multiclaim_cases.py`, 22 conceding + 18 late) through its gate and
+first card — the view turn with the gate's cut quoted in `focus`, no `thesis=`, framework 2.1.3,
+Sonnet 5.5 native, two reps, a reviewed Opus judge. On the 29 rows whose conceded clause grants
+an opposing POSITION (the judge first sorts a clause into position / fact / sympathy / a view
+named to be rebutted), the card's A was that granted view on 16, A+ on 3. T was the demand on
+79/80. So the T side of the 2026-10-20 handoff is closed on this set and the A side is open —
+and this repo's 2026-10-26 gate could not see it, because its secondary read scored A+ against
+the clause and never A. "X is true, however Y" comes back with A = X; the person wrote X down to
+get past it.
+
+**What shipped.** `ThesisFitCheck` reads the POLE: a third field,
+`antithesis_already_granted` (do the holder's words name AND grant the position A states — set
+down as true or legitimate before arguing past it; a view named only to reject it is not granted,
+a fact or a sympathy is not a position), and `fit` is the weakest of the three reads. Same call,
+same place in the ranking (a yes/no inside the pass rule), same fail-soft. Nothing else moved:
+the prompt rules stay as they are (below), the view carries no new field, there is no re-draw.
+`probe_multiclaim_thesis.py` now takes its clause read on A too (`antithesis_already_granted`,
+reported, no bar — it was not pre-registered).
+
+**Measured before it shipped, offline, nothing drawn** (`tests/e2e/rescore_conceded_a.py`, the
+bench's strong tier as the judge, 112 s):
+
+| read | figure |
+|---|---|
+| the new A read against the app's reviewed Opus judge, 29 position rows | agree 21/29 (11 both yes, 10 both no, 5 the app flagged and the judge did not, 3 the reverse) |
+| the A+ read against the app's judge, same rows | agree 27/29 |
+| the probe's boolean clause read (`_restates`) on A against the app's judge | agree 15/29 — it finds 6 of the app's 16; the weaker instrument |
+| app rows not fitting under the new read / under the old two reads | 14/29 / 1/29 |
+| the framework's own saved `attempts=1` draws, 22 conceding cases: A restates the clause (clause read) | 3 WITH the rules, 3 WITHOUT |
+| the same rows, the judge's A read ≥ 0.5 | 6 WITH, 6 WITHOUT |
+| rows flipped fitting → not fitting by the third read | 11/44 |
+
+Three readings. **The instrument is about as good as the app's**: 72% agreement with a reviewed
+judge on a read that both call hard, with the disagreements split both ways and arguable on a hand
+read (the judge calls "I understand A-levels take exams, which is harder" a grant of "grades
+should rest on exams everyone sits", the app's judge calls A sharper than the point conceded; the
+judge reads the badger-cull research as "named and immediately undercut, not granted", the app
+reads it as granted). It errs strict on grant-then-rebut and lenient when the concession loosely
+resembles A. Good enough for a yes/no selection term; not a ground truth. **The prompt's mirror
+rule is inert at the pole too**: 3 against 3 and 6 against 6 on paired `attempts=1` draws — the
+same verdict the two 2026-10-26 runs gave for A+, now for the pole it was written against. **And
+the failure is the writer's, not the app's focus or best-of-3**: the petitions the judge flags on
+the framework's own draws (308031, 735371, 771145, 763504, 771873, 308084) are the ones the app
+listed, drawn here with the probe's generic focus and one draw.
+
+**The limit, stated before anyone asks the term to do more.** This is a selection term and the
+draws of one card are one tension reworded (the 2026-10-13 section). In the app's run A was the
+granted view in BOTH reps or in NEITHER on 12 of the 13 petitions with two reps. Where every
+draw bears the granted view the new read flips every verdict to "does not fit" and the floor
+decides as before — the card is the same card, now honestly scored. What the term buys is the
+field where the draws differ (one petition in thirteen here), and the TRUE verdict on
+`SketchTetrad.verdict` / the probes. The lever left for the common case is the writer: a second
+request after the card that names the granted view and asks for the opposition to the claim
+actually made (a choice between tensions, which the 2026-10-13 section left as "a second request
+after the card, unmeasured" — and which must be measured on the antithesis KIND beside
+coherence, since excluding the conceded view can push the writer to the strawman end), or the
+model (Opus drew the demand's real opposition unpinned on the 2026-10-20 case). Neither is built.
+
+**The T cap, the handoff's second item, answered from the saved draws.** The app saw T over
+`component_length` (7) on 76/80, median 10, and asked whether its focus — which quotes the gate's
+one-to-three-sentence cut — inflates it. On this repo's own saved view-turn draws (probe focus,
+no stance quoted, `attempts=1`) T is median 8 words, max 11, over 7 on 24/40 (first set) and
+30/40 (late set); A median 8, over 7 on 25–29/40; A+ median 7, over 7 on 11–18/40. So the line
+"{max_words} words or fewer each" is an instruction the writer runs over by one word at the
+median on its own, and the quoted stance adds about two more. Nothing in code condenses a
+view-turn position — `StatementHeadline` runs on the graph path (`anchor`), and a pinned T is
+verbatim by contract — so the cap on this surface is compliance, and it does not hold. Left as
+it is: a condensation call per position is six more calls a card, and a host that needs a hard
+cap has the texts.

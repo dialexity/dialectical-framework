@@ -643,11 +643,24 @@ class TestTheFitTermRanksInsideThePassRule:
         from dialectical_framework.concerns.thesis_fit_check import ThesisFitDto
 
         on_the_claim_but_granted = ThesisFitDto(
-            thesis_is_the_claim=1.0, a_plus_already_granted=0.9, reasoning="")
+            thesis_is_the_claim=1.0, antithesis_already_granted=0.0, a_plus_already_granted=0.9, reasoning="")
         assert on_the_claim_but_granted.fit == pytest.approx(0.1)
         a_hedge_with_a_real_opposition = ThesisFitDto(
-            thesis_is_the_claim=0.2, a_plus_already_granted=0.0, reasoning="")
+            thesis_is_the_claim=0.2, antithesis_already_granted=0.0, a_plus_already_granted=0.0, reasoning="")
         assert a_hedge_with_a_real_opposition.fit == pytest.approx(0.2)
+
+    def test_a_granted_pole_fails_the_fit_even_when_its_development_escapes(self):
+        """The first app's third handoff (2026-10-28): "X is true, however Y"
+        came back with A = X on 16 of 29 rows while A+ was a fresh good on 26
+        of 29 — the read aimed at A+ alone scored such a draw as fitting."""
+        from dialectical_framework.concerns.thesis_fit_check import (
+            THESIS_FIT_THRESHOLD, ThesisFitDto)
+
+        the_demand_against_their_own_concession = ThesisFitDto(
+            thesis_is_the_claim=1.0, antithesis_already_granted=0.9,
+            a_plus_already_granted=0.0, reasoning="")
+        assert the_demand_against_their_own_concession.fit == pytest.approx(0.1)
+        assert the_demand_against_their_own_concession.fit < THESIS_FIT_THRESHOLD
 
     def test_among_passing_draws_the_one_on_the_persons_claim_beats_the_more_coherent_hedge(self):
         from dialectical_framework.concerns.tetrad_candidates import ranking
@@ -741,7 +754,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         from dialectical_framework.concerns.tetrad_candidates import judge_fit
 
         calls = iter([RuntimeError("provider"), tfc.ThesisFitDto(
-            thesis_is_the_claim=0.9, a_plus_already_granted=0.1, reasoning="")])
+            thesis_is_the_claim=0.9, antithesis_already_granted=0.0, a_plus_already_granted=0.1, reasoning="")])
 
         async def fake_score(self, *, thesis, antithesis, a_plus, text, held_by=""):
             outcome = next(calls)
@@ -762,7 +775,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
 
         async def fake_score(self, *, thesis, antithesis, a_plus, text, held_by=""):
             seen.append(dict(thesis=thesis, antithesis=antithesis, a_plus=a_plus, text=text, held_by=held_by))
-            return tfc.ThesisFitDto(thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="")
+            return tfc.ThesisFitDto(thesis_is_the_claim=1.0, antithesis_already_granted=0.0, a_plus_already_granted=0.0, reasoning="")
 
         monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", fake_score)
         await judge_fit([_tension()], "Should we close it?")
@@ -783,7 +796,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
 
         async def fake_score(self, *, thesis, antithesis, a_plus, text, held_by=""):
             seen.append(held_by)
-            return tfc.ThesisFitDto(thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="")
+            return tfc.ThesisFitDto(thesis_is_the_claim=1.0, antithesis_already_granted=0.0, a_plus_already_granted=0.0, reasoning="")
 
         monkeypatch.setattr(tfc.ThesisFitCheck, "score_texts", fake_score)
         await judge_fit([_tension(thesis_held_by=" the Minister "), _tension()], "a transcript")
@@ -807,11 +820,17 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         from dialectical_framework.concerns.thesis_fit_check import ThesisFitDto
 
         fields = ThesisFitDto.model_fields
-        assert list(fields) == ["thesis_is_the_claim", "a_plus_already_granted", "reasoning"], (
-            "scores before the reasoning; a reasoning written first anchors the score"
-        )
+        assert list(fields) == [
+            "thesis_is_the_claim", "antithesis_already_granted", "a_plus_already_granted", "reasoning",
+        ], "scores before the reasoning; a reasoning written first anchors the score"
         assert "would SIGN" in fields["thesis_is_the_claim"].description
         assert "HOLDER" in fields["thesis_is_the_claim"].description, "whose claim is not presupposed"
+        # The POLE is read, not only its development (2026-10-28): granted
+        # means set down as true or legitimate, and a view named only to be
+        # rejected is not granted — the distinction the app's judge drew
+        # between a conceded POSITION (29 rows) and a fact or a rebutted view (17).
+        assert "name and GRANT the position A states" in fields["antithesis_already_granted"].description
+        assert "name only to reject it" in fields["antithesis_already_granted"].description
         assert "ALREADY name and concede" in fields["a_plus_already_granted"].description
         # The idiom reads the SAME way at the field and in the prompt: "not only
         # X but also Y" concedes X (the field said Y until 2026-10-20, and the
@@ -834,7 +853,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         async def fake_submit(self, *, response_model, user_content):
             seen["prompt"] = user_content
             return ThesisFitDto(
-                thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="r"
+                thesis_is_the_claim=1.0, antithesis_already_granted=0.0, a_plus_already_granted=0.0, reasoning="r"
             )
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
@@ -843,6 +862,9 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         )
         prompt = seen["prompt"]
         assert "concedes X" in prompt and "concedes Y" not in prompt
+        assert "rate three things" in prompt
+        assert "name AND grant the position A states" in prompt, "the pole is read, not only A+"
+        assert "name only to reject it is not granted" in prompt
         assert "<context>\nwords\n</context>" in prompt
         assert "Its holder is the person speaking above." in prompt
         assert "the person would sign" not in prompt, "authorship is not presupposed in the ask"
@@ -858,7 +880,7 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
 
         async def fake_submit(self, *, response_model, user_content):
             seen["prompt"] = user_content
-            return ThesisFitDto(thesis_is_the_claim=1.0, a_plus_already_granted=0.0, reasoning="r")
+            return ThesisFitDto(thesis_is_the_claim=1.0, antithesis_already_granted=0.0, a_plus_already_granted=0.0, reasoning="r")
 
         monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
         await ThesisFitCheck().score_texts(

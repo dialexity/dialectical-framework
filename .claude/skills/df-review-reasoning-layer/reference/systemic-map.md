@@ -2106,7 +2106,12 @@ reachable per-pathway on demand via the `audit_feasibility` tool) → **Generate
    the view turn's being the person's turns (`view_sketch.judge_context`, bounded by `JUDGE_CONTEXT_CHARS`)
    — a blind judge scores the four aspects against nothing; (g) the FIT judge
    (`concerns/thesis_fit_check.py::ThesisFitCheck`, one call per draw gathered beside the two control
-   statements, reads T, A, A+ against the PERSON's words handed as `select_sketch(fit_against=)` — the
+   statements, reads T, A, A+ against the PERSON's words handed as `select_sketch(fit_against=)` — three
+   reads since 2026-10-28: T the claim they would sign, A a view their words already GRANT (the pole;
+   the first app's third handoff found A = the conceded clause on 16/29 rows while A+ escaped on
+   26/29, and the earlier A+-only read was blind to it; `tests/e2e/rescore_conceded_a.py`, 21/29
+   agreement with the app's judge, inert where every draw bears the granted view), A+ already
+   conceded; `fit` the weakest of the three — the
    view turn's `judge_context`, the build's MATERIAL, never the Advisor's paraphrase that is the build's
    `context`; fail-soft to `None` = not judged = fits; since 2026-10-27 told WHOSE claim when the draw
    names T's holder — `judge_fit` hands `thesis_held_by` to `score_texts(held_by=)`, and both reads are

@@ -159,6 +159,7 @@ async def _fit(gate: asyncio.Semaphore, item: dict) -> Optional[dict]:
     return {
         "fit": round(dto.fit, 3),
         "claim": dto.thesis_is_the_claim,
+        "a_granted": dto.antithesis_already_granted,
         "granted": dto.a_plus_already_granted,
         "reasoning": (dto.reasoning or "")[:300],
     }

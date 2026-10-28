@@ -60,6 +60,11 @@ Primary (rule 1): T states the author's demand, counted over 40 paired cases.
     discordant pairs reported beside it.
 Secondary (rule 2): on the 22 conceding cases, A+ restates the conceded clause.
     The WITH arm must be LOWER by at least +4 of 22 (fewer already-granted A+).
+    Since 2026-10-28 the same read is taken on the POLE A as well
+    (`antithesis_already_granted`) and reported with NO bar: the first app's
+    eval found the granted view in A on 16 of 29 rows while A+ escaped on 26
+    of 29, a shape this read was blind to on both runs. The saved runs were
+    re-read with it in `rescore_conceded_a.py`.
 Side conditions, both of which must hold or the primary does not count:
     coherence (CC pass) must not fall by more than 3 of 40, and the antithesis
     being a genuine position must not fall by more than 3 of 40.
@@ -461,6 +466,18 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
         )
         for row, verdict in zip(mirror_rows, grants):
             row["a_plus_already_granted"] = verdict
+        # The POLE too (2026-10-28): the first app's eval found A itself to be
+        # the granted view on 16 of 29 rows while A+ escaped on 26 of 29, and
+        # this probe's two runs could not see it because only A+ was read
+        # against the clause. Reported, no bar: it was not pre-registered.
+        pole_rows = [
+            r for r in complete if r["petition_id"] in conceded and r.get("antithesis")
+        ]
+        pole_grants = await asyncio.gather(
+            *(_restates(r["antithesis"], conceded[r["petition_id"]]) for r in pole_rows)
+        )
+        for row, verdict in zip(pole_rows, pole_grants):
+            row["antithesis_already_granted"] = verdict
         full = [
             r
             for r in complete
@@ -493,6 +510,10 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
         "a_plus_already_granted": {
             k: _count(v, "a_plus_already_granted") for k, v in arms.items()
         },
+        # Reported without a bar (added 2026-10-28, after both pre-registered runs).
+        "antithesis_already_granted": {
+            k: _count(v, "antithesis_already_granted") for k, v in arms.items()
+        },
         # The reused judges' own key names: `_judge` writes `pass`, `_audit_kind`
         # writes `a_kind` with the verdict word "position". Guessing them cost a
         # smoke run that reported 0 and 0 in both arms.
@@ -509,6 +530,7 @@ async def test_the_two_prompt_rules_on_multi_claim_input(di_container) -> None:
         "sign_test_picks": _sign_test(w, wo, "thesis_picks_the_demand"),
         "sign_test_demand": _sign_test(w, wo, "thesis_is_the_demand"),
         "sign_test_granted": _sign_test(w, wo, "a_plus_already_granted"),
+        "sign_test_a_granted": _sign_test(w, wo, "antithesis_already_granted"),
     }
     out.write_text(
         json.dumps({"report": report, "arms": arms}, indent=1, ensure_ascii=False)
