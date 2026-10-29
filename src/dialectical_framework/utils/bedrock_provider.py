@@ -436,8 +436,9 @@ def _note_stream_usage(event: Any) -> None:
     """Tell the awaited call's holder what this event says about the bill.
 
     `message_start` carries the prefill (`message.usage`: `input_tokens` is
-    the UNCACHED count on the raw API, the cache fields beside it), the one
-    `message_delta` at the end carries the output count, and every raw
+    the UNCACHED count on the raw API, the cache fields beside it, and an
+    output count that is only a placeholder), the one `message_delta` at the
+    end carries the real output count, and every raw
     `content_block_delta` carries the characters the model has written so
     far. Read only on a cancel (`call_census.StreamUsageSoFar`); a stream
     that finishes is recorded from its assembled `Message` as before. The
@@ -448,10 +449,12 @@ def _note_stream_usage(event: Any) -> None:
     if holder is None:
         return
     kind = getattr(event, "type", None)
+    output_is_final = False
     if kind == "message_start":
         usage = getattr(getattr(event, "message", None), "usage", None)
     elif kind == "message_delta":
         usage = getattr(event, "usage", None)
+        output_is_final = True
     elif kind == "content_block_delta":
         delta = getattr(event, "delta", None)
         for attr in ("text", "thinking", "partial_json"):
@@ -467,7 +470,11 @@ def _note_stream_usage(event: Any) -> None:
         input_tokens=getattr(usage, "input_tokens", None),
         cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
         cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
-        output_tokens=getattr(usage, "output_tokens", None),
+        # `message_start.usage.output_tokens` is a PLACEHOLDER (the live probe
+        # read 8 against 48 characters delivered); only the `message_delta`
+        # count is real. Left unreported rather than recorded as a count a
+        # host would price.
+        output_tokens=getattr(usage, "output_tokens", None) if output_is_final else None,
     )
 
 
@@ -503,8 +510,17 @@ async def _stream_to_message(
     loop = asyncio.get_running_loop()
     started = time.monotonic()
     headers_budget = min(headers_timeout_s, read_timeout_s)
+    # `asyncio.timeout` / `timeout_at`, never `asyncio.wait_for`: on Python
+    # 3.11 `wait_for` RETURNS the inner result and swallows an outside cancel
+    # whenever the inner future is already done when the cancel lands — and
+    # on a buffered SSE stream the next event is nearly always already in,
+    # so a host's cancel of a draw was lost in the common case and the call
+    # ran on to completion, billing in full (the live probe
+    # `tests/e2e/probe_cancelled_call_usage.py`, 2026-10-29). The context
+    # managers await in THIS task and let a CancelledError through.
     try:
-        stream = await asyncio.wait_for(manager.__aenter__(), timeout=headers_budget)
+        async with asyncio.timeout(headers_budget):
+            stream = await manager.__aenter__()
     except asyncio.TimeoutError as e:
         logger.warning(
             "Stream stalled on %s before headers (%.1fs)",
@@ -527,9 +543,8 @@ async def _stream_to_message(
         deadline = loop.time() + read_timeout_s
         while True:
             try:
-                event = await asyncio.wait_for(
-                    iterator.__anext__(), timeout=max(deadline - loop.time(), 0.0)
-                )
+                async with asyncio.timeout_at(deadline):
+                    event = await iterator.__anext__()
             except StopAsyncIteration:
                 break
             except Exception as e:

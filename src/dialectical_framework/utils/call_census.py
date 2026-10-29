@@ -518,8 +518,8 @@ class StreamUsageSoFar:
 
 #: NOT a stack: one awaited call has one stream, and `use_brain` installs the
 #: holder around exactly that await. A mutable object for the same reason the
-#: census is one — the provider may read events inside an `asyncio.wait_for`
-#: child task, and a copied context must still write into the caller's holder.
+#: census is one — should any layer between the two ever read events in a
+#: child task, its copied context must still write into the caller's holder.
 _in_flight: contextvars.ContextVar[Optional[StreamUsageSoFar]] = contextvars.ContextVar(
     "stream_usage_in_flight", default=None
 )

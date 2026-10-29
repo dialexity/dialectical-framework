@@ -599,3 +599,21 @@ census counts nothing). Both are the same gap one layer over; neither was asked 
 measured. Tests: `tests/test_call_census.py::TestACancelledStreamLeavesAPartialRecord`,
 `tests/test_streamed_awaited_call.py::TestAClosedStreamLeavesItsBillInTheHolder`.
 
+**The live probe found the cancel itself was being lost.** `tests/e2e/probe_cancelled_call_usage.py`
+(one real structured call on the configured model, cancelled once content is flowing; a second arm
+lets the same call finish): on its first run the cancelled arm DID NOT RAISE — the task ran to
+completion and returned the essay, 871 output tokens billed. Cause: Python 3.11's `asyncio.wait_for`
+(this tree runs 3.11.8) returns the inner result and swallows an outside cancel whenever the inner
+future is already done when the cancel lands, and on a buffered SSE stream the next event is nearly
+always already in, so the swallow was the common case, not a race. `_stream_to_message` used
+`wait_for` around both the opening and every event. Both are now `asyncio.timeout` /
+`asyncio.timeout_at` (3.11+), which await in the calling task and let a `CancelledError` through; the
+stall branches are unchanged (`TimeoutError` is the same class) and the 32 stream tests pass as they
+were. Re-run, the cancelled arm stops at 1.6 s with a partial record of 477 prefill tokens and 48
+characters, the finishing arm records 477 / 871 with `partial=False`. **So before this change a host's
+cancel of a streamed awaited call on 3.11 usually did not cancel it** — the draw finished and billed
+in full while the host believed it killed — which matters more to the app than the record it asked
+for. One more correction from the same run: `message_start.usage.output_tokens` is a placeholder (8
+against 48 characters delivered), so the holder takes an output count from `message_delta` only and a
+partial record's `output_tokens` is `None` unless the real count had arrived.
+

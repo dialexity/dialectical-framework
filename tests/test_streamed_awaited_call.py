@@ -171,7 +171,7 @@ class TestAClosedStreamLeavesItsBillInTheHolder:
 
     async def test_a_cancel_mid_content_keeps_the_prefill_and_the_characters(self, short_gap):
         manager = FakeManager([
-            (0, message_start(input_tokens=80, cache_read_input_tokens=4000, cache_creation_input_tokens=0)),
+            (0, message_start(input_tokens=80, cache_read_input_tokens=4000, cache_creation_input_tokens=0, output_tokens=1)),
             (0, thinking_delta("let me see")),
             (0, text_delta("Hello ")),
             (0, SimpleNamespace(type="text", text="Hello ", snapshot="Hello ")),  # the SDK's synthesized twin
@@ -188,7 +188,9 @@ class TestAClosedStreamLeavesItsBillInTheHolder:
         assert manager.exited_with is asyncio.CancelledError, "the stream was closed on the way out"
         assert holder.reported is True
         assert (holder.uncached_input_tokens, holder.cache_read_tokens, holder.cache_write_tokens) == (80, 4000, 0)
-        assert holder.output_tokens is None, "the output count is in the last message_delta, never seen"
+        assert holder.output_tokens is None, (
+            "message_start's output count is a placeholder; the real one is in the last message_delta, never seen"
+        )
         assert holder.output_chars == len("let me see") + len("Hello ") + len("world"), (
             "raw deltas only; the synthesized text event repeats the same characters"
         )
