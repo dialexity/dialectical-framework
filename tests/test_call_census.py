@@ -32,9 +32,12 @@ import pytest
 
 from dialectical_framework.utils import use_brain as use_brain_module
 from dialectical_framework.utils.call_census import (CallCensus, CallRecord,
+                                                     StreamUsageSoFar,
                                                      call_census,
                                                      current_call_census,
-                                                     record_call)
+                                                     current_stream_usage,
+                                                     record_call,
+                                                     stream_usage_in_flight)
 
 
 # DB-free: override the autouse graph fixtures.
@@ -394,6 +397,148 @@ class TestTheUseBrainSeam:
             await _method()
 
         assert census.count == 3, "all three round-trips were provider time"
+
+
+class TestACancelledStreamLeavesAPartialRecord:
+    """The one exit on which the provider billed and nothing was recorded.
+
+    The first app can kill a draw on the server (2026-10-29); the provider
+    bills the prefill and whatever was generated, and `record_call` used to
+    run only after `await _llm_call()` returned — so a cancelled view turn
+    summed to the gate's one call. The streamed awaited call now fills a
+    holder as its events arrive, and a cancel under `use_brain` records what
+    the holder had, flagged `partial`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def mock_llm(self):
+        yield
+
+    def _install(self, monkeypatch, *, reports: bool) -> asyncio.Event:
+        monkeypatch.setattr(use_brain_module, "_trace_generation", lambda **_: None)
+        reached = asyncio.Event()
+
+        def _fake_llm_call(_model, **_params):
+            def _decorator(_fn):
+                async def _inner():
+                    # What `_stream_to_message` does as the events arrive, in
+                    # the provider's own task context.
+                    holder = current_stream_usage()
+                    assert holder is not None, "use_brain must install the holder"
+                    if reports:
+                        holder.note_usage(
+                            input_tokens=120, cache_read_tokens=9000,
+                            cache_write_tokens=0,
+                        )
+                        holder.note_content(350)
+                    reached.set()
+                    await asyncio.sleep(3600)  # the generation the host will kill
+
+                return _inner
+
+            return _decorator
+
+        monkeypatch.setattr(use_brain_module.llm, "call", _fake_llm_call)
+        return reached
+
+    @pytest.mark.asyncio
+    async def test_a_kill_mid_stream_records_the_prefill_the_stream_reported(self, monkeypatch):
+        reached = self._install(monkeypatch, reports=True)
+
+        @use_brain_module.use_brain(ai_model="anthropic/claude-x")
+        async def _method():
+            return None
+
+        with call_census() as census:
+            task = asyncio.create_task(_method())
+            await reached.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert census.count == 1
+        record = census.calls[0]
+        assert record.partial is True
+        assert record.caller.endswith("_method")
+        assert (record.uncached_input_tokens, record.cache_read_tokens, record.cache_write_tokens) == (120, 9000, 0)
+        assert record.prefill_tokens == 9120
+        # The output count arrives in Anthropic's LAST `message_delta`, which a
+        # killed stream never sees: unreported, not zero, and the characters
+        # delivered are the fact that remains.
+        assert record.output_tokens is None
+        assert record.output_chars == 350
+        assert record.seconds >= 0.0
+
+    @pytest.mark.asyncio
+    async def test_a_kill_before_the_stream_said_anything_records_nothing(self, monkeypatch):
+        """No `message_start` reached: nothing is known to be billed, and a
+        record of zeroes would be a claim."""
+        reached = self._install(monkeypatch, reports=False)
+
+        @use_brain_module.use_brain(ai_model="anthropic/claude-x")
+        async def _method():
+            return None
+
+        with call_census() as census:
+            task = asyncio.create_task(_method())
+            await reached.wait()
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert census.count == 0
+
+    @pytest.mark.asyncio
+    async def test_a_finished_call_is_not_partial(self, monkeypatch):
+        monkeypatch.setattr(use_brain_module, "_trace_generation", lambda **_: None)
+
+        def _fake_llm_call(_model, **_params):
+            def _decorator(_fn):
+                async def _inner():
+                    assert current_stream_usage() is not None
+                    return object()
+
+                return _inner
+
+            return _decorator
+
+        monkeypatch.setattr(use_brain_module.llm, "call", _fake_llm_call)
+
+        @use_brain_module.use_brain(ai_model="anthropic/claude-x")
+        async def _method():
+            return None
+
+        with call_census() as census:
+            await _method()
+        assert census.calls[0].partial is False
+        assert census.calls[0].output_chars is None
+        assert current_stream_usage() is None, "the holder is scoped to the await"
+
+    def test_the_holder_reports_only_what_the_provider_said(self):
+        holder = StreamUsageSoFar()
+        assert holder.reported is False
+        holder.note_content(12)
+        assert holder.reported is False, "characters alone are not a bill"
+        holder.note_usage(input_tokens=5)
+        assert holder.reported is True
+        holder.note_usage(output_tokens=40)  # a later delta leaves the prefill
+        assert holder.as_record_kwargs() == {
+            "uncached_input_tokens": 5,
+            "cache_read_tokens": None,
+            "cache_write_tokens": None,
+            "output_tokens": 40,
+            "output_chars": 12,
+            "partial": True,
+        }
+
+    def test_the_holder_is_scoped_not_stacked(self):
+        assert current_stream_usage() is None
+        with stream_usage_in_flight() as outer:
+            assert current_stream_usage() is outer
+            with stream_usage_in_flight() as inner:
+                assert current_stream_usage() is inner
+            assert current_stream_usage() is outer
+        assert current_stream_usage() is None
 
 
 class TestThePrefillBreakdown:

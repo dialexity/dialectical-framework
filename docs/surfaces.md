@@ -197,10 +197,14 @@ parallel on copies of the history and keeps the one the framework's coherence ch
 selection the Advisor's build and the document pipeline run. The judged draws that lost
 come back as `runners_up`; a draw that FAILED comes back as a `failed_draws` entry (its
 exception type, the refusal category when there is one) and is logged, so a host can
-count them — only when every draw fails does the call raise. Same `ExplorationView`
+count them — only when every draw fails does the call raise. The winner and each runner-up
+carry the fit judge's two reads of their own draw (`PerspectiveView.thesis_fit`,
+`antithesis_granted`; `None` on a single draw or where judging failed), so a host can tell
+the person when the Opposite line is a view their own words already grant — at the
+framework's line, `SketchVerdict.opposes_a_granted_view`. Same `ExplorationView`
 — texts and the reading (`intent`, composed as the graph composes it) only, a corner the ask
-did not reach left `null`. Terminology-free by construction (no hash, alias or score exists;
-`without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
+did not reach left `null`. Terminology-free by construction (no hash or alias exists, and the one number on it, the
+fit judge's reads, is kept; `without_terminology()` is a no-op on it) and unchecked by construction (no HS gate, no
 validation flag, no dedup, nothing kept; a best-of-N selection is a choice among draws, not
 a flag on the one shown): the view BEFORE the upgrade, not a lighter version of the checked one. It raises on a provider failure rather than returning an empty view,
 so "nothing drawn yet" and "the drawing failed" stay distinguishable to the button that asked.

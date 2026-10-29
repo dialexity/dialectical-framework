@@ -337,6 +337,62 @@ class TestThePictureIsATurnOnTheConsultantsOwnConversation:
         assert view.without_terminology().runners_up[0].t.text == "Draw three"
 
     @pytest.mark.asyncio
+    async def test_the_winner_and_each_runner_up_carry_their_own_fit_verdict(self, monkeypatch):
+        """The app's ask of 2026-10-29: a host that wants to tell a person
+        "the Opposite line is a view you already hold" needs the fit judge's A
+        read on the card it was chosen for, and on a spare served later. No
+        new call, selection untouched; `without_terminology` keeps the two
+        reads because they ground a line in words, not a score on screen."""
+        from dialectical_framework.concerns import tetrad_candidates
+
+        drafts = iter([
+            ViewSketchDto(tensions=[_tension(thesis="Draw one")]),
+            ViewSketchDto(tensions=[_tension(thesis="Draw two")]),
+            ViewSketchDto(tensions=[_tension(thesis="Draw three")]),
+        ])
+
+        async def fake_submit(self, response_model, user_content, max_tool_rounds=10):
+            dto = next(drafts)
+            self._messages.append(llm.messages.user(user_content))
+            self._messages.append(llm.messages.assistant(str(dto), model_id=None, provider_id=None))
+            return dto
+
+        monkeypatch.setattr(ConversationFacilitator, "submit", fake_submit)
+
+        async def fake_select(candidates, context="", fit_against=None):
+            verdicts = [
+                None,  # draw one: judging failed
+                tetrad_candidates.SketchVerdict(0.9, 0.8, thesis_fit=0.85, antithesis_granted=0.7),
+                tetrad_candidates.SketchVerdict(0.7, 0.9, thesis_fit=0.6, antithesis_granted=0.1),
+            ]
+            return tetrad_candidates.ranking(verdicts)[0], verdicts
+
+        monkeypatch.setattr(tetrad_candidates, "select_sketch", fake_select)
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+
+        view = await head.exploration_view(focus="a perspective", attempts=3)
+
+        winner = view.perspectives[0]
+        assert winner.t.text == "Draw two"
+        assert (winner.thesis_fit, winner.antithesis_granted) == (0.85, 0.7)
+        by_text = {p.t.text: p for p in view.runners_up}
+        assert (by_text["Draw three"].thesis_fit, by_text["Draw three"].antithesis_granted) == (0.6, 0.1)
+        assert (by_text["Draw one"].thesis_fit, by_text["Draw one"].antithesis_granted) == (None, None), (
+            "a draw whose judging failed is not judged, never a zero"
+        )
+        hidden = view.without_terminology()
+        assert hidden.perspectives[0].antithesis_granted == 0.7
+        assert hidden.to_dict()["perspectives"][0]["thesis_fit"] == 0.85
+        assert "0.7" not in message_text(head.messages[-1]), "the record stays words"
+
+    @pytest.mark.asyncio
+    async def test_a_single_draw_is_not_judged_and_says_so(self, monkeypatch):
+        _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
+        head = Consultant(app_preamble="x", messages=list(_HISTORY))
+        view = await head.exploration_view(attempts=1)
+        assert (view.perspectives[0].thesis_fit, view.perspectives[0].antithesis_granted) == (None, None)
+
+    @pytest.mark.asyncio
     async def test_one_draw_has_no_runners_up(self, monkeypatch):
         _fake_submit(monkeypatch, ViewSketchDto(tensions=[_tension()]))
         head = Consultant(app_preamble="x", messages=list(_HISTORY))

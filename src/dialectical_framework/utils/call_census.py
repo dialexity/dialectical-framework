@@ -75,7 +75,7 @@ from __future__ import annotations
 import contextvars
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Iterator, Optional
+from typing import Any, Iterator, Optional
 
 
 @dataclass(frozen=True)
@@ -153,6 +153,25 @@ class CallRecord:
     #: (`tests/probe_pole_gather_overhead.py`). `encode_request` is unmeasured and is
     #: the only candidate in this list that could be material.
     first_token_seconds: Optional[float] = None
+
+    #: True when the stream was CLOSED before the provider finished — a draw
+    #: the host cancelled (`asyncio.CancelledError` inside `use_brain`'s
+    #: awaited call, 2026-10-29). The token fields then hold what the stream
+    #: had said before the close: the prefill from `message_start`, and the
+    #: output count only if a `message_delta` had arrived. The provider billed
+    #: the request, and before this flag a killed call left no record at all,
+    #: so a host summing the census priced a cancelled view turn at the gate's
+    #: one call. A partial record is a LOWER BOUND on the bill, never the bill.
+    partial: bool = False
+    #: Characters of content the stream had delivered when it was closed —
+    #: text, thinking and tool-input deltas, the raw `content_block_delta`s
+    #: only. Set on a partial record alone, `None` otherwise. CHARACTERS, not
+    #: tokens: Anthropic sends the output token count in ONE `message_delta`,
+    #: the last event before `message_stop`, so on a cancel `output_tokens` is
+    #: almost always still unreported, and this is the one fact about the
+    #: generated output a closed stream leaves behind. A host converts at its
+    #: own rate or ignores it; the framework never turns it into tokens.
+    output_chars: Optional[int] = None
 
     @property
     def prefill_tokens(self) -> Optional[int]:
@@ -376,6 +395,8 @@ def record_call(
     cache_write_tokens: Optional[int] = None,
     first_token_seconds: Optional[float] = None,
     output_tokens: Optional[int] = None,
+    partial: bool = False,
+    output_chars: Optional[int] = None,
 ) -> None:
     """Attribute one provider round-trip to every installed census.
 
@@ -406,6 +427,8 @@ def record_call(
         cache_write_tokens=cache_write_tokens,
         first_token_seconds=first_token_seconds,
         output_tokens=output_tokens,
+        partial=partial,
+        output_chars=output_chars,
     )
     for census in stack:
         census.calls.append(record)
@@ -415,3 +438,106 @@ def current_call_census() -> Optional[CallCensus]:
     """The innermost installed census, or None. For readers that must not create one."""
     stack = _stack.get()
     return stack[-1] if stack else None
+
+
+# --- What a stream in flight has said so far ---------------------------------
+
+
+@dataclass
+class StreamUsageSoFar:
+    """What one stream has reported about its own bill BEFORE it finished.
+
+    Filled by the provider as the events arrive (`bedrock_provider.
+    _stream_to_message` → `note_stream_usage`), read by `use_brain` only when
+    the awaited call is cancelled under it, to leave a partial `CallRecord`
+    in place of none. On a stream that finishes it is read by nobody: the
+    assembled `Message` carries the authoritative usage and the normal record
+    is written from that.
+
+    Anthropic's stream reports the prefill in `message_start` (the raw API
+    convention: `input_tokens` EXCLUDES the cache fields, so it maps onto
+    `uncached_input_tokens` as it is) and the output count in a single
+    `message_delta` at the very end. So a stream closed mid-generation
+    nearly always knows its prefill and not its output; `output_chars` is the
+    fact that remains.
+    """
+
+    uncached_input_tokens: Optional[int] = None
+    cache_read_tokens: Optional[int] = None
+    cache_write_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    output_chars: int = 0
+
+    @property
+    def reported(self) -> bool:
+        """Whether the provider said anything billable — a stream that never
+        opened, or never reached `message_start`, leaves nothing to record."""
+        return any(
+            v is not None
+            for v in (
+                self.uncached_input_tokens,
+                self.cache_read_tokens,
+                self.cache_write_tokens,
+                self.output_tokens,
+            )
+        )
+
+    def note_usage(
+        self,
+        *,
+        input_tokens: Optional[int] = None,
+        cache_read_tokens: Optional[int] = None,
+        cache_write_tokens: Optional[int] = None,
+        output_tokens: Optional[int] = None,
+    ) -> None:
+        """Take a usage report as the provider sent it; a field the report
+        does not carry (`None`) leaves what an earlier event said."""
+        if input_tokens is not None:
+            self.uncached_input_tokens = input_tokens
+        if cache_read_tokens is not None:
+            self.cache_read_tokens = cache_read_tokens
+        if cache_write_tokens is not None:
+            self.cache_write_tokens = cache_write_tokens
+        if output_tokens is not None:
+            self.output_tokens = output_tokens
+
+    def note_content(self, chars: int) -> None:
+        self.output_chars += chars
+
+    def as_record_kwargs(self) -> dict[str, Any]:
+        """The `record_call` keyword arguments for a PARTIAL record."""
+        return {
+            "uncached_input_tokens": self.uncached_input_tokens,
+            "cache_read_tokens": self.cache_read_tokens,
+            "cache_write_tokens": self.cache_write_tokens,
+            "output_tokens": self.output_tokens,
+            "output_chars": self.output_chars,
+            "partial": True,
+        }
+
+
+#: NOT a stack: one awaited call has one stream, and `use_brain` installs the
+#: holder around exactly that await. A mutable object for the same reason the
+#: census is one — the provider may read events inside an `asyncio.wait_for`
+#: child task, and a copied context must still write into the caller's holder.
+_in_flight: contextvars.ContextVar[Optional[StreamUsageSoFar]] = contextvars.ContextVar(
+    "stream_usage_in_flight", default=None
+)
+
+
+@contextmanager
+def stream_usage_in_flight() -> Iterator[StreamUsageSoFar]:
+    """Install a fresh holder for the provider call made inside the block."""
+    holder = StreamUsageSoFar()
+    token = _in_flight.set(holder)
+    try:
+        yield holder
+    finally:
+        _in_flight.reset(token)
+
+
+def current_stream_usage() -> Optional[StreamUsageSoFar]:
+    """The holder of the awaited call in flight, or None outside one (the
+    facilitator's streamed conversational round, a bare provider call)."""
+    return _in_flight.get()
+

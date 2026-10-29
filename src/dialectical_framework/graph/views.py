@@ -198,6 +198,21 @@ class PerspectiveView:
     discarded: Optional[str] = None
     #: True when all six positions are connected.
     complete: bool = False
+    #: The fit judge's two reads of THIS draw (`concerns/thesis_fit_check.py`,
+    #: carried from `SketchVerdict` by the view turn, 2026-10-29): how far T is
+    #: the claim the person would sign, and how far A is a view their own
+    #: words already grant. `None` = not judged — every view read off the
+    #: graph, a single draw, a draw whose judging failed. Numbers, and KEPT by
+    #: `without_terminology` all the same, because they are not a score for a
+    #: screen but the host's grounds for a line in words: a person handed
+    #: their own concession as the blind spot is told so ("this is a view you
+    #: already hold") instead of having to notice it. The line a host draws at
+    #: is the framework's own, `1 - antithesis_granted <
+    #: THESIS_FIT_THRESHOLD` (`SketchVerdict.opposes_a_granted_view`). The
+    #: read moves about four rows in twenty-nine between identical runs, so a
+    #: host shows it as a prompt, never as a verdict on the card.
+    thesis_fit: Optional[float] = None
+    antithesis_granted: Optional[float] = None
 
     @property
     def poles(self) -> dict[str, PoleView]:

@@ -384,3 +384,34 @@ selection because the fit judge reads the holder. On the person's own words noth
 holder, no call. Not pursued: running the check beside the selection judges (would hide the latency
 on best-of-N cards at the price of the fit judge reading an unchecked holder), and a replacement name
 from the check (the judge may not name a party for the screen).
+
+## The winner's verdict rides on the view (2026-10-29)
+
+The first app's fifth handoff (`handoff-2026-10-29-verdict-on-the-view.md`, retired here). The
+app's Refine sheet now shows the card's tension, Position and Opposite, each marked Keep or
+Change, and routes a retry from the marks — nothing needed from the framework for that. What the
+sheet could not say was WHEN the Opposite line is the person's own concession: the fit judge already
+reads that per draw (`ThesisFitDto.antithesis_already_granted` → `SketchVerdict.antithesis_granted`,
+`opposes_a_granted_view`), and `Consultant.exploration_view` had the ranked verdicts in hand and
+built the `ExplorationView` without them. For the shape the tightened judge finds on two or three
+texts in forty (5 of 12 position rows on the petition set), the app wants one muted line under the
+Opposite line and to lead with its tap, so the person handed their own concession as the blind spot
+is told so.
+
+Shipped: `PerspectiveView.thesis_fit` and `antithesis_granted`, both `Optional[float]`, `None` = not
+judged. The view turn stamps `verdicts[order[0]]` on its first perspective and each runner-up's own
+verdict on it (`consultant._with_verdict`), since a spare is served later without a new call and
+must say the same about itself; a draw whose judging failed stays `None`, never a zero; a single
+draw is unjudged and says so. No new call, selection untouched. `without_terminology` KEEPS the two
+— the one numeric exception to "every number is machinery", for the reason `held_by` is kept: they
+ground a line in words a hidden-machinery screen must show, not a score it must not. The line a
+host draws at is the framework's own (`1 − granted < THESIS_FIT_THRESHOLD`). The graph path sets
+nothing (no verdict is persisted); `SketchTetrad.verdict` stays the analyst path's copy.
+
+Two cautions the app took on with it, stated here so the field is not read as a verdict on the
+card: the A read moves about four rows in twenty-nine between identical runs (the rescore probe,
+2026-10-29), so the line is a prompt to the person, never "this card is wrong"; and the app's own
+plan measures the shown line against the owner's hand read on ~20 cards (κ ≥ 0.6) before it ships
+there. Tests: `tests/test_view_sketch.py::test_the_winner_and_each_runner_up_carry_their_own_fit_verdict`,
+`tests/test_views.py::test_the_fit_judge_reads_are_the_one_number_a_hidden_view_keeps`.
+

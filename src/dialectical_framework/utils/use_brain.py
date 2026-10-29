@@ -23,7 +23,8 @@ from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
 from dialectical_framework.utils.bedrock_provider import (
     ensure_anthropic_provider, ensure_bedrock_provider)
-from dialectical_framework.utils.call_census import record_call
+from dialectical_framework.utils.call_census import (record_call,
+                                                     stream_usage_in_flight)
 from dialectical_framework.utils.concurrency import llm_concurrency_slot
 from dialectical_framework.utils.retry_accounting import record_retry
 
@@ -227,7 +228,25 @@ def use_brain(
                         # as a queue. `CallCensus` documents where that wait
                         # surfaces instead.
                         call_started = time.monotonic()
-                        response = await _llm_call()
+                        # A cancel mid-stream (the host killed the draw) is the
+                        # one exit on which the provider has billed and no
+                        # response exists to record. The streamed awaited call
+                        # fills this holder as its events arrive, so the
+                        # partial record carries the prefill the stream
+                        # reported and whatever it knew of the output.
+                        with stream_usage_in_flight() as in_flight:
+                            try:
+                                response = await _llm_call()
+                            except asyncio.CancelledError:
+                                if in_flight.reported:
+                                    record_call(
+                                        method.__qualname__,
+                                        seconds=time.monotonic() - call_started,
+                                        started=call_started,
+                                        format_name=format_name,
+                                        **in_flight.as_record_kwargs(),
+                                    )
+                                raise
                         record_call(
                             method.__qualname__,
                             seconds=time.monotonic() - call_started,

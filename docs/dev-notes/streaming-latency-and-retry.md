@@ -553,3 +553,49 @@ every healthy stream is the cheap instrument for that and is not built. The app 
 documented the setting with both figures in its own `.env.example`, and wired its
 `whole_paragraph` warning to log `raw=` from `ConversationFacilitator.last_structured_reply_text`
 so the next cut can be read — none in the eight (16 Lithuanian paragraphs whole since its guard).
+
+## The cost of a call that was killed (2026-10-29)
+
+The first app can now stop a draw on the server (its cancel endpoint, 2026-10-29): the draw runs as a
+task, a cancel kills it, nothing is committed, and the spend goes to the app's ledger as a card
+because the provider billed it. What the app could not say was HOW MUCH. `use_brain` wrote its
+`CallRecord` only after `await _llm_call()` returned, so a call killed mid-stream left none, and the
+census the app sums saw the gate's one call and nothing of the three streams in flight — the bulk of
+the cost (`handoff-2026-10-29-cost-of-a-killed-call.md`, retired here).
+
+**What a closed stream has said about its bill, and what it has not.** Anthropic's stream reports the
+prefill in `message_start` (`message.usage`: on the raw API `input_tokens` is the UNCACHED count and
+the cache fields sit beside it, so it maps onto `uncached_input_tokens` without the subtraction the
+non-streaming decoder needs) and the output count in ONE `message_delta`, the last event before
+`message_stop`. The handoff assumed periodic deltas ("the output tokens of the last `message_delta`
+seen"); there is one, at the end, so a stream killed mid-generation nearly always knows its prefill
+and NOT its output. What it does know is how many characters it delivered — the raw
+`content_block_delta`s' text, thinking and tool-input pieces (the SDK's synthesized `text` events
+repeat the same characters and are not counted).
+
+**Shipped, three pieces.** `call_census.StreamUsageSoFar` is a holder `use_brain` installs around
+exactly its one awaited provider call (`stream_usage_in_flight()`, scoped and not stacked — one
+await, one stream; a mutable object in the ContextVar for the census's reason, since the provider
+reads events inside an `asyncio.wait_for` child). `bedrock_provider._note_stream_usage` fills it per
+event from `_stream_to_message` — same on both transports, since the assembly is on the shared
+seam. On `asyncio.CancelledError` under the await, `use_brain` records a `CallRecord` with
+`partial=True` carrying the holder's prefill, its output count if a delta had arrived (`None`
+otherwise — unreported, not zero), and `output_chars`; then re-raises. A stream that never reached
+`message_start` records nothing: nothing is known to be billed, and a record of zeroes would be a
+claim. A finished call is recorded from its assembled `Message` exactly as before, `partial=False`,
+`output_chars=None`.
+
+**What a host does with it.** Price the partial record as any other for the prefill; for the output,
+convert `output_chars` at its own rate or leave it. The record is a LOWER BOUND that is mostly the
+bill on a cached view-turn prompt and an under-count on a long thinking draw. The framework never
+turns characters into tokens — that would be a guess dressed as a measurement — and never changes
+retries, timeouts or the census's shape beyond the two fields.
+
+**Not covered, said so.** The facilitator's streamed conversational round does not go through
+`_stream_to_message` (Mirascope's decoder iterates the SDK stream itself) and records after its chunk
+loop, so a turn killed mid-reply still leaves no record. A retried stall's first attempt was billed
+for its prefill and is still not recorded (`retry_accounting` counts its seconds as wasted; the
+census counts nothing). Both are the same gap one layer over; neither was asked for and neither is
+measured. Tests: `tests/test_call_census.py::TestACancelledStreamLeavesAPartialRecord`,
+`tests/test_streamed_awaited_call.py::TestAClosedStreamLeavesItsBillInTheHolder`.
+

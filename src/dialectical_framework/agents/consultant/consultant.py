@@ -36,10 +36,11 @@ dropped from BOTH the product and the baseline.
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 import re
 from contextlib import aclosing
-from typing import Any, AsyncGenerator, Optional
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Optional
 
 from mirascope import llm
 from mirascope.llm.exceptions import ProviderError
@@ -59,6 +60,11 @@ from dialectical_framework.graph.views import (
     FailedDrawView,
     PerspectiveView,
 )
+
+if TYPE_CHECKING:
+    # Imported lazily inside `exploration_view` at runtime (the concern pulls
+    # the judges in); only the annotation needs it here.
+    from dialectical_framework.concerns.tetrad_candidates import SketchVerdict
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +148,20 @@ _TOOL_TOKENS = (
     "the machinery",
     "[[",
 )
+
+
+def _with_verdict(
+    perspective: PerspectiveView, verdict: Optional[SketchVerdict]
+) -> PerspectiveView:
+    """The drawn tension with the fit judge's two reads on it, when it was
+    judged; a `None` verdict (judging failed on that draw) leaves both None."""
+    if verdict is None:
+        return perspective
+    return dataclasses.replace(
+        perspective,
+        thesis_fit=verdict.thesis_fit,
+        antithesis_granted=verdict.antithesis_granted,
+    )
 
 
 def _failed_draw(error: BaseException) -> FailedDrawView:
@@ -565,6 +585,7 @@ class Consultant:
             )
 
         runners_up: list[PerspectiveView] = []
+        winner_verdict: Optional[SketchVerdict] = None
         if len(sketches) > 1:
             firsts = [s.tensions[0] if s.tensions else None for s in sketches]
             judgeable = [i for i, t in enumerate(firsts) if complete(t)]
@@ -622,7 +643,11 @@ class Consultant:
                         )
                 order = ranking(verdicts)
                 sketch = field[order[0]]
-                runners_up = [perspective_from_sketch(pool[i]) for i in order[1:]]
+                winner_verdict = verdicts[order[0]]
+                runners_up = [
+                    _with_verdict(perspective_from_sketch(pool[i]), verdicts[i])
+                    for i in order[1:]
+                ]
             else:
                 sketch = sketches[judgeable[0]] if judgeable else sketches[0]
         else:
@@ -632,6 +657,19 @@ class Consultant:
             runners_up=runners_up,
             failed_draws=failed_draws,
         )
+        # The winner's verdict rides on the card it was chosen for (the first
+        # tension is what the ranking judged), and each runner-up carries its
+        # own, so a spare served later says the same thing about itself. The
+        # fit judge's A read is what a host shows a line for; nothing here
+        # changes the choice (the app's handoff of 2026-10-29).
+        if winner_verdict is not None and view.perspectives:
+            view = dataclasses.replace(
+                view,
+                perspectives=[
+                    _with_verdict(view.perspectives[0], winner_verdict),
+                    *view.perspectives[1:],
+                ],
+            )
         # What the turn leaves behind is NOT what it sent: the long request and
         # the DTO come off, and the person's ask plus the drawing in words go
         # on. Kept as a request→prose pair, the long request taught the next

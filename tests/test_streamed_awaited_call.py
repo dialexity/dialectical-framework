@@ -27,6 +27,7 @@ from dialectical_framework.utils.bedrock_provider import (
     StreamReadTimeout,
     _stream_to_message,
 )
+from dialectical_framework.utils.call_census import stream_usage_in_flight
 from dialectical_framework.utils.use_brain import _is_stall_error
 
 
@@ -133,6 +134,90 @@ class TestTheStreamIsPolicedBySilence:
         manager = FakeManager([(0, ev("text")), (0.5, TEXT)])
         with pytest.raises(StreamReadTimeout, match="mid-content"):
             await _stream_to_message(manager, "m", 1.0, HEADERS)
+
+
+def _usage(**fields) -> SimpleNamespace:
+    base = dict(
+        input_tokens=None, cache_read_input_tokens=None,
+        cache_creation_input_tokens=None, output_tokens=None,
+    )
+    base.update(fields)
+    return SimpleNamespace(**base)
+
+
+def message_start(**usage) -> SimpleNamespace:
+    return SimpleNamespace(type="message_start", message=SimpleNamespace(usage=_usage(**usage)))
+
+
+def message_delta(**usage) -> SimpleNamespace:
+    return SimpleNamespace(type="message_delta", usage=_usage(**usage))
+
+
+def text_delta(text: str) -> SimpleNamespace:
+    return SimpleNamespace(type="content_block_delta", delta=SimpleNamespace(type="text_delta", text=text))
+
+
+def thinking_delta(text: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        type="content_block_delta", delta=SimpleNamespace(type="thinking_delta", thinking=text)
+    )
+
+
+class TestAClosedStreamLeavesItsBillInTheHolder:
+    """A cancel closes the stream on the way out (`manager.__aexit__`), and what
+    the stream had said about its bill stays in the holder `use_brain`
+    installed — the prefill from `message_start`, the characters delivered,
+    the output count only if the one `message_delta` had arrived."""
+
+    async def test_a_cancel_mid_content_keeps_the_prefill_and_the_characters(self, short_gap):
+        manager = FakeManager([
+            (0, message_start(input_tokens=80, cache_read_input_tokens=4000, cache_creation_input_tokens=0)),
+            (0, thinking_delta("let me see")),
+            (0, text_delta("Hello ")),
+            (0, SimpleNamespace(type="text", text="Hello ", snapshot="Hello ")),  # the SDK's synthesized twin
+            (0, text_delta("world")),
+            (5.0, text_delta("never reached")),
+        ])
+        with stream_usage_in_flight() as holder:
+            task = asyncio.create_task(_stream_to_message(manager, "m", 10.0, HEADERS))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+
+        assert manager.exited_with is asyncio.CancelledError, "the stream was closed on the way out"
+        assert holder.reported is True
+        assert (holder.uncached_input_tokens, holder.cache_read_tokens, holder.cache_write_tokens) == (80, 4000, 0)
+        assert holder.output_tokens is None, "the output count is in the last message_delta, never seen"
+        assert holder.output_chars == len("let me see") + len("Hello ") + len("world"), (
+            "raw deltas only; the synthesized text event repeats the same characters"
+        )
+
+    async def test_a_cancel_before_message_start_reports_nothing(self, short_gap):
+        manager = FakeManager([(5.0, message_start(input_tokens=80))])
+        with stream_usage_in_flight() as holder:
+            task = asyncio.create_task(_stream_to_message(manager, "m", 10.0, HEADERS))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        assert holder.reported is False
+
+    async def test_a_finished_stream_has_told_the_holder_its_output_count(self, short_gap):
+        manager = FakeManager([
+            (0, message_start(input_tokens=80)),
+            (0, text_delta("Hi")),
+            (0, message_delta(output_tokens=7)),
+        ])
+        with stream_usage_in_flight() as holder:
+            assert await _stream_to_message(manager, "m", 1.0, HEADERS) is FINAL
+        assert (holder.uncached_input_tokens, holder.output_tokens, holder.output_chars) == (80, 7, 2)
+
+    async def test_without_a_holder_the_events_are_not_read(self, short_gap):
+        """The facilitator's streamed round and a bare provider call install
+        none; the assembly must not care."""
+        manager = FakeManager([(0, message_start(input_tokens=80)), (0, text_delta("Hi"))])
+        assert await _stream_to_message(manager, "m", 1.0, HEADERS) is FINAL
 
 
 class TestStreamingIsTheDefault:

@@ -55,7 +55,9 @@ from dialectical_framework.graph.relationships.polarity_relationship import (
     AMinusRelationship, APlusRelationship, HasPolarityRelationship,
     TMinusRelationship, TPlusRelationship)
 from dialectical_framework.graph.scope_context import scope
-from dialectical_framework.graph.views import (PoleView, exploration_view,
+from dialectical_framework.graph.views import (PerspectiveMetricsView,
+                                               PerspectiveView, PoleView,
+                                               exploration_view,
                                                perspective_view, wheel_view)
 
 from test_graph import create_cycle_wheel_setup
@@ -343,6 +345,21 @@ class TestWithoutTerminology:
                 "every number on a tetrad is machinery: scores, indices, metrics"
             )
             assert "passed" not in leaves, "a validation verdict is machinery too"
+
+    def test_the_fit_judge_reads_are_the_one_number_a_hidden_view_keeps(self):
+        """Not a score for the screen: the host's grounds for a line in words
+        ("this is a view you already hold"), like `held_by`. The graph path
+        never sets them, so the every-number check above still holds there."""
+        drawn = PerspectiveView(
+            t=PoleView(text="Keep the office"),
+            thesis_fit=0.8,
+            antithesis_granted=0.9,
+            metrics=PerspectiveMetricsView(sp=0.4),
+        )
+        hidden = drawn.without_terminology()
+        assert (hidden.thesis_fit, hidden.antithesis_granted) == (0.8, 0.9)
+        assert hidden.metrics is None
+        assert _numbers(hidden.to_dict()) == [0.8, 0.9]
 
     def test_a_pole_keeps_only_what_a_person_reads(self):
         pole = PoleView(

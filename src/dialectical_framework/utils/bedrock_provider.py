@@ -54,6 +54,7 @@ from dialectical_framework.enums.di import DI
 from dialectical_framework.exceptions.provider_errors import ModelRefusal
 from dialectical_framework.settings import Settings
 from dialectical_framework.settings_context import get_current_settings
+from dialectical_framework.utils.call_census import current_stream_usage
 from dialectical_framework.utils.format_compat import (
     learn_format_mode_from_error,
     structured_output_format,
@@ -431,6 +432,45 @@ class StreamReadTimeout(httpx.ReadTimeout):
     """
 
 
+def _note_stream_usage(event: Any) -> None:
+    """Tell the awaited call's holder what this event says about the bill.
+
+    `message_start` carries the prefill (`message.usage`: `input_tokens` is
+    the UNCACHED count on the raw API, the cache fields beside it), the one
+    `message_delta` at the end carries the output count, and every raw
+    `content_block_delta` carries the characters the model has written so
+    far. Read only on a cancel (`call_census.StreamUsageSoFar`); a stream
+    that finishes is recorded from its assembled `Message` as before. The
+    synthesized `text`/`thinking` events the SDK yields beside the raw deltas
+    are NOT counted — they repeat the same characters.
+    """
+    holder = current_stream_usage()
+    if holder is None:
+        return
+    kind = getattr(event, "type", None)
+    if kind == "message_start":
+        usage = getattr(getattr(event, "message", None), "usage", None)
+    elif kind == "message_delta":
+        usage = getattr(event, "usage", None)
+    elif kind == "content_block_delta":
+        delta = getattr(event, "delta", None)
+        for attr in ("text", "thinking", "partial_json"):
+            piece = getattr(delta, attr, None)
+            if isinstance(piece, str):
+                holder.note_content(len(piece))
+        return
+    else:
+        return
+    if usage is None:
+        return
+    holder.note_usage(
+        input_tokens=getattr(usage, "input_tokens", None),
+        cache_read_tokens=getattr(usage, "cache_read_input_tokens", None),
+        cache_write_tokens=getattr(usage, "cache_creation_input_tokens", None),
+        output_tokens=getattr(usage, "output_tokens", None),
+    )
+
+
 def _is_content_event(event: Any) -> bool:
     kind = getattr(event, "type", None)
     if kind in _CONTENT_EVENTS:
@@ -516,12 +556,16 @@ async def _stream_to_message(
             if getattr(event, "type", None) == "ping":
                 continue
             events += 1
+            _note_stream_usage(event)
             if first_content_s is None and _is_content_event(event):
                 first_content_s = time.monotonic() - started
             budget = read_timeout_s if first_content_s is None else _STREAM_GAP_TIMEOUT_S
             deadline = loop.time() + budget
         message = await stream.get_final_message()
     except BaseException as e:
+        # A cancel lands here too (the host killed the draw): the stream is
+        # closed on the way out, and what it had said about its bill stays in
+        # the holder `use_brain` installed, for the partial record it writes.
         await manager.__aexit__(type(e), e, e.__traceback__)
         raise
     await manager.__aexit__(None, None, None)
