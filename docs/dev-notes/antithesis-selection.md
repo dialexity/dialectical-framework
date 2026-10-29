@@ -2083,3 +2083,42 @@ the writer drawing the opposition as practised to a stated fact — correct — 
 granted position drawn back. The common case the re-ask and the Opus arm were built for is one or
 two texts in forty, and the verdict on `SketchVerdict.antithesis_granted` now counts the same rows
 the app's judge counts, within four.
+
+**Two more runs the same morning, and the resolved read is weaker than the table above.**
+
+*The requirement kind, built and rejected.* The three rows left pointed at a fifth fact kind — a
+stated requirement ("many courses require 3 years or longer") — so the sentence was given one,
+scoped against the position 725515 grants ("some spaces may need protecting": a need the holder
+asserts, not what a thing carries). Pre-registered: 27/29 against judge 2 (both 771873 reps
+repaired), the five granted positions kept. Paired against the run above: **22/29, repaired 2,
+broken 5** (308084 rep 1, 308917 rep 1, 767814 both reps, 771145 rep 0 — four of them fact or
+rebutted-view rows the shorter sentence had right), the five positions kept. A longer rule made
+the judge grant MORE on fact rows: the added distinction read as licence. Reverted; the shipped
+wording is the one in the table above.
+
+*The replicate of the shipped wording* (same inputs, same judge tier, nothing changed): **21/29**,
+against 25/29 the first time — four rows moved between two runs of one wording (308917 both reps
+back to granted, 769174 rep 1 granted, 308084 rep 1 at the line), none of them a granted position
+lost. So the A read at the line on conceding texts has a per-row variance of about four in
+twenty-nine between identical runs — the 40/40 self-agreement measured on 2026-10-26 was on
+`fits`, the minimum of three reads, over single-claim draws, which is a different quantity — and
+the three figures (20 with the old wording, 25 and 21 with the new) do not resolve the wording's
+effect on the agreement count. What the two new-wording runs agree on, row by row, against the old:
+
+| rows | old wording | new wording, both runs |
+|---|---|---|
+| the five positions judge 2 grants (308031 ×2, 725515 ×2, 735371 rep 0) | granted 5/5 | granted 5/5, 5/5 |
+| intent and classification petitions (763504 rep 0, 771145 ×2) and 310280 ×2 — five false grants | granted | not granted in both runs |
+| the role petition 308917 (both reps) | not granted | not granted, then granted — unstable at the line |
+| 308084 rep 0, 735371 rep 1, 771873 ×2 | granted | granted in both runs — the stable remainder |
+
+So the rule as shipped repairs the intent and classification cases reliably, never costs a granted
+position, leaves the stated-requirement and "exams are harder" rows as they were, and the role
+case sits on the judge's line. The verdict stands as a verdict on the rule and not on the count:
+the fit judge now reads the same kinds of clause as a fact that the app's judge does, and where
+the two still differ the difference is the judge's own variance plus two petitions, not a rule.
+Any further tightening of this sentence is measured on at least two replicates a side, because
+one run cannot see a five-row effect here.
+
+**Cost of the morning:** three rescore runs, 103 + 102 + 101 s, about 90 small judge calls each,
+nothing drawn.

@@ -112,11 +112,15 @@ The read here carries the rule at the field and in the prompt, with the
 app's three fact examples; measured on the same 29 app rows against judge 2
 (`tests/e2e/rescore_conceded_a.py`, `CONCEDED_A_APP_REFERENCE`, the prior
 run's stored verdicts as the paired control): agreement with the app's judge
-20/29 → 25/29, six rows repaired and one broken, the five granted positions
-all kept; the rows left read a stated REQUIREMENT ("require 3 years or
-longer") as a grant, so the rule halves the over-read and does not end it.
-On the framework's own `attempts=1` draws the move is noise-sized (6 → 4 and
-6 → 6 flagged per arm, three of six moves the right way).
+20/29 with the old wording, 25/29 and then 21/29 on two runs of this one —
+the A read moves about four rows in twenty-nine between identical runs at
+the line, so the count does not resolve the wording. Row by row both runs
+agree: the five granted positions kept, the intent and classification
+petitions no longer false grants, the role petition on the judge's line, a
+stated REQUIREMENT ("require 3 years or longer") still read as a grant. A
+fifth kind for the requirement was built and REJECTED the same morning
+(22/29, repaired 2, broken 5: a longer sentence read as licence). Any
+further tightening here is measured on two replicates a side.
 
 This judge does not think, so it parses on either transport. The view-turn
 arm of the same gate did not, until the Mirascope floor moved to 2.8.2 on
