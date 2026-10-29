@@ -2122,3 +2122,21 @@ one run cannot see a five-row effect here.
 
 **Cost of the morning:** three rescore runs, 103 + 102 + 101 s, about 90 small judge calls each,
 nothing drawn.
+
+**The app's answer, the same morning: its judge 2 does NOT have that variance** (the app's
+`change.md`, "Replicated 2026-10-29"; its handoff file to this repo was overwritten by a copy
+of this repo's own note before it was read — a `cp` to a path not looked at first — and this
+paragraph is reconstructed from the app's record, which carries the same figures). Judge 2 run
+twice on the same 80 cards, nothing drawn: position rows 12 → 12, A the granted view 5 → 5, A+
+3 → 3. The position-versus-fact verdict moved on 2 of 46 conceding rows, one each way (308084
+rep 1 position → fact; 310280 rep 0 fact → position), neither a row where A is the granted view;
+on the 11 rows that are positions in both runs every A and A+ verdict is identical. The other
+judged facts are unchanged (the line carries the demand 80/80, T the demand 79/80, T one claim
+74/80). So the asymmetry is this repo's: the app's judge sorts the CLAUSE first (position / fact /
+sympathy / rebutted) with a reviewed Opus judge and moves two rows in forty-six; the fit judge
+answers "is A a granted position" in one read at the line and moves four in twenty-nine. The
+figure to quote on the app's side stays 5 of 12. The reference the rescore probe reads is
+therefore steadier than the read it measures, and "two replicates a side" is a floor this repo
+needs, not one it should expect of the app. A clause-first shape for the fit judge's A read —
+sort what the clause grants, then ask whether A is it — is the obvious next arm, unbuilt and
+unmeasured; its gate is the rescore probe with two replicates against the app's judge 2.
