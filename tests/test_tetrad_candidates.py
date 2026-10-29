@@ -842,6 +842,15 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         # between a conceded POSITION (29 rows) and a fact or a rebutted view (17).
         assert "name and GRANT the position A states" in fields["antithesis_already_granted"].description
         assert "name only to reject it" in fields["antithesis_already_granted"].description
+        # A granted FACT is not a granted position (2026-10-29, the fourth
+        # handoff): a role, an intent, a classification or an existence the
+        # holder reports and then argues against as practised grants nothing
+        # A could be — three of the four petitions both writers "failed" on.
+        # The field's own example of a grant used to be "although intended
+        # to X", which is the over-read itself.
+        assert "grants a fact, not a position" in fields["antithesis_already_granted"].description
+        assert "on its own terms" in fields["antithesis_already_granted"].description
+        assert "although intended to" not in fields["antithesis_already_granted"].description
         assert "ALREADY name and concede" in fields["a_plus_already_granted"].description
         # The idiom reads the SAME way at the field and in the prompt: "not only
         # X but also Y" concedes X (the field said Y until 2026-10-20, and the
@@ -876,6 +885,12 @@ class TestTheFitJudgeIsGatheredBesideTheControlStatements:
         assert "rate three things" in prompt
         assert "name AND grant the position A states" in prompt, "the pole is read, not only A+"
         assert "name only to reject it is not granted" in prompt
+        # The fact-versus-position rule, said the same way as the app's judge
+        # so the two count the same rows (2026-10-29).
+        assert "grants a fact, not a position" in prompt
+        for kind in ("grants a role", "grants an intent", "grants a classification"):
+            assert kind in prompt, kind
+        assert "although intended to X" not in prompt, "the old grant example was a fact"
         assert "<context>\nwords\n</context>" in prompt
         assert "Its holder is the person speaking above." in prompt
         assert "the person would sign" not in prompt, "authorship is not presupposed in the ask"

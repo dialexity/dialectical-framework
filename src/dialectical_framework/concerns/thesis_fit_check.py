@@ -89,6 +89,35 @@ pole as it was at A+), and flips 14 of the 29 app rows from fitting to not.
 Figures and the hand read of the disagreements:
 `docs/dev-notes/antithesis-selection.md`, "A is the view the author granted".
 
+A GRANTED FACT IS NOT A GRANTED POSITION (2026-10-29, the first app's fourth
+handoff, retired into the dev note, "A granted fact is not a granted
+position"). The owner's hand read of the four petitions both writers draw the
+conceded view on, in every arm and on both models: three of the four grant a
+FACT and then argue against the thing as practised — "the NMC is responsible
+for maintaining the standards" grants a ROLE (the petition is against the
+tests), "intended to prevent misuse" grants an INTENT (the demand asks for
+targeted safeguards), "classified as harmless" grants a CLASSIFICATION (the
+petition exists to contest it) — and the writer was right to draw the
+opposition as practised; only "SCAs can be declined at a GP's discretion"
+grants a POSITION. So both judges over-read "granted", and this read shared
+the over-read (it agreed with the app's first judge on 21/29; its own
+example of a grant was "although intended to X"). The rule, the app's judge's
+and now this one's, in one sentence: a clause that reports that something
+exists, is intended for a purpose, is classified or ruled a certain way, or
+is somebody's job grants a fact; a position is granted only when the holder
+says the opposing claim is right or legitimate on its own terms. Under it the
+app's rows whose clause grants a position fell 29 → 12 and A the granted view
+16/29 → 5/12 — two or three texts in forty, not sixteen rows in twenty-nine.
+The read here carries the rule at the field and in the prompt, with the
+app's three fact examples; measured on the same 29 app rows against judge 2
+(`tests/e2e/rescore_conceded_a.py`, `CONCEDED_A_APP_REFERENCE`, the prior
+run's stored verdicts as the paired control): agreement with the app's judge
+20/29 → 25/29, six rows repaired and one broken, the five granted positions
+all kept; the rows left read a stated REQUIREMENT ("require 3 years or
+longer") as a grant, so the rule halves the over-read and does not end it.
+On the framework's own `attempts=1` draws the move is noise-sized (6 → 4 and
+6 → 6 flagged per arm, three of six moves the right way).
+
 This judge does not think, so it parses on either transport. The view-turn
 arm of the same gate did not, until the Mirascope floor moved to 2.8.2 on
 2026-10-26: the view turn is the one structured call that THINKS, the
@@ -138,10 +167,13 @@ class ThesisFitDto(BaseModel):
         le=1.0,
         description=(
             "Do the HOLDER's own words ALREADY name and GRANT the position A states — "
-            "set it down as true or legitimate before arguing past it ('X is true, "
-            "however Y'; 'whilst X may be needed, we think Y'; 'although intended to "
-            "X')? 1.0: A is that granted view, X. 0.0: A is an opposition their words "
-            "do not name, or name only to reject it without granting it."
+            "set it down as right or legitimate on its own terms before arguing past "
+            "it ('X is true, however Y'; 'whilst X may be needed, we think Y')? A "
+            "clause that reports that something exists, is intended for a purpose, is "
+            "classified or ruled a certain way, or is somebody's job grants a fact, "
+            "not a position, even when the holder then argues against that thing as "
+            "practised. 1.0: A is that granted position, X. 0.0: A is an opposition "
+            "their words do not name, name only to reject it, or grant only as a fact."
         ),
     )
     a_plus_already_granted: float = Field(
@@ -211,7 +243,7 @@ Constructive side of A (A+): "{a_plus}"
 
 1. Is T the claim its holder would sign? When the holder's words hold several claims, the one they would sign is the conclusion or demand the rest leads to — not a premise, not a hedge on the way to it, and not a claim they concede in passing ("not only X but also Y" concedes X and argues for Y).
 
-2. Do the holder's own words already name AND grant the position A states? Granting is setting a view down as true or legitimate before arguing past it: "X is true, however Y", "whilst X may be needed, we think Y", "although intended to X, this punishes Y" — the holder wrote X down to get past it, and A is X. A view the words name only to reject it is not granted; a fact or a sympathy that takes no side is not a position. An opposition they have granted themselves is seen, not missing; a tetrad on it shows them their own sentence as the other side.
+2. Do the holder's own words already name AND grant the position A states? Granting is setting a view down as right or legitimate on its own terms before arguing past it: "X is true, however Y", "whilst X may be needed, we think Y", "GPs can decline at their discretion, however blanket refusal is wrong" — the holder wrote X down to get past it, and A is X. A clause that reports that something EXISTS, is INTENDED for a purpose, is CLASSIFIED or ruled a certain way, or is somebody's JOB or responsibility grants a fact, not a position, even when the holder then argues against that thing as practised: "the regulator is responsible for standards, however the tests are too many" grants a role; "intended to prevent misuse, though it punishes the lawful" grants an intent; "classified as harmless, however patients report symptoms" grants a classification — and the opposition as practised (keep the tests, keep the measure, keep the classification) is one the holder has NOT granted. A view the words name only to reject it is not granted; a fact or a sympathy that takes no side is not a position. An opposition they have granted themselves is seen, not missing; a tetrad on it shows them their own sentence as the other side.
 
 3. Do the holder's own words already name AND concede what A+ says? The same reading at the constructive side: a tetrad on it shows them their own sentence as a blind spot."""
         return await ConversationFacilitator().submit(

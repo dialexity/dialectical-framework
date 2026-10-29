@@ -1999,3 +1999,87 @@ is not a grant) or the writers are wrong in the same way on both tiers (then not
 today repairs it, and a host shows the verdict). Until then the A read stays as shipped, the
 re-ask stays off, and no figure here is quoted as "the writer fails on half the conceding texts":
 it is four of twenty-two by this read, consistent across two models and three runs.
+
+### A granted fact is not a granted position (2026-10-29, from the first app's fourth handoff)
+
+**The hand read, done by the app's owner** (the handoff file was retired the same day; this is its
+record). The four petitions both writers draw the conceded view on, in every arm and on both
+models — 308917, 735371, 763504, 771145 — read against their texts:
+
+| petition | the clause grants | the card's A | verdict |
+|---|---|---|---|
+| 308917 | a ROLE ("the NMC is responsible for maintaining the standards"); the petition is against the two or three tests | "keep a uniform, tested standard before anyone nurses" — the opposition as practised | the writer is right |
+| 763504 | an INTENT ("intended to prevent misuse"); the demand itself asks for targeted safeguards | "keep the visa brake" — the measure the petition opposes | the writer is right |
+| 771145 | a CLASSIFICATION ("classified as harmless", "guidelines claim no treatment"), which the petition exists to contest | "treat Gilbert's as harmless" — the guidelines' position, the real opposition | the writer is right |
+| 735371 | a POSITION ("SCAs can be declined at a GP's discretion") | rep 0 "each GP keeps the discretion to decline" is that concession; rep 1 folds the opposed blanket policy inside it | the judges are right (rep 0) |
+
+So both judges over-read "granted", and the fit judge's A read shared the over-read with the
+app's first judge (21/29 agreement) — its own example of a grant was "although intended to X",
+which is a granted intent. **The rule, in one sentence**, the app's judge's since the hand read
+and now this read's at the field and in the prompt: a clause that reports that something exists,
+is intended for a purpose, is classified or ruled a certain way, or is somebody's job grants a
+FACT, even when the author then argues against that thing as practised; a position is granted
+only when the author says the opposing claim is right or legitimate on its own terms.
+
+**The app's re-judge under that rule** (its `multiclaim` baseline, 80 rows, the same cards):
+
+| | judge 1 | judge 2 (fact ≠ position) |
+|---|---|---|
+| rows whose clause grants a position | 29 | 12 (six petitions: 308031, 308084, 700540, 725515, 735371, 767814) |
+| A is the granted view | 16 / 29 | 5 / 12 |
+| A+ is the granted view | 3 / 29 | 3 / 12 |
+
+Where A truly is the concession, both reps: 308031 ("we in Cornwall above all understand the need
+to keep businesses open") and 735371 rep 0. Where A+ is: 725515 both reps ("some female only spaces
+may need to be protected"). So the writer's problem is real on two or three texts in forty, not
+sixteen rows in twenty-nine, and the shape is one shape: the author grants the opposing POSITION
+as legitimate and the card hands it back as A or A+. Nothing changes in the view or the writers.
+
+**What shipped.** `ThesisFitCheck`'s A read carries the rule — the `antithesis_already_granted`
+field description and the prompt's second question, with the app's three fact examples (a role,
+an intent, a classification) and the GP-discretion grant as the position example; the "although
+intended to X" example is gone from both. Nothing else moved: same call, same place in the
+ranking, same fail-soft, `fit` still the weakest of the three reads.
+
+**Measured on the same rows, paired, nothing drawn** (`tests/e2e/rescore_conceded_a.py`, 103 s,
+the bench's strong tier as the judge; two new inputs — `CONCEDED_A_APP_REFERENCE`, the app's
+judge-2 file as the reference while the 29 judge-1 rows are still the rows judged, so a false
+grant on a declassified fact row counts; `CONCEDED_A_PRIOR`, the 2026-10-28 run's stored verdicts
+as the paired control). Pre-registered from the control's figures: agreement with judge 2 at
+least 25/29 (from 20/29, all nine disagreements false grants on fact clauses), the three fact
+petitions not granted on all six rows, the five position rows judge 2 grants still granted.
+
+| read (29 app rows, reference = judge 2) | prior wording | tightened | bar | verdict |
+|---|---|---|---|---|
+| agreement with the app's judge | 20/29 | 25/29 | ≥ 25 | at the bar |
+| A read granted where judge 2 says granted | 5/5 | 5/5 | 5/5 | holds |
+| false grants on fact rows | 9 | 4 | | repaired 6, broken 1, unchanged 3 |
+| 308917, 763504, 771145 (six rows) read not granted | 3/6 | 6/6 | 6/6 | holds |
+| the probe's boolean clause read against judge 2 | 15/29 | 24/29 | | the weaker read gains more |
+| A+ read against judge 2 | — | 26/29 | | unchanged in substance |
+
+The four left: **735371 rep 1** (the one broken row — the judge now reads "GPs keep full
+discretion, including by blanket local policy" as the granted discretion; the app reads the
+blanket clause as the part the author rejects; the handoff itself called this rep arguable),
+**308084 rep 0** ("I understand A-level students need to take exams, which is harder" read as a
+grant of "grades should rest on externally checked work"; the app calls A sharper than the grant
+— the same disagreement as 2026-10-28), and **771873 both reps** ("many courses require 3 years or
+longer" read as granting "degrees need time to mature") — a stated REQUIREMENT read as a grant,
+which is the fact kind the rule names ("exists", "is classified") without naming it. So the rule
+halves the over-read on this instrument and does not end it; a fifth kind in the sentence is a
+new measurement, and three rows do not justify one.
+
+**On the framework's own saved `attempts=1` draws the change is noise-sized**: the judge's A
+read flags 4 (with the prompt rules) and 6 (without) of 22 against 6 and 6 before; six rows moved
+and three went the right way (763504 and 771145 twice dropped) while three went wrong (308031
+"let tourism businesses keep trading" dropped though its clause grants a position; 308917 "keep
+the full registration tests" and 769174 "fund IVF only for childless couples" newly granted). The
+app rows are two reps of one card each and the framework rows one draw each, so this is the
+judge's per-row variance at the line, not a second effect. The read is a selection term inside
+the pass rule and was inert before; it still is.
+
+**What the handoff's question is now.** Of the four petitions "both writers fail on", three are
+the writer drawing the opposition as practised to a stated fact — correct — and one (735371) the
+granted position drawn back. The common case the re-ask and the Opus arm were built for is one or
+two texts in forty, and the verdict on `SketchVerdict.antithesis_granted` now counts the same rows
+the app's judge counts, within four.
