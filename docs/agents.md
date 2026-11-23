@@ -1007,3 +1007,22 @@ Haiku column, and each is either a no-op or idempotent under a model that compli
 choice; the framework never checks a model name. Models not in the table (Opus, non-Claude
 providers) have no figures, which means unmeasured, not unsupported: the same bench runs
 against any provider Mirascope reaches (`DIALEXITY_E2E_TIER_*`).
+
+**The view turn on Claude 5.5, the first per-model figures on that generation** (2026-11-23,
+`tests/e2e/probe_antithesis_depth.py`, 26 of the first app's conversations, best of three,
+paired against the shipped request, this repo's words-only depth judge; story in
+`docs/dev-notes/antithesis-selection.md`, "The opposing view is drawn from the surface of the text"):
+
+| behaviour of the view turn | Sonnet 5.5 | Opus 5.5 | where |
+|---|---|---|---|
+| A new to the person, request as it was | 9/26 (replicate 7/26) | 9/26 (replicate 8/26) | `probe_antithesis_depth` |
+| A new to the person with `OPPOSITION_NOT_ALREADY_HELD` on the focus line | 12/26, paired +4/−1 — a lean (power 0.17) | 19/26 and 15/26, paired +21/−4 on 52 pairs, McNemar p = 0.0009 | same |
+| the same words at `_OPPOSING_POSITION_ASK`'s slot instead | +2/−4 | +6/−2 | same |
+| A still a position / far-fetched A | 25–26 of 26 / 0 | 23–25 of 26 / 0 | same |
+| median seconds a card (best of three, Bedrock) | 7.6–9.2 | 17.5–19.4 | same |
+
+What follows: the same prompt rule is worth about three times as much on Opus 5.5 as on
+Sonnet 5.5, so a rule measured on one model of a generation says little about the other —
+every rule gets both columns from now on, and nothing in `src/` branches on the name. The
+probe is the instrument for the next model: the arms are request shapes, the models are an
+environment variable, and the judge was calibrated on wheels another team had already read.
