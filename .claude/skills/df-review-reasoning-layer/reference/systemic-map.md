@@ -50,7 +50,13 @@ The model sees **one fused system block** — it cannot tell where the preamble 
   card (history already holding a drawing in prose) answered in prose — 4.75 calls instead of 3
   (`tests/e2e/probe_view_turn_retry_calls.py`); reverted. The request interpolates `ASPECT_DEFINITIONS`,
   repeats `aspect_generation._tetrad_prompt`'s three-step pair procedure and `PLUS_RESTATEMENT_CHECK`, and
-  asks to render what is established / build what `focus` needs / leave unasked corners EMPTY. Output: a
+  asks to render what is established / build what `focus` needs / leave unasked corners EMPTY. **The
+  "What to show" line carries `view_sketch.OPPOSITION_NOT_ALREADY_HELD` after the host's focus (2026-11-23,
+  the first app's sixth handoff)**: a caution about HOW, the other party's demand and the person's own doubt
+  are not the antithesis. It lives at the HEAD of the request and NOT in `_OPPOSING_POSITION_ASK` because
+  position was the measured variable (`tests/e2e/probe_antithesis_depth.py`: the same words at the ask slot
+  +4 Opus / −2 Sonnet, on the focus line +10 / +3) — which also explains why the mirror rule in the ask slot
+  measured inert twice. Not on `tetrad_sketch_prompt` or the ladder (unmeasured there). Output: a
   texts-only `ViewSketchDto` (flat, no numeric field by design) shaped into
   `graph/views.py::ExplorationView`; the turn is kept in history as words (`history_text`). Parity to watch:
   an edit to the tetrad procedure in `_tetrad_prompt` must land here too. Host-triggered, never a tool.

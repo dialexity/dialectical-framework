@@ -2140,3 +2140,173 @@ therefore steadier than the read it measures, and "two replicates a side" is a f
 needs, not one it should expect of the app. A clause-first shape for the fit judge's A read —
 sort what the clause grants, then ask whether A is it — is the obvious next arm, unbuilt and
 unmeasured; its gate is the rescore probe with two replicates against the app's judge 2.
+
+## The opposing view is drawn from the surface of the text (2026-11-23, from the first app's sixth handoff)
+
+**The handoff** (written in the app repo on 2026-11-23 and deleted once taken up; this section is
+its record). The owner's complaint: cards read as "nice try, looked deep" and nobody comes back.
+The app traced it to the wheel. A dialectician's read of 52 shipped cards (`promise/v65-lead`,
+Sonnet 5.5): A a real opposition on 28, but already in the person's own text on 21 of those (the
+counterparty's demand, their own named doubt) and new to them on about 7; A tame or prudential
+("be careful", "plan it", "read the contract first") on 21; S+ "T with safeguards" on 43; a
+plain chat reply already held the wheel's insight on 27. Three people got one synthesis
+("Generosity with boundaries / honest limits / a spine"). The app then ran 26 of those
+conversations through its real path (`tetrad.draw`, best of three) in four arms — the current
+ask on Sonnet 5.5 and Opus 5.5, and the ask plus ONE sentence appended to the app's focus on both
+— and two blind Fable 5.2 judges reading a hidden brief counted "A new to the person" at
+11 / 11 / 28 / 43 of 52 ratings. The sentence:
+
+> The opposing view must be one I have NOT already voiced and have not already been told: never
+> a caution about how to do what I intend (be careful, plan it, get it in writing, do it in
+> steps), never the other party's demand as they would put it, never a doubt I named myself.
+> Find the opposition that makes this matter hard underneath what I said: the view whose good I
+> would lose by getting everything I want. Its constructive side is a good someone would choose
+> for its own sake even if my position cost nothing — never a means to my aim, never advice to
+> me. It has to be recognisable as true of my matter from my own words, not far-fetched.
+
+Five asks of the framework: extend what the antithesis may not be; say WHY a focus sentence moved
+what the mirror rule in `_OPPOSING_POSITION_ASK` (measured inert 2026-10-26 and 2026-10-28) did
+not — position, the positive test, or the exclusions; selection; S+ as a third thing; re-measure
+per model. The app meanwhile runs the sentence and Opus behind one setting (`ALSOTRUE_WHEEL_MODEL`,
+`DEEP`), off in production.
+
+### The instrument first: a words-only judge, calibrated on the app's own wheels
+
+The app's judges cannot be reproduced here (subagents, a hidden brief, verdicts never persisted),
+and the handoff's own caveat is that a wheel judged against the brief "can be marked deep for
+guessing the brief". So `tests/e2e/probe_antithesis_depth.py` carries a judge that reads the
+person's WORDS, T, A and A+ and nothing else (`_DepthVerdict`, Fable 5 on the native transport —
+Bedrock Fable 5 answered 503 on 23% of calls that evening): `a_kind`, decided in order —
+not an opposition / a CAUTION about how / the COUNTERPARTY'S DEMAND as the words report it /
+ALREADY VOICED (a doubt, a concession, something they were told) / the OBVIOUS COUNTER / a
+caricature or mirror / NEW; `far_fetched`; and `a_plus_kind` (a good in its own right, a means
+or advice, A restated). The app's 59 promise cases and the 26 conversations are ported as
+`tests/e2e/promise_cases.py`, the brief deliberately not.
+
+Calibrated on the 104 wheels the app had already drawn (26 × 4 arms, two reads each = 52 an arm,
+the handoff's own denominator), nothing drawn:
+
+| arm (the app's wheels) | app's judges: new / already / caution | first judge (no OBVIOUS kind): new | amended judge: new / already / caution / obvious |
+|---|---|---|---|
+| current ask, Sonnet 5.5 | 11 / 33 / 6 | 30 | 14 / 17 / 2 / 19 |
+| current ask, Opus 5.5 | 11 / 33 / 8 | 27 | 16 / 14 / 4 / 18 |
+| stricter, Sonnet 5.5 | 28 / 24 / 0 | 37 | 25 / 14 / 0 / 13 |
+| stricter, Opus 5.5 | 43 / 9 / 0 | 46 | 35 / 4 / 0 / 13 |
+
+**The amendment, logged before any ask arm was drawn.** The first judge reproduced the ORDER of
+the app's table and nothing of its level: it read the control at 58% new where the app read 21%,
+and the hand read of the first stage's 104 fresh cards said why — it called the OBVIOUS counter
+new: "Keep the bank job's steady income" for a person whose words say they saved nine months of
+runway, "Stay in Vilnius" on a Zurich-or-Vilnius fork, "Our choices are really ours to author" on
+free will. The app's dialectician counted those as already in the person's mind, and that IS
+what depth means here. One kind added — OBVIOUS_COUNTER: the other horn of the fork the person
+is already weighing, or the stock objection anyone in their position has heard — decided after
+ALREADY_VOICED and before CARICATURE; NEW excludes it. Re-calibrated, the judge sits within a
+few counts of the app's judges on every arm (above), agrees with itself on `a_kind` on 98/104
+re-reads and on new-against-not on 100/104, on `a_plus_kind` on 99/104. The correction cuts
+against the arms on the lenient read and for them on the strict one, so stage 1 is reported on
+both; everything after it is decided on the amended read. The pre-registration and the
+amendment are in the probe's own comment block, with the time.
+
+### The 2×2 and the ablation (26 conversations, best of three, paired by case)
+
+The app's request byte for byte — `Consultant(app_preamble=COUNSELOR_PERSONA)`, the conversation
+as `messages`, the stance QUOTED in the focus (`tetrad.focus_for(stance)`), T not pinned,
+`attempts` the framework default — on Sonnet 5.5 and Opus 5.5 on Bedrock as the app runs them.
+Arms: `control`; `focus-deep` (the app's sentence, first person, appended to the focus);
+`ask-full` / `ask-exclusions` / `ask-positive` (the sentence, third person, whole or by half,
+appended to `_OPPOSING_POSITION_ASK` by monkeypatch — the slot the mirror rule occupies);
+`focus-full` / `focus-exclusions` (the same third-person texts appended to the "What to show"
+line). Primary read: cards whose A the amended judge calls NEW; bar, a paired net gain of ≥ +6
+of 26 over that model's control; side conditions, coherence pass down by ≤ 3, A a position
+(`_audit_kind`) down by ≤ 3, far-fetched up by ≤ 2, drawn down by ≤ 2. Sized after the fact with
+`power.py` (which this archive asks for BEFORE the bar; recorded as a miss): McNemar power at
+n = 26 is 0.58 for the Opus-sized effect (+8/−1) and 0.17 for the Sonnet-sized one (+6/−2),
+0.44 at the replicated 52.
+
+| arm | Sonnet 5.5: new (paired +/−) | CC | Opus 5.5: new (paired +/−) | CC |
+|---|---|---|---|---|
+| control | 9/26 | 22 | 9/26 | 26 |
+| focus-deep (the app's sentence) | 13 (+6/−2 = +4) | 22 | **16 (+8/−1 = +7, p = 0.039)** | 24 |
+| ask-full | 9 (+3/−3 = 0) | 22 | 12 (+5/−2 = +3) | 23 |
+| ask-exclusions | 7 (+2/−4 = −2) | 23 | 13 (+6/−2 = +4) | 23 |
+| ask-positive | 8 (+1/−2 = −1) | 22 | 7 (+0/−2 = −2) | 22 |
+| focus-full | 12 (+4/−1 = +3) | 23 | 17 (+9/−1 = +8) | **20** (−6, side condition FAILS) |
+| focus-exclusions | 12 (+4/−1 = +3) | 21 | **19 (+11/−1 = +10, p = 0.006)** | 23 |
+| control, replicate (Opus) | | | 8/26 | 23 |
+| focus-exclusions, replicate (Opus) | | | **15 (+10/−3 = +7)** | 25 |
+| control, replicate (Sonnet) | 7/26 | 23 | | |
+| focus-deep, replicate (Sonnet) | 11 (+8/−4 = +4) | 19 | | |
+
+Side conditions not shown: A a position 24–26/26 in every cell, far-fetched 0 in every cell,
+drawn 26/26 everywhere, caution 0–1. Secondary: A+ a good in its own right 21–26/26 everywhere
+(the judge is lenient on it; the app read 33/52 on its base); the kinds the control's
+non-new cards fall into are obvious counter 9–11, already voiced 3–6, counterparty 3–4, on
+both models.
+
+**What it says.**
+
+1. *The handoff replicates in this harness.* The app's sentence moves Opus +7 (resolved) and
+   Sonnet +4 and +4 on two runs (+14/−6 over 52 pairs, p = 0.12 — a lean the design cannot
+   resolve at this n, by its own power figure).
+2. *Item 2's answer is POSITION.* The same words at the ask slot: +3 / +4 / −2 on Opus, 0 / −2 /
+   −1 on Sonnet. At the head of the request, inside the "What to show" line, in the third person:
+   +8 and +10 on Opus, +3 and +3 on Sonnet. So it is not the first person and not the host's
+   voice; it is WHERE. The slot `_OPPOSING_POSITION_ASK` occupies does not steer the writer on
+   this question, which is the same finding as the mirror rule's two inert measurements, now
+   with its cause.
+3. *The exclusions carry it; the positive half does nothing.* `ask-positive` is −2 / −1;
+   `focus-exclusions` beats `focus-full` on Opus (+10 against +8) and `focus-full` costs
+   coherence there (26 → 20, the one side-condition failure of the run). The positive half is
+   the one piece of the sentence that reads like an instruction to be deep, and the writer paid
+   for it in coherence without gaining a new A.
+4. *The exclusions also empty the OBVIOUS bin they do not name*: on Opus the control's non-new
+   cards are obvious 11 / voiced 3 / counterparty 3 and `focus-exclusions`' are 5 / 0 / 1 — told
+   what not to hand back, the writer looks past the first objection too.
+
+What the deeper A looks like, control → `focus-exclusions`, Opus, the judge's kind in brackets:
+quitting the bank for the app, "Keep the bank job's steady income" [obvious] → "Keep the app free
+from paying rent" (A+ "Building for love, unhurried by survival"); the father's apology and the
+wedding, "Keep the distance that protected me" [obvious] → "Keep the day for those who stayed";
+"should I say yes to a kid", "Keep our life: travel, quiet, us" [voiced] → "A child should be
+wholeheartedly wanted"; the supplier's 12%, "Accept the 12%, protect the partnership" [obvious] →
+"A supplier this dependent deserves fair dealing"; the teen's phone, "Leave her alone, she's a
+teenager" [counterparty] → "Her friendships and private world are hers". Where it failed, the
+shape the handoff predicted: on the vegan-kids and custody negotiations every arm's A is the
+counterparty's position, because in those texts it IS the opposition.
+
+### Shipped: the three exclusions on the focus line, `view_sketch.OPPOSITION_NOT_ALREADY_HELD`
+
+The `focus-exclusions` text, third person, written as what to BUILD ON (the view turn rates no
+candidates, so "rate low" has no action there), rendered by `view_sketch_prompt` inside the
+"What to show" line after the host's focus, on every branch (free, pinned, no focus). The
+probe's `focus-exclusions` arm IS the shipped request (it imports the constant) and every other
+arm patches the rule to "" so `control` stays the request as it was. Not in
+`_OPPOSING_POSITION_ASK`, not on `tetrad_sketch_prompt` (the one-shot build) and not on the
+ladder — the handoff was about the view turn and nothing was measured elsewhere. On Opus 5.5
+the gain is resolved; on Sonnet 5.5 it is a lean of +3, consistent in sign with the app's
+sentence on two runs, unresolved at this power. **The Opus replicate** (control and the shipped
+arm drawn again, same 26, same judge): control 8/26, shipped 15/26, paired +10/−3 = +7, coherence
+23 → 25, A a position 23/25, far-fetched 0 — so over the two runs +21/−4 on 52 pairs, McNemar
+p = 0.0009, and the side conditions hold on both. Within the arm the OBVIOUS bin came back to 9
+on the replicate (5 on the first run), so the point above about emptying the bin it does not
+name is one run's, not two. The app drops `DEEP` and keeps `ALSOTRUE_WHEEL_MODEL` as what it is — a model choice,
+which the framework does not make.
+
+**Left open, in the handoff's order.** (3) Selection: unmeasured here and not built — the
+handoff's own two routes have each lost once already (the different-opposition draw,
+2026-10-13; the granted-view re-ask, 2026-10-28), and with the writer now drawing a new A on
+19 of 26 Opus cards the thing to select among is smaller. A "voiced or prudential" read on the
+fit judge as verdict truth for the card is the one piece worth adding, after a run that shows
+the draws of one card differ on it. (4) S+ as a third thing: downstream of this and measured
+on the OLD wheels; `probe_transformation_sketch.py`'s 25 frozen tetrads are pre-rule tetrads,
+so the synthesis shape is re-read on tetrads from the shipped request, not before. (5) Per
+model: both tables above are per model, and the interaction the app reported holds — the
+same rule is worth about three times as much on Opus 5.5 as on Sonnet 5.5 here (+10 against
++3) — which is a reason to re-measure every rule on both, not a reason to branch on a name.
+
+**Instrument limits to quote with these figures.** 26 conversations the app chose by reading
+its own cards, written, not collected; one run a cell except the two replicates; this repo's
+judge, not the app's, within a few counts of theirs on the same wheels and lenient on A+; a
+words-only read of "already met" that is a judgment at the OBVIOUS kind (4 of 104 re-reads
+split there); power 0.58 / 0.17 at n = 26 for the two effect sizes seen.

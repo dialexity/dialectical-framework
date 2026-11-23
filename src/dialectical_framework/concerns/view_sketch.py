@@ -286,6 +286,32 @@ THESIS_IS_FIXED = """The thesis (T) is GIVEN, in the person's own words, and it 
 #: misquotation and does not end it; the lever left is a code-side attribution
 #: check after the draw (unbuilt). Story and table: `docs/dev-notes/views.md`,
 #: "A name on words never said".
+#: WHAT THE OPPOSITION MAY NOT BE, at the HEAD of the request (2026-11-23, the
+#: first app's sixth handoff, `docs/dev-notes/antithesis-selection.md`, "The
+#: opposing view is drawn from the surface of the text"). On 52 shipped cards
+#: the app's dialectician read the antithesis as a view the person had already
+#: voiced or been told, the other party's demand, or prudence about HOW to do
+#: what they intend, on 42; a tetrad on such an A shows them nothing. The three
+#: shapes are named here and NOT in `_OPPOSING_POSITION_ASK`, because WHERE the
+#: rule sits is what the measurement turned on (`tests/e2e/probe_antithesis_depth.py`,
+#: 26 of the app's conversations, best of three, paired against the shipped
+#: request, this repo's words-only judge): the same words at the ask slot moved
+#: Opus 5.5 by +4 cards and Sonnet 5.5 by −2; appended to the "What to show"
+#: line they moved Opus +11/−1 (McNemar p = 0.006) and Sonnet +4/−1, with the
+#: antithesis still a position on 25–26/26, no far-fetched A, coherence within
+#: three cards. The mirror rule in the ask slot measured inert twice before
+#: this for the same reason: that part of the request does not steer the
+#: writer. The positive half of the app's sentence (the good the person would
+#: lose; A+ a good in itself) was measured on its own and moved nothing (−2,
+#: −1), so it is not here. The app's own first-person sentence in the host's
+#: focus did the same job (+8/−1 on Opus, +14/−6 over two Sonnet runs); this is
+#: the framework's third-person statement of it, so a host writes no sentence.
+#: Written as what to BUILD ON, not what to "rate low": the view turn rates no
+#: candidates. On Sonnet 5.5 the gain is a lean (power 0.17 at n = 26 for an
+#: effect that size), on Opus 5.5 resolved; both figures are this judge's, which
+#: read the app's own 104 wheels within a few counts of its brief-reading judges.
+OPPOSITION_NOT_ALREADY_HELD = """Three more shapes are not the antithesis, because each shows the person what they already have: a CAUTION about how to carry the thesis out (be careful, plan it, get it in writing, do it in steps) — prudence about T is not a position against T; the OTHER PARTY'S DEMAND as they would put it, where the words report one; and a DOUBT the person named themselves. Build on a view the words neither state nor report."""
+
 HOLDER_FROM_THE_WORDS = """Who HOLDS a pole is read off the words, never supplied. Name a party as holding a position only when their own words state it or plainly take it; a party who agrees with T does not hold A. When another party in the words holds the position T stands against, A IS that party's position, in their terms, and they are named — a transcript's tension is between its speakers. When no one in the words holds the opposition, build it by the method below and leave its holder EMPTY: an opposition you built is nobody's, and a name on words never said is a misquotation."""
 
 
@@ -394,10 +420,19 @@ def view_sketch_prompt(
     is the same ask with the granted view excluded by name.
     """
     pinned = (thesis or "").strip()
-    focus_line = (
-        f"What to show: {focus}\n\n"
+    # The rule on what A may not be rides INSIDE the "What to show" line, after
+    # the host's focus: that position is the measured one (the module comment
+    # on `OPPOSITION_NOT_ALREADY_HELD`); as a paragraph of its own lower down
+    # it is the ask slot again, where the same words did not steer the writer.
+    shown = (
+        focus.strip()
         if focus and focus.strip()
-        else "What to show: the tensions this conversation has worked out so far.\n\n"
+        else "the tensions this conversation has worked out so far"
+    )
+    focus_line = (
+        f"What to show: {shown.rstrip('.')}. {OPPOSITION_NOT_ALREADY_HELD}\n\n"
+        if OPPOSITION_NOT_ALREADY_HELD
+        else f"What to show: {shown}\n\n"  # the request as it was before the rule (a probe's control)
     )
     scope_line = (
         "- ONE tension: the one the given position below stands in. How much of "

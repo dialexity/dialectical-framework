@@ -725,3 +725,55 @@ class TestWhoseStance:
         assert "BUILT the opposition" in description
         assert "never a name on words they did not say" in description
         assert "own words take it" in ViewSketchPerspectiveDto.model_fields["thesis_held_by"].description
+
+
+class TestWhatTheOppositionMayNotBeRidesOnTheFocusLine:
+    """2026-11-23, the first app's sixth handoff (`docs/dev-notes/antithesis-selection.md`,
+    "The opposing view is drawn from the surface of the text"): the three
+    shapes a shipped A took on 42 of 52 cards — a caution about HOW, the other
+    party's demand, the person's own doubt — are excluded at the HEAD of the
+    request, inside the "What to show" line, because the same words at the ask
+    slot (where `_OPPOSING_POSITION_ASK` sits) measured +4 on Opus and −2 on
+    Sonnet while here they measured +10 and +3 (`tests/e2e/probe_antithesis_depth.py`)."""
+
+    def test_the_rule_names_the_three_shapes_and_is_not_in_the_ask(self):
+        from dialectical_framework.concerns.antithesis_extraction import \
+            _OPPOSING_POSITION_ASK
+        from dialectical_framework.concerns.view_sketch import \
+            OPPOSITION_NOT_ALREADY_HELD
+
+        for words in ("CAUTION", "OTHER PARTY'S DEMAND", "DOUBT the person named themselves"):
+            assert words in OPPOSITION_NOT_ALREADY_HELD
+        assert "neither state nor report" in OPPOSITION_NOT_ALREADY_HELD
+        assert "rate" not in OPPOSITION_NOT_ALREADY_HELD.lower(), (
+            "the view turn rates no candidates: the rule says what to build on"
+        )
+        assert OPPOSITION_NOT_ALREADY_HELD not in _OPPOSING_POSITION_ASK, (
+            "the ask slot is where the same words measured inert; the rule lives on the focus line"
+        )
+
+    def test_it_sits_inside_the_what_to_show_line_on_every_branch(self):
+        from dialectical_framework.concerns.view_sketch import (
+            OPPOSITION_NOT_ALREADY_HELD, view_sketch_prompt)
+
+        for prompt in (
+            view_sketch_prompt("the antitheses we discussed", 7),
+            view_sketch_prompt("the antitheses we discussed.", 7),
+            view_sketch_prompt(None, 7),
+            view_sketch_prompt("the tension", 7, thesis="Keep the Berlin office"),
+        ):
+            head, _, rest = prompt.partition("\n\n")
+            # The first paragraph is the format instruction; the second is the focus line.
+            focus_line = rest.split("\n\n", 1)[0]
+            assert focus_line.startswith("What to show: ")
+            assert focus_line.endswith(OPPOSITION_NOT_ALREADY_HELD), focus_line[:120]
+            assert ".." not in focus_line, "a host focus ending in a period is not doubled"
+            assert focus_line.index("What to show") < prompt.index(ASPECT_DEFINITIONS)
+
+    def test_the_focus_text_is_kept(self):
+        from dialectical_framework.concerns.view_sketch import view_sketch_prompt
+
+        assert "What to show: the antitheses we discussed. Three more shapes" in view_sketch_prompt(
+            "the antitheses we discussed", 7
+        )
+        assert "What to show: the tensions this conversation has worked out so far. Three" in view_sketch_prompt(None, 7)
